@@ -54,6 +54,7 @@ public class ConversationService {
     // Inbound pipeline — called from RabbitMQ listener (no Security context)
     // -------------------------------------------------------------------------
 
+    @Transactional
     public void processWebhookEvent(Long webhookRawId, Long accountId, Long agentId) {
         log.info("Processing webhook: id={} accountId={} agentId={}", webhookRawId, accountId, agentId);
 

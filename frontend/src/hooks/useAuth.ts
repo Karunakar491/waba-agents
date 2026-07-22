@@ -4,7 +4,7 @@ import api from '../lib/api'
 import { useAuthStore } from '../store/authStore'
 
 interface LoginInput { email: string; password: string }
-interface RegisterInput { name: string; email: string; password: string }
+interface RegisterInput { companyName: string; email: string; password: string }
 
 export function useLogin() {
   const setUser = useAuthStore((s) => s.setUser)

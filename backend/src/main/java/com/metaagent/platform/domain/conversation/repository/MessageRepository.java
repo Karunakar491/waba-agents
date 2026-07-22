@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findAllByConversationId(Long conversationId);
+    List<Message> findAllByConversationId(Long conversationId, Pageable pageable);
     List<Message> findAllByConversationIdAndAccountId(Long conversationId, Long accountId, Pageable pageable);
     Optional<Message> findByMetaMessageId(String metaMessageId);
 }

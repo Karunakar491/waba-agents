@@ -18,6 +18,10 @@ meta:
   api:
     token: test-meta-token
     base-url: http://localhost  # overridden by MockBean in tests
+    version: "2.0.0"
+  graph:
+    base-url: http://localhost  # overridden by MockBean in tests
+    version: v19.0
   webhook:
     verify-token: test-verify-token
 

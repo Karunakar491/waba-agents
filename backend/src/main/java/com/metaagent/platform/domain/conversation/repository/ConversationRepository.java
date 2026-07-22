@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface ConversationRepository extends JpaRepository<Conversation, Long> {
     Optional<Conversation> findByAgentIdAndExternalId(Long agentId, String externalId);
     List<Conversation> findAllByAgentIdAndAccountId(Long agentId, Long accountId, Pageable pageable);
+    List<Conversation> findAllByAccountId(Long accountId, Pageable pageable);
     Optional<Conversation> findByIdAndAccountId(Long id, Long accountId);
 }

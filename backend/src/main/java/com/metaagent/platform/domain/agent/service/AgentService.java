@@ -154,7 +154,7 @@ public class AgentService {
     private boolean phoneBelongsToWaba(String metaWabaId, String phoneNumberId) {
         Map<?, ?> response;
         try {
-            response = metaApiClient.get("/" + metaWabaId + "/phone_numbers", Map.class);
+            response = metaApiClient.graphGet("/" + metaWabaId + "/phone_numbers", Map.class);
         } catch (Exception e) {
             log.warn("WABA phone membership check failed: wabaId={} error={}", metaWabaId, e.getMessage());
             throw new BusinessException("Meta isn't responding. Wait a moment and try again.");
@@ -241,21 +241,24 @@ public class AgentService {
     public AgentFaq addFaq(Long agentId, FaqRequest request) {
         Agent agent = getAgent(agentId);
 
-        // 1. Sync to Meta
-        String syncPath = String.format("/%s/agent_config/faq", agent.getPhoneNumberId());
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("question", request.question());
-        payload.put("answer", request.answer());
-
-        String metaFaqId;
-        try {
-            Map<?, ?> response = metaApiClient.post(syncPath, payload, Map.class);
-            metaFaqId = response != null ? (String) response.get("id") : UUID.randomUUID().toString();
-        } catch (Exception e) {
-            throw new BusinessException("Failed to sync FAQ to Meta: " + e.getMessage());
+        // Sync to Meta only if the agent already has a phone number bound.
+        // Draft agents (no phone) save locally; sync happens at deploy time.
+        String metaFaqId = UUID.randomUUID().toString();
+        if (agent.getPhoneNumberId() != null) {
+            String syncPath = String.format("/%s/agent_config/faq", agent.getPhoneNumberId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("question", request.question());
+            payload.put("answer", request.answer());
+            try {
+                Map<?, ?> response = metaApiClient.post(syncPath, payload, Map.class);
+                if (response != null && response.get("id") != null) {
+                    metaFaqId = (String) response.get("id");
+                }
+            } catch (Exception e) {
+                log.warn("Meta FAQ sync failed for agentId={} — saved locally only: {}", agentId, e.getMessage());
+            }
         }
 
-        // 2. Save in DB
         AgentFaq faq = AgentFaq.builder()
                 .accountId(SecurityContextHelper.getRequiredAccountId())
                 .agentId(agentId)
@@ -272,11 +275,18 @@ public class AgentService {
         AgentFaq faq = agentFaqRepository.findByIdAndAgentId(faqId, agentId)
                 .orElseThrow(() -> new NotFoundException("FAQ not found"));
 
-        // 1. Meta first — throws BusinessException on failure; DB delete never reached
-        String syncPath = String.format("/%s/agent_config/faq/%s", agent.getPhoneNumberId(), faq.getMetaFaqId());
-        metaApiClient.delete(syncPath);
+        // 1. Sync delete to Meta only if agent has a phone number bound.
+        // Draft agents (no phone) have local-only FAQs — delete from DB directly.
+        if (agent.getPhoneNumberId() != null) {
+            String syncPath = String.format("/%s/agent_config/faq/%s", agent.getPhoneNumberId(), faq.getMetaFaqId());
+            try {
+                metaApiClient.delete(syncPath);
+            } catch (Exception e) {
+                log.warn("Meta FAQ delete sync failed for agentId={} faqId={} — deleting locally only: {}", agentId, faqId, e.getMessage());
+            }
+        }
 
-        // 2. DB delete only if Meta succeeded
+        // 2. Always delete from DB
         agentFaqRepository.delete(faq);
     }
 

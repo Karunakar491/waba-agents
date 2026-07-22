@@ -11,7 +11,7 @@ const loginSchema = z.object({
 })
 
 const registerSchema = loginSchema.extend({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  companyName: z.string().min(2, 'Company name must be at least 2 characters'),
 })
 
 type LoginForm    = z.infer<typeof loginSchema>
@@ -147,11 +147,11 @@ export default function LoginPage() {
               className="space-y-4"
             >
               <Field
-                label="Full name"
+                label="Company name"
                 type="text"
-                placeholder="Alex Johnson"
-                error={registerForm.formState.errors.name?.message}
-                {...registerForm.register('name')}
+                placeholder="Bloom Bakery"
+                error={registerForm.formState.errors.companyName?.message}
+                {...registerForm.register('companyName')}
               />
               <Field
                 label="Email"

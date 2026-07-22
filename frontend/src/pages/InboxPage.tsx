@@ -3,15 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { MessageSquare, Bot, User } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
-import { useAuthStore } from '../store/authStore'
 
 interface Conversation {
   id: number
-  agentName: string
-  customerPhone: string
+  agentId: number
+  externalId: string
+  status: 'open' | 'closed'
   lastMessageAt: string
-  lastMessagePreview: string | null
-  status: 'open' | 'resolved'
+  channel: string
 }
 
 interface Message {
@@ -26,17 +25,15 @@ interface Message {
 export default function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('conversationId')
-  const accountId = useAuthStore((s) => s.user?.accountId)
 
   const { data: conversations = [], isLoading: convsLoading } = useQuery<Conversation[]>({
-    queryKey: ['conversations', accountId],
-    queryFn: () => api.get('/conversations', { params: { accountId } }).then((r) => r.data),
-    enabled: !!accountId,
+    queryKey: ['conversations'],
+    queryFn: () => api.get('/conversations').then((r) => r.data.data),
   })
 
   const { data: messages = [], isLoading: msgsLoading } = useQuery<Message[]>({
     queryKey: ['messages', selectedId],
-    queryFn: () => api.get(`/conversations/${selectedId}/messages`).then((r) => r.data),
+    queryFn: () => api.get(`/conversations/${selectedId}/messages`).then((r) => r.data.data),
     enabled: !!selectedId,
   })
 
@@ -86,8 +83,8 @@ export default function InboxPage() {
                   <User className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{selectedConv.customerPhone}</p>
-                  <p className="text-xs text-muted-foreground">{selectedConv.agentName}</p>
+                  <p className="text-sm font-semibold text-foreground">{selectedConv.externalId}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{selectedConv.status} · {selectedConv.channel}</p>
                 </div>
               </div>
             </div>
@@ -137,13 +134,10 @@ function ConversationRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground truncate">{conv.customerPhone}</p>
+          <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
           <span className="text-xs text-muted-foreground shrink-0">{time}</span>
         </div>
-        <p className="text-xs text-muted-foreground truncate mt-0.5">
-          {conv.lastMessagePreview ?? 'No preview available'}
-        </p>
-        <p className="text-xs text-muted-foreground/60 mt-0.5">{conv.agentName}</p>
+        <p className="text-xs text-muted-foreground truncate mt-0.5 capitalize">{conv.status} · {conv.channel}</p>
       </div>
     </button>
   )

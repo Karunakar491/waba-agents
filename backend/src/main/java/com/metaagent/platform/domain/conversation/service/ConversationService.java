@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,27 +93,6 @@ public class ConversationService {
     }
 
     // -------------------------------------------------------------------------
-    // Read APIs — HTTP-bound, Security context is present
-    // -------------------------------------------------------------------------
-
-    public List<Conversation> getConversations(Long agentId, int page, int size) {
-        Long accountId = SecurityContextHelper.getRequiredAccountId();
-        var pageable = PageRequest.of(page, size, Sort.by("lastMessageAt").descending());
-        return conversationRepository.findAllByAgentIdAndAccountId(agentId, accountId, pageable);
-    }
-
-    public List<Message> getConversationMessages(Long conversationId, int page, int size) {
-        Long accountId = SecurityContextHelper.getRequiredAccountId();
-        conversationRepository.findByIdAndAccountId(conversationId, accountId)
-                .orElseThrow(() -> new NotFoundException("Conversation not found"));
-        var pageable = PageRequest.of(page, size, Sort.by("receivedAt").descending());
-        List<Message> messages = messageRepository
-                .findAllByConversationIdAndAccountId(conversationId, accountId, pageable);
-        Collections.reverse(messages); // chronological order for chat rendering
-        return messages;
-    }
-
-    // -------------------------------------------------------------------------
     // Private — webhook lifecycle
     // -------------------------------------------------------------------------
 
@@ -141,6 +119,33 @@ public class ConversationService {
         raw.setStatus(WebhookRaw.Status.FAILED);
         raw.setErrorMessage(errorMessage);
         webhookRawRepository.save(raw);
+    }
+
+    // -------------------------------------------------------------------------
+    // Read — inbox queries (called from ConversationController)
+    // -------------------------------------------------------------------------
+
+    public List<Conversation> getAccountConversations(int page, int size) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        return conversationRepository.findAllByAccountId(
+                accountId,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageAt")));
+    }
+
+    public List<Conversation> getConversations(Long agentId, int page, int size) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        return conversationRepository.findAllByAgentIdAndAccountId(
+                agentId, accountId,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageAt")));
+    }
+
+    public List<Message> getConversationMessages(Long conversationId, int page, int size) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        conversationRepository.findByIdAndAccountId(conversationId, accountId)
+                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+        return messageRepository.findAllByConversationId(
+                conversationId,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt")));
     }
 
     private Message.ContentType resolveContentType(String metaType) {

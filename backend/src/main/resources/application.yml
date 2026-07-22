@@ -43,9 +43,12 @@ server:
 
 meta:
   api:
-    base-url: https://graph.facebook.com
-    version: v19.0
+    base-url: https://api.facebook.com    # Business Agent API (agent_eligibility, agent_config/*)
+    version: "2.0.0"
     token: ${META_API_TOKEN}
+  graph:
+    base-url: https://graph.facebook.com  # Standard WhatsApp Business API (phone_numbers, etc.)
+    version: v19.0
   webhook:
     # Required — no default. Set META_WEBHOOK_VERIFY_TOKEN in the environment.
     verify-token: ${META_WEBHOOK_VERIFY_TOKEN}

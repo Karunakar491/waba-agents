@@ -15,6 +15,14 @@ public class ConversationController {
 
     private final ConversationService conversationService;
 
+    @GetMapping("/conversations")
+    public ApiResponse<List<Conversation>> getAccountConversations(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        return ApiResponse.ok(conversationService.getAccountConversations(page, size));
+    }
+
     @GetMapping("/agents/{agentId}/conversations")
     public ApiResponse<List<Conversation>> getConversations(
             @PathVariable Long agentId,

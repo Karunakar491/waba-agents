@@ -456,7 +456,7 @@ TASK-032: webhook_raw retention job              (P1, 30-day window)
 
 | P | Item | Notes |
 |---|---|---|
-| P0 | E2E Meta validation | Real WABA + token: deploy test agent, send WhatsApp msg, verify webhook lands in inbox. Never done — highest-risk unknown in the product. |
+| ~~P0~~ | ~~E2E Meta validation~~ | **DONE 2026-07-22** — Real WhatsApp "Hi" landed in webhook_raw (account 867344590959546368, agent 723456789012345678). Callback URL live: https://app.karix.online/api/v1/webhook. App 2208485319518262 subscribed to WABA 494227720434920. |
 | P1 | Deployment visibility + override guard | Dashboard: deployed/paused per agent AND per phone. Deploying to occupied phone = explicit "replaces Agent X" confirm, never silent override. Backend has status/deployedAt. |
 | P1 | AI-written skills/behavior | Extend wizard generate-defaults pattern (Claude wizard-time, already approved) to skills: one-sentence description → Claude drafts → user edits. |
 | P1 | Guided journey creation | Assist across full setup journey, not just fragments. |

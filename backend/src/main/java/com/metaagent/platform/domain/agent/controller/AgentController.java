@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/agents")
@@ -134,6 +135,54 @@ public class AgentController {
     @DeleteMapping("/{id}/websites/{websiteId}")
     public ApiResponse<Void> deleteWebsite(@PathVariable Long id, @PathVariable Long websiteId) {
         agentService.deleteWebsite(id, websiteId);
+        return ApiResponse.ok();
+    }
+
+    // ── Connectors ────────────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/connectors")
+    public ApiResponse<Map<String, Object>> listConnectors(@PathVariable Long id) {
+        return ApiResponse.ok(agentDeployService.listConnectors(id));
+    }
+
+    @PostMapping("/{id}/connectors")
+    public ApiResponse<Map<String, Object>> createConnector(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.createConnector(id, payload));
+    }
+
+    @DeleteMapping("/{id}/connectors/{connectorId}")
+    public ApiResponse<Void> deleteConnector(
+            @PathVariable Long id,
+            @PathVariable String connectorId) {
+        agentDeployService.deleteConnector(id, connectorId);
+        return ApiResponse.ok();
+    }
+
+    // ── Tools ─────────────────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/connectors/{connectorId}/tools")
+    public ApiResponse<Map<String, Object>> listTools(
+            @PathVariable Long id,
+            @PathVariable String connectorId) {
+        return ApiResponse.ok(agentDeployService.listTools(id, connectorId));
+    }
+
+    @PostMapping("/{id}/connectors/{connectorId}/tools")
+    public ApiResponse<Map<String, Object>> createTool(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.createTool(id, connectorId, payload));
+    }
+
+    @DeleteMapping("/{id}/connectors/{connectorId}/tools/{toolId}")
+    public ApiResponse<Void> deleteTool(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @PathVariable String toolId) {
+        agentDeployService.deleteTool(id, connectorId, toolId);
         return ApiResponse.ok();
     }
 }

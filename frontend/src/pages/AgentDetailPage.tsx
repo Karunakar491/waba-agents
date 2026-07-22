@@ -239,7 +239,7 @@ export default function AgentDetailPage() {
           <div className="min-w-0">
             {activeTab === 'knowledge' && <KnowledgeTab agentId={agent.id} />}
             {activeTab === 'skills' && <SkillsPlaceholder />}
-            {activeTab === 'connectors' && <ConnectorsPlaceholder />}
+            {activeTab === 'connectors' && <ConnectorsTab agent={agent} />}
             {activeTab === 'settings' && (
               <SettingsTab agent={agent} onDeleted={() => navigate('/agents')} />
             )}
@@ -477,8 +477,7 @@ function WebsitesSection({ open, onToggle }: { open: boolean; onToggle: () => vo
             />
             <button
               onClick={() => {
-                // TODO: wire POST /agents/:id/websites
-                console.log('Add website:', url)
+                // TASK-036: wire POST /agents/:id/websites
                 setUrl('')
               }}
               disabled={!url.trim()}
@@ -525,9 +524,8 @@ function FilesSection({ open, onToggle }: { open: boolean; onToggle: () => void 
               type="file"
               accept=".pdf,.docx"
               className="sr-only"
-              onChange={(e) => {
-                // TODO: wire POST /agents/:id/files
-                console.log('Upload file:', e.target.files?.[0])
+              onChange={() => {
+                // TASK-036: wire POST /agents/:id/files
               }}
             />
           </label>
@@ -557,16 +555,668 @@ function SkillsPlaceholder() {
   )
 }
 
-// ── Connectors placeholder ────────────────────────────────────────────────────
+// ── Connectors tab ────────────────────────────────────────────────────────────
 
-function ConnectorsPlaceholder() {
+interface Connector {
+  id: string
+  name: string
+  description: string
+  base_url: string
+  auth_type: string
+  connection_status: { status: string }
+}
+
+interface ConnectorTool {
+  id: string
+  name: string
+  description: string
+  request_definition: { method: string; path: string }
+}
+
+type AuthType = 'NONE' | 'API_KEY' | 'OAUTH2_CLIENT_CREDENTIALS'
+
+const METHOD_BADGE: Record<string, string> = {
+  GET:    'bg-blue-50 text-blue-700',
+  POST:   'bg-green-50 text-green-700',
+  PUT:    'bg-yellow-50 text-yellow-700',
+  DELETE: 'bg-destructive/10 text-destructive',
+  PATCH:  'bg-orange-50 text-orange-700',
+}
+
+function connectorStatusClasses(status: string): string {
+  if (status === 'ACTIVE')         return 'bg-brand-green/10 text-brand-green'
+  if (status === 'PENDING_OAUTH')  return 'bg-yellow-50 text-yellow-700'
+  if (status === 'ERROR')          return 'bg-destructive/10 text-destructive'
+  return 'bg-muted text-muted-foreground'
+}
+
+function connectorPlugColor(status: string): string {
+  if (status === 'ACTIVE')        return 'text-brand-green'
+  if (status === 'PENDING_OAUTH') return 'text-yellow-500'
+  if (status === 'ERROR')         return 'text-destructive'
+  return 'text-muted-foreground'
+}
+
+// ── Add Connector Modal ───────────────────────────────────────────────────────
+
+interface AddConnectorModalProps {
+  agentId: string
+  onClose: () => void
+  onCreated: () => void
+}
+
+function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalProps) {
+  const [name, setName]           = useState('')
+  const [description, setDesc]    = useState('')
+  const [baseUrl, setBaseUrl]     = useState('')
+  const [authType, setAuthType]   = useState<AuthType>('NONE')
+  const [headerName, setHdrName]  = useState('')
+  const [apiKeyValue, setApiKey]  = useState('')
+  const [tokenUrl, setTokenUrl]   = useState('')
+  const [clientId, setClientId]   = useState('')
+  const [clientSecret, setSecret] = useState('')
+  const [error, setError]         = useState<string | null>(null)
+  const [saving, setSaving]       = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || !description.trim() || !baseUrl.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        description: description.trim(),
+        base_url: baseUrl.trim(),
+        auth_type: authType,
+      }
+      if (authType === 'API_KEY') {
+        payload.auth_config = {
+          headers: [{ field_name: headerName.trim(), value: apiKeyValue }],
+        }
+      }
+      if (authType === 'OAUTH2_CLIENT_CREDENTIALS') {
+        payload.auth_config = {
+          token_url: tokenUrl.trim(),
+          client_id: clientId.trim(),
+          client_secret: clientSecret,
+          scopes_to_request: [],
+        }
+      }
+      await api.post(`/agents/${agentId}/connectors`, payload)
+      onCreated()
+    } catch (err) {
+      setError(extractMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputCls =
+    'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
+    'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
+
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
-      <Plug className="h-10 w-10 text-muted-foreground mb-3" />
-      <p className="font-semibold text-foreground">Connectors coming soon</p>
-      <p className="text-sm text-muted-foreground mt-1 max-w-xs text-center">
-        Connect your CRM, booking system, or order platform so your agent can take action.
-      </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-foreground">Add Connector</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Order Management API"
+              className={inputCls}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Description</label>
+            <textarea
+              required
+              rows={2}
+              value={description}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="The agent reads this to understand what the connector does"
+              className={cn(inputCls, 'resize-none')}
+            />
+            <p className="text-xs text-muted-foreground">
+              The agent reads this to understand what the connector does.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Base URL</label>
+            <input
+              type="text"
+              required
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.example.com/v1"
+              className={inputCls}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Auth Type</label>
+            <select
+              value={authType}
+              onChange={(e) => setAuthType(e.target.value as AuthType)}
+              className={inputCls}
+            >
+              <option value="NONE">None</option>
+              <option value="API_KEY">API Key</option>
+              <option value="OAUTH2_CLIENT_CREDENTIALS">OAuth 2.0 — Client Credentials</option>
+            </select>
+          </div>
+
+          {authType === 'API_KEY' && (
+            <>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-foreground">Header name</label>
+                <input
+                  type="text"
+                  required
+                  value={headerName}
+                  onChange={(e) => setHdrName(e.target.value)}
+                  placeholder="X-API-Key"
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-foreground">API key value</label>
+                <input
+                  type="password"
+                  required
+                  value={apiKeyValue}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-…"
+                  className={inputCls}
+                />
+              </div>
+            </>
+          )}
+
+          {authType === 'OAUTH2_CLIENT_CREDENTIALS' && (
+            <>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-foreground">Token URL</label>
+                <input
+                  type="text"
+                  required
+                  value={tokenUrl}
+                  onChange={(e) => setTokenUrl(e.target.value)}
+                  placeholder="https://auth.example.com/token"
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-foreground">Client ID</label>
+                <input
+                  type="text"
+                  required
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-foreground">Client Secret</label>
+                <input
+                  type="password"
+                  required
+                  value={clientSecret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || !description.trim() || !baseUrl.trim()}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+                text-sm font-semibold text-white transition-opacity hover:opacity-90
+                disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+                text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Add Tool Modal ────────────────────────────────────────────────────────────
+
+interface AddToolModalProps {
+  agentId: string
+  connectorId: string
+  onClose: () => void
+  onCreated: () => void
+}
+
+function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModalProps) {
+  const [name, setName]       = useState('')
+  const [description, setDesc] = useState('')
+  const [method, setMethod]   = useState('GET')
+  const [path, setPath]       = useState('')
+  const [error, setError]     = useState<string | null>(null)
+  const [saving, setSaving]   = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || !description.trim() || !path.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.post(`/agents/${agentId}/connectors/${connectorId}/tools`, {
+        name: name.trim(),
+        description: description.trim(),
+        user_auth_required: false,
+        request_definition: { method, path: path.trim() },
+      })
+      onCreated()
+    } catch (err) {
+      setError(extractMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputCls =
+    'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
+    'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-foreground">Add Tool</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. check_order_status"
+              className={inputCls}
+            />
+            <p className="text-xs text-muted-foreground">Stable key, e.g. check_order_status</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Description</label>
+            <textarea
+              required
+              rows={3}
+              value={description}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="The agent reads this to decide when to call this tool. Be specific."
+              className={cn(inputCls, 'resize-none')}
+            />
+            <p className="text-xs text-muted-foreground">
+              The agent reads this to decide when to call this tool. Be specific.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">HTTP Method</label>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className={inputCls}
+            >
+              {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Path</label>
+            <input
+              type="text"
+              required
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="/orders/{order_id}"
+              className={inputCls}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {'{placeholder}'} for path params, e.g. /orders/{'{order_id}'}
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || !description.trim() || !path.trim()}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+                text-sm font-semibold text-white transition-opacity hover:opacity-90
+                disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+                text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Tools list sub-component ─────────────────────────────────────────────────
+
+function ToolsList({
+  agentId,
+  connectorId,
+  refetchSignal,
+}: {
+  agentId: string
+  connectorId: string
+  refetchSignal: number
+}) {
+  const queryClient = useQueryClient()
+  const [showAddTool, setShowAddTool] = useState(false)
+
+  const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
+    queryKey: ['tools', agentId, connectorId, refetchSignal],
+    queryFn: () =>
+      api
+        .get(`/agents/${agentId}/connectors/${connectorId}/tools`)
+        .then((r) => {
+          const d = r.data.data
+          return Array.isArray(d) ? d : (d?.data ?? [])
+        }),
+  })
+
+  const tools = toolsRaw ?? []
+
+  const deleteTool = async (toolId: string) => {
+    if (!window.confirm('Delete this tool?')) return
+    await api.delete(`/agents/${agentId}/connectors/${connectorId}/tools/${toolId}`)
+    queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
+  }
+
+  return (
+    <div className="border-t bg-muted/20 px-4 py-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Tools
+        </span>
+        <button
+          onClick={() => setShowAddTool(true)}
+          className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium
+            text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3 w-3" />
+          Add Tool
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-9 rounded-lg bg-muted/60 animate-pulse" />
+          ))}
+        </div>
+      ) : tools.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">
+          No tools yet. Add tools to let the agent call this connector.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {tools.map((tool) => {
+            const methodCls = METHOD_BADGE[tool.request_definition.method] ?? 'bg-muted text-muted-foreground'
+            return (
+              <li
+                key={tool.id}
+                className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={cn(
+                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                      methodCls,
+                    )}
+                  >
+                    {tool.request_definition.method}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{tool.name}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {tool.request_definition.path}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => deleteTool(tool.id)}
+                  aria-label={`Delete tool ${tool.name}`}
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {showAddTool && (
+        <AddToolModal
+          agentId={agentId}
+          connectorId={connectorId}
+          onClose={() => setShowAddTool(false)}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
+            setShowAddTool(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── ConnectorsTab ─────────────────────────────────────────────────────────────
+
+function ConnectorsTab({ agent }: { agent: AgentApi }) {
+  const queryClient = useQueryClient()
+  const [expandedConnectorId, setExpandedConnectorId] = useState<string | null>(null)
+  const [showAddConnector, setShowAddConnector] = useState(false)
+  // keyed by connectorId — tracks refetch signal per connector's tools
+  const [toolRefetch, setToolRefetch] = useState<Record<string, number>>({})
+
+  const { data: connectorsRaw, isLoading } = useQuery<Connector[]>({
+    queryKey: ['connectors', agent.id],
+    queryFn: () =>
+      api.get(`/agents/${agent.id}/connectors`).then((r) => {
+        const d = r.data.data
+        return Array.isArray(d) ? d : (d?.data ?? [])
+      }),
+    enabled: !!agent.phoneNumberId,
+  })
+
+  const connectors = connectorsRaw ?? []
+
+  if (!agent.phoneNumberId) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
+        <Plug className="h-10 w-10 text-muted-foreground mb-3" />
+        <p className="font-semibold text-foreground">No phone number connected</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+          Connect a phone number in Settings to use connectors.
+        </p>
+      </div>
+    )
+  }
+
+  const deleteConnector = async (connectorId: string) => {
+    if (!window.confirm('Delete this connector and all its tools?')) return
+    await api.delete(`/agents/${agent.id}/connectors/${connectorId}`)
+    queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
+    if (expandedConnectorId === connectorId) setExpandedConnectorId(null)
+  }
+
+  function toggleExpand(connectorId: string) {
+    setExpandedConnectorId((prev) => (prev === connectorId ? null : connectorId))
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Connectors</h3>
+        <button
+          onClick={() => setShowAddConnector(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+            text-white transition-opacity hover:opacity-90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Connector
+        </button>
+      </div>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-16 rounded-xl border bg-muted/40 animate-pulse" />
+          ))}
+        </div>
+      ) : connectors.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-14 text-center shadow-sm">
+          <Plug className="h-8 w-8 text-muted-foreground mb-2" />
+          <p className="text-sm font-semibold text-foreground">No connectors yet</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+            Add a connector to let the agent call your APIs and take action for customers.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {connectors.map((connector) => {
+            const status = connector.connection_status?.status ?? ''
+            const isExpanded = expandedConnectorId === connector.id
+            return (
+              <div
+                key={connector.id}
+                className="rounded-xl border bg-card shadow-sm overflow-hidden"
+              >
+                {/* Connector row */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <Plug className={cn('h-4 w-4 shrink-0', connectorPlugColor(status))} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{connector.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{connector.base_url}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                      connectorStatusClasses(status),
+                    )}
+                  >
+                    {status || 'Unknown'}
+                  </span>
+                  <button
+                    onClick={() => toggleExpand(connector.id)}
+                    aria-label={isExpanded ? 'Collapse tools' : 'Expand tools'}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => deleteConnector(connector.id)}
+                    aria-label={`Delete connector ${connector.name}`}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Tools list */}
+                {isExpanded && (
+                  <ToolsList
+                    agentId={agent.id}
+                    connectorId={connector.id}
+                    refetchSignal={toolRefetch[connector.id] ?? 0}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showAddConnector && (
+        <AddConnectorModal
+          agentId={agent.id}
+          onClose={() => setShowAddConnector(false)}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
+            setShowAddConnector(false)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -8,7 +8,7 @@ import {
   Sparkles,
   Plus,
   Trash2,
-  MessageCircle,
+  Phone,
   Rocket,
 } from 'lucide-react'
 import api from '../lib/api'
@@ -28,7 +28,6 @@ interface Faq {
 interface WizardState {
   agentId: string | null
   displayName: string
-  customerFacingName: string
   businessDescription: string
   channel: Channel
   tone: string
@@ -41,8 +40,8 @@ const STEPS = [
   { n: 1, title: 'Identity', desc: 'Name and channel' },
   { n: 2, title: 'Personality', desc: 'Tone and behavior' },
   { n: 3, title: 'Knowledge', desc: 'FAQs (optional)' },
-  { n: 4, title: 'Connections', desc: 'Coming soon' },
-  { n: 5, title: 'Go live', desc: 'Review and launch' },
+  { n: 4, title: 'Connect', desc: 'Link your WhatsApp number' },
+  { n: 5, title: 'Go live', desc: 'Review and publish' },
 ] as const
 
 const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
@@ -63,7 +62,6 @@ export default function CreateAgentPage() {
   const [state, setState] = useState<WizardState>({
     agentId: null,
     displayName: '',
-    customerFacingName: '',
     businessDescription: '',
     channel: 'whatsapp',
     tone: '',
@@ -77,7 +75,6 @@ export default function CreateAgentPage() {
 
   const agentPayload = () => ({
     displayName: state.displayName.trim(),
-    customerFacingName: state.customerFacingName.trim() || null,
     channel: state.channel,
     systemPrompt: state.businessDescription.trim(),
     tone: state.tone || null,
@@ -124,7 +121,6 @@ export default function CreateAgentPage() {
   const step1Valid =
     state.displayName.trim().length >= 2 &&
     state.displayName.length <= 40 &&
-    state.customerFacingName.length <= 25 &&
     state.businessDescription.trim().length >= 20 &&
     state.businessDescription.length <= 200
 
@@ -286,15 +282,6 @@ function StepIdentity({
         onBlur={() => setTouched((t) => ({ ...t, name: true }))}
         error={nameError}
         placeholder="e.g. Bloom Bakery Support"
-      />
-
-      <Field
-        label="Customer-facing name"
-        hint="Shown to customers in chat. Optional."
-        value={state.customerFacingName}
-        max={25}
-        onChange={(v) => set('customerFacingName', v)}
-        placeholder="e.g. Bloom Assistant"
       />
 
       <div className="space-y-1.5">
@@ -657,27 +644,30 @@ function StepKnowledge({
 }
 
 /* ------------------------------------------------------------------ */
-/* Step 4 — Connections (coming soon in wizard)                        */
+/* Step 4 — Connect                                                    */
 /* ------------------------------------------------------------------ */
 
 function StepConnections({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Connections</h2>
+        <h2 className="text-lg font-semibold text-foreground">Connect</h2>
         <p className="text-sm text-muted-foreground">
-          Connect a WhatsApp number so your agent can talk to customers.
+          Link your WhatsApp number.
         </p>
       </div>
-      <div className="rounded-lg border border-dashed bg-muted/20 p-5 text-center">
-        <MessageCircle className="mx-auto h-8 w-8 text-muted-foreground/50" />
-        <p className="mt-2 text-sm font-medium text-foreground">
-          Connect your number from the agent page
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          After you finish this wizard, open your agent and use “Connect phone
-          number”. Your agent works as a draft until then.
-        </p>
+      <div className="flex items-start gap-4 rounded-xl border bg-muted/20 px-5 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <Phone className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            Connect a WhatsApp number from the agent page
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            After creating your agent, connect a WhatsApp number from the agent page to go live.
+          </p>
+        </div>
       </div>
       <WizardNav onBack={onBack} onNext={onNext} />
     </div>
@@ -702,7 +692,6 @@ function StepGoLive({
   // capitalize only the channel — user-entered values render verbatim
   const rows: [string, string, boolean][] = [
     ['Agent name', state.displayName, false],
-    ['Customer-facing name', state.customerFacingName || '—', false],
     ['Channel', state.channel, true],
     ['Tone', state.tone || '—', false],
     ['Language', state.language || '—', false],
@@ -736,7 +725,7 @@ function StepGoLive({
           className="flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-          Activate agent
+          Publish &amp; Test
         </button>
         <button
           type="button"
@@ -850,7 +839,7 @@ function WizardNav({
 
 /** Right panel: WhatsApp-style live preview driven by wizard state. */
 function ChatPreview({ state }: { state: WizardState }) {
-  const name = state.customerFacingName || state.displayName || 'Your agent'
+  const name = state.displayName || 'Your agent'
   const greeting =
     state.tone === 'Formal'
       ? `Good day. This is ${name}. How may I assist you?`

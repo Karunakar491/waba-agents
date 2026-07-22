@@ -128,8 +128,68 @@ public class AgentDeployService {
     }
 
     // -------------------------------------------------------------------------
+    // Connectors — thin proxies, no DB writes
+    // -------------------------------------------------------------------------
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listConnectors(Long agentId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors";
+        return metaApiClient.get(path, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createConnector(Long agentId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors";
+        return metaApiClient.post(path, payload, Map.class);
+    }
+
+    public void deleteConnector(Long agentId, String connectorId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId;
+        metaApiClient.delete(path);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tools — thin proxies, no DB writes
+    // -------------------------------------------------------------------------
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listTools(Long agentId, String connectorId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools";
+        return metaApiClient.get(path, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createTool(Long agentId, String connectorId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools";
+        return metaApiClient.post(path, payload, Map.class);
+    }
+
+    public void deleteTool(Long agentId, String connectorId, String toolId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = "/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools/" + toolId;
+        metaApiClient.delete(path);
+    }
+
+    // -------------------------------------------------------------------------
     // Private
     // -------------------------------------------------------------------------
+
+    private void requirePhoneNumberId(Agent agent) {
+        if (agent.getPhoneNumberId() == null) {
+            throw new BusinessException("Connect a phone number first to use connectors.");
+        }
+    }
 
     private void putSettings(String phoneNumberId, boolean enabled) {
         String path = "/" + phoneNumberId + "/agent_config/settings";

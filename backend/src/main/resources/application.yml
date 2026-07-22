@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: meta-agent-platform
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/meta_agent_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: meta_agent
+    password: ${DB_PASSWORD:MetaAgent@2024!}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:MetaAgent2024}
+      timeout: 2000ms
+      # DB indices managed programmatically via RedisConfig — do not set database here
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: meta_agent
+    password: ${RABBITMQ_PASSWORD:MetaAgent2024}
+    virtual-host: meta_agent_vhost
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+meta:
+  api:
+    base-url: https://graph.facebook.com
+    version: v19.0
+    token: ${META_API_TOKEN}
+  webhook:
+    # Required — no default. Set META_WEBHOOK_VERIFY_TOKEN in the environment.
+    verify-token: ${META_WEBHOOK_VERIFY_TOKEN}
+
+claude:
+  api:
+    base-url: https://api.anthropic.com
+    # Required — no default. Set CLAUDE_API_KEY in the environment.
+    key: ${CLAUDE_API_KEY}
+    model: claude-3-5-sonnet-20241022
+
+security:
+  bcrypt:
+    cost: 12
+
+# Fixed-window rate limits (RateLimitFilter). Counters in Redis DB0. Fails open if Redis is down.
+ratelimit:
+  enabled: true
+  register:
+    limit: 10
+    window-seconds: 3600
+  login:
+    limit: 20
+    window-seconds: 900
+  refresh:
+    limit: 30
+    window-seconds: 60
+  generate-defaults:
+    limit: 10
+    window-seconds: 3600
+
+jwt:
+  private-key-path: ${JWT_PRIVATE_KEY_PATH:/opt/metaagent/keys/jwt-private.pem}
+  public-key-path: ${JWT_PUBLIC_KEY_PATH:/opt/metaagent/keys/jwt-public.pem}
+  expiry-seconds: 86400
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.metaagent: INFO
+    org.springframework.web: WARN

@@ -1,0 +1,37 @@
+# Test profile — all external services are replaced by Testcontainers or mocks
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate         # Flyway owns the schema — Hibernate only validates
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# JWT test keys — RSA 2048 key pair for tests only, never used in production.
+# JwtService reads file paths (jwt.*-key-path); paths are relative to the backend module root.
+jwt:
+  private-key-path: src/test/resources/keys/jwt-private.pem
+  public-key-path: src/test/resources/keys/jwt-public.pem
+
+meta:
+  api:
+    token: test-meta-token
+    base-url: http://localhost  # overridden by MockBean in tests
+  webhook:
+    verify-token: test-verify-token
+
+claude:
+  api:
+    key: test-claude-key
+    base-url: http://localhost  # overridden by MockBean in tests
+
+security:
+  bcrypt:
+    cost: 4  # Low cost for fast tests — never use in production
+
+logging:
+  level:
+    com.metaagent: DEBUG
+    org.springframework.security: WARN
+    org.flywaydb: WARN

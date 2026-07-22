@@ -1,0 +1,771 @@
+{
+  "_meta": {
+    "version": "1.1.0",
+    "lastUpdated": "2026-07-20",
+    "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
+    "howToQuery": "Filter by domain or name. Navigate to path. Read only that file.",
+    "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files."
+  },
+  "index": [
+    {
+      "path": ".claude/skills/persona-design-evaluator.md",
+      "purpose": "Design Evaluator persona — world-class outside eye, runs cold after UX gate on new screens/DESIGN.md/token changes; BLOCKs only on generic AI-generated feel; session model"
+    },
+    {
+      "path": ".claude/skills/persona-el.md",
+      "purpose": "Engineering Lead persona — code, debug, PR review, implementation standards"
+    },
+    {
+      "path": ".claude/skills/persona-em.md",
+      "purpose": "Engineering Manager persona — architecture, tech decisions, delivery risk"
+    },
+    {
+      "path": ".claude/skills/persona-pm.md",
+      "purpose": "Product Manager persona — features, roadmap, user flows, scope"
+    },
+    {
+      "path": ".claude/skills/persona-ux.md",
+      "purpose": "UI/UX Designer persona gate — whole-app-context review, DESIGN.md S5 checklist step 0, token single-source enforcement, P0 flow UX checklist"
+    },
+    {
+      "path": "AGENT-WORKFLOW.md",
+      "purpose": "Maker-checker flow, model assignments, gate batching, escalation — frontend sequence UX -> Design Evaluator -> EL (EL always final)"
+    },
+    {
+      "path": "CLAUDE.md",
+      "purpose": "Master constitution — personas, standards, non-negotiables, file pointers"
+    },
+    {
+      "path": "DESIGN.md",
+      "purpose": "Design system single source of truth — agent guide preamble, S0 visual theme (5 signature moves + AI-template anti-patterns), S0.1 breakpoints, tokens, typography, spacing, S5 15-item interaction checklist, S6 patterns (incl ConsequenceLine), voice"
+    },
+    {
+      "path": "Meta Business Agent mdh_spices postman_collection 8 July v2.json",
+      "purpose": "Postman collection — Meta Business Agent API calls for mdh_spices test business (8 July v2)"
+    },
+    {
+      "path": "TASKS.md",
+      "purpose": "Running task list — 22 tasks covering audit fixes, architecture decisions, implementation, deployment"
+    },
+    {
+      "path": "TECH-STACK.md",
+      "purpose": "Approved tools and versions — Shadcn/ui + Tailwind replaces Ant Design as of 2026-07-20"
+    },
+    {
+      "path": "backend/lombok.config",
+      "purpose": "Lombok config — copyableAnnotations includes @Qualifier so it forwards to generated constructors"
+    },
+    {
+      "path": "backend/pom.xml",
+      "purpose": "Maven build — Spring Boot 3.3.2, Java 21, JJWT RS256, Testcontainers MySQL+Redis, RestClient (no WebFlux)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/PlatformApplication.java",
+      "purpose": "Spring Boot entry point — validates NODE_ID env var on startup, fails fast if missing"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/exception/BusinessException.java",
+      "purpose": "400 exception — thrown for business rule violations"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/exception/GlobalExceptionHandler.java",
+      "purpose": "Global exception handler — maps NotFoundException→404, BusinessException→400, validation errors→400"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/exception/NotFoundException.java",
+      "purpose": "404 exception — thrown when entity not found"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/id/TsidGenerator.java",
+      "purpose": "TSID ID generator — Hibernate IdentifierGenerator. 42-bit timestamp + 10-bit NODE_ID + 12-bit seq. NODE_ID from env var."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/response/ApiResponse.java",
+      "purpose": "Generic API response wrapper — ok(data), ok(), error(message)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/JwtAuthFilter.java",
+      "purpose": "JWT auth filter — reads access_token from HttpOnly cookie. Logs JWT parse failures at DEBUG level (not warn — routine expired tokens would flood logs)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/JwtService.java",
+      "purpose": "RS256 JWT — reads key pair from file paths (jwt.private-key-path, jwt.public-key-path). Generates and validates access tokens."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/SecurityContextHelper.java",
+      "purpose": "Static helper to read current TenantDetails (tenantId/userId) from Spring SecurityContext"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/SecurityService.java",
+      "purpose": "Auth business logic — register, login, refresh, logout. httpOnly cookies. Redis lockout (5 fails → 15min). Refresh token rotation with reuse detection."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/TenantDetails.java",
+      "purpose": "Authenticated principal record carrying tenantId + userId, set by JWT filter"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/config/RabbitMqConfig.java",
+      "purpose": "RabbitMQ config — webhook.raw queue with DLQ, exchange, bindings"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/config/RedisConfig.java",
+      "purpose": "Two Redis databases — DB0=cacheRedisTemplate(@Primary), DB1=securityRedisTemplate. Both LettuceConnectionFactory beans."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/config/SecurityConfig.java",
+      "purpose": "Spring Security config - CSRF disabled (stateless JWT API), auth endpoints public, JWT filter + RateLimitFilter wired before UsernamePasswordAuthenticationFilter, BCrypt cost 12"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
+      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, skills/faq/files/websites subresources, phone bind"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentRequest.java",
+      "purpose": "Agent create/update request DTO — name, customerFacingName, businessDescription, systemPrompt, tone, language, behaviorRules"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/BindPhoneRequest.java",
+      "purpose": "PUT /agents/{id}/phone body — phoneNumberId + internal wabaId"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/FaqRequest.java",
+      "purpose": "FAQ create request DTO — question + answer with validation"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/GenerateDefaultsRequest.java",
+      "purpose": "Wizard auto-generation request - businessDescription max 200"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/GenerateDefaultsResponse.java",
+      "purpose": "Wizard defaults response - generated flag, tone/language/behaviorRules, 5 FAQ pairs; fallback() when Claude unavailable"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/SkillRequest.java",
+      "purpose": "Agent skill create request DTO"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/WebsiteRequest.java",
+      "purpose": "Agent knowledge website URL request DTO"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/Agent.java",
+      "purpose": "Agent entity - TSID PK (JSON string via ToStringSerializer), accountId, displayName, customerFacingName, Channel enum (locked after create), tone, language, behaviorRules, systemPrompt, Status, phone binding"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentFaq.java",
+      "purpose": "AgentFaq entity — TSID PK, agentId, accountId, question, answer"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentFile.java",
+      "purpose": "AgentFile entity — TSID PK, agentId, accountId, fileId (Meta file handle), filename, mimeType"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentSkill.java",
+      "purpose": "AgentSkill entity — TSID PK, agentId, accountId, skill instructions"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentWebsite.java",
+      "purpose": "AgentWebsite entity — TSID PK, agentId, accountId, url. Meta crawls natively."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentWebsitePage.java",
+      "purpose": "AgentWebsitePage entity — TSID PK, websiteId, accountId, page URL"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentFaqRepository.java",
+      "purpose": "AgentFaq repo - findAllByAgentId, findByIdAndAgentId (fullTextSearch removed with SearchService)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentFileRepository.java",
+      "purpose": "JPA repository for AgentFile knowledge uploads"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentRepository.java",
+      "purpose": "Agent JPA repository — findByIdAndAccountId for tenant isolation"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentSkillRepository.java",
+      "purpose": "JPA repository for AgentSkill"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentWebsitePageRepository.java",
+      "purpose": "AgentWebsitePage repo - deleteAllByWebsiteId (fullTextSearch removed with SearchService)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentWebsiteRepository.java",
+      "purpose": "JPA repository for AgentWebsite knowledge sources"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDefaultsService.java",
+      "purpose": "Claude wizard defaults - strict-JSON prompt, fence stripping, try/catch to fallback (timeouts live on ClaudeApiClient)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDeployService.java",
+      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
+      "purpose": "Agent domain service - accountId-scoped CRUD, updateAgent enforces channel lock, bindPhone with WABA ownership + phone membership checks, skills/faq/files/websites"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/WebsiteCrawlService.java",
+      "purpose": "Crawls agent knowledge websites, stores page content (AgentWebsitePage) for wizard knowledge step"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/controller/AnalyticsController.java",
+      "purpose": "REST endpoints for dashboard analytics — message volume, sessions, agent performance"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/entity/AgentPerformanceHourly.java",
+      "purpose": "Hourly rollup entity for agent message/session metrics (MySQL, ClickHouse dropped 2026-07-19)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/entity/ConversationSession.java",
+      "purpose": "Session window entity for conversation analytics"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/entity/WebhookEvent.java",
+      "purpose": "Normalized webhook event entity for analytics pipeline"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/repository/AgentPerformanceHourlyRepository.java",
+      "purpose": "JPA repository for AgentPerformanceHourly rollups"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/repository/ConversationSessionRepository.java",
+      "purpose": "JPA repository for ConversationSession"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/repository/WebhookEventRepository.java",
+      "purpose": "JPA repository for WebhookEvent"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/service/AnalyticsService.java",
+      "purpose": "Analytics ingest listener, hourly rollup, summary/hourly queries. Tenant isolation: verifyAgentOwnership (findByIdAndAccountId) runs BEFORE any query, fails closed with NotFoundException"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/controller/ConversationController.java",
+      "purpose": "REST endpoints for inbox — list conversations, messages per conversation (tenant-scoped)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Conversation.java",
+      "purpose": "Conversation entity — tenant/agent/customer thread with status + last message metadata"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Message.java",
+      "purpose": "Message entity — direction, type (text/media), status, external Meta message id (idempotency)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/model/InboundMessage.java",
+      "purpose": "Record: customerPhone, metaMessageId, textBody, messageType, contentJson — output of InboundMessageParser"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/model/StatusUpdate.java",
+      "purpose": "Record: metaMessageId, status, recipientPhone — output of StatusUpdateParser"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/repository/ConversationRepository.java",
+      "purpose": "Conversation JPA repository"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/repository/MessageRepository.java",
+      "purpose": "Message JPA repository — findByMetaMessageId for status update routing"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationService.java",
+      "purpose": "Thin coordinator — parse→persist→analytics. Routes: inbound messages→ConversationStore.saveInbound; status webhooks (delivered/read/failed)→updateMessageStatus; sent status→saveOutbound (Decision D1). markProcessing/markProcessed/markFailed are package-private @Transactional."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationStore.java",
+      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content), updateMessageStatus"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/InboundMessageParser.java",
+      "purpose": "Parses raw Meta webhook JSON → Optional<InboundMessage>. All types persisted. Uses .at() safe path. text→textBody; image/audio/video/document/template/interactive→contentJson."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/MetaMessageSender.java",
+      "purpose": "Sends reply to Meta API. Returns confirmed message ID. Throws BusinessException if Meta returns no ID — no UUID fallback."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/StatusUpdateParser.java",
+      "purpose": "Parses Meta status webhook (value.statuses[0]) → Optional<StatusUpdate>. Uses .at() for safe nested path access."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/controller/AuthController.java",
+      "purpose": "Auth endpoints — POST /register, /login, /refresh, /logout. Uses HttpServletResponse for cookie management."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/dto/AuthResponse.java",
+      "purpose": "Auth response DTO — userId, accountId, email, role. No tokens (tokens in httpOnly cookies)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/dto/LoginRequest.java",
+      "purpose": "Login request DTO — email, password"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/dto/RefreshRequest.java",
+      "purpose": "Refresh-token request DTO for /auth/refresh"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/dto/RegisterRequest.java",
+      "purpose": "Register request DTO — email, password, companyName"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/entity/BusinessAccount.java",
+      "purpose": "BusinessAccount entity — TSID PK, company name, email, passwordHash"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/entity/RefreshTokenFamily.java",
+      "purpose": "RefreshTokenFamily entity — familyId (UUID), userId, accountId, tokenHash (SHA-256), revoked flag, revokedReason, expiresAt"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/entity/User.java",
+      "purpose": "User entity — TSID PK, accountId FK, email, passwordHash, Role(owner/admin/agent), Status(active/inactive/suspended)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/BusinessAccountRepository.java",
+      "purpose": "BusinessAccount JPA repository"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/RefreshTokenFamilyRepository.java",
+      "purpose": "RefreshTokenFamily JPA repository — findById(familyId)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/UserRepository.java",
+      "purpose": "User JPA repository — findByEmail"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/controller/WabaController.java",
+      "purpose": "POST /waba/validate, POST /waba, GET /waba"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/dto/WabaDtos.java",
+      "purpose": "WABA DTOs — validate/create requests, phone list, WabaResponse (id serialized as String for JS safety)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/Waba.java",
+      "purpose": "WABA registry entity — account-scoped, Meta WABA ID, label, status"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
+      "purpose": "Waba repo — account-scoped finders + findByAccountIdAndWabaId"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaService.java",
+      "purpose": "Validate WABA against Meta (spec 5.4 error messages), tenant-safe bound-phone flags, idempotent race-safe create, list"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/controller/WebhookController.java",
+      "purpose": "REST controller for /api/v1/webhook (single URL per Meta App, no accountId in path) — GET (hub challenge), POST (inbound payload). Verifies X-Hub-Signature-256 via HMAC-SHA256 + MessageDigest.isEqual (constant-time); skipped with WARN if meta.webhook.app-secret empty. Tenant resolved from payload phone_number_id -> AgentRepository.findByPhoneNumberId -> account; unattributable payloads dropped with 200. Persists to webhook_raw, publishes RabbitMQ event."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/entity/WebhookRaw.java",
+      "purpose": "Raw webhook payload entity — stored before parsing, subject to retention job"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/listener/WebhookListener.java",
+      "purpose": "RabbitMQ listener — consumes webhook.raw queue, delegates to ConversationService. accountId passed from WebhookRaw entity."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/repository/WebhookRawRepository.java",
+      "purpose": "WebhookRaw JPA repository — claimForProcessing (atomic CAS, PENDING→PROCESSING), deleteProcessedBefore (retention cleanup)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/service/WebhookRetentionJob.java",
+      "purpose": "Scheduled daily 02:00 purge of PROCESSED/FAILED webhook_raw rows older than webhook.retention.days (default 30)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/claude/ClaudeApiClient.java",
+      "purpose": "Claude API client - generate(systemPrompt,userPrompt), wizard-time only, 5s connect/10s read timeouts, fails fast to fallback"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/MetaApiClient.java",
+      "purpose": "Single point of contact for Meta APIs — RestClient (not WebClient). get/post/put/delete. meta.api.version property required."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/MetaApiException.java",
+      "purpose": "Meta API error with HTTP status — isNotFound()/isAccessDenied() for spec 5.4 error mapping"
+    },
+    {
+      "path": "backend/src/main/resources/application.yml",
+      "purpose": "App config - port 8080, MySQL, Redis DB0/DB1, RabbitMQ, Meta API, Claude, JWT key paths, ratelimit.* limits (register/login/refresh/generate-defaults)"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V1__init.sql",
+      "purpose": "Flyway V1 — initial schema: business_account, agent, agent_skill, agent_faq, agent_file, agent_website, user tables"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V2__production_schema.sql",
+      "purpose": "Flyway V2 — production schema additions: conversations, messages, webhook_raw, analytics tables"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V3__add_system_prompt_to_agents.sql",
+      "purpose": "Flyway V3 — adds system_prompt column to agent table"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V4__add_account_id_to_agent_child_entities.sql",
+      "purpose": "Flyway V4 — adds account_id to agent_faq, agent_skill, agent_file, agent_website, agent_website_page for tenant isolation"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V5__normalize_ids_to_bigint_unsigned.sql",
+      "purpose": "Flyway V5 — converts all PK/FK columns to BIGINT UNSIGNED to match TSID generator output"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V6__add_status_and_deployed_at_to_agent.sql",
+      "purpose": "Flyway V6 — adds status (draft/active/paused/deleted) and deployed_at to agent table"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V7__messaging_stack_improvements.sql",
+      "purpose": "Flyway V7 — adds interactive to messages.content_type enum; adds idx_conversations_account_last_message composite index"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V8__create_waba_and_nullable_agent_phone.sql",
+      "purpose": "Migration: waba table (TSID, account-scoped, unique account_id+waba_id); agent.phone_number_id nullable + agent.waba_id column"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V9__agent_wizard_fields.sql",
+      "purpose": "Migration - additive nullable wizard fields: customer_facing_name, channel enum, tone, language, behavior_rules"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/common/id/TsidGeneratorTest.java",
+      "purpose": "Unit test — TsidGenerator: uniqueness, time-ordering, NODE_ID encoding"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/agent/service/AgentDeployServiceTest.java",
+      "purpose": "Integration test — AgentDeployService: deploy sets active, pause sets paused, Meta API first"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/agent/service/AgentServiceTest.java",
+      "purpose": "Integration test — AgentService: createAgent, addFaq, addSkill, tenant isolation"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/ConversationServiceTest.java",
+      "purpose": "Integration test — full webhook→parse→store→analytics flow via RabbitMQ"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/ConversationStoreTest.java",
+      "purpose": "Integration test — ConversationStore: findOrCreate idempotency, saveMessage"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/InboundMessageParserTest.java",
+      "purpose": "Unit tests — InboundMessageParser: valid message, missing fields, non-text types"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/MetaMessageSenderTest.java",
+      "purpose": "Unit tests — MetaMessageSender: success returns ID, missing ID throws BusinessException"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/user/controller/AuthControllerTest.java",
+      "purpose": "Integration test — AuthController: register, login (200+cookies), wrong password (400), lockout (400 after 5 fails)"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/support/IntegrationTestBase.java",
+      "purpose": "Test base — MySQLContainer + RedisContainer (Testcontainers). @MockBean MetaApiClient + ClaudeApiClient. NODE_ID=0."
+    },
+    {
+      "path": "backend/src/test/resources/application-test.yml",
+      "purpose": "Test profile — BCrypt cost 4, Flyway enabled, RSA test key pair inline"
+    },
+    {
+      "path": "boris-SKILL.md",
+      "purpose": "Boris skill notes — proactive engineering workflow guidance"
+    },
+    {
+      "path": "docs/audit_index.py",
+      "purpose": "Drift audit script — diffs knowledge-index.json against files on disk; run after any batch of changes"
+    },
+    {
+      "path": "docs/infrastructure.md",
+      "purpose": "AWS server details — SSH bastion (13.232.241.246), app server (10.1.17.16), installed services, ports, credentials (dev only)"
+    },
+    {
+      "path": "docs/knowledge-index.json",
+      "purpose": "This file — flat codebase index, updated on every approved change"
+    },
+    {
+      "path": "docs/meta-api/INDEX.md",
+      "purpose": "Master index of all Meta Business Agent APIs — paths, methods, setup sequence"
+    },
+    {
+      "path": "docs/meta-api/agent-eval.md",
+      "purpose": "GET/POST /agent-eval — test and evaluate agent performance"
+    },
+    {
+      "path": "docs/meta-api/agent-event.md",
+      "purpose": "POST/GET /agent_event — trigger agent from business events"
+    },
+    {
+      "path": "docs/meta-api/agent-test.md",
+      "purpose": "POST /agent_test — send test messages, get agent response, multi-turn support"
+    },
+    {
+      "path": "docs/meta-api/allowlist.md",
+      "purpose": "CRUD /agent_config/allowlist — restrict agent to specific phone numbers"
+    },
+    {
+      "path": "docs/meta-api/connector-tools.md",
+      "purpose": "CRUD + run /agent_connectors/{id}/tools — individual operations per connector"
+    },
+    {
+      "path": "docs/meta-api/connectors.md",
+      "purpose": "CRUD /agent_connectors — external API integrations, auth upserts, logs"
+    },
+    {
+      "path": "docs/meta-api/eligibility.md",
+      "purpose": "GET /agent_eligibility — check if phone number can use Meta Business Agent"
+    },
+    {
+      "path": "docs/meta-api/faq.md",
+      "purpose": "CRUD /agent_config/faq — Q&A knowledge base"
+    },
+    {
+      "path": "docs/meta-api/files.md",
+      "purpose": "GET/POST/DELETE /agent_config/files — document uploads (PDF, DOCX, images, CSV, XLSX)"
+    },
+    {
+      "path": "docs/meta-api/settings.md",
+      "purpose": "GET/PUT /agent_config/settings — enable/disable agent (rollout.enabled), handoff, followup, audience"
+    },
+    {
+      "path": "docs/meta-api/skills.md",
+      "purpose": "CRUD /agent_config/skills — agent behavior instructions (tone, triggers, flows)"
+    },
+    {
+      "path": "docs/meta-api/thread-control.md",
+      "purpose": "POST /thread_control — hand conversation back to Meta Business Agent (v1.0.0 API, different base URL)"
+    },
+    {
+      "path": "docs/meta-api/websites.md",
+      "purpose": "CRUD /agent_config/websites — URLs for Meta to crawl natively"
+    },
+    {
+      "path": "docs/specs/2026-07-18-architecture.md",
+      "purpose": "System architecture — component diagram, data flows, full schema, API surface, security, async topology, caching, deployment, risks"
+    },
+    {
+      "path": "docs/specs/2026-07-18-product-design.md",
+      "purpose": "PM spec — all UX/product decisions: nav structure, wizard flow, WABA onboarding, dashboard, reports, P0/P1 screens"
+    },
+    {
+      "path": "frontend/.oxlintrc.json",
+      "purpose": "Oxlint config for frontend"
+    },
+    {
+      "path": "frontend/README.md",
+      "purpose": "Frontend readme — Vite + React + TS setup notes"
+    },
+    {
+      "path": "frontend/components.json",
+      "purpose": "Shadcn config — default style, CSS variables, @ alias, component output to src/components/ui/"
+    },
+    {
+      "path": "frontend/index.html",
+      "purpose": "Vite HTML entry — Inter font import lives here (DESIGN.md token location)"
+    },
+    {
+      "path": "frontend/package.json",
+      "purpose": "Frontend deps — React 18, TypeScript 5, Vite, Tailwind 3, Shadcn/ui, TanStack Query, Zustand, React Router, Axios, React Hook Form, Zod"
+    },
+    {
+      "path": "frontend/postcss.config.js",
+      "purpose": "PostCSS config — Tailwind + autoprefixer (required by Tailwind CSS)"
+    },
+    {
+      "path": "frontend/src/App.css",
+      "purpose": "Legacy Vite scaffold CSS — mostly unused; global styles live in index.css"
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "purpose": "Root app component — Vite scaffold placeholder, to be replaced with router setup"
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "purpose": "Root — QueryClientProvider, BrowserRouter. Routes: /login (public). Protected: /dashboard, /agents/new, /agents/:id, /agents, /inbox, /settings via ProtectedRoute+AppShell."
+    },
+    {
+      "path": "frontend/src/components/layout/AppShell.tsx",
+      "purpose": "App shell — collapsible brand-navy sidebar (localStorage sidebar-collapsed), off-canvas mobile drawer (dialog ARIA, Escape, backdrop, matchMedia reset), topbar breadcrumb + toggles with aria-controls"
+    },
+    {
+      "path": "frontend/src/components/router/ProtectedRoute.tsx",
+      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login"
+    },
+    {
+      "path": "frontend/src/components/waba/ConnectPhoneModal.tsx",
+      "purpose": "Two-step WABA connect modal — validate WABA ID, pick phone (bound ones disabled), persist WABA + bind to agent"
+    },
+    {
+      "path": "frontend/src/hooks/useAuth.ts",
+      "purpose": "Auth hooks — useLogin, useRegister (mutate→setUser→/dashboard), useLogout (mutate→clearAuth→/login), useMe (query /auth/me, staleTime 5min)"
+    },
+    {
+      "path": "frontend/src/index.css",
+      "purpose": "Global styles — Tailwind directives, Shadcn CSS variable definitions, Karix primary=navy accent=pink (dark: 327 60% 45%), Inter font import"
+    },
+    {
+      "path": "frontend/src/lib/api.ts",
+      "purpose": "Axios instance — baseURL from VITE_API_URL, withCredentials:true for httpOnly cookie, 401 interceptor redirects to /login"
+    },
+    {
+      "path": "frontend/src/lib/utils.ts",
+      "purpose": "cn() utility — merges Tailwind classes via clsx + tailwind-merge, used by all Shadcn components"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "purpose": "React entry point — mounts App into #root, wraps with QueryClient and Router"
+    },
+    {
+      "path": "frontend/src/pages/AgentDetailPage.tsx",
+      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal), settings, danger zone; maps ApiResponse envelope + entity fields, string TSIDs"
+    },
+    {
+      "path": "frontend/src/pages/CreateAgentPage.tsx",
+      "purpose": "5-step Create Agent wizard - Identity/Personality(AI generate)/Knowledge FAQs/Connections placeholder/Go live, 3-panel layout with live WhatsApp preview, autosave draft on step 1"
+    },
+    {
+      "path": "frontend/src/pages/DashboardPage.tsx",
+      "purpose": "Dashboard — stats bar (3 cards), agent list (cards with status/phone/conversations), empty state with CTA, loading skeletons. React Query."
+    },
+    {
+      "path": "frontend/src/pages/InboxPage.tsx",
+      "purpose": "Conversation Audit Log — 2-panel read-only viewer. Left: conversation list (GET /conversations?accountId=). Right: message thread (GET /conversations/:id/messages). conversationId in URL param. accountId from auth store."
+    },
+    {
+      "path": "frontend/src/pages/LoginPage.tsx",
+      "purpose": "Login/Register page — split panel (navy brand left, white form right). Tab toggle. RHF+Zod validation. brand-pink CTA."
+    },
+    {
+      "path": "frontend/src/pages/SettingsPage.tsx",
+      "purpose": "Account Settings — display name, email (read-only badge), plan (Starter hardcoded for P0), Danger Zone with disabled delete button + support contact."
+    },
+    {
+      "path": "frontend/src/store/authStore.ts",
+      "purpose": "Zustand persist store — user, isAuthenticated, setUser, clearAuth. Persisted to localStorage key 'auth'."
+    },
+    {
+      "path": "frontend/tailwind.config.js",
+      "purpose": "Tailwind config — Karix brand tokens, whatsapp.* mimicry tokens for chat preview, shadcn semantic CSS-variable tokens, Inter, radius scale"
+    },
+    {
+      "path": "frontend/tsconfig.app.json",
+      "purpose": "TypeScript app config — strict flags, bundler moduleResolution, @ path alias, ignoreDeprecations 6.0 for baseUrl"
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "purpose": "TypeScript project references — points to tsconfig.app.json and tsconfig.node.json"
+    },
+    {
+      "path": "frontend/tsconfig.node.json",
+      "purpose": "TypeScript config for Vite config file (node environment)"
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "purpose": "Vite config — React plugin, @ path alias pointing to src/"
+    },
+    {
+      "path": "wiki/INDEX.md",
+      "purpose": "Obsidian wiki root index — project knowledge vault entry point"
+    },
+    {
+      "path": "wiki/api/INDEX.md",
+      "purpose": "Wiki API section index"
+    },
+    {
+      "path": "wiki/architecture/INDEX.md",
+      "purpose": "Wiki architecture section index"
+    },
+    {
+      "path": "wiki/architecture/messaging-stack.md",
+      "purpose": "Wiki — messaging stack architecture (webhooks, idempotency, retention)"
+    },
+    {
+      "path": "wiki/architecture/schema.md",
+      "purpose": "Wiki — database schema notes"
+    },
+    {
+      "path": "wiki/architecture/system-overview.md",
+      "purpose": "Wiki — system overview (Meta runs AI natively, we are the config layer)"
+    },
+    {
+      "path": "wiki/bugs-violations/INDEX.md",
+      "purpose": "Wiki bugs/violations section index"
+    },
+    {
+      "path": "wiki/bugs-violations/violations-2026-07-20.md",
+      "purpose": "Wiki — process violations log 2026-07-20"
+    },
+    {
+      "path": "wiki/decisions/INDEX.md",
+      "purpose": "Wiki decisions section index"
+    },
+    {
+      "path": "wiki/decisions/maker-checker.md",
+      "purpose": "Wiki — maker-checker gate decision record"
+    },
+    {
+      "path": "wiki/decisions/stack-frontend.md",
+      "purpose": "Wiki — frontend stack decision (Shadcn/Tailwind over Ant Design)"
+    },
+    {
+      "path": "wiki/deployment/INDEX.md",
+      "purpose": "Wiki deployment section index"
+    },
+    {
+      "path": "wiki/deployment/lessons.md",
+      "purpose": "Wiki — deployment lessons (9 hard-won AWS deploy lessons)"
+    },
+    {
+      "path": "wiki/deployment/runbook.md",
+      "purpose": "Wiki — production deploy runbook (bastion SSH path, systemd, /var/www/metaagent)"
+    },
+    {
+      "path": "wiki/docs/INDEX.md",
+      "purpose": "Wiki docs section index"
+    },
+    {
+      "path": "wiki/frontend/INDEX.md",
+      "purpose": "Wiki frontend section index"
+    },
+    {
+      "path": "wiki/frontend/brand.md",
+      "purpose": "Wiki — Karix brand notes (superseded by DESIGN.md for authority)"
+    },
+    {
+      "path": "wiki/sessions/INDEX.md",
+      "purpose": "Wiki sessions section index"
+    },
+    {
+      "path": "wiki/sessions/session-2026-07-20.md",
+      "purpose": "Wiki — session log 2026-07-20"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/RateLimitFilter.java",
+      "purpose": "Fixed-window rate limiting filter (Redis DB0 INCR+EXPIRE). Covers register/login/refresh/generate-defaults. Fails open if Redis down. 429 + Retry-After + ApiResponse envelope. Refresh keyed by hashed refresh_token cookie"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/common/security/RateLimitFilterTest.java",
+      "purpose": "Unit test RateLimitFilter - passthrough, under/over limit 429, fail-open on Redis error, refresh token-hash key, first-increment expiry"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/analytics/service/AnalyticsServiceTest.java",
+      "purpose": "Integration test AnalyticsService - owner summary, cross-tenant NotFound (incl empty-data bypass regression), hourly cross-tenant, empty summary for owner"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/waba/service/WabaServiceTest.java",
+      "purpose": "Integration test WabaService - validate happy path, phone connected flag, persistence with caller accountId, error paths"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/StatusUpdateParserTest.java",
+      "purpose": "Unit test StatusUpdateParser - sent/delivered/read/failed, missing statuses, malformed JSON -> empty"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/webhook/controller/WebhookControllerSignatureTest.java",
+      "purpose": "Integration test webhook X-Hub-Signature-256 (valid 200, invalid/missing 403), hub challenge GET, and payload tenant resolution (phone_number_id -> agent account persisted; unknown -> dropped with 200)"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/webhook/service/WebhookRetentionJobTest.java",
+      "purpose": "Integration test WebhookRetentionJob - purges old PROCESSED/FAILED, keeps PENDING and recent rows"
+    }
+  ]
+}

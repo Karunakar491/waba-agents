@@ -5,17 +5,19 @@ import api from '../lib/api'
 
 interface Agent {
   id: number
-  name: string
+  displayName: string
   status: 'active' | 'paused' | 'draft'
-  phoneNumber: string | null
-  lastActiveAt: string | null
-  conversationCount: number
+  phoneNumberId: string | null
+  deployedAt: string | null
 }
 
-interface AnalyticsSummary {
-  totalConversations: number
-  activeAgents: number
-  messagesToday: number
+function timeAgo(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 const STATUS_CONFIG = {
@@ -29,13 +31,10 @@ export default function DashboardPage() {
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<Agent[]>({
     queryKey: ['agents'],
-    queryFn: () => api.get('/agents').then((r) => r.data),
+    queryFn: () => api.get('/agents').then((r) => r.data.data),
   })
 
-  const { data: summary } = useQuery<AnalyticsSummary>({
-    queryKey: ['analytics-summary'],
-    queryFn: () => api.get('/analytics/summary').then((r) => r.data),
-  })
+  const activeAgents = agents.filter((a) => a.status === 'active').length
 
   return (
     <div className="space-y-8">
@@ -62,19 +61,19 @@ export default function DashboardPage() {
         <StatCard
           icon={<Bot className="h-5 w-5 text-primary" />}
           label="Active Agents"
-          value={summary?.activeAgents ?? '—'}
+          value={activeAgents}
           bg="bg-primary/5"
         />
         <StatCard
           icon={<MessageSquare className="h-5 w-5 text-brand-pink" />}
           label="Total Conversations"
-          value={summary?.totalConversations?.toLocaleString() ?? '—'}
+          value={0}
           bg="bg-accent/5"
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5 text-brand-green" />}
           label="Messages Today"
-          value={summary?.messagesToday?.toLocaleString() ?? '—'}
+          value={0}
           bg="bg-brand-green/5"
         />
       </div>
@@ -130,12 +129,7 @@ function StatCard({
 
 function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
   const cfg = STATUS_CONFIG[agent.status]
-  const lastActive = agent.lastActiveAt
-    ? new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
-        Math.round((new Date(agent.lastActiveAt).getTime() - Date.now()) / 60000),
-        'minute'
-      )
-    : 'Never active'
+  const lastActive = agent.deployedAt ? timeAgo(agent.deployedAt) : 'Never deployed'
 
   return (
     <button
@@ -149,14 +143,14 @@ function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-semibold text-foreground truncate">{agent.name}</p>
+          <p className="font-semibold text-foreground truncate">{agent.displayName}</p>
           <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}>
             <Circle className="h-1.5 w-1.5 fill-current" />
             {cfg.label}
           </span>
         </div>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {agent.phoneNumber ?? 'No number connected'} · {agent.conversationCount} conversations
+          {agent.phoneNumberId ?? 'No number connected'}
         </p>
       </div>
 

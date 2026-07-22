@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   Bot,
-  LayoutDashboard,
   MessageSquare,
-  Settings,
+  Users,
+  User,
   LogOut,
   ChevronRight,
   PanelLeftClose,
@@ -15,10 +15,10 @@ import { useAuthStore } from '../../store/authStore'
 import { cn } from '../../lib/utils'
 
 const NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/agents',    icon: Bot,             label: 'Agents'    },
-  { to: '/inbox',     icon: MessageSquare,   label: 'Inbox'     },
-  { to: '/settings',  icon: Settings,        label: 'Settings'  },
+  { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false },
+  { to: '/inbox',    icon: MessageSquare, label: 'Inbox',          soon: false },
+  { to: '/handover', icon: Users,         label: 'Human Handover', soon: true  },
+  { to: '/profile',  icon: User,          label: 'Profile',        soon: false },
 ]
 
 const COLLAPSE_KEY = 'sidebar-collapsed'
@@ -105,24 +105,35 @@ export default function AppShell() {
 
         {/* Nav */}
         <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {NAV.map(({ to, icon: Icon, label, soon }) => (
             <NavLink
               key={to}
               to={to}
               title={iconOnly ? label : undefined}
-              onClick={() => setMobileOpen(false)}
+              onClick={() => { if (!soon) setMobileOpen(false) }}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-colors',
                   iconOnly ? 'justify-center px-0' : 'px-3',
-                  isActive
-                    ? 'bg-white/15 text-white'
-                    : 'text-white/60 hover:bg-white/10 hover:text-white',
+                  soon
+                    ? 'pointer-events-none text-white/30'
+                    : isActive
+                      ? 'bg-white/15 text-white'
+                      : 'text-white/60 hover:bg-white/10 hover:text-white',
                 )
               }
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {!iconOnly && label}
+              {!iconOnly && (
+                <span className="flex flex-1 items-center justify-between">
+                  {label}
+                  {soon && (
+                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/40">
+                      Soon
+                    </span>
+                  )}
+                </span>
+              )}
               {iconOnly && <span className="sr-only">{label}</span>}
             </NavLink>
           ))}
@@ -202,7 +213,7 @@ export default function AppShell() {
             </button>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">
-                {NAV.find((n) => location.pathname.startsWith(n.to))?.label ?? 'Home'}
+                {NAV.find((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))?.label ?? 'Agents'}
               </span>
               <ChevronRight className="h-3.5 w-3.5" />
             </div>

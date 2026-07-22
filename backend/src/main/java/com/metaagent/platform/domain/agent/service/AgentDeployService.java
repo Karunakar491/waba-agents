@@ -3,6 +3,8 @@ package com.metaagent.platform.domain.agent.service;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.agent.dto.AgentTestRequest;
+import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,6 +80,51 @@ public class AgentDeployService {
         // Step 2: Reflect confirmed state in DB
         agent.setStatus(Agent.Status.paused);
         return agentRepository.save(agent);
+    }
+
+    /**
+     * Proxy a test message to Meta's agent_test API and return the response.
+     * Agent must be active (rollout enabled) for Meta to respond.
+     * No state written — pure read-through proxy with a 10s timeout enforced by the HTTP client.
+     */
+    @SuppressWarnings("unchecked")
+    public AgentTestResponse test(Long agentId, AgentTestRequest request) {
+        Agent agent = loadOwnedAgent(agentId);
+
+        if (agent.getStatus() != Agent.Status.active) {
+            throw new BusinessException("Deploy your agent first to test it.");
+        }
+
+        String path = "/" + agent.getPhoneNumberId() + "/agent_test";
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("user_msg", request.userMsg());
+        if (request.conversationId() != null) {
+            payload.put("conversation_id", request.conversationId());
+        }
+
+        Map<?, ?> raw;
+        try {
+            raw = metaApiClient.post(path, payload, Map.class);
+        } catch (Exception e) {
+            throw new BusinessException("Meta test API failed: " + e.getMessage());
+        }
+
+        if (raw == null) {
+            throw new BusinessException("Empty response from Meta test API.");
+        }
+
+        List<String> quickReplies = raw.get("quick_replies") instanceof List<?> list
+                ? list.stream().map(Object::toString).toList()
+                : List.of();
+
+        return new AgentTestResponse(
+                (String) raw.get("message_id"),
+                (String) raw.get("agent_response"),
+                (String) raw.get("conversation_id"),
+                (String) raw.get("handoff_reason"),
+                (String) raw.get("no_response_reason"),
+                quickReplies
+        );
     }
 
     // -------------------------------------------------------------------------

@@ -2,6 +2,8 @@ package com.metaagent.platform.domain.agent.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.domain.agent.dto.AgentRequest;
+import com.metaagent.platform.domain.agent.dto.AgentTestRequest;
+import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.dto.BindPhoneRequest;
 import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.GenerateDefaultsRequest;
@@ -72,6 +74,13 @@ public class AgentController {
     public ApiResponse<Agent> deployAgent(@PathVariable Long id) {
         Agent agent = agentDeployService.deploy(id);
         return ApiResponse.ok(agent);
+    }
+
+    @PostMapping("/{id}/test")
+    public ApiResponse<AgentTestResponse> testAgent(
+            @PathVariable Long id,
+            @Valid @RequestBody AgentTestRequest request) {
+        return ApiResponse.ok(agentDeployService.test(id, request));
     }
 
     @PostMapping("/{id}/pause")

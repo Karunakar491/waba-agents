@@ -20,6 +20,7 @@ import com.metaagent.platform.support.IntegrationTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -240,6 +241,93 @@ class AgentServiceTest extends IntegrationTestBase {
 
         // Verify persisted
         assertThat(agentSkillRepository.findAllByAgentId(agent.getId())).hasSize(1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Meta wire-contract regression guards (audit item 7, 2026-08-03):
+    // these assert the *exact* outgoing field names and query-scoping Meta
+    // requires — both were previously broken silently in production with no
+    // compile-time signal (skill field-name bug: broken since inception;
+    // FAQ over-scoping on addFaq: caused a live Meta 500). A test asserting
+    // only "a call happened" would pass through the exact bugs these guard
+    // against.
+    //
+    // Scope note (EL review, 2026-08-03): updateFaq DOES agent_id-scope its
+    // Meta call (see updateFaq's own syncPath, a few methods below) — an
+    // existing inconsistency with addFaq/getFaqs/deleteFaq, not something
+    // this test suite invents or silently "fixes". Flagged to EM/TASKS.md as
+    // its own follow-up; the guard below is deliberately scoped to addFaq
+    // only, not a universal "FAQ never scopes" claim.
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_send_skill_body_as_skill_field_not_body_field_on_add() {
+        Agent agent = agentRepository.save(draftAgent("222333444"));
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        when(metaApiClient.post(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-skill-1"));
+
+        agentService.addSkill(agent.getId(), new SkillRequest("t", "d", "the actual instructions"));
+
+        verify(metaApiClient).post(anyString(), payloadCaptor.capture(), eq(Map.class));
+        Map<String, Object> sent = payloadCaptor.getValue();
+        assertThat(sent).containsEntry("skill", "the actual instructions");
+        assertThat(sent).doesNotContainKey("body");
+    }
+
+    @Test
+    void should_send_skill_body_as_skill_field_not_body_field_on_update() {
+        Agent agent = agentRepository.save(draftAgent("222333447"));
+        when(metaApiClient.post(contains("/agent_config/skills"), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-skill-3"));
+        AgentSkill skill = agentService.addSkill(agent.getId(), new SkillRequest("t", "d", "original"));
+
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        when(metaApiClient.put(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        agentService.updateSkill(agent.getId(), skill.getId(), new SkillRequest("t2", "d2", "updated instructions"));
+
+        verify(metaApiClient).put(anyString(), payloadCaptor.capture(), eq(Map.class));
+        Map<String, Object> sent = payloadCaptor.getValue();
+        assertThat(sent).containsEntry("skill", "updated instructions");
+        assertThat(sent).doesNotContainKey("body");
+    }
+
+    @Test
+    void should_scope_skill_sync_path_with_agent_id_when_meta_agent_id_present() {
+        Agent agent = draftAgent("222333445");
+        agent.setMetaAgentId("meta-agent-9");
+        agent = agentRepository.save(agent);
+        when(metaApiClient.post(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-skill-2"));
+
+        agentService.addSkill(agent.getId(), new SkillRequest("t", "d", "b"));
+
+        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
+        verify(metaApiClient).post(pathCaptor.capture(), anyMap(), eq(Map.class));
+        assertThat(pathCaptor.getValue()).contains("agent_id=meta-agent-9");
+    }
+
+    @Test
+    void should_not_scope_add_faq_sync_path_with_agent_id_even_when_meta_agent_id_present() {
+        // addFaq must NOT be agent_id-scoped — confirmed live: adding
+        // ?agent_id= to this endpoint caused a real Meta 500 (see addFaq's
+        // syncPath construction below). updateFaq is a separate, already
+        // agent_id-scoped call path — not covered by this guard, see class
+        // comment above.
+        Agent agent = draftAgent("222333446");
+        agent.setMetaAgentId("meta-agent-9");
+        agent = agentRepository.save(agent);
+        when(metaApiClient.post(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-faq-1"));
+
+        agentService.addFaq(agent.getId(), new FaqRequest("Q?", "A."));
+
+        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
+        verify(metaApiClient).post(pathCaptor.capture(), anyMap(), eq(Map.class));
+
+        assertThat(pathCaptor.getValue()).doesNotContain("agent_id");
     }
 
     // -------------------------------------------------------------------------

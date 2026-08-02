@@ -29,5 +29,10 @@ public record AgentRequest(
     String language,
 
     @Size(max = 4000, message = "Behavior rules must be at most 4000 characters")
-    String behaviorRules
+    String behaviorRules,
+
+    boolean handoffEnabled,
+
+    @Size(max = 1000, message = "Handoff message must be at most 1000 characters")
+    String handoffMessage
 ) {}

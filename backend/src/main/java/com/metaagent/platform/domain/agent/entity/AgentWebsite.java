@@ -32,6 +32,12 @@ public class AgentWebsite {
     @Column(name = "meta_website_id")
     private String metaWebsiteId;
 
+    /** TASK-062: false when reconciliation finds this website missing from
+     * Meta's live list (deleted/changed directly on Meta, outside this app). */
+    @Column(name = "meta_synced", nullable = false)
+    @Builder.Default
+    private boolean metaSynced = true;
+
     @Column(nullable = false, length = 2048)
     private String url;
 

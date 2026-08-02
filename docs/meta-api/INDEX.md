@@ -71,4 +71,4 @@ entity_id: WhatsApp Business Phone Number ID
 ## Still Missing (paste when available)
 - [ ] Onboarding API
 - [ ] Business Info API
-- [ ] Webhook payload schemas (messages, standby, messaging_handovers)
+- [x] Webhook payload schemas (messages, standby) — see `webhook-standby-handoff.md`. No `messaging_handovers` field observed in real traffic; handoff signal is standby-wrapper presence/absence instead.

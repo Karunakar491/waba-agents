@@ -11,6 +11,8 @@ import com.metaagent.platform.domain.user.entity.User;
 import com.metaagent.platform.domain.user.repository.BusinessAccountRepository;
 import com.metaagent.platform.domain.user.repository.RefreshTokenFamilyRepository;
 import com.metaagent.platform.domain.user.repository.UserRepository;
+import com.metaagent.platform.domain.agent.service.AgentDetailSyncService;
+import com.metaagent.platform.domain.waba.service.PhoneNumberSyncService;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,8 @@ public class SecurityService {
     private final RefreshTokenFamilyRepository refreshTokenFamilyRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final PhoneNumberSyncService phoneNumberSyncService;
+    private final AgentDetailSyncService agentDetailSyncService;
 
     @Qualifier("securityRedisTemplate")
     private final StringRedisTemplate redisTemplate;
@@ -53,7 +57,7 @@ public class SecurityService {
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final long LOCKOUT_DURATION_MINUTES = 15;
 
-    private static final int ACCESS_TOKEN_MAX_AGE = 900;      // 15 minutes
+    private static final int ACCESS_TOKEN_MAX_AGE = 900;      // 15 minutes (refresh token rotates — see /auth/refresh)
     private static final int REFRESH_TOKEN_MAX_AGE = 604800;  // 7 days
 
     @Transactional
@@ -134,6 +138,17 @@ public class SecurityService {
         refreshTokenFamilyRepository.save(family);
 
         setAuthCookies(response, accessToken, refreshToken);
+
+        // Fire-and-forget — @Async, never blocks the login response. A
+        // failure here never surfaces to the user; the Dashboard falls back
+        // to a live Meta call if the cache is still empty (TASK-055).
+        phoneNumberSyncService.syncForAccount(user.getAccountId());
+        // Same contract, agent-detail side (Skills/FAQs/Files/Websites) —
+        // without this, an account's agents only refresh reactively (opening
+        // that one agent's own page) or on the hourly scheduler tick, so a
+        // fresh login could show up-to-an-hour-stale data. Fire-and-forget,
+        // parallel across agents (AgentDetailSyncService), never blocks login.
+        agentDetailSyncService.syncForAccount(user.getAccountId());
 
         return new AuthResponse(user.getId(), user.getAccountId(), user.getEmail(), user.getRole().name());
     }

@@ -2,6 +2,7 @@ package com.metaagent.platform.support;
 
 import com.metaagent.platform.infrastructure.claude.ClaudeApiClient;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
+import com.metaagent.platform.infrastructure.meta.ThreadControlClient;
 import com.redis.testcontainers.RedisContainer;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -54,4 +55,7 @@ public abstract class IntegrationTestBase {
 
     @MockBean
     protected ClaudeApiClient claudeApiClient;
+
+    @MockBean
+    protected ThreadControlClient threadControlClient;
 }

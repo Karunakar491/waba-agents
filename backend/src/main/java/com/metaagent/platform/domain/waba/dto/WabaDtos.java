@@ -29,7 +29,13 @@ public final class WabaDtos {
             String displayPhoneNumber,
             String verifiedName,
             boolean alreadyConnected,
-            String connectedAgentName
+            String connectedAgentName,
+            // TASK-061 (P0): quality_rating directly predicts WhatsApp
+            // restricting/banning a number — highest-stakes field this app
+            // wasn't previously requesting from Meta at all.
+            String qualityRating,
+            String nameStatus,
+            String messagingLimitTier
     ) {}
 
     public record ValidateResponse(
@@ -43,5 +49,38 @@ public final class WabaDtos {
             String wabaId,
             String label,
             String status
+    ) {}
+
+    /** Summary of what's already configured on a phone number's Meta agent, before connecting/deploying onto it. */
+    public record DeployPreflightResponse(
+            boolean agentIdPresent,
+            int skillCount,
+            List<String> connectorNames
+    ) {}
+
+    /** One phone number, tagged with its WABA, for the Dashboard's account-wide inventory. */
+    public record AccountPhoneNumber(
+            String phoneNumberId,
+            String displayPhoneNumber,
+            String verifiedName,
+            String wabaId,
+            String wabaLabel,
+            boolean hasAgent,
+            String agentId,
+            String agentName,
+            String agentStatus,
+            String qualityRating,
+            String nameStatus,
+            String messagingLimitTier
+    ) {}
+
+    /** Account-wide phone inventory — partial-failure aware: a WABA whose Meta call failed is
+     * skipped (not thrown), and named here so the Dashboard can show "N of M WABAs loaded".
+     * syncedAt (TASK-055): when this came from the login-sync cache, the real cache timestamp
+     * (so the UI can show "Synced Xm ago"); when falling back to a live call (cache empty), now. */
+    public record AccountPhonesResponse(
+            List<AccountPhoneNumber> phoneNumbers,
+            List<String> unavailableWabaLabels,
+            String syncedAt
     ) {}
 }

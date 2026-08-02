@@ -32,6 +32,24 @@ public class AgentFaq {
     @Column(name = "meta_faq_id")
     private String metaFaqId;
 
+    /** TASK-059: false when the last write to Meta failed (saved locally only)
+     * or a reconciliation read found this row missing from Meta's live list.
+     * True is the safe default for existing rows until proven otherwise. */
+    @Column(name = "meta_synced", nullable = false)
+    @Builder.Default
+    private boolean metaSynced = true;
+
+    /** TASK-059: false only when this row was created/last saved while its
+     * agent had no phoneNumberId yet (draft agent — nothing to push to Meta
+     * at all, sync happens at bind time). Reconciliation must skip these —
+     * comparing them against Meta's live list would falsely flag "Not synced"
+     * for a FAQ that was never supposed to be there yet, not one that's
+     * actually broken. True for every row where a Meta call was genuinely
+     * attempted (success or failure). */
+    @Column(name = "meta_sync_attempted", nullable = false)
+    @Builder.Default
+    private boolean metaSyncAttempted = true;
+
     @Column(nullable = false, length = 512)
     private String question;
 

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.1.0",
-    "lastUpdated": "2026-07-20",
+    "lastUpdated": "2026-07-22",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files."
@@ -21,7 +21,7 @@
     },
     {
       "path": ".claude/skills/persona-pm.md",
-      "purpose": "Product Manager persona — features, roadmap, user flows, scope"
+      "purpose": "Head of Product persona (rewritten 2026-07-22) — 20yr SaaS/ex-Salesforce visionary voice; holds conviction across full discussion, revisits unresolved threads unprompted, does not fold when user answers only the latest objection"
     },
     {
       "path": ".claude/skills/persona-ux.md",
@@ -113,15 +113,15 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/config/SecurityConfig.java",
-      "purpose": "Spring Security config - CSRF disabled (stateless JWT API), auth endpoints public, JWT filter + RateLimitFilter wired before UsernamePasswordAuthenticationFilter, BCrypt cost 12"
+      "purpose": "Spring Security config - CSRF disabled (SameSite=Strict cookie mitigates, not statelessness), CorsConfigurationSource bean (origins from cors.allowed-origins/CORS_ALLOWED_ORIGINS, allowCredentials, trimmed origin list), auth endpoints public, JWT filter + RateLimitFilter wired before UsernamePasswordAuthenticationFilter, BCrypt cost 12"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
-      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, skills/faq/files/websites subresources, phone bind"
+      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentRequest.java",
-      "purpose": "Agent create/update request DTO — name, customerFacingName, businessDescription, systemPrompt, tone, language, behaviorRules"
+      "purpose": "Agent create/update request DTO — name, customerFacingName, businessDescription, systemPrompt, tone, language, behaviorRules, handoffEnabled/handoffMessage"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/BindPhoneRequest.java",
@@ -149,15 +149,15 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/Agent.java",
-      "purpose": "Agent entity - TSID PK (JSON string via ToStringSerializer), accountId, displayName, customerFacingName, Channel enum (locked after create), tone, language, behaviorRules, systemPrompt, Status, phone binding"
+      "purpose": "Agent entity - TSID PK (JSON string via ToStringSerializer), accountId (informational creator only post-2026-07-28 decoupling, NOT access control), updatedBy (last-editor stamp), wabaId (now ToStringSerializer'd too), displayName, customerFacingName, Channel enum (locked after create), tone, language, behaviorRules, systemPrompt, Status, phone binding, handoffEnabled/handoffMessage, sharedAccountCount (transient, populated by AgentAccessService), faqReconciledAt/fileReconciledAt/websiteReconciledAt (TASK-059/062 — one TTL gate per domain so reconciliation doesn't call Meta on every read; shared constant is AgentService.META_RECONCILE_TTL_MINUTES)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentFaq.java",
-      "purpose": "AgentFaq entity — TSID PK, agentId, accountId, question, answer"
+      "purpose": "AgentFaq entity — TSID PK, agentId, accountId, question, answer, metaFaqId. TASK-059: metaSynced (false = last write failed or reconciliation found this row missing from Meta), metaSyncAttempted (false only for FAQs created while the agent had no phoneNumberId yet — reconciliation must skip these, not flag them as broken)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentFile.java",
-      "purpose": "AgentFile entity — TSID PK, agentId, accountId, fileId (Meta file handle), filename, mimeType"
+      "purpose": "AgentFile entity — TSID PK, agentId, accountId, fileId (Meta file handle), filename, mimeType. TASK-062: metaSynced (false = reconciliation found this file missing from Meta's live list — no metaSyncAttempted needed here unlike AgentFaq, since addFile already throws hard on a failed Meta upload, no local-only save path exists)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentSkill.java",
@@ -165,7 +165,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentWebsite.java",
-      "purpose": "AgentWebsite entity — TSID PK, agentId, accountId, url. Meta crawls natively."
+      "purpose": "AgentWebsite entity — TSID PK, agentId, accountId, url. Meta crawls natively. TASK-062: metaSynced (false = reconciliation found this website missing from Meta's live list), verified live via a real drift repro (corrupted a local metaWebsiteId to a nonexistent value, confirmed reconciliation flipped it to false, restored)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentWebsitePage.java",
@@ -181,7 +181,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentRepository.java",
-      "purpose": "Agent JPA repository — findByIdAndAccountId for tenant isolation"
+      "purpose": "Agent JPA repository — findByPhoneNumberId, findAllAccessibleByAccount (waba_account_access-joined query, replaces old findByIdAndAccountId/findAllByAccountId post-decoupling — use AgentAccessService, not this repo directly, for access checks)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentSkillRepository.java",
@@ -201,11 +201,51 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDeployService.java",
-      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second"
+      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (minimal params only — full stats surface deferred), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; Tools GET-single/PUT and upsertCertificate deliberately deferred (see project memory)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
-      "purpose": "Agent domain service - accountId-scoped CRUD, updateAgent enforces channel lock, bindPhone with WABA ownership + phone membership checks, skills/faq/files/websites"
+      "purpose": "Agent domain service - CRUD via AgentAccessService (waba_account_access, not accountId) post-decoupling, updateAgent/bindPhone use per-agentId lock + stamp updatedBy, bindPhone checks waba_account_access instead of Waba.accountId, skills/faq/files/websites (2026-07-28: get/getSingle/update added for skills+faq+websites, get/getSingle for files — all read from local mirror tables, not live Meta proxy, per EM convention; addSkill's Meta field name fixed from 'body' to 'skill'); deleteAgent does full FK-safe cascade delete (pages->websites->faqs->skills->files->messages->conversations->webhook_raw) inside one @Transactional before deleting the agent row. Legacy AgentSkill rows still write through to Meta immediately (untouched by TASK-050) unless explicitly Promoted to the Skill Library — see domain/skill package. getSkills() now calls ensureSkillsBackfilled() first (TASK-054, 2026-07-30) — reactive, best-effort GET-then-local-INSERT for agents imported/reconciled from Meta whose skills were never locally mirrored; never fails the primary read, never writes to Meta. Only wired into the single-agent read path, NOT the TASK-053 aggregate Skills page (stays batched-only). getFaqs() now calls reconcileFaqs() first (TASK-059, 2026-07-30) — reactive, TTL-gated (Agent.faqReconciledAt, 10 min) GET agent_config/faq compared against local AgentFaq.metaFaqId rows, flips metaSynced to surface drift instead of silently trusting a WARN log; skips rows where metaSyncAttempted=false (draft-agent FAQs never pushed yet). KNOWN LIMITATION: Meta's GET agent_config/faq returns a genuine 500 for phone number 1550000250a22 specifically (confirmed bad/synthetic test data, not a platform bug — other real test numbers like 1103393549522539 work fine); reconciliation fails safe either way (never throws, getFaqs still returns 200). getFiles()/getWebsites() now call reconcileFiles()/reconcileWebsites() first (TASK-062, 2026-07-30) — same shape, TTL-gated via Agent.fileReconciledAt/websiteReconciledAt, but simpler than FAQ's version: no metaSyncAttempted concept needed since addFile/addWebsite already throw hard on a failed Meta write (no local-only save path exists). Drift-detection verified live end-to-end for websites (corrupted a local metaWebsiteId, confirmed the flag flipped, restored)."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V20__create_skill_library.sql",
+      "purpose": "TASK-050 — creates `skill` (nullable waba_id, mirrors Agent.wabaId) and `agent_skill_attachment` (agent_id, skill_id, meta_skill_id per-attachment since Meta scopes skill ids per phone number, deployed_at) tables for the Skill Library first slice. Supersedes TASK-046's join-table design."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/skill/entity/Skill.java",
+      "purpose": "Shared Skill Library row. Editing this NEVER touches Meta — every AgentSkillAttachment compares its deployedAt against this row's updatedAt to compute out-of-sync. waba_id nullable (null = not yet shared)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/skill/entity/AgentSkillAttachment.java",
+      "purpose": "Join between one agent and one Library Skill. metaSkillId lives here (not on Skill) since the same Library skill gets a different Meta-side skill id per agent it's attached to. deployedAt null/stale vs skill.updatedAt = 'Out of sync'."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/skill/service/SkillLibraryService.java",
+      "purpose": "Library CRUD (createSkill/updateSkill/deleteSkill/listSkills — DB only, never calls Meta), getAgentSkillsView (union of legacy AgentSkill rows + Library-attached rows with computed LIVE/OUT_OF_SYNC status), promote (converts one legacy AgentSkill into a Skill+attachment, deployedAt=now since content is already live at that instant), syncSkills/syncOne (the ONLY path that pushes a Library skill to Meta — deliberately not one @Transactional wrapping the loop, so one item failing doesn't roll back others that already succeeded)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/skill/controller/SkillLibraryController.java",
+      "purpose": "POST/GET /api/v1/skills (Library CRUD, wabaId-scoped), PUT/DELETE /api/v1/skills/{id}, GET /api/v1/agents/{id}/skills-view (unified agent+library skill list), POST /api/v1/agents/{id}/skills/{id}/promote, POST /api/v1/agents/{id}/skills/sync."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V21__widen_agent_skill_attachment_meta_id.sql",
+      "purpose": "Widens agent_skill_attachment.meta_skill_id to VARCHAR(255) — V20 reintroduced the exact truncation bug V14 already fixed for the same class of Meta opaque-ID column; caught live on the first real promote() call, not by EL review."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V22__create_skill_template.sql",
+      "purpose": "TASK-052 — skill_template table (GLOBAL, no waba_id/account_id — every account sees every row). Seeds 10 genericized starter templates (brand-stripped from this session's real MDH skills), tagged industry/use_case."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/skill/entity/SkillTemplate.java",
+      "purpose": "Karix-curated reference catalog entry — global, no tenant scoping at all (intentional: pure reference content). See SkillLibraryService.copyTemplate for the one-way copy-to-Skill mechanic."
+    },
+    {
+      "path": "frontend/src/pages/SkillLibraryPage.tsx",
+      "purpose": "TASK-051/052/053 — standalone Skills page at /library/skills (renamed from 'Skill Library' — that name now belongs to the separate reference catalog below). TRUE aggregate (TASK-053): every skill on every agent on the account's first accessible WABA, not just Library rows — legacy AgentSkill rows (source='AGENT', always deployed, grouped collapsed-by-default per agent since they're not deduplicated across agents) merged with Library skills (source='LIBRARY', Deployed/Drafts split). Edit/delete branch by source to the correct endpoint set (legacy /agents/{id}/skills/{id} vs Library /skills/{id}) — do not conflate these, they're different tables with different write paths. 'Browse Skill Library' button links to /library/skills/browse. Multi-WABA switcher explicitly deferred — shows first WABA only, name in page header."
+    },
+    {
+      "path": "frontend/src/pages/SkillTemplateBrowsePage.tsx",
+      "purpose": "TASK-052 — Karix-curated reference catalog at /library/skills/browse. Lists skill_template rows (global, same for every account), filterable by industry/use case chips. 'Copy to my Skills' creates a new Draft Skill for the account's WABA (one-way INSERT, no link back to the template)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/WebsiteCrawlService.java",
@@ -241,15 +281,15 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/analytics/service/AnalyticsService.java",
-      "purpose": "Analytics ingest listener, hourly rollup, summary/hourly queries. Tenant isolation: verifyAgentOwnership (findByIdAndAccountId) runs BEFORE any query, fails closed with NotFoundException"
+      "purpose": "Analytics ingest listener, hourly rollup, summary/hourly queries. Access check: verifyAgentOwnership (now via AgentAccessService, waba_account_access-based post-decoupling) runs BEFORE any query, fails closed with NotFoundException"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/controller/ConversationController.java",
-      "purpose": "REST endpoints for inbox — list conversations, messages per conversation (tenant-scoped)"
+      "purpose": "REST endpoints for inbox — list conversations, messages per conversation (tenant-scoped); GET /conversations/counts returns agentId->count map for the Agents list table"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Conversation.java",
-      "purpose": "Conversation entity — tenant/agent/customer thread with status + last message metadata"
+      "purpose": "Conversation entity — tenant/agent/customer thread with status + last message metadata; needsHuman flag (scaffold, provisional) set by HandoffClassifier NEEDS_HUMAN signal"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Message.java",
@@ -264,8 +304,12 @@
       "purpose": "Record: metaMessageId, status, recipientPhone — output of StatusUpdateParser"
     },
     {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/model/HandoffSignal.java",
+      "purpose": "Enum: BIZAI_ACTIVE/NEEDS_HUMAN/STATUS_UPDATE/UNRECOGNIZED — output of HandoffClassifier (provisional, see webhook-standby-handoff.md)"
+    },
+    {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/repository/ConversationRepository.java",
-      "purpose": "Conversation JPA repository"
+      "purpose": "Conversation JPA repository — countByAgentIdForAccount groups by agentId in one query (AgentConversationCount projection) for the Agents list conversation-count column"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/repository/MessageRepository.java",
@@ -273,11 +317,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationService.java",
-      "purpose": "Thin coordinator — parse→persist→analytics. Routes: inbound messages→ConversationStore.saveInbound; status webhooks (delivered/read/failed)→updateMessageStatus; sent status→saveOutbound (Decision D1). markProcessing/markProcessed/markFailed are package-private @Transactional."
+      "purpose": "Thin coordinator — parse→persist→analytics. Routes: inbound messages→ConversationStore.saveInbound; status webhooks (delivered/read/failed)→updateMessageStatus; sent status→saveOutbound (Decision D1). markProcessing/markProcessed/markFailed are package-private @Transactional. Calls HandoffClassifier per payload: NEEDS_HUMAN→conversationStore.markNeedsHuman + stubbed notifyHandoverTarget; BIZAI_ACTIVE→log only. getConversationCountsByAgent() backs GET /conversations/counts."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationStore.java",
-      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content), updateMessageStatus"
+      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content), updateMessageStatus, markNeedsHuman (scaffold, provisional)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/InboundMessageParser.java",
@@ -290,6 +334,10 @@
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/StatusUpdateParser.java",
       "purpose": "Parses Meta status webhook (value.statuses[0]) → Optional<StatusUpdate>. Uses .at() for safe nested path access."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/HandoffClassifier.java",
+      "purpose": "Pure classifier — raw payload → HandoffSignal via standby-wrapper structural check (not a field name). PROVISIONAL: based on one sample payload capture, unverified against production traffic. Called from ConversationService; logs INFO on NEEDS_HUMAN and BIZAI_ACTIVE branches."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/controller/AuthController.java",
@@ -333,15 +381,15 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/UserRepository.java",
-      "purpose": "User JPA repository — findByEmail"
+      "purpose": "User JPA repository — findByEmail, findByIdAndAccountId (used by ClientService to validate staff-grant targets share the caller's account)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/controller/WabaController.java",
-      "purpose": "POST /waba/validate, POST /waba, GET /waba"
+      "purpose": "POST /waba/validate, POST /waba, GET /waba. create() fires PhoneNumberSyncService.syncForAccount() (TASK-056) after wabaService.create() returns — lives HERE not in WabaService itself, because PhoneNumberSyncService depends on WabaService (circular-bean-dependency avoidance; caught a real Spring startup failure when first tried as a @Lazy field injection into WabaService — that doesn't work with Lombok constructor injection)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/dto/WabaDtos.java",
-      "purpose": "WABA DTOs — validate/create requests, phone list, WabaResponse (id serialized as String for JS safety)"
+      "purpose": "WABA DTOs — validate/create requests, phone list, WabaResponse (id serialized as String for JS safety). TASK-061: PhoneNumber and AccountPhoneNumber both gained qualityRating/nameStatus/messagingLimitTier — previously never requested from Meta at all."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/Waba.java",
@@ -349,11 +397,215 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
-      "purpose": "Waba repo — account-scoped finders + findByAccountIdAndWabaId"
+      "purpose": "Waba repo — account-scoped finders + findByAccountIdAndWabaId; findFirstByWabaIdOrderByIdAsc is the canonical cross-account lookup used post-2026-07-28 decoupling"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaService.java",
-      "purpose": "Validate WABA against Meta (spec 5.4 error messages), tenant-safe bound-phone flags, idempotent race-safe create, list"
+      "purpose": "Validate WABA against Meta (spec 5.4 error messages); create()/list() now dedup to one canonical Waba row per external ID across accounts + grant waba_account_access (2026-07-28 decoupling — known simplification: per-account label nicknames not supported, shared row); getPhones() triggers WabaAgentReconciliationService. listForAccount/listAllPhonesForAccountId (TASK-055): explicit-accountId variants of list()/listAllPhonesForAccount() for use by the @Async login-sync job (no request-scoped SecurityContext on a background thread). getCachedOrLivePhonesForAccount(): cache-first read of phone_number_snapshot, falls back to the original live per-WABA Meta call only if the cache is empty — that live path is kept, not removed. TASK-061: fetchPhonesFromMeta now requests fields=...,quality_rating,name_status,messaging_limit_tier explicitly (was previously omitted entirely, so Meta only returned its default field set) — extractQualityRating() defensively handles both a flat string and a nested {quality_score:{score:...}} shape since neither is documented in docs/meta-api/."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V23__create_phone_number_snapshot.sql",
+      "purpose": "TASK-055 — phone_number_snapshot table, scoped per (account_id, phone_number_id) not per WABA (agent visibility on a phone number is account-specific, PhoneNumberAccessGuard). Populated by the login-triggered PhoneNumberSyncService. quality_rating/name_status/messaging_limit_tier added by V26 (TASK-061)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/PhoneNumberSnapshotRepository.java",
+      "purpose": "TASK-056 fix #3/#4 — upsert() is a native INSERT..ON DUPLICATE KEY UPDATE on uq_account_phone, atomic at the MySQL row level so two overlapping PhoneNumberSyncService calls can never hit a duplicate-key crash (concurrent inserts of genuinely new rows can still legitimately deadlock at the InnoDB level — handled by a retry loop in the caller, not here). TASK-061: upsert() gained quality_rating/name_status/messaging_limit_tier params/columns — verified the native SQL's column-list/VALUES order matches positionally, not just visually (MySQL native inserts are positional, not by entity field order)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/PhoneNumberSyncService.java",
+      "purpose": "TASK-055/056 — @Async, own class (Spring proxy pattern already established by WebsiteCrawlService/EvalRollupWorker). syncForAccount(accountId): fetches live via WabaService.listAllPhonesForAccountId, upserts each phone via PhoneNumberSnapshotRepository.upsert (atomic native INSERT..ON DUPLICATE KEY UPDATE), retries up to 3x on ConcurrencyFailureException (InnoDB deadlock under concurrent inserts) via a manually-driven REQUIRES_NEW TransactionTemplate — NOT @Transactional on the method itself, since a self-looping retry needs a genuinely fresh transaction per attempt. Stale-row cleanup (deletes numbers Meta no longer returned) only runs when the fetch was FULLY successful — skipped on any partial WABA failure, so a transient one-WABA blip never wipes that WABA's cached rows. Fire-and-forget from SecurityService.login() and WabaController.create() — never blocks, never throws. Five fix iterations, all verified live under real concurrent load and real partial-failure conditions (see TASKS.md TASK-056)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/SecurityService.java",
+      "purpose": "Login/register/refresh/logout, lockout tracking (Redis), JWT + opaque refresh token issuance. login() fires PhoneNumberSyncService.syncForAccount() as the last step (TASK-055, @Async, fire-and-forget) — first Meta-sync trigger point in the login flow; more domains (Skills/FAQs) may attach here in future slices."
+    },
+    {
+      "path": "frontend/src/components/shared/ConsequenceLine.tsx",
+      "purpose": "Shared one-line consequence/reassurance statement, extracted after 3rd use (Business Profile deploy, Delete-from-Meta, Agent Event)"
+    },
+    {
+      "path": "frontend/src/hooks/useJobPoll.ts",
+      "purpose": "Shared bounded status-polling hook for async Meta jobs (Agent Event, Agent Eval run) — terminal states + 'unknown' fallback on poll failure/timeout"
+    },
+    {
+      "path": "frontend/src/components/agent-detail/BusinessProfileTab.tsx",
+      "purpose": "AgentDetailPage tab — Business Profile live/history UI for THIS agent's phone number. TASK-058: ProfileEditor, toFormValues, extractMessage, EMPTY_FORM now exported so BusinessPersonaLibraryPage.tsx can reuse the same form/helpers without duplicating them."
+    },
+    {
+      "path": "frontend/src/pages/BusinessPersonaLibraryPage.tsx",
+      "purpose": "TASK-058/060 — standalone account-wide Business Persona page, reached via AppShell's 4th AGENT_SUB_NAV entry (/library/persona). TASK-060 redesigned this from a single-phone-number card view into a search/filter/table layout (Name/Status/Phone number/Last touched — no 'Agent' column, since BusinessProfile.phoneNumberId is 1:1, not multi-attached like Skills). Now just query/mutation wiring (152 lines) — composes usePersonaData.ts (data-fetching hook), PersonaTable.tsx, PersonaFilters.tsx (see those entries)."
+    },
+    {
+      "path": "frontend/src/components/persona/usePersonaData.ts",
+      "purpose": "TASK-060 — account-wide Business Persona rows: drafts (GET /business-profiles/drafts) fanned out with per-phone-number live+history, client-aggregated into one row-per-profile list. GET /waba/{wabaId}/phones takes the EXTERNAL Meta wabaId (waba.wabaId), NOT the internal DB id (waba.id) — caught live (400 'WABA not found' on every call) after both EL review rounds missed it, since neither checked endpoint-id semantics."
+    },
+    {
+      "path": "frontend/src/components/persona/PersonaTable.tsx",
+      "purpose": "TASK-060 — the Persona table + PersonaTableRow sub-component (extracted after an EL REJECT on the original 349-line single-file page). Per-row 'Deploy to...' dropdown state is a Record<draftId, phoneNumberId> keyed map, not a shared variable — verified both times (correctness pass, then again after the component split)."
+    },
+    {
+      "path": "frontend/src/components/persona/PersonaFilters.tsx",
+      "purpose": "TASK-060 — PersonaFilters (search + status dropdown) and PersonaDraftEditor (wraps BusinessProfileTab.tsx's shared ProfileEditor), both extracted from the original oversized page during the EL-mandated split."
+    },
+    {
+      "path": "frontend/src/components/agent-detail/DeleteFromMetaModal.tsx",
+      "purpose": "Highest-stakes modal — typed phone-number confirmation before DELETE /agents/{id}/meta-agent; visually distinct from the DB-only delete modal"
+    },
+    {
+      "path": "frontend/src/components/agent-detail/TriggerEventModal.tsx",
+      "purpose": "Agent Event trigger modal — event type/description/customer phone, status via useJobPoll"
+    },
+    {
+      "path": "frontend/src/components/agent-detail/EvalTab.tsx",
+      "purpose": "AgentDetailPage tab — eval case list (paginated), run eval via useJobPoll, plain-language summary"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/reports/service/ReportsService.java",
+      "purpose": "Thin proxy to Meta agent-eval (cases/run/details/summary), per-agent; plus account-wide getConversationsReport (success=closed+!needsHuman, no new column) and getApiCallLog read"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/reports/controller/ReportsController.java",
+      "purpose": "REST surface for per-agent agent-eval under /api/v1/reports/agents/{agentId}/eval"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/reports/controller/AccountReportsController.java",
+      "purpose": "Account-wide Reports endpoints under /api/v1/reports: conversations, api-calls, eval-rollup (start/poll)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/reports/service/EvalRollupService.java",
+      "purpose": "In-memory job store (no persistence) for account-wide eval rollup; start()/poll() only, delegates fan-out to EvalRollupWorker"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/reports/service/EvalRollupWorker.java",
+      "purpose": "Separate @Async bean (proxy requirement) — fans out per-agent eval run+poll in parallel with per-agent timeout/try-catch so one dead number doesn't fail the whole rollup"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLog.java",
+      "purpose": "One row per Meta API call (method/path/status/timing/redacted body) for account-scoped debugging"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogRepository.java",
+      "purpose": "Repo for ApiCallLog, ordered by called_at desc per account"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogRedactor.java",
+      "purpose": "Allowlist-style secret redaction (key-name regex + connector auth-header {field_name,value} shape) before persisting request/response bodies — never blanket-hides bodies"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogWriter.java",
+      "purpose": "Separate @Async bean (proxy requirement) writing ApiCallLog rows; never throws back to MetaApiClient — a failed audit write must not break the real Meta call"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V17__create_api_call_log.sql",
+      "purpose": "api_call_log table — nullable account_id, method/path/status/timing/redacted bodies"
+    },
+    {
+      "path": "frontend/src/pages/ReportsPage.tsx",
+      "purpose": "New Reports nav section — Conversations (volume+success rate+by-channel), Eval (async rollup via useJobPoll, links out to per-agent EvalTab), API Calls (expandable request/response log)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/PhoneNumberAccessGuard.java",
+      "purpose": "Entity-agnostic tenant-boundary check for anything keyed by phoneNumberId — access = waba_account_access grant on the Agent's WABA (bound), or original creator (unbound draft). Rewrote 2026-07-28 for the Agent/WABA ownership decoupling; hasAccess() non-throwing variant reused by WabaService"
+    },
+    {
+      "path": "frontend/src/components/agent-detail/SkillsTab.tsx",
+      "purpose": "Skills tab — reads unified GET /agents/{id}/skills-view (union of legacy agent-scoped skills + Library-attached skills, TASK-050). Each row shows a Live/Out-of-sync badge; AGENT-source rows get a Promote-to-Library action + delete; a 'Sync skills' header button pushes stale Library-attached skills to Meta and shows per-item results inline."
+    },
+    {
+      "path": "frontend/src/components/agent-detail/SkillEditorModal.tsx",
+      "purpose": "Add/edit skill form — title (client-side regex matching Meta's lowercase-hyphen format, server-side enforcement is TASK-043), description, instruction body (monospace, 20k char counter). librarySkillId prop (TASK-050): when set, saves to PUT /skills/{id} (Library row, never touches Meta) instead of the legacy agent-scoped endpoint; shows an inline notice that this edit won't reach Meta until the agent is synced. Reused (TASK-051) by SkillLibraryPage with agentId=\"\" — library-mode saves invalidate both ['skills-view', agentId] (no-op when reused from the Library page) and ['library-skills'] (partial key, matches every wabaId variant)."
+    },
+    {
+      "path": "frontend/src/components/agent-detail/RunToolModal.tsx",
+      "purpose": "Test-executes a connector tool (POST .../tools/{id}/run) — JSON input textarea with client-side parse validation, status+output display. Synchronous call, no polling (not a fire-and-forget job)"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V18__decouple_agent_waba_ownership.sql",
+      "purpose": "agent.updated_by column + waba_account_access table + backfill grant from existing Waba.accountId (renamed from V12 to V18 to resolve a version collision with an already-existing V12 migration)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/WabaAccountAccess.java",
+      "purpose": "Account<->WABA access grant join table (mirrors client_staff) — 2026-07-28 decoupling: any granted account can see/edit every Agent on that WABA, not just the original creator"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaAccountAccessRepository.java",
+      "purpose": "Repo for WabaAccountAccess — existsByWabaIdAndAccountId (access check), countByWabaId (shared-count indicator), findAllByAccountId (WabaService.list)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaAgentReconciliationService.java",
+      "purpose": "Runs on WabaService.getPhones() view — grants the viewing account access, imports any phone number with a live Meta agent config that has no local Agent row yet. Best-effort per phone number, never fails the view"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentAccessService.java",
+      "purpose": "Single place answering 'can this account touch this Agent' post-decoupling — every caller (AgentService, AgentDeployService, ReportsService, AnalyticsService, EvalRollupWorker) goes through here instead of AgentRepository accountId queries. Also populates Agent.sharedAccountCount (transient) for the frontend 'Shared WABA' indicator"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/persona/entity/BusinessProfile.java",
+      "purpose": "Persona/business-profile entity mapped to Meta agent_config/business_info — DRAFT/DEPLOYED/ARCHIVED, accountId nullable for unmanaged rows discovered live on Meta"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/persona/repository/BusinessProfileRepository.java",
+      "purpose": "BusinessProfile repo — account-scoped draft finders, per-phone-number DEPLOYED/ARCHIVED lookups"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/persona/service/BusinessProfileDeployService.java",
+      "purpose": "Deploy sequence for BusinessProfile: GET Meta live business_info -> archive prior DEPLOYED row (or record drift) -> PUT new draft -> flip to DEPLOYED. Rolls back local archive if PUT fails; per-phoneNumberId lock guards against concurrent deploys. resetLive() (2026-07-28) resets Meta's business_info to defaults + archives the DEPLOYED row, same lock"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/persona/controller/BusinessProfileController.java",
+      "purpose": "REST surface for BusinessProfile drafts/live/history/deploy under /api/v1/business-profiles — DELETE /live (2026-07-28) resets Meta's business_info to defaults; delete on live/history ROWS in our own DB intentionally still not exposed pending founder's shared-delete-authorization decision (distinct from the reset endpoint)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/persona/dto/BusinessProfileDtos.java",
+      "purpose": "SaveRequest/DeployRequest/BusinessProfileResponse DTOs for the BusinessProfile API. TASK-060: BusinessProfileResponse gained updatedAt (entity already had the column, just wasn't exposed) — needed for the Persona table's 'Last touched' column on drafts, which have no deployedAt/archivedAt yet."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V16__create_business_profile.sql",
+      "purpose": "business_profile table — DRAFT/DEPLOYED/ARCHIVED status, phone_number_id, business_info fields, nullable account_id for unmanaged rows"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/entity/Client.java",
+      "purpose": "Client entity (spec 2026-07-22-ia-revision.md module 5) — real table, account-scoped, references waba.id (not a duplicate), credit_line_status enum, createdBy/updatedBy audit columns"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/entity/ClientStaff.java",
+      "purpose": "Staff<->client many-to-many join entity — a client can be shared between multiple internal staff, not owned by one owner_id"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/entity/ClientAuditLog.java",
+      "purpose": "Append-only audit trail for Client edits — no Envers/JPA-auditing convention existed in this codebase, follows plain entity-table pattern"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/repository/ClientRepository.java",
+      "purpose": "Client repo — findByIdAndAccountId (tenant fail-closed), findAllByAccountIdAndStaffUserId (staff-scoped list)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/repository/ClientStaffRepository.java",
+      "purpose": "Client staff-grant repo — existsByClientIdAndUserId, findAllByClientId, deleteByClientIdAndUserId"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/repository/ClientAuditLogRepository.java",
+      "purpose": "Client audit log repo — findAllByClientIdOrderByChangedAtDesc"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/service/ClientService.java",
+      "purpose": "Client CRUD + staff access grants — verifyStaffAccess() fail-closed pattern (NotFoundException, mirrors AnalyticsService.verifyAgentOwnership); phone numbers reused live from WabaService.getPhones (no duplicate phone table); blocks removing last staff grant"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/controller/ClientController.java",
+      "purpose": "REST /api/v1/clients — CRUD, staff access grant/revoke, phones (live from Meta via client's waba), audit-log read"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/dto/ClientDtos.java",
+      "purpose": "Client DTOs — CreateRequest/UpdateRequest/StaffAccessRequest, ClientResponse (id as String), ClientDetailResponse, AuditEntryResponse"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V11__create_client_and_staff_access.sql",
+      "purpose": "Migration: client table (FK to waba), client_staff join table (FK to users), client_audit_log table"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/client/service/ClientServiceTest.java",
+      "purpose": "Integration tests ClientService — create/staff-grant, tenant+staff isolation fail-closed, audit log entries, last-staff-removal guard"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/controller/WebhookController.java",
@@ -381,11 +633,15 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/MetaApiClient.java",
-      "purpose": "Single point of contact for Meta APIs — RestClient (not WebClient). get/post/put/delete. meta.api.version property required."
+      "purpose": "Single point of contact for Meta APIs — RestClient (not WebClient). get/post/put/delete. meta.api.version property required. Every call logged via ApiCallLogWriter (async, best-effort, redacted) for the Reports > API Calls view — error response bodies now captured too (read inside onStatus before throwing, 2026-07-28 fix). scopedPath(basePath, metaAgentId) static helper appends ?agent_id= once one is recorded — required by settings/skills/connectors+tools, NOT by faq/website/files (confirmed via live testing)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/ThreadControlClient.java",
+      "purpose": "Dedicated client for Meta Thread Control API (release action) — deliberately separate from MetaApiClient: different base URL shape, version 1.0.0 not 2.0.0, Bearer header + access_token/oauth_token query params. 5s/10s timeouts matching ClaudeApiClient pattern."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/MetaApiException.java",
-      "purpose": "Meta API error with HTTP status — isNotFound()/isAccessDenied() for spec 5.4 error mapping"
+      "purpose": "Meta API error with HTTP status — isNotFound()/isAccessDenied() for spec 5.4 error mapping; responseBody field (2026-07-28) carries Meta's actual error body through to the api_call_log debug trail, best-effort, never used for control flow"
     },
     {
       "path": "backend/src/main/resources/application.yml",
@@ -426,6 +682,18 @@
     {
       "path": "backend/src/main/resources/db/migration/V9__agent_wizard_fields.sql",
       "purpose": "Migration - additive nullable wizard fields: customer_facing_name, channel enum, tone, language, behavior_rules"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V10__add_handoff_fields_to_agent.sql",
+      "purpose": "Migration - additive handoff_enabled (NOT NULL DEFAULT FALSE) + nullable handoff_message on agent table"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V10__seed_demo_waba.sql",
+      "purpose": "Migration - seeds demo account WABA row for out-of-the-box bind-phone flow"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V11__add_needs_human_to_conversation.sql",
+      "purpose": "Migration - adds conversations.needs_human boolean (default false) — scaffold for standby/handoff detection"
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/common/id/TsidGeneratorTest.java",
@@ -533,7 +801,11 @@
     },
     {
       "path": "docs/meta-api/thread-control.md",
-      "purpose": "POST /thread_control — hand conversation back to Meta Business Agent (v1.0.0 API, different base URL)"
+      "purpose": "POST /thread_control — hand conversation back to Meta Business Agent (v1.0.0 API, different base URL); corrected note points to webhook-standby-handoff.md for the real handoff signal"
+    },
+    {
+      "path": "docs/meta-api/webhook-standby-handoff.md",
+      "purpose": "Real observed webhook shapes from partner pilot payloads (Jul 2026) — handoff signal is standby-wrapper presence/absence, NOT a messaging_handovers field; parsing rule for webhook controller"
     },
     {
       "path": "docs/meta-api/websites.md",
@@ -546,6 +818,14 @@
     {
       "path": "docs/specs/2026-07-18-product-design.md",
       "purpose": "PM spec — all UX/product decisions: nav structure, wizard flow, WABA onboarding, dashboard, reports, P0/P1 screens"
+    },
+    {
+      "path": "docs/specs/2026-07-22-world-class-audit.md",
+      "purpose": "Full PM+UX+Design Evaluator+EM audit — reframes users as internal operators (not consumer SMB owners); ranked findings: no client-switcher, no test-before-deploy, inbox has no triage, webhook secret silently optional, DESIGN.md mood mismatch"
+    },
+    {
+      "path": "docs/specs/2026-07-22-ia-revision.md",
+      "purpose": "Supersedes nav IA in 2026-07-18-product-design.md — 5-module structure (Dashboard/Agents/Connectors-Skills-KB-FAQ library/Chat Conversation/Profile-Customer); flags module-3 WABA-level shared library and module-4 takeover-vs-readonly as needing EM/founder decisions before build"
     },
     {
       "path": "frontend/.oxlintrc.json",
@@ -577,15 +857,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "purpose": "Root app component — Vite scaffold placeholder, to be replaced with router setup"
-    },
-    {
-      "path": "frontend/src/App.tsx",
-      "purpose": "Root — QueryClientProvider, BrowserRouter. Routes: /login (public). Protected: /dashboard, /agents/new, /agents/:id, /agents, /inbox, /settings via ProtectedRoute+AppShell."
+      "purpose": "Root — QueryClientProvider, BrowserRouter. \"/\" and unmatched routes redirect to /dashboard (landing page). Protected routes via ProtectedRoute+AppShell: /dashboard, /agents, /agents/new, /agents/:id, /library/skills, /wabas, /inbox, /handover, /profile."
     },
     {
       "path": "frontend/src/components/layout/AppShell.tsx",
-      "purpose": "App shell — collapsible brand-navy sidebar (localStorage sidebar-collapsed), off-canvas mobile drawer (dialog ARIA, Escape, backdrop, matchMedia reset), topbar breadcrumb + toggles with aria-controls"
+      "purpose": "App shell — collapsible brand-navy sidebar (localStorage sidebar-collapsed), off-canvas mobile drawer (dialog ARIA, Escape, backdrop, matchMedia reset), topbar breadcrumb + toggles with aria-controls. Nav: Dashboard, Agents (grouped sub-nav: Knowledge Base/Connectors — deep-link to sessionStorage last-agent:{tab} or /agents?pickFor={tab} picker mode; Skills — static route to /library/skills, TASK-051; Business Persona — static route to /library/persona, TASK-058 — both route to a standalone Library page instead of a deep-link, since both have account-wide drafts not yet attached to any agent; hidden in collapsed rail), WABAs, Inbox, Human Handover (soon), Profile."
     },
     {
       "path": "frontend/src/components/router/ProtectedRoute.tsx",
@@ -617,7 +893,11 @@
     },
     {
       "path": "frontend/src/pages/AgentDetailPage.tsx",
-      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal), settings, danger zone; maps ApiResponse envelope + entity fields, string TSIDs"
+      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal, Thread Control release button+confirm modal shown when handoffEnabled), Knowledge Base/Skills/Connectors/Business Profile/Eval/Settings tabs; initial tab seeded from ?tab= query param, writes sessionStorage last-agent:{tab}=id on every tab view (feeds AppShell's grouped Agents sub-nav deep-links); Delete-from-Meta danger block, Trigger Event action; 'Shared WABA' badge in header when sharedAccountCount>1; maps ApiResponse envelope + entity fields, string TSIDs. TASK-062: WebsitesSection/FilesSection were previously entirely unwired placeholders (hardcoded '0', TASK-036 TODO comments) — now real list/add/upload/delete wired to the backend, with a shared NotSyncedBadge component (also used by FaqsSection, refactored from inline duplicate markup) showing metaSynced=false. File upload MUST pass `headers: { 'Content-Type': undefined }` on the multipart POST — the shared api instance's default application/json header would otherwise override FormData's automatic boundary detection (EL REJECT caught this, and a hardcoded 'multipart/form-data' string is equally wrong — it strips the boundary= param)."
+    },
+    {
+      "path": "frontend/src/pages/AgentsPage.tsx",
+      "purpose": "Agents list table — name/phone/WABA ID/conversation count (GET /conversations/counts)/health (derived: status+phone, not Meta quality rating)/status/last updated; 'Shared' badge next to name when sharedAccountCount>1. Picker mode (?pickFor=knowledge|skills|connectors, from AppShell's Agents sub-nav when no agent viewed yet this session): swaps header to 'Choose an agent to view its {X}', row click routes to /agents/{id}?tab={pickFor}. React Query, loading/empty states."
     },
     {
       "path": "frontend/src/pages/CreateAgentPage.tsx",
@@ -625,7 +905,7 @@
     },
     {
       "path": "frontend/src/pages/DashboardPage.tsx",
-      "purpose": "Dashboard — stats bar (3 cards), agent list (cards with status/phone/conversations), empty state with CTA, loading skeletons. React Query."
+      "purpose": "Dashboard — attention-triage landing page. Client-side heuristic over GET /agents (no backend attention signal yet): active+no-phone > paused > draft, sorted by urgency. Empty/all-clear/error states, loading skeleton. React Query. TASK-061: PhoneNumbersTable gained a QualityBadge (GREEN/YELLOW/RED — unconfirmed against any doc, defensive fallback for unknown values) showing Meta's quality_rating per number, the leading indicator before WhatsApp restricts/bans it."
     },
     {
       "path": "frontend/src/pages/InboxPage.tsx",
@@ -766,6 +1046,10 @@
     {
       "path": "backend/src/test/java/com/metaagent/platform/domain/webhook/service/WebhookRetentionJobTest.java",
       "purpose": "Integration test WebhookRetentionJob - purges old PROCESSED/FAILED, keeps PENDING and recent rows"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/HandoffClassifierTest.java",
+      "purpose": "Pure unit tests HandoffClassifier - standby-wrapped contacts/messages, standby message_echoes, top-level messages no standby/statuses (NEEDS_HUMAN), statuses array, empty/malformed payload"
     }
   ]
 }

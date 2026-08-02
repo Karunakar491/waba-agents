@@ -90,10 +90,54 @@ public class AgentController {
         return ApiResponse.ok(agent);
     }
 
+    @GetMapping("/{id}/settings")
+    public ApiResponse<List<?>> getSettings(@PathVariable Long id) {
+        return ApiResponse.ok(agentDeployService.getSettings(id));
+    }
+
+    @DeleteMapping("/{id}/meta-agent")
+    public ApiResponse<Agent> deleteFromMeta(@PathVariable Long id) {
+        Agent agent = agentDeployService.deleteFromMeta(id);
+        return ApiResponse.ok(agent);
+    }
+
+    // ── Agent Event ───────────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/events")
+    public ApiResponse<Map<String, Object>> triggerEvent(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.triggerEvent(id, payload));
+    }
+
+    @GetMapping("/{id}/events/{agentEventId}")
+    public ApiResponse<Map<String, Object>> getEventStatus(@PathVariable Long id, @PathVariable String agentEventId) {
+        return ApiResponse.ok(agentDeployService.getEventStatus(id, agentEventId));
+    }
+
+    @PostMapping("/{id}/thread-control/release")
+    public ApiResponse<Void> releaseThreadControl(@PathVariable Long id) {
+        agentDeployService.releaseThreadControl(id);
+        return ApiResponse.ok();
+    }
+
+    @GetMapping("/{id}/skills")
+    public ApiResponse<List<AgentSkill>> getSkills(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.getSkills(id));
+    }
+
     @PostMapping("/{id}/skills")
     public ApiResponse<AgentSkill> addSkill(@PathVariable Long id, @Valid @RequestBody SkillRequest request) {
         AgentSkill skill = agentService.addSkill(id, request);
         return ApiResponse.ok(skill);
+    }
+
+    @GetMapping("/{id}/skills/{skillId}")
+    public ApiResponse<AgentSkill> getSkill(@PathVariable Long id, @PathVariable Long skillId) {
+        return ApiResponse.ok(agentService.getSkill(id, skillId));
+    }
+
+    @PutMapping("/{id}/skills/{skillId}")
+    public ApiResponse<AgentSkill> updateSkill(@PathVariable Long id, @PathVariable Long skillId, @Valid @RequestBody SkillRequest request) {
+        return ApiResponse.ok(agentService.updateSkill(id, skillId, request));
     }
 
     @DeleteMapping("/{id}/skills/{skillId}")
@@ -102,10 +146,25 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @GetMapping("/{id}/faq")
+    public ApiResponse<List<AgentFaq>> getFaqs(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.getFaqs(id));
+    }
+
     @PostMapping("/{id}/faq")
     public ApiResponse<AgentFaq> addFaq(@PathVariable Long id, @Valid @RequestBody FaqRequest request) {
         AgentFaq faq = agentService.addFaq(id, request);
         return ApiResponse.ok(faq);
+    }
+
+    @GetMapping("/{id}/faq/{faqId}")
+    public ApiResponse<AgentFaq> getFaq(@PathVariable Long id, @PathVariable Long faqId) {
+        return ApiResponse.ok(agentService.getFaq(id, faqId));
+    }
+
+    @PutMapping("/{id}/faq/{faqId}")
+    public ApiResponse<AgentFaq> updateFaq(@PathVariable Long id, @PathVariable Long faqId, @Valid @RequestBody FaqRequest request) {
+        return ApiResponse.ok(agentService.updateFaq(id, faqId, request));
     }
 
     @DeleteMapping("/{id}/faq/{faqId}")
@@ -114,10 +173,20 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @GetMapping("/{id}/files")
+    public ApiResponse<List<AgentFile>> getFiles(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.getFiles(id));
+    }
+
     @PostMapping("/{id}/files")
     public ApiResponse<AgentFile> addFile(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
         AgentFile agentFile = agentService.addFile(id, file);
         return ApiResponse.ok(agentFile);
+    }
+
+    @GetMapping("/{id}/files/{fileId}")
+    public ApiResponse<AgentFile> getFile(@PathVariable Long id, @PathVariable Long fileId) {
+        return ApiResponse.ok(agentService.getFile(id, fileId));
     }
 
     @DeleteMapping("/{id}/files/{fileId}")
@@ -126,10 +195,25 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @GetMapping("/{id}/websites")
+    public ApiResponse<List<AgentWebsite>> getWebsites(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.getWebsites(id));
+    }
+
     @PostMapping("/{id}/websites")
     public ApiResponse<AgentWebsite> addWebsite(@PathVariable Long id, @Valid @RequestBody WebsiteRequest request) {
         AgentWebsite website = agentService.addWebsite(id, request);
         return ApiResponse.ok(website);
+    }
+
+    @GetMapping("/{id}/websites/{websiteId}")
+    public ApiResponse<AgentWebsite> getWebsite(@PathVariable Long id, @PathVariable Long websiteId) {
+        return ApiResponse.ok(agentService.getWebsite(id, websiteId));
+    }
+
+    @PutMapping("/{id}/websites/{websiteId}")
+    public ApiResponse<AgentWebsite> updateWebsite(@PathVariable Long id, @PathVariable Long websiteId, @Valid @RequestBody WebsiteRequest request) {
+        return ApiResponse.ok(agentService.updateWebsite(id, websiteId, request));
     }
 
     @DeleteMapping("/{id}/websites/{websiteId}")
@@ -141,7 +225,7 @@ public class AgentController {
     // ── Connectors ────────────────────────────────────────────────────────────
 
     @GetMapping("/{id}/connectors")
-    public ApiResponse<Map<String, Object>> listConnectors(@PathVariable Long id) {
+    public ApiResponse<List<Object>> listConnectors(@PathVariable Long id) {
         return ApiResponse.ok(agentDeployService.listConnectors(id));
     }
 
@@ -152,6 +236,19 @@ public class AgentController {
         return ApiResponse.ok(agentDeployService.createConnector(id, payload));
     }
 
+    @GetMapping("/{id}/connectors/{connectorId}")
+    public ApiResponse<Map<String, Object>> getConnector(@PathVariable Long id, @PathVariable String connectorId) {
+        return ApiResponse.ok(agentDeployService.getConnector(id, connectorId));
+    }
+
+    @PutMapping("/{id}/connectors/{connectorId}")
+    public ApiResponse<Map<String, Object>> updateConnector(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.updateConnector(id, connectorId, payload));
+    }
+
     @DeleteMapping("/{id}/connectors/{connectorId}")
     public ApiResponse<Void> deleteConnector(
             @PathVariable Long id,
@@ -160,10 +257,21 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @GetMapping("/{id}/connectors/{connectorId}/logs")
+    public ApiResponse<Map<String, Object>> getConnectorLogs(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String toolId,
+            @RequestParam(required = false) Integer limit) {
+        return ApiResponse.ok(agentDeployService.getConnectorLogs(id, connectorId, startTime, endTime, toolId, limit));
+    }
+
     // ── Tools ─────────────────────────────────────────────────────────────────
 
     @GetMapping("/{id}/connectors/{connectorId}/tools")
-    public ApiResponse<Map<String, Object>> listTools(
+    public ApiResponse<List<Object>> listTools(
             @PathVariable Long id,
             @PathVariable String connectorId) {
         return ApiResponse.ok(agentDeployService.listTools(id, connectorId));
@@ -184,5 +292,14 @@ public class AgentController {
             @PathVariable String toolId) {
         agentDeployService.deleteTool(id, connectorId, toolId);
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/{id}/connectors/{connectorId}/tools/{toolId}/run")
+    public ApiResponse<Map<String, Object>> runTool(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @PathVariable String toolId,
+            @RequestBody(required = false) Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.runTool(id, connectorId, toolId, payload != null ? payload : Map.of()));
     }
 }

@@ -1,11 +1,10 @@
 package com.metaagent.platform.domain.analytics.service;
 
-import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.analytics.entity.AgentPerformanceHourly;
 import com.metaagent.platform.domain.analytics.entity.ConversationSession;
 import com.metaagent.platform.domain.analytics.entity.WebhookEvent;
-import com.metaagent.platform.domain.agent.repository.AgentRepository;
+import com.metaagent.platform.domain.agent.service.AgentAccessService;
 import com.metaagent.platform.domain.analytics.repository.AgentPerformanceHourlyRepository;
 import com.metaagent.platform.domain.analytics.repository.ConversationSessionRepository;
 import com.metaagent.platform.domain.analytics.repository.WebhookEventRepository;
@@ -25,7 +24,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AnalyticsService {
 
-    private final AgentRepository agentRepository;
+    private final AgentAccessService agentAccessService;
     private final WebhookEventRepository webhookEventRepository;
     private final ConversationSessionRepository conversationSessionRepository;
     private final AgentPerformanceHourlyRepository agentPerformanceHourlyRepository;
@@ -179,13 +178,13 @@ public class AnalyticsService {
     }
 
     /**
-     * Tenant isolation: the agent must belong to the caller's account before any
-     * analytics query runs. Fails closed — NotFoundException (not Forbidden) so
-     * agent existence is not leaked across tenants.
+     * Access check before any analytics query runs — via AgentAccessService
+     * (waba_account_access for bound agents, creator-only for drafts).
+     * Fails closed — NotFoundException (not Forbidden) so agent existence is
+     * not leaked across tenants without access.
      */
     private void verifyAgentOwnership(Long agentId) {
         Long callerAccountId = SecurityContextHelper.getRequiredAccountId();
-        agentRepository.findByIdAndAccountId(agentId, callerAccountId)
-                .orElseThrow(() -> new NotFoundException("Agent not found"));
+        agentAccessService.getAccessible(agentId, callerAccountId);
     }
 }

@@ -13,4 +13,7 @@ public interface WabaRepository extends JpaRepository<Waba, Long> {
     Optional<Waba> findByIdAndAccountId(Long id, Long accountId);
 
     Optional<Waba> findByAccountIdAndWabaId(Long accountId, String wabaId);
+
+    /** Canonical row for an external Meta WABA ID, regardless of which account registered it first. */
+    Optional<Waba> findFirstByWabaIdOrderByIdAsc(String wabaId);
 }

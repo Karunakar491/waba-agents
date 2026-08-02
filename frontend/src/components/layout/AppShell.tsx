@@ -1,21 +1,39 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
+  LayoutDashboard,
   Bot,
   MessageSquare,
   Users,
   User,
+  Building2,
   LogOut,
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
+  BarChart3,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
 import { cn } from '../../lib/utils'
 
+// Sub-items under "Agents". All four now have a real account-wide aggregate
+// Library page (TASK-050 Skills, TASK-064 Connectors — live fan-out, no
+// local mirror — TASK-060 Persona, TASK-065 Knowledge Base/Files — local
+// mirror, Files+Websites as tabs on one page) — they always route there
+// instead of an agent deep-link.
+const AGENT_SUB_NAV = [
+  { tab: 'knowledge',  label: 'Knowledge Base',   to: '/library/files' },
+  { tab: 'skills',     label: 'Skills',           to: '/library/skills' },
+  { tab: 'connectors', label: 'Connectors',       to: '/library/connectors' },
+  { tab: 'persona',    label: 'Business Persona', to: '/library/persona' },
+]
+
 const NAV = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',    soon: false },
   { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false },
+  { to: '/reports',  icon: BarChart3,    label: 'Reports',        soon: false },
+  { to: '/wabas',    icon: Building2,    label: 'WABAs',          soon: false },
   { to: '/inbox',    icon: MessageSquare, label: 'Inbox',          soon: false },
   { to: '/handover', icon: Users,         label: 'Human Handover', soon: true  },
   { to: '/profile',  icon: User,          label: 'Profile',        soon: false },
@@ -27,14 +45,23 @@ export default function AppShell() {
   const user = useAuthStore((s) => s.user)
   const logout = useLogout()
   const location = useLocation()
+  // Collapsed by default (modern-app convention) — only stays expanded if the
+  // user explicitly expanded it before (localStorage holds '0').
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSE_KEY) === '1',
+    () => localStorage.getItem(COLLAPSE_KEY) !== '0',
   )
   // Below md the sidebar is an off-canvas drawer — closed by default, overlays content
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Hover-to-peek: while collapsed, hovering the rail floats it open over the
+  // content (doesn't reflow main) — like Notion/Linear/VS Code's activity bar.
+  const [railHover, setRailHover] = useState(false)
 
-  // In the mobile drawer, always show full labels regardless of desktop collapse
-  const iconOnly = collapsed && !mobileOpen
+  // Whether the sidebar is showing full labels right now (persisted collapse
+  // state OFF, or hovering the rail while collapsed). Mobile drawer always
+  // shows full labels regardless of desktop collapse.
+  const showExpanded = !collapsed || railHover
+  const iconOnly = !showExpanded && !mobileOpen
+  const floating = collapsed && railHover && !mobileOpen
 
   // Reset the drawer when crossing to desktop, and close it on Escape
   useEffect(() => {
@@ -73,15 +100,20 @@ export default function AppShell() {
         />
       )}
 
-      {/* Sidebar — off-canvas drawer below md, static rail from md up */}
+      {/* Sidebar — off-canvas drawer below md; fixed rail from md up (fixed,
+          not static, so hover-peek can float over content instead of
+          reflowing it — main's padding-left tracks the collapsed baseline). */}
       <aside
         id="app-sidebar"
         role={mobileOpen ? 'dialog' : undefined}
         aria-modal={mobileOpen || undefined}
         aria-label="Navigation"
+        onMouseEnter={() => collapsed && setRailHover(true)}
+        onMouseLeave={() => setRailHover(false)}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:static md:transition-[width]',
-          collapsed ? 'md:w-16' : 'md:w-60',
+          'fixed inset-y-0 left-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:transition-[width]',
+          showExpanded ? 'md:w-60' : 'md:w-16',
+          floating && 'md:shadow-2xl',
           'w-60',
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
@@ -106,36 +138,62 @@ export default function AppShell() {
         {/* Nav */}
         <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
           {NAV.map(({ to, icon: Icon, label, soon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              title={iconOnly ? label : undefined}
-              onClick={() => { if (!soon) setMobileOpen(false) }}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-colors',
-                  iconOnly ? 'justify-center px-0' : 'px-3',
-                  soon
-                    ? 'pointer-events-none text-white/30'
-                    : isActive
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/60 hover:bg-white/10 hover:text-white',
-                )
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!iconOnly && (
-                <span className="flex flex-1 items-center justify-between">
-                  {label}
-                  {soon && (
-                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/40">
-                      Soon
-                    </span>
-                  )}
-                </span>
+            <div key={to}>
+              <NavLink
+                to={to}
+                title={iconOnly ? label : undefined}
+                onClick={() => { if (!soon) setMobileOpen(false) }}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-colors',
+                    iconOnly ? 'justify-center px-0' : 'px-3',
+                    soon
+                      ? 'pointer-events-none text-white/30'
+                      : isActive
+                        ? 'bg-white/15 text-white'
+                        : 'text-white/60 hover:bg-white/10 hover:text-white',
+                  )
+                }
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!iconOnly && (
+                  <span className="flex flex-1 items-center justify-between">
+                    {label}
+                    {soon && (
+                      <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/40">
+                        Soon
+                      </span>
+                    )}
+                  </span>
+                )}
+                {iconOnly && <span className="sr-only">{label}</span>}
+              </NavLink>
+
+              {/* Agents sub-nav — always expanded, hidden entirely in the
+                  collapsed rail (sub-items don't fit a 64px icon-only rail). */}
+              {to === '/agents' && !iconOnly && (
+                <div className="mt-1 space-y-1">
+                  {AGENT_SUB_NAV.map(({ tab, label: subLabel, to: subTo }) => {
+                    const isActive = location.pathname === subTo
+                    return (
+                      <NavLink
+                        key={tab}
+                        to={subTo}
+                        onClick={() => setMobileOpen(false)}
+                        className={cn(
+                          'block rounded-lg py-2 pl-11 pr-3 text-sm transition-colors',
+                          isActive
+                            ? 'bg-white/15 text-white'
+                            : 'text-white/50 hover:bg-white/10 hover:text-white/80',
+                        )}
+                      >
+                        {subLabel}
+                      </NavLink>
+                    )
+                  })}
+                </div>
               )}
-              {iconOnly && <span className="sr-only">{label}</span>}
-            </NavLink>
+            </div>
           ))}
         </nav>
 
@@ -183,8 +241,14 @@ export default function AppShell() {
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Main — padding-left tracks the persisted collapse state (not hover),
+          so a hover-peek floats over content instead of shifting it. */}
+      <div
+        className={cn(
+          'flex flex-1 flex-col overflow-hidden transition-[padding] duration-200',
+          collapsed ? 'md:pl-16' : 'md:pl-60',
+        )}
+      >
         {/* Topbar */}
         <header className="flex h-16 items-center justify-between border-b bg-card px-4">
           <div className="flex items-center gap-3">

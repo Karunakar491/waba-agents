@@ -4,6 +4,7 @@ import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.conversation.entity.Conversation;
 import com.metaagent.platform.domain.conversation.entity.Message;
+import com.metaagent.platform.domain.conversation.model.HandoffSignal;
 import com.metaagent.platform.domain.conversation.model.InboundMessage;
 import com.metaagent.platform.domain.conversation.model.StatusUpdate;
 import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
@@ -40,6 +41,7 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final InboundMessageParser parser;
     private final StatusUpdateParser statusUpdateParser;
+    private final HandoffClassifier handoffClassifier;
     private final ConversationStore conversationStore;
     private final RabbitTemplate rabbitTemplate;
 
@@ -63,8 +65,15 @@ public class ConversationService {
         }
 
         try {
+            // Classified once per payload and reused below — avoids re-parsing the same
+            // raw JSON twice for a related but distinct signal (see webhook-standby-handoff.md).
+            HandoffSignal signal = handoffClassifier.classify(raw.getPayload());
+
             Optional<InboundMessage> parsed = parser.parse(raw.getPayload());
             if (parsed.isEmpty()) {
+                if (signal == HandoffSignal.BIZAI_ACTIVE) {
+                    log.info("BizAI active on webhook: id={} — observability only, no action taken", webhookRawId);
+                }
                 // Not an inbound message — check if it's a status update
                 Optional<StatusUpdate> statusUpdate = statusUpdateParser.parse(raw.getPayload());
                 if (statusUpdate.isPresent()) {
@@ -80,6 +89,11 @@ public class ConversationService {
             Message.ContentType contentType = resolveContentType(inbound.messageType());
             conversationStore.saveInbound(accountId, conversation.getId(), agentId,
                     inbound.metaMessageId(), inbound.textBody(), contentType, inbound.contentJson());
+
+            if (signal == HandoffSignal.NEEDS_HUMAN) {
+                conversationStore.markNeedsHuman(conversation.getId());
+                notifyHandoverTarget(conversation);
+            }
 
             publishAnalyticsEvent(accountId, agentId, conversation.getId());
 
@@ -139,6 +153,25 @@ public class ConversationService {
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageAt")));
     }
 
+    /** Agent id -> conversation count, for the current account. Backs the Agents list table. */
+    public Map<Long, Long> getConversationCountsByAgent() {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        return conversationRepository.countByAgentIdForAccount(accountId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        ConversationRepository.AgentConversationCount::getAgentId,
+                        ConversationRepository.AgentConversationCount::getTotal));
+    }
+
+    /** Account-wide conversation totals for the Dashboard summary. */
+    public record ConversationTotals(long total, long active) {}
+
+    public ConversationTotals getConversationTotals() {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        long total = conversationRepository.countByAccountId(accountId);
+        long active = conversationRepository.countByAccountIdAndStatus(accountId, Conversation.Status.open);
+        return new ConversationTotals(total, active);
+    }
+
     public List<Message> getConversationMessages(Long conversationId, int page, int size) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         conversationRepository.findByIdAndAccountId(conversationId, accountId)
@@ -192,6 +225,10 @@ public class ConversationService {
                 yield null;
             }
         };
+    }
+
+    private void notifyHandoverTarget(Conversation conversation) {
+        // Future integration seam — auto-notify/forward on handoff is out of scope for this scaffold.
     }
 
     private void publishAnalyticsEvent(Long accountId, Long agentId, Long conversationId) {

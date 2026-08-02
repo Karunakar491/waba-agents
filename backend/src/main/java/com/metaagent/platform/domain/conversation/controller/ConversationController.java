@@ -7,6 +7,7 @@ import com.metaagent.platform.domain.conversation.service.ConversationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -14,6 +15,11 @@ import java.util.List;
 public class ConversationController {
 
     private final ConversationService conversationService;
+
+    @GetMapping("/conversations/counts")
+    public ApiResponse<Map<Long, Long>> getConversationCounts() {
+        return ApiResponse.ok(conversationService.getConversationCountsByAgent());
+    }
 
     @GetMapping("/conversations")
     public ApiResponse<List<Conversation>> getAccountConversations(

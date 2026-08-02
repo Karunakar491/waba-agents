@@ -89,4 +89,13 @@ public class ConversationStore {
             messageRepository.save(message);
         });
     }
+
+    // Scaffold for standby/handoff detection — provisional, see docs/meta-api/webhook-standby-handoff.md
+    @Transactional
+    public void markNeedsHuman(Long conversationId) {
+        conversationRepository.findById(conversationId).ifPresent(c -> {
+            c.setNeedsHuman(true);
+            conversationRepository.save(c);
+        });
+    }
 }

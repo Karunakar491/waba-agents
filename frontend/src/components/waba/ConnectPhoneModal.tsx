@@ -17,6 +17,12 @@ interface ValidateResponse {
   phoneNumbers: PhoneNumber[]
 }
 
+interface DeployPreflightResponse {
+  agentIdPresent: boolean
+  skillCount: number
+  connectorNames: string[]
+}
+
 interface Props {
   /** Route param string — TSIDs exceed Number.MAX_SAFE_INTEGER, never parse to number */
   agentId: string
@@ -34,6 +40,8 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
   const [validated, setValidated] = useState<ValidateResponse | null>(null)
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [preflightChecking, setPreflightChecking] = useState(false)
+  const [preflightWarning, setPreflightWarning] = useState<DeployPreflightResponse | null>(null)
 
   const validateMutation = useMutation({
     mutationFn: () =>
@@ -68,6 +76,29 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
   })
 
   const wabaIdValid = /^\d{5,32}$/.test(wabaId.trim())
+
+  // Soft-warn (never a hard block) before connecting onto a number that already
+  // has live Meta agent config. If the check itself fails, fail closed — block
+  // instead of silently proceeding as if the number were clean.
+  const handleConnectClick = async () => {
+    if (!selectedPhone) return
+    setError(null)
+    setPreflightChecking(true)
+    try {
+      const res = await api.get(`/waba/phones/${selectedPhone}/deploy-preflight`)
+      const data = res.data.data as DeployPreflightResponse
+      const hasExisting = data.agentIdPresent || data.skillCount > 0 || data.connectorNames.length > 0
+      if (hasExisting) {
+        setPreflightWarning(data)
+      } else {
+        connectMutation.mutate()
+      }
+    } catch (err) {
+      setError(extractError(err))
+    } finally {
+      setPreflightChecking(false)
+    }
+  }
 
   return (
     <div
@@ -225,10 +256,32 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
               </div>
             )}
 
+            {preflightWarning && (
+              <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
+                <p>{describePreflightWarning(preflightWarning)}</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreflightWarning(null)}
+                    className="rounded-md border px-3 py-1.5 text-xs font-semibold hover:bg-muted/50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPreflightWarning(null); connectMutation.mutate() }}
+                    className="rounded-md bg-brand-pink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => { setStep('enter'); setSelectedPhone(null); setError(null) }}
+                onClick={() => { setStep('enter'); setSelectedPhone(null); setError(null); setPreflightWarning(null) }}
                 disabled={connectMutation.isPending}
                 className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
                   text-muted-foreground hover:text-foreground transition-colors
@@ -238,14 +291,14 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => { setError(null); connectMutation.mutate() }}
-                disabled={!selectedPhone || connectMutation.isPending}
+                onClick={handleConnectClick}
+                disabled={!selectedPhone || connectMutation.isPending || preflightChecking || !!preflightWarning}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
                   text-sm font-semibold text-white transition-opacity hover:opacity-90
                   disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {connectMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {connectMutation.isPending ? 'Connecting…' : 'Connect number'}
+                {(connectMutation.isPending || preflightChecking) && <Loader2 className="h-4 w-4 animate-spin" />}
+                {connectMutation.isPending ? 'Connecting…' : preflightChecking ? 'Checking number…' : 'Connect number'}
               </button>
             </div>
           </div>
@@ -258,4 +311,12 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
 function extractError(err: unknown): string {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
   return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
+}
+
+function describePreflightWarning(p: DeployPreflightResponse): string {
+  const parts: string[] = []
+  if (p.skillCount > 0) parts.push(`${p.skillCount} skill${p.skillCount === 1 ? '' : 's'} configured`)
+  if (p.connectorNames.length > 0) parts.push(`connected to: ${p.connectorNames.join(', ')}`)
+  if (parts.length === 0) parts.push('an active Meta agent configured')
+  return `This number already has ${parts.join('; ')}. Connecting here may affect what's already live. Continue?`
 }

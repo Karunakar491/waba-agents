@@ -65,3 +65,5 @@ Controls which party handles a conversation — your app or Meta Business Agent.
 6. Your app calls POST /thread_control with action="release"
 7. Meta Business Agent resumes (new messages only)
 ```
+
+**⚠️ Correction from observed partner payloads (see `webhook-standby-handoff.md`):** no `messaging_handovers` field has been observed in real webhook traffic. The actual handoff signal is the presence/absence of a `standby` wrapper around `contacts`/`messages` in the webhook `value` — see that doc for the parsing rule. Treat step 3 above as directional, not literal.

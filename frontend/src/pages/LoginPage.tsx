@@ -19,6 +19,7 @@ type RegisterForm = z.infer<typeof registerSchema>
 
 export default function LoginPage() {
   const [tab, setTab] = useState<'login' | 'register'>('login')
+  const [registerSuccess, setRegisterSuccess] = useState(false)
   const login    = useLogin()
   const register = useRegister()
 
@@ -120,6 +121,13 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Registration success */}
+          {registerSuccess && tab === 'login' && (
+            <div className="rounded-lg border border-green-600/30 bg-green-600/5 px-4 py-3 text-sm text-green-700">
+              Account created. Sign in with your new credentials.
+            </div>
+          )}
+
           {tab === 'login' ? (
             <form
               onSubmit={loginForm.handleSubmit((d) => login.mutate(d))}
@@ -143,7 +151,14 @@ export default function LoginPage() {
             </form>
           ) : (
             <form
-              onSubmit={registerForm.handleSubmit((d) => register.mutate(d))}
+              onSubmit={registerForm.handleSubmit((d) =>
+                register.mutate(d, {
+                  onSuccess: () => {
+                    setRegisterSuccess(true)
+                    setTab('login')
+                  },
+                })
+              )}
               className="space-y-4"
             >
               <Field

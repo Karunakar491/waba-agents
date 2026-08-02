@@ -26,4 +26,9 @@ public interface WebhookRawRepository extends JpaRepository<WebhookRaw, Long> {
     @Modifying
     @Query("DELETE FROM WebhookRaw w WHERE w.status IN ('PROCESSED', 'FAILED') AND w.processedAt < :cutoff")
     int deleteProcessedBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    /** Bulk delete for agent deletion cascade — agentId is nullable on this table but always set once an agent is bound. */
+    @Modifying
+    @Query("DELETE FROM WebhookRaw w WHERE w.agentId = :agentId")
+    void deleteAllByAgentId(@Param("agentId") Long agentId);
 }

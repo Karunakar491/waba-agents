@@ -1,0 +1,128 @@
+[11:30:30] 
+[11:30:30] ======================================================================
+[11:30:30] 1. REGISTER (real UI form)
+[11:30:30] ======================================================================
+[11:30:41]   [PASS] Register succeeded for selenium-102831e8@test.com, success banner shown
+[11:30:41] 
+[11:30:41] ======================================================================
+[11:30:41] 2. LOGIN (real UI form)
+[11:30:41] ======================================================================
+[11:30:45]   [PASS] Login succeeded, landed on http://localhost:5173/dashboard
+[11:30:45]   screenshot saved: screenshots/02-dashboard.png
+[11:30:45] 
+[11:30:45] ======================================================================
+[11:30:45] 3. AGENTS LIST — empty state
+[11:30:45] ======================================================================
+[11:30:46]   [PASS] Empty state shown correctly for new account
+[11:30:46]   screenshot saved: screenshots/03-agents-empty.png
+[11:30:46] 
+[11:30:46] ======================================================================
+[11:30:46] 4. AGENT CREATION WIZARD (5 steps, real UI)
+[11:30:46] ======================================================================
+[11:30:49]   [PASS] Step 1 (Identity) valid input enables Continue
+[11:30:50]   screenshot saved: screenshots/04-wizard-step1.png
+[11:30:51]   [PASS] Step 2 (Personality) reached
+[11:30:52]   screenshot saved: screenshots/05-wizard-step2.png
+[11:30:54]   [PASS] Step 3 FAQ added and visible in list
+[11:30:55]   screenshot saved: screenshots/06-wizard-step3.png
+[11:30:56]   [PASS] Step 4 (Connect) reached
+[11:30:57]   screenshot saved: screenshots/07-wizard-step4.png
+[11:30:58]   [PASS] Wizard completed, agent saved as draft, agentId=869459295878512640
+[11:30:58]   screenshot saved: screenshots/08-agent-detail-draft.png
+[11:30:58] 
+[11:30:58] ======================================================================
+[11:30:58] 5. AGENTS LIST — created agent visible
+[11:30:58] ======================================================================
+[11:30:59]   [PASS] Created agent appears in Agents list
+[11:31:00]   screenshot saved: screenshots/09-agents-list-with-agent.png
+[11:31:00] 
+[11:31:00] ======================================================================
+[11:31:00] 6. AGENT DETAIL — Settings tab edit/save
+[11:31:00] ======================================================================
+[11:31:03]   [PASS] Settings edit saved, 'Saved!' confirmation shown
+[11:31:03]   screenshot saved: screenshots/10-settings-saved.png
+[11:31:03] 
+[11:31:03] ======================================================================
+[11:31:03] 7. AGENT DETAIL — Knowledge Base FAQ add/delete
+[11:31:03] ======================================================================
+[11:31:07]   [PASS] FAQ added on Knowledge Base tab
+[11:31:15]   [FAIL] FAQ add/delete on Knowledge Base tab did not complete as expected
+[11:31:15]   screenshot saved: screenshots/11-knowledge-base.png
+[11:31:15] 
+[11:31:15] ======================================================================
+[11:31:15] 8. SEED WABA + BIND PHONE (API, bypasses real Meta Graph calls)
+[11:31:15] ======================================================================
+[11:31:16]   POST /waba -> 200 {"success":true,"data":{"id":"869459405425344512","wabaId":"177867544366013","label":"Selenium Test WABA","status":"active"}}
+[11:31:16]   [PASS] WABA seeded via API, internal id=869459405425344512, metaWabaId=177867544366013
+[11:31:17]   PUT /agents/869459295878512640/phone -> 400 {"success":false,"error":"Meta isn't responding. Wait a moment and try again."}
+[11:31:17]   [WARN] Phone bind via real endpoint failed as expected (bindPhone() deliberately calls Meta Graph API to verify the phone belongs to the WABA — by design, cannot succeed without real Meta credentials locally): 400 {"success":false,"error":"Meta isn't responding. Wait a moment and try again."}
+[11:31:17]   Falling back to direct SQL seed of phone_number_id (test-only, bypasses Meta verification) so downstream UI surfaces (Inbox, Connectors, Settings phone display) can still be exercised.
+[11:31:17]   SQL seed rc=0 stderr=mysql: [Warning] Using a password on the command line interface can be insecure.
+[11:31:17]   [PASS] phone_number_id seeded directly via SQL for test purposes
+[11:31:17] 
+[11:31:17] ======================================================================
+[11:31:17] 9. WABAS PAGE — seeded WABA visible
+[11:31:17] ======================================================================
+[11:31:19]   [PASS] Seeded WABA visible in WABAs table
+[11:31:19]   screenshot saved: screenshots/12-wabas-page.png
+[11:31:19] 
+[11:31:19] ======================================================================
+[11:31:19] 10. AGENT DETAIL — phone connection reflected in UI
+[11:31:19] ======================================================================
+[11:31:22]   [PASS] Bound phone number shown in Settings tab
+[11:31:22]   screenshot saved: screenshots/13-settings-phone-connected.png
+[11:31:22] 
+[11:31:22] ======================================================================
+[11:31:22] 11. DEPLOY (expected to fail — no real Meta credentials locally)
+[11:31:22] ======================================================================
+[11:31:25]   [WARN] Deploy failed as expected (dummy META_API_TOKEN): 'Meta settings update failed — agent state unchanged: Meta API error: 401' — UI handled it gracefully, no crash
+[11:31:25]   screenshot saved: screenshots/14-deploy-attempt.png
+[11:31:25] 
+[11:31:25] ======================================================================
+[11:31:25] 12. CONNECTORS TAB (expected to fail — real Meta call)
+[11:31:25] ======================================================================
+[11:31:27]   screenshot saved: screenshots/15-connectors-tab.png
+[11:31:27]   [WARN] Connectors tab opened — listConnectors() calls real Meta agent_connectors API; check screenshot for error state
+[11:31:27] 
+[11:31:27] ======================================================================
+[11:31:27] 13. SEED INBOX CONVERSATION (synthetic webhook POST)
+[11:31:27] ======================================================================
+[11:31:27]   POST /webhook -> 200 OK
+[11:31:27]   [PASS] Synthetic webhook accepted (200 OK)
+[11:31:32]   [PASS] Seeded conversation appears in Inbox
+[11:31:40]   [WARN] Could not open conversation thread / message text not found: Message: 
+Stacktrace:
+	msedgedriver!GetHandleVerifier [0x7ff76a85ed05+e415]
+	msedgedriver!GetHandleVerifier [0x7ff76a85ed64+e474]
+	msedgedriver!GetHandleVerifier [0x7ff76aed9716+688e26]
+	msedgedriver!(No symbol) [0x7ff76a2507a2]
+	msedgedriver!(No symbol) [0x7ff76a250a15]
+	msedgedriver!(No symbol) [0x7ff76a28e9c7]
+	msedgedriver!(No symbol) [0x7ff76a2473b7]
+	msedgedriver!(No symbol) [0x7ff76a28c688]
+	msedgedriver!(No symbol) [0x7ff76a246bfc]
+	msedgedriver!(No symbol) [0x7ff76a245e56]
+	msedgedriver!(No symbol) [0x7ff76a246a23]
+	msedgedriver!(No symbol) [0x7ff76a4893f1]
+	msedgedriver!(No symbol) [0x7ff76a48580f]
+	msedgedriver!(No symbol) [0x7ff76a496699]
+	msedgedriver!GetHandleVerifier [0x7ff76a87a3f1+29b01]
+	msedgedriver!GetHandleVerifier [0x7ff76a882bf6+32306]
+	msedgedriver!GetHandleVerifier [0x7ff76a866864+15f74]
+	msedgedriver!GetHandleVerifier [0x7ff76a866985+16095]
+	msedgedriver!GetHandleVerifier [0x7ff76a852da3+24b3]
+	KERNEL32!BaseThreadInitThunk [0x7ff8119fe957+17]
+	ntdll!RtlUserThreadStart [0x7ff812fc7c1c+2c]
+
+[11:31:40]   screenshot saved: screenshots/16-inbox.png
+[11:31:40] 
+[11:31:40] ======================================================================
+[11:31:40] 14. DELETE AGENT
+[11:31:40] ======================================================================
+[11:31:46]   [PASS] Agent deleted, no longer visible in Agents list
+[11:31:46]   screenshot saved: screenshots/17-after-delete.png
+[11:31:46] 
+[11:31:46] ======================================================================
+[11:31:46] SUMMARY
+[11:31:46] ======================================================================
+[11:31:46] PASS: 18  FAIL: 1  WARN(expected-Meta-failure): 4

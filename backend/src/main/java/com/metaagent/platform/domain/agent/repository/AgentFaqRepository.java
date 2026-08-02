@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface AgentFaqRepository extends JpaRepository<AgentFaq, Long> {
     List<AgentFaq> findAllByAgentId(Long agentId);
     Optional<AgentFaq> findByIdAndAgentId(Long id, Long agentId);
+    void deleteAllByAgentId(Long agentId);
 }

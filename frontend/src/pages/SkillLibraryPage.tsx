@@ -1,0 +1,172 @@
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, Search, Zap } from 'lucide-react'
+import api from '../lib/api'
+import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
+import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
+
+interface WabaEntry {
+  id: string
+  wabaId: string
+  label: string | null
+  status: string
+}
+
+interface LibrarySkill extends SkillRow {
+  body: string
+  wabaId: string | null
+  agentId: string | null
+  agentName: string | null
+}
+
+function extractMessage(err: unknown): string {
+  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
+  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
+}
+
+export default function SkillLibraryPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [editingSkill, setEditingSkill] = useState<LibrarySkill | null>(null)
+  const [showEditor, setShowEditor] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'deployed' | 'draft'>('all')
+
+  // Multi-WABA switcher deferred (TASKS.md follow-up) — default to the first
+  // WABA this account has access to, same resolution order used elsewhere
+  // in the account/WABA-decoupled model.
+  const { data: wabas = [], isLoading: wabasLoading } = useQuery<WabaEntry[]>({
+    queryKey: ['wabas'],
+    queryFn: () => api.get('/waba').then((r) => r.data.data),
+  })
+  const waba = wabas[0] ?? null
+
+  const { data: skills = [], isLoading: skillsLoading } = useQuery<LibrarySkill[]>({
+    queryKey: ['library-skills', waba?.id],
+    queryFn: () => api.get('/skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
+    enabled: !!waba,
+  })
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return skills
+      .filter((s) => !q || s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+      .filter((s) => statusFilter === 'all' || (statusFilter === 'deployed' ? s.deployed : !s.deployed))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  }, [skills, search, statusFilter])
+
+  const deleteMutation = useMutation({
+    mutationFn: (skill: LibrarySkill) =>
+      skill.source === 'AGENT'
+        ? api.delete(`/agents/${skill.agentId}/skills/${skill.id}`)
+        : api.delete(`/skills/${skill.id}`),
+    onMutate: (skill) => { setDeletingId(skill.id); setDeleteError(null) },
+    onSettled: () => setDeletingId(null),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] }),
+    // Deleting a Library skill still attached to an agent 400s (fk_attachment_skill,
+    // TASK-050) — the primary expected failure here, not an edge case, since
+    // the whole point of a Library skill is to be attached to multiple agents.
+    onError: (err) => setDeleteError(extractMessage(err)),
+  })
+
+  function openEdit(row: SkillRow) {
+    const skill = skills.find((s) => s.id === row.id)
+    if (skill) { setEditingSkill(skill); setShowEditor(true) }
+  }
+
+  const isLoading = wabasLoading || skillsLoading
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Skills</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {waba ? `Every skill live on any agent on ${waba.label ?? waba.wabaId}, plus shared drafts.` : 'Every skill your agents have, in one place.'}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/library/skills/browse')}
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold
+            text-foreground transition-colors hover:bg-muted"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          Browse Skill Library
+        </button>
+      </div>
+
+      {deleteError && (
+        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {deleteError}
+        </div>
+      )}
+
+      {!isLoading && !waba ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-20 text-center">
+          <Zap className="h-10 w-10 text-muted-foreground mb-3" />
+          <p className="font-semibold text-foreground">No WABA connected yet</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+            Connect a WABA to see your agents' skills here.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search skills by title or description…"
+                className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm
+                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
+                  focus:ring-primary/50 focus:border-primary transition"
+              />
+            </div>
+            <label htmlFor="skill-status-filter" className="sr-only">Filter by status</label>
+            <select
+              id="skill-status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="rounded-lg border bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="all">All statuses</option>
+              <option value="deployed">Deployed</option>
+              <option value="draft">Draft</option>
+            </select>
+            <p className="text-xs text-muted-foreground shrink-0 hidden md:block">
+              Add new shared skills via Promote (agent Skills tab) or the Skill Library.
+            </p>
+          </div>
+
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden overflow-x-auto">
+            <SkillsTable
+              isLoading={isLoading}
+              totalCount={skills.length}
+              rows={filteredRows}
+              deletingId={deletingId}
+              onEdit={openEdit}
+              onDelete={(row) => {
+                const skill = skills.find((s) => s.id === row.id)
+                if (skill) deleteMutation.mutate(skill)
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {showEditor && editingSkill && waba && (
+        <SkillEditorModal
+          agentId={editingSkill.source === 'AGENT' ? editingSkill.agentId ?? '' : ''}
+          skill={editingSkill}
+          librarySkillId={editingSkill.source === 'LIBRARY' ? editingSkill.id : undefined}
+          onClose={() => setShowEditor(false)}
+        />
+      )}
+    </div>
+  )
+}

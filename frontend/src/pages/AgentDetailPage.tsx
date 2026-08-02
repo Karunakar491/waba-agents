@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -23,11 +23,23 @@ import {
   Plus,
   X,
   Rocket,
+  Play,
   Send,
+  Users,
+  FileText,
+  ClipboardList,
+  RefreshCw,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import ConnectPhoneModal from '../components/waba/ConnectPhoneModal'
+import BusinessProfileTab from '../components/agent-detail/BusinessProfileTab'
+import SkillsTab from '../components/agent-detail/SkillsTab'
+import RunToolModal from '../components/agent-detail/RunToolModal'
+import ConsequenceLine from '../components/shared/ConsequenceLine'
+import EvalTab from '../components/agent-detail/EvalTab'
+import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
+import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,18 +52,21 @@ interface AgentApi {
   tone: string | null
   language: string | null
   behaviorRules: string | null
+  handoffEnabled: boolean
+  handoffMessage: string | null
   updatedAt: string
   deployedAt: string | null
+  sharedAccountCount: number | null
 }
 
 interface Faq {
   id: string
   question: string
   answer: string
+  metaSynced: boolean
 }
 
-type KbTab = 'faqs' | 'websites' | 'files'
-type DetailTab = 'knowledge' | 'skills' | 'connectors' | 'settings'
+type DetailTab = 'knowledge' | 'skills' | 'connectors' | 'profile' | 'eval' | 'settings'
 
 const STATUS_CONFIG = {
   active: { label: 'Active',  color: 'text-brand-green', bg: 'bg-brand-green/10' },
@@ -67,6 +82,8 @@ const settingsSchema = z.object({
   tone: z.string().optional(),
   language: z.string().optional(),
   behaviorRules: z.string().optional(),
+  handoffEnabled: z.boolean(),
+  handoffMessage: z.string().max(1000, 'Max 1000 characters').optional(),
 })
 type SettingsValues = z.infer<typeof settingsSchema>
 
@@ -77,13 +94,44 @@ function extractMessage(err: unknown): string {
   return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
+interface DeployPreflightResponse {
+  agentIdPresent: boolean
+  skillCount: number
+  connectorNames: string[]
+}
+
+function describePreflightWarning(p: DeployPreflightResponse): string {
+  const parts: string[] = []
+  if (p.skillCount > 0) parts.push(`${p.skillCount} skill${p.skillCount === 1 ? '' : 's'} configured`)
+  if (p.connectorNames.length > 0) parts.push(`connected to: ${p.connectorNames.join(', ')}`)
+  if (parts.length === 0) parts.push('an active Meta agent configured')
+  return `This number already has ${parts.join('; ')}. Connecting here may affect what's already live. Continue?`
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<DetailTab>('knowledge')
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const isDetailTab = (v: string | null): v is DetailTab =>
+    v === 'knowledge' || v === 'skills' || v === 'connectors' || v === 'profile' || v === 'eval' || v === 'settings'
+  const [activeTab, setActiveTab] = useState<DetailTab>(isDetailTab(requestedTab) ? requestedTab : 'knowledge')
+
+  // Sidebar nav (Knowledge Base/Skills/Connectors) deep-links back into the last
+  // agent viewed for that tab — a per-tab key, not one global "last agent", so
+  // switching between two clients' Skills/Connectors mid-session never bleeds
+  // into each other. Session-scoped (not localStorage): resets on next login so
+  // an operator never lands in yesterday's client's data by muscle memory.
+  useEffect(() => {
+    if (id) sessionStorage.setItem(`last-agent:${activeTab}`, id)
+  }, [id, activeTab])
   const [testOpen, setTestOpen] = useState(false)
+  const [threadControlOpen, setThreadControlOpen] = useState(false)
+  const [preflightChecking, setPreflightChecking] = useState(false)
+  const [preflightWarning, setPreflightWarning] = useState<DeployPreflightResponse | null>(null)
+  const [preflightError, setPreflightError] = useState<string | null>(null)
 
   const { data: agent, isLoading, isError } = useQuery<AgentApi>({
     queryKey: ['agent', id],
@@ -109,21 +157,85 @@ export default function AgentDetailPage() {
     },
   })
 
+  const refreshNameMutation = useMutation({
+    mutationFn: () => api.post(`/agents/${id}/refresh-name`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent', id] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    },
+  })
+
+  // TASK-067 (founder-reported gap): every tab below (Knowledge/Skills/
+  // Connectors/Profile/Eval) only fires its Meta GET call when a human
+  // actually clicks that tab — meaning an agent viewed without clicking
+  // "Eval", say, never even generates an api_call_log row for it. Prefetch
+  // every domain's exact query the moment the agent is known, using the
+  // SAME queryKey/queryFn each tab already owns, so the real Meta call
+  // fires on page view regardless of which tab is active, and the tab
+  // itself renders instantly from cache (default staleTime: 30s, set
+  // globally in App.tsx, already prevents duplicate calls on rapid
+  // re-navigation — no extra staleTime override needed here).
+  useEffect(() => {
+    if (!agent?.id || !agent.phoneNumberId) return
+    const agentId = agent.id
+    const phoneNumberId = agent.phoneNumberId
+    queryClient.prefetchQuery({ queryKey: ['faqs', agentId], queryFn: () => api.get(`/agents/${agentId}/faq`).then((r) => r.data.data) })
+    queryClient.prefetchQuery({ queryKey: ['websites', agentId], queryFn: () => api.get(`/agents/${agentId}/websites`).then((r) => r.data.data) })
+    queryClient.prefetchQuery({ queryKey: ['files', agentId], queryFn: () => api.get(`/agents/${agentId}/files`).then((r) => r.data.data) })
+    queryClient.prefetchQuery({ queryKey: ['skills-view', agentId], queryFn: () => api.get(`/agents/${agentId}/skills-view`).then((r) => r.data.data ?? []) })
+    queryClient.prefetchQuery({
+      queryKey: ['connectors', agentId],
+      queryFn: () => api.get(`/agents/${agentId}/connectors`).then((r) => {
+        const d = r.data.data
+        return Array.isArray(d) ? d : (d?.data ?? [])
+      }),
+    })
+    queryClient.prefetchQuery({ queryKey: ['business-profile-live', phoneNumberId], queryFn: () => api.get('/business-profiles/live', { params: { phoneNumberId } }).then((r) => r.data.data) })
+    queryClient.prefetchQuery({ queryKey: ['business-profile-history', phoneNumberId], queryFn: () => api.get('/business-profiles/history', { params: { phoneNumberId } }).then((r) => r.data.data ?? []) })
+    queryClient.prefetchQuery({ queryKey: ['eval-cases', agentId], queryFn: () => api.get(`/reports/agents/${agentId}/eval/cases`).then((r) => r.data.data?.eval_cases ?? []) })
+  }, [agent?.id, agent?.phoneNumberId, queryClient])
+
   if (isLoading) return <AgentDetailSkeleton />
   if (isError || !agent) return <AgentNotFound onBack={() => navigate('/agents')} />
 
   const cfg = STATUS_CONFIG[agent.status]
   const canDeploy = !!agent.phoneNumberId
-  const actionError =
-    deployMutation.error || pauseMutation.error
+  const actionError = preflightError
+    ? preflightError
+    : deployMutation.error || pauseMutation.error
       ? extractMessage(deployMutation.error ?? pauseMutation.error)
       : null
 
+  // UX nicety on top of the backend's own fail-closed guard (AgentDeployService).
+  // Fails closed here too — a preflight call that errors blocks deploy rather
+  // than silently proceeding as if the number were clean.
+  const handleDeployClick = async () => {
+    if (!agent.phoneNumberId) return
+    setPreflightError(null)
+    setPreflightChecking(true)
+    try {
+      const res = await api.get(`/waba/phones/${agent.phoneNumberId}/deploy-preflight`)
+      const data = res.data.data as DeployPreflightResponse
+      const hasExisting = data.agentIdPresent || data.skillCount > 0 || data.connectorNames.length > 0
+      if (hasExisting) {
+        setPreflightWarning(data)
+      } else {
+        deployMutation.mutate()
+      }
+    } catch (err) {
+      setPreflightError(extractMessage(err))
+    } finally {
+      setPreflightChecking(false)
+    }
+  }
+
   const LEFT_TABS: { key: DetailTab; icon: React.FC<{ className?: string }>; label: string }[] = [
-    { key: 'knowledge',  icon: BookOpen,  label: 'Knowledge Base' },
-    { key: 'skills',     icon: Zap,       label: 'Skills'         },
-    { key: 'connectors', icon: Plug,      label: 'Connectors'     },
-    { key: 'settings',   icon: Settings2, label: 'Settings'       },
+    { key: 'knowledge',  icon: BookOpen,      label: 'Knowledge Base'  },
+    { key: 'skills',     icon: Zap,           label: 'Skills'          },
+    { key: 'connectors', icon: Plug,          label: 'Connectors'      },
+    { key: 'profile',    icon: FileText,      label: 'Business Profile'},
+    { key: 'eval',       icon: ClipboardList, label: 'Eval'            },
+    { key: 'settings',   icon: Settings2,     label: 'Settings'        },
   ]
 
   return (
@@ -147,12 +259,33 @@ export default function AgentDetailPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-bold text-foreground">{agent.displayName}</h1>
+                  {agent.displayName.startsWith('Imported agent (') && (
+                    <button
+                      onClick={() => refreshNameMutation.mutate()}
+                      disabled={refreshNameMutation.isPending}
+                      title="Retry resolving this agent's real name from Meta"
+                      className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                    >
+                      {refreshNameMutation.isPending
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <RefreshCw className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
                   <span
                     className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}
                   >
                     <Circle className="h-1.5 w-1.5 fill-current" />
                     {cfg.label}
                   </span>
+                  {(agent.sharedAccountCount ?? 0) > 1 && (
+                    <span
+                      title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}
+                      className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                    >
+                      <Users className="h-3 w-3" />
+                      Shared WABA
+                    </span>
+                  )}
                 </div>
                 <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
                   <Phone className="h-3.5 w-3.5" />
@@ -163,6 +296,17 @@ export default function AgentDetailPage() {
 
             {/* Right actions */}
             <div className="flex items-center gap-2 shrink-0">
+              {agent.status === 'active' && agent.handoffEnabled && (
+                <button
+                  onClick={() => setThreadControlOpen(true)}
+                  title="Hand this number's conversations back to the AI agent"
+                  className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold
+                    text-foreground transition-colors hover:bg-muted"
+                >
+                  <Users className="h-4 w-4" />
+                  Thread Control
+                </button>
+              )}
               {agent.status === 'active' && (
                 <>
                   <button
@@ -190,18 +334,18 @@ export default function AgentDetailPage() {
               )}
               {(agent.status === 'draft' || agent.status === 'paused') && (
                 <button
-                  onClick={() => deployMutation.mutate()}
-                  disabled={deployMutation.isPending || !canDeploy}
+                  onClick={handleDeployClick}
+                  disabled={deployMutation.isPending || preflightChecking || !!preflightWarning || !canDeploy}
                   title={!canDeploy ? 'Connect a phone number first' : undefined}
                   className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold
                     text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {deployMutation.isPending ? (
+                  {deployMutation.isPending || preflightChecking ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Rocket className="h-4 w-4" />
                   )}
-                  Publish &amp; Test
+                  {preflightChecking ? 'Checking number…' : 'Publish & Test'}
                 </button>
               )}
             </div>
@@ -210,6 +354,26 @@ export default function AgentDetailPage() {
           {actionError && (
             <div className="mt-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {actionError}
+            </div>
+          )}
+
+          {preflightWarning && (
+            <div className="mt-3 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
+              <p>{describePreflightWarning(preflightWarning)}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPreflightWarning(null)}
+                  className="rounded-md border px-3 py-1.5 text-xs font-semibold hover:bg-muted/50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setPreflightWarning(null); deployMutation.mutate() }}
+                  className="rounded-md bg-brand-pink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                >
+                  Continue
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -238,8 +402,10 @@ export default function AgentDetailPage() {
           {/* Right content area */}
           <div className="min-w-0">
             {activeTab === 'knowledge' && <KnowledgeTab agentId={agent.id} />}
-            {activeTab === 'skills' && <SkillsPlaceholder />}
+            {activeTab === 'skills' && <SkillsTab agentId={agent.id} />}
             {activeTab === 'connectors' && <ConnectorsTab agent={agent} />}
+            {activeTab === 'profile' && <BusinessProfileTab phoneNumberId={agent.phoneNumberId} />}
+            {activeTab === 'eval' && <EvalTab agentId={agent.id} />}
             {activeTab === 'settings' && (
               <SettingsTab agent={agent} onDeleted={() => navigate('/agents')} />
             )}
@@ -255,7 +421,76 @@ export default function AgentDetailPage() {
           onClose={() => setTestOpen(false)}
         />
       )}
+
+      {/* Thread control release confirmation */}
+      {threadControlOpen && (
+        <ThreadControlModal
+          agentId={agent.id}
+          phoneNumberId={agent.phoneNumberId}
+          onClose={() => setThreadControlOpen(false)}
+        />
+      )}
     </>
+  )
+}
+
+// ── Thread Control release modal ─────────────────────────────────────────────
+
+function ThreadControlModal({
+  agentId,
+  phoneNumberId,
+  onClose,
+}: {
+  agentId: string
+  phoneNumberId: string | null
+  onClose: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+
+  const releaseMutation = useMutation({
+    mutationFn: () => api.post(`/agents/${agentId}/thread-control/release`),
+    onSuccess: onClose,
+    onError: (err) => setError(extractMessage(err)),
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
+        <h2 className="text-base font-semibold text-foreground">Release thread control?</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This hands active conversations on <strong className="font-semibold text-foreground">
+          {phoneNumberId ?? 'this number'}</strong> back to the Meta AI agent. The agent resumes
+          responding to new messages on this number.
+        </p>
+
+        {error && (
+          <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-3">
+          <button
+            onClick={() => { setError(null); releaseMutation.mutate() }}
+            disabled={releaseMutation.isPending}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+              text-sm font-semibold text-white transition-opacity hover:opacity-90
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {releaseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Release to agent
+          </button>
+          <button
+            onClick={onClose}
+            disabled={releaseMutation.isPending}
+            className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+              text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -269,8 +504,8 @@ function KnowledgeTab({ agentId }: { agentId: string }) {
   return (
     <div className="space-y-3">
       <FaqsSection agentId={agentId} open={faqsOpen} onToggle={() => setFaqsOpen((v) => !v)} />
-      <WebsitesSection open={websitesOpen} onToggle={() => setWebsitesOpen((v) => !v)} />
-      <FilesSection open={filesOpen} onToggle={() => setFilesOpen((v) => !v)} />
+      <WebsitesSection agentId={agentId} open={websitesOpen} onToggle={() => setWebsitesOpen((v) => !v)} />
+      <FilesSection agentId={agentId} open={filesOpen} onToggle={() => setFilesOpen((v) => !v)} />
     </div>
   )
 }
@@ -409,7 +644,12 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
               {faqs.map((faq) => (
                 <li key={faq.id} className="flex items-start justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{faq.question}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">{faq.question}</p>
+                      {!faq.metaSynced && (
+                        <NotSyncedBadge label="FAQ" title="This FAQ hasn't synced to Meta — retry by editing and saving again" />
+                      )}
+                    </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">{faq.answer}</p>
                   </div>
                   <button
@@ -430,10 +670,51 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
   )
 }
 
-// ── Websites section (placeholder) ───────────────────────────────────────────
+// ── Websites section ──────────────────────────────────────────────────────────
 
-function WebsitesSection({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+interface Website {
+  id: string
+  url: string
+  crawlStatus: string | null
+  pagesCrawled: number | null
+  metaSynced: boolean
+}
+
+function NotSyncedBadge({ label, title }: { label: string; title?: string }) {
+  return (
+    <span
+      title={title ?? `This ${label} hasn't synced to Meta, or was changed/removed directly on Meta outside this app`}
+      className="shrink-0 rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-medium text-yellow-700"
+    >
+      Not synced
+    </span>
+  )
+}
+
+function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: boolean; onToggle: () => void }) {
+  const queryClient = useQueryClient()
   const [url, setUrl] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const { data: websites = [], isLoading } = useQuery<Website[]>({
+    queryKey: ['websites', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/websites`).then((r) => r.data.data),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: (payload: { url: string }) => api.post(`/agents/${agentId}/websites`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['websites', agentId] })
+      setUrl('')
+      setAddError(null)
+    },
+    onError: (err) => setAddError(extractMessage(err)),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (websiteId: string) => api.delete(`/agents/${agentId}/websites/${websiteId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['websites', agentId] }),
+  })
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -448,54 +729,134 @@ function WebsitesSection({ open, onToggle }: { open: boolean; onToggle: () => vo
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
           <span className="text-sm font-semibold text-foreground">Websites</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            0
-          </span>
+          {!isLoading && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {websites.length}
+            </span>
+          )}
         </div>
-        {open && (
-          <span className="rounded-lg px-3 py-1.5 text-xs font-medium text-primary border border-primary/30">
-            <Plus className="inline h-3.5 w-3.5 mr-1" />
-            Add URL
-          </span>
-        )}
       </button>
 
       {open && (
-        <div className="border-t px-4 py-4 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            No websites added. Add your website URL to let the agent learn from your content.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-              className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
-            />
-            <button
-              onClick={() => {
-                // TASK-036: wire POST /agents/:id/websites
-                setUrl('')
-              }}
-              disabled={!url.trim()}
-              className="rounded-lg bg-brand-pink px-4 py-2 text-xs font-semibold text-white
-                transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add
-            </button>
+        <div className="border-t">
+          <div className="px-4 py-4 space-y-3 border-b bg-muted/20">
+            {addError && <p className="text-xs text-destructive">{addError}</p>}
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
+                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
+                  focus:ring-primary/50 focus:border-primary transition"
+              />
+              <button
+                onClick={() => { setAddError(null); addMutation.mutate({ url: url.trim() }) }}
+                disabled={!url.trim() || addMutation.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-4 py-2 text-xs font-semibold
+                  text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Add
+              </button>
+            </div>
           </div>
+
+          {isLoading ? (
+            <div className="px-4 py-4 space-y-2">
+              {[1, 2].map((i) => <div key={i} className="h-12 rounded-lg bg-muted/40 animate-pulse" />)}
+            </div>
+          ) : websites.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                No websites added. Add your website URL to let the agent learn from your content.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {websites.map((site) => (
+                <li key={site.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{site.url}</p>
+                      {!site.metaSynced && <NotSyncedBadge label="website" />}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {site.crawlStatus ?? 'pending'}
+                      {site.pagesCrawled != null ? ` — ${site.pagesCrawled} pages crawled` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteMutation.mutate(site.id)}
+                    disabled={deleteMutation.isPending}
+                    aria-label={`Delete website: ${site.url}`}
+                    className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-// ── Files section (placeholder) ───────────────────────────────────────────────
+// ── Files section ─────────────────────────────────────────────────────────────
 
-function FilesSection({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+interface AgentKbFile {
+  id: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  metaSynced: boolean
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function FilesSection({ agentId, open, onToggle }: { agentId: string; open: boolean; onToggle: () => void }) {
+  const queryClient = useQueryClient()
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const { data: files = [], isLoading } = useQuery<AgentKbFile[]>({
+    queryKey: ['files', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/files`).then((r) => r.data.data),
+  })
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      // The shared `api` instance defaults Content-Type to application/json
+      // (lib/api.ts) — that default would override FormData's automatic
+      // multipart boundary detection unless explicitly unset here. A
+      // hardcoded 'multipart/form-data' string (the first version of this
+      // fix) has the same problem: it strips the boundary= param axios
+      // would otherwise attach, and every upload 400s server-side (EL
+      // REJECT, caught cold, 2026-07-30). undefined is the correct override.
+      return api.post(`/agents/${agentId}/files`, formData, {
+        headers: { 'Content-Type': undefined },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files', agentId] })
+      setUploadError(null)
+    },
+    onError: (err) => setUploadError(extractMessage(err)),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (fileId: string) => api.delete(`/agents/${agentId}/files/${fileId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['files', agentId] }),
+  })
+
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       <button
@@ -509,23 +870,34 @@ function FilesSection({ open, onToggle }: { open: boolean; onToggle: () => void 
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
           <span className="text-sm font-semibold text-foreground">Files</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            0
-          </span>
+          {!isLoading && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {files.length}
+            </span>
+          )}
         </div>
         {open && (
           <label
+            onClick={(e) => e.stopPropagation()}
             className="rounded-lg px-3 py-1.5 text-xs font-medium text-primary border border-primary/30
               cursor-pointer hover:bg-primary/5 transition-colors"
           >
-            <Plus className="inline h-3.5 w-3.5 mr-1" />
+            {uploadMutation.isPending ? (
+              <Loader2 className="inline h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Plus className="inline h-3.5 w-3.5 mr-1" />
+            )}
             Upload
             <input
               type="file"
               accept=".pdf,.docx"
               className="sr-only"
-              onChange={() => {
-                // TASK-036: wire POST /agents/:id/files
+              disabled={uploadMutation.isPending}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) { setUploadError(null); uploadMutation.mutate(file) }
+                e.target.value = ''
               }}
             />
           </label>
@@ -533,24 +905,43 @@ function FilesSection({ open, onToggle }: { open: boolean; onToggle: () => void 
       </button>
 
       {open && (
-        <div className="border-t px-4 py-4">
-          <p className="text-sm text-muted-foreground">No files uploaded.</p>
+        <div className="border-t">
+          {uploadError && (
+            <p className="px-4 py-2 text-xs text-destructive border-b bg-destructive/5">{uploadError}</p>
+          )}
+          {isLoading ? (
+            <div className="px-4 py-4 space-y-2">
+              {[1, 2].map((i) => <div key={i} className="h-12 rounded-lg bg-muted/40 animate-pulse" />)}
+            </div>
+          ) : files.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-muted-foreground">No files uploaded.</p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {files.map((file) => (
+                <li key={file.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{file.filename}</p>
+                      {!file.metaSynced && <NotSyncedBadge label="file" />}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatBytes(file.sizeBytes)}</p>
+                  </div>
+                  <button
+                    onClick={() => deleteMutation.mutate(file.id)}
+                    disabled={deleteMutation.isPending}
+                    aria-label={`Delete file: ${file.filename}`}
+                    className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
-    </div>
-  )
-}
-
-// ── Skills placeholder ────────────────────────────────────────────────────────
-
-function SkillsPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
-      <Zap className="h-10 w-10 text-muted-foreground mb-3" />
-      <p className="font-semibold text-foreground">Skills coming soon</p>
-      <p className="text-sm text-muted-foreground mt-1 max-w-xs text-center">
-        Define specific behaviors — like how to handle refunds or book appointments.
-      </p>
     </div>
   )
 }
@@ -631,16 +1022,25 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
         auth_type: authType,
       }
       if (authType === 'API_KEY') {
+        // Meta requires auth_config nested one level deeper under the
+        // type-named key — confirmed live via a real Meta 400 ("auth_config.api_key
+        // is required for API_KEY auth type") that the previous flat shape produced.
         payload.auth_config = {
-          headers: [{ field_name: headerName.trim(), value: apiKeyValue }],
+          api_key: { headers: [{ field_name: headerName.trim(), value: apiKeyValue }] },
         }
       }
       if (authType === 'OAUTH2_CLIENT_CREDENTIALS') {
+        // Same type-named-wrapper pattern as API_KEY above, applied by symmetry —
+        // NOT independently confirmed live (no OAuth connector tested this session).
+        // See TASKS.md follow-up: verify against a real OAuth2 connector before
+        // treating this path as closed.
         payload.auth_config = {
-          token_url: tokenUrl.trim(),
-          client_id: clientId.trim(),
-          client_secret: clientSecret,
-          scopes_to_request: [],
+          oauth2_client_credentials: {
+            token_url: tokenUrl.trim(),
+            client_id: clientId.trim(),
+            client_secret: clientSecret,
+            scopes_to_request: [],
+          },
         }
       }
       await api.post(`/agents/${agentId}/connectors`, payload)
@@ -975,6 +1375,7 @@ function ToolsList({
 }) {
   const queryClient = useQueryClient()
   const [showAddTool, setShowAddTool] = useState(false)
+  const [runningTool, setRunningTool] = useState<ConnectorTool | null>(null)
 
   const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
     queryKey: ['tools', agentId, connectorId, refetchSignal],
@@ -1047,6 +1448,13 @@ function ToolsList({
                   </div>
                 </div>
                 <button
+                  onClick={() => setRunningTool(tool)}
+                  aria-label={`Run tool ${tool.name}`}
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-brand-pink"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => deleteTool(tool.id)}
                   aria-label={`Delete tool ${tool.name}`}
                   className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
@@ -1070,6 +1478,16 @@ function ToolsList({
           }}
         />
       )}
+
+      {runningTool && (
+        <RunToolModal
+          agentId={agentId}
+          connectorId={connectorId}
+          toolId={runningTool.id}
+          toolName={runningTool.name}
+          onClose={() => setRunningTool(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1081,7 +1499,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const [expandedConnectorId, setExpandedConnectorId] = useState<string | null>(null)
   const [showAddConnector, setShowAddConnector] = useState(false)
   // keyed by connectorId — tracks refetch signal per connector's tools
-  const [toolRefetch, setToolRefetch] = useState<Record<string, number>>({})
+  const [toolRefetch] = useState<Record<string, number>>({})
 
   const { data: connectorsRaw, isLoading } = useQuery<Connector[]>({
     queryKey: ['connectors', agent.id],
@@ -1231,6 +1649,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [confirmName, setConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showDeleteFromMetaModal, setShowDeleteFromMetaModal] = useState(false)
+  const [showEventModal, setShowEventModal] = useState(false)
 
   const {
     register,
@@ -1246,11 +1666,14 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       tone: agent.tone ?? '',
       language: agent.language ?? '',
       behaviorRules: agent.behaviorRules ?? '',
+      handoffEnabled: agent.handoffEnabled,
+      handoffMessage: agent.handoffMessage ?? '',
     },
   })
 
   const promptLength = (watch('systemPrompt') ?? '').length
   const toneValue = watch('tone') ?? ''
+  const handoffEnabledValue = watch('handoffEnabled')
 
   const saveMutation = useMutation({
     mutationFn: (values: SettingsValues) =>
@@ -1260,6 +1683,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         tone: values.tone || null,
         language: values.language || null,
         behaviorRules: values.behaviorRules || null,
+        handoffEnabled: values.handoffEnabled,
+        handoffMessage: values.handoffEnabled ? (values.handoffMessage || null) : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent', agent.id] })
@@ -1387,6 +1812,58 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
             />
           </div>
 
+          {/* Human handoff */}
+          <div className="space-y-2.5 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label htmlFor="s-handoffEnabled" className="block text-sm font-medium text-foreground">
+                  Human handoff
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Let the agent hand a conversation to a human when it can't help.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="s-handoffEnabled"
+                role="switch"
+                aria-checked={handoffEnabledValue}
+                onClick={() => setValue('handoffEnabled', !handoffEnabledValue, { shouldDirty: true })}
+                className={cn(
+                  'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                  handoffEnabledValue ? 'bg-brand-pink' : 'bg-muted',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    handoffEnabledValue ? 'translate-x-5' : 'translate-x-0.5',
+                  )}
+                />
+              </button>
+            </div>
+
+            {handoffEnabledValue && (
+              <div className="space-y-1.5 pt-1">
+                <label htmlFor="s-handoffMessage" className="block text-xs font-medium text-foreground">
+                  Message shown to the customer on handoff
+                </label>
+                <textarea
+                  id="s-handoffMessage"
+                  rows={2}
+                  placeholder="A team member will join the conversation shortly."
+                  className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm
+                    placeholder:text-muted-foreground focus:outline-none focus:ring-2
+                    focus:ring-primary/50 focus:border-primary transition"
+                  {...register('handoffMessage')}
+                />
+                {errors.handoffMessage && (
+                  <p className="text-xs text-destructive">{errors.handoffMessage.message}</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <button
               type="submit"
@@ -1435,7 +1912,30 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         )}
       </div>
 
+      {/* Actions */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-foreground">Actions</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Trigger a business-side event (e.g. a payment or shipment update) at this agent.
+        </p>
+        <button
+          onClick={() => setShowEventModal(true)}
+          disabled={!agent.phoneNumberId}
+          title={!agent.phoneNumberId ? 'Connect a phone number first' : undefined}
+          className="mt-3 flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold
+            text-foreground transition-colors hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Send className="h-4 w-4" />
+          Trigger event
+        </button>
+      </div>
+
       {/* Danger zone */}
+      {(agent.sharedAccountCount ?? 0) > 1 && (
+        <ConsequenceLine tone="warning">
+          This WABA is shared — actions below affect every account connected to it, not just yours.
+        </ConsequenceLine>
+      )}
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
@@ -1453,6 +1953,35 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               <Trash2 className="h-4 w-4" />
               Delete agent
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Danger zone — Meta removal (distinct action, distinct consequence from the DB delete above) */}
+      <div className="rounded-xl border-2 border-destructive/40 bg-destructive/5 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-destructive">Remove agent from Meta</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Removes the agent configuration from Meta for this phone number, freeing it up for
+              another agent. This cannot be undone.
+            </p>
+            <button
+              onClick={() => setShowDeleteFromMetaModal(true)}
+              disabled={agent.status !== 'paused' || !agent.phoneNumberId}
+              className="mt-4 flex items-center gap-2 rounded-lg border border-destructive px-4 py-2
+                text-sm font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white
+                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove from Meta
+            </button>
+            {agent.status !== 'paused' && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Pause this agent before removing it from Meta.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -1513,6 +2042,24 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       {showConnectModal && (
         <ConnectPhoneModal agentId={agent.id} onClose={() => setShowConnectModal(false)} />
       )}
+
+      {showDeleteFromMetaModal && agent.phoneNumberId && (
+        <DeleteFromMetaModal
+          agentId={agent.id}
+          agentName={agent.displayName}
+          phoneNumberId={agent.phoneNumberId}
+          onClose={() => setShowDeleteFromMetaModal(false)}
+          onDeleted={() => {
+            setShowDeleteFromMetaModal(false)
+            queryClient.invalidateQueries({ queryKey: ['agent', agent.id] })
+            queryClient.invalidateQueries({ queryKey: ['agents'] })
+          }}
+        />
+      )}
+
+      {showEventModal && (
+        <TriggerEventModal agentId={agent.id} onClose={() => setShowEventModal(false)} />
+      )}
     </div>
   )
 }
@@ -1551,12 +2098,17 @@ function TestDrawer({
     setTestLoading(true)
     try {
       const r = await api.post(`/agents/${agentId}/test`, {
-        user_msg: text,
-        conversation_id: convId,
+        userMsg: text,
+        conversationId: convId,
       })
       const d = r.data.data
-      setConvId(d.conversation_id ?? null)
-      setMessages((m) => [...m, { role: 'agent', text: d.reply ?? d.message ?? '' }])
+      setConvId(d.conversationId ?? null)
+      const fallback = d.handoffReason
+        ? `(handed off to human: ${d.handoffReason})`
+        : d.noResponseReason
+          ? `(no response: ${d.noResponseReason})`
+          : '(no response)'
+      setMessages((m) => [...m, { role: 'agent', text: d.agentResponse || fallback }])
     } catch {
       setMessages((m) => [...m, { role: 'agent', text: 'Test failed. Please try again.' }])
     } finally {

@@ -1,0 +1,31 @@
+ * Serving Flask app 'mock_server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:9090
+ * Running on http://10.20.241.168:9090
+Press CTRL+C to quit
+127.0.0.1 - - [27/Jul/2026 15:33:14] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:33:14] "GET /mock-phone-1/agent_eligibility HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:33:15] "GET /mock-phone-1/agent_config/settings HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:33:15] "PUT /mock-phone-1/agent_config/settings HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:33:16] "POST /mock-phone-1/agent_config/faq HTTP/1.1" 201 -
+127.0.0.1 - - [27/Jul/2026 15:33:16] "POST /mock-phone-1/agent_config/faq HTTP/1.1" 409 -
+127.0.0.1 - - [27/Jul/2026 15:33:16] "GET /graph/v19.0/waba-123/phone_numbers HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:34:23] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:34:51] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:38:22] "GET /graph/v19.0/1234567890?fields=id,name HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:38:22] "GET /graph/v19.0/1234567890/phone_numbers HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:39:53] "GET /graph/v19.0/180858937104?fields=id,name HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:39:53] "GET /graph/v19.0/180858937104/phone_numbers HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:39:54] "GET /mock-phone-1/agent_config/settings HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:39:54] "GET /mock-phone-1/agent_config/skills HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:39:54] "GET /mock-phone-1/agent_connectors HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:40:04] "GET /graph/v19.0/180858937104?fields=id,name HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:40:05] "GET /graph/v19.0/180858937104/phone_numbers HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:40:11] "POST /mock-phone-1/agent_config/skills HTTP/1.1" 201 -
+127.0.0.1 - - [27/Jul/2026 15:40:13] "GET /mock-phone-1/agent_config/skills HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 15:40:15] "DELETE /mock-phone-1/agent_config/skills/mock-skill-a362fb230ea2 HTTP/1.1" 204 -
+127.0.0.1 - - [27/Jul/2026 15:40:17] "POST /mock-phone-1/agent_connectors HTTP/1.1" 201 -
+127.0.0.1 - - [27/Jul/2026 15:40:19] "POST /mock-phone-1/agent_connectors/mock-connector-d77c6fd53419/tools HTTP/1.1" 201 -
+127.0.0.1 - - [27/Jul/2026 15:40:21] "POST /mock-phone-1/agent_connectors/mock-connector-d77c6fd53419/tools/mock-tool-649fc4780d71/run HTTP/1.1" 200 -

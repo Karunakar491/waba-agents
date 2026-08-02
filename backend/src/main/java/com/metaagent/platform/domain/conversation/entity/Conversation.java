@@ -46,6 +46,11 @@ public class Conversation {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    // Scaffold for standby/handoff detection — provisional, see docs/meta-api/webhook-standby-handoff.md
+    @Builder.Default
+    @Column(name = "needs_human", nullable = false)
+    private boolean needsHuman = false;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();

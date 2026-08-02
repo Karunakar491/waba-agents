@@ -91,7 +91,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_create_phoneless_draft_agent_without_meta_calls() {
-        AgentRequest request = new AgentRequest("My Agent", null, null, "You are a helpful agent.", null, null, null);
+        AgentRequest request = new AgentRequest("My Agent", null, null, "You are a helpful agent.", null, null, null, false, null);
         Agent created = agentService.createAgent(request);
 
         assertThat(created.getId()).isNotNull();
@@ -111,7 +111,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_bind_phone_when_waba_owned_phone_in_waba_and_eligible() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "777888999");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -127,7 +127,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_throw_not_found_when_waba_belongs_to_another_account() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
         BusinessAccount other = businessAccountRepository.save(BusinessAccount.builder()
                 .name("Other Co").email("other-" + UUID.randomUUID() + "@example.com")
                 .passwordHash("hashed").build());
@@ -141,7 +141,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_reject_phone_that_does_not_belong_to_waba() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "111111111"); // different phone
 
@@ -153,7 +153,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_throw_business_exception_when_phone_number_not_eligible() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "000000001");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -170,7 +170,7 @@ class AgentServiceTest extends IntegrationTestBase {
     @Test
     void should_reject_binding_phone_already_connected_to_another_agent() {
         agentRepository.save(draftAgent("777888999")); // occupies the number
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "777888999");
 
@@ -253,6 +253,50 @@ class AgentServiceTest extends IntegrationTestBase {
 
         assertThatThrownBy(() -> agentService.deleteFaq(agent.getId(), nonExistentFaqId))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    // -------------------------------------------------------------------------
+    // deleteAgent() — regression: FK RESTRICT on child tables previously threw an
+    // unhandled ConstraintViolationException / 500 for any agent with child data.
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_delete_agent_with_no_child_data() {
+        Agent agent = agentRepository.save(draftAgent("700000001"));
+
+        agentService.deleteAgent(agent.getId());
+
+        assertThat(agentRepository.findById(agent.getId())).isEmpty();
+    }
+
+    @Test
+    void should_delete_agent_and_cascade_faqs_without_constraint_violation() {
+        Agent agent = agentRepository.save(draftAgent("700000002"));
+        // No phone-sync path exercised here — this agent has a phone, so addFaq
+        // will attempt a Meta sync; stub it so the FAQ save succeeds.
+        when(metaApiClient.post(contains("/agent_config/faq"), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-faq-del"));
+        agentService.addFaq(agent.getId(), new FaqRequest("Q?", "A."));
+        assertThat(agentFaqRepository.findAllByAgentId(agent.getId())).hasSize(1);
+
+        agentService.deleteAgent(agent.getId());
+
+        assertThat(agentRepository.findById(agent.getId())).isEmpty();
+        assertThat(agentFaqRepository.findAllByAgentId(agent.getId())).isEmpty();
+    }
+
+    @Test
+    void should_delete_agent_and_cascade_skills_without_constraint_violation() {
+        Agent agent = agentRepository.save(draftAgent("700000003"));
+        when(metaApiClient.post(contains("/agent_config/skills"), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("id", "meta-skill-del"));
+        agentService.addSkill(agent.getId(), new SkillRequest("Title", "Desc", "Body"));
+        assertThat(agentSkillRepository.findAllByAgentId(agent.getId())).hasSize(1);
+
+        agentService.deleteAgent(agent.getId());
+
+        assertThat(agentRepository.findById(agent.getId())).isEmpty();
+        assertThat(agentSkillRepository.findAllByAgentId(agent.getId())).isEmpty();
     }
 
     // -------------------------------------------------------------------------

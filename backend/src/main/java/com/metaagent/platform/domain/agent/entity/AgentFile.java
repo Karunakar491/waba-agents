@@ -32,6 +32,14 @@ public class AgentFile {
     @Column(name = "meta_file_id")
     private String metaFileId;
 
+    /** TASK-062: false when reconciliation finds this file missing from
+     * Meta's live list (deleted/changed directly on Meta, outside this app).
+     * addFile already throws hard on a failed Meta upload, so unlike FAQ
+     * there's no "local-only" creation path — every row here started synced. */
+    @Column(name = "meta_synced", nullable = false)
+    @Builder.Default
+    private boolean metaSynced = true;
+
     @Column(nullable = false)
     private String filename;
 

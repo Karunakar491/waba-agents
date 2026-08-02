@@ -1,15 +1,36 @@
-import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { Bot, Plus, Play, ArrowRight, Circle } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Bot, Plus, Play, ArrowRight, Circle, Loader2, RefreshCw, Users } from 'lucide-react'
 import api from '../lib/api'
+
+function isPlaceholderName(displayName: string): boolean {
+  return displayName.startsWith('Imported agent (')
+}
 
 interface AgentRow {
   id: string
   displayName: string
   phoneNumberId: string | null
+  wabaId: string | null
   status: 'draft' | 'active' | 'paused'
   systemPrompt: string | null
   updatedAt: string
+  sharedAccountCount: number | null
+}
+
+// Health is a derived signal, not a Meta phone-quality rating (out of scope — see report).
+type Health = 'healthy' | 'attention' | 'inactive'
+
+function agentHealth(agent: AgentRow): Health {
+  if (agent.status === 'active' && agent.phoneNumberId) return 'healthy'
+  if (agent.status === 'paused') return 'attention'
+  return 'inactive' // draft, or active with no phone connected
+}
+
+const HEALTH_CONFIG: Record<Health, { label: string; dot: string }> = {
+  healthy: { label: 'Healthy', dot: 'bg-brand-green' },
+  attention: { label: 'Needs attention', dot: 'bg-yellow-500' },
+  inactive: { label: 'Inactive', dot: 'bg-muted-foreground/40' },
 }
 
 function timeAgo(dateStr: string): string {
@@ -42,12 +63,35 @@ const STATUS_CONFIG = {
   },
 }
 
+const PICKER_LABELS: Record<string, string> = {
+  knowledge: 'Knowledge Base',
+  skills: 'Skills',
+  connectors: 'Connectors',
+}
+
 export default function AgentsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const pickFor = searchParams.get('pickFor')
+  const pickForLabel = pickFor ? PICKER_LABELS[pickFor] : null
+
+  const queryClient = useQueryClient()
 
   const { data: agents = [], isLoading } = useQuery<AgentRow[]>({
     queryKey: ['agents'],
     queryFn: () => api.get('/agents').then((r) => r.data.data),
+  })
+
+  const refreshNameMutation = useMutation({
+    mutationFn: (agentId: string) => api.post(`/agents/${agentId}/refresh-name`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+  })
+
+  // Best-effort — a missing count must never block the agents list from rendering.
+  const { data: conversationCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ['conversation-counts'],
+    queryFn: () => api.get('/conversations/counts').then((r) => r.data.data),
+    retry: false,
   })
 
   return (
@@ -55,9 +99,13 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Agents</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {pickForLabel ? `Choose an agent to view its ${pickForLabel}` : 'Agents'}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage your AI agents across WhatsApp and other channels.
+            {pickForLabel
+              ? `${pickForLabel} are set up per agent — pick one to continue.`
+              : 'Manage your AI agents across WhatsApp and other channels.'}
           </p>
         </div>
         <button
@@ -87,6 +135,15 @@ export default function AgentsPage() {
                   Phone Number
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  WABA ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Conversations
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Health
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -102,7 +159,12 @@ export default function AgentsPage() {
                 <AgentRow
                   key={agent.id}
                   agent={agent}
-                  onEdit={() => navigate(`/agents/${agent.id}`)}
+                  conversationCount={conversationCounts[agent.id]}
+                  onEdit={() =>
+                    navigate(pickFor ? `/agents/${agent.id}?tab=${pickFor}` : `/agents/${agent.id}`)
+                  }
+                  onRefreshName={() => refreshNameMutation.mutate(agent.id)}
+                  refreshingName={refreshNameMutation.isPending && refreshNameMutation.variables === agent.id}
                 />
               ))}
             </tbody>
@@ -113,8 +175,21 @@ export default function AgentsPage() {
   )
 }
 
-function AgentRow({ agent, onEdit }: { agent: AgentRow; onEdit: () => void }) {
+function AgentRow({
+  agent,
+  conversationCount,
+  onEdit,
+  onRefreshName,
+  refreshingName,
+}: {
+  agent: AgentRow
+  conversationCount: number | undefined
+  onEdit: () => void
+  onRefreshName: () => void
+  refreshingName: boolean
+}) {
   const cfg = STATUS_CONFIG[agent.status]
+  const health = HEALTH_CONFIG[agentHealth(agent)]
 
   return (
     <tr className="hover:bg-muted/20 transition-colors">
@@ -125,9 +200,30 @@ function AgentRow({ agent, onEdit }: { agent: AgentRow; onEdit: () => void }) {
             <Bot className="h-4 w-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-foreground truncate max-w-[180px]">
-              {agent.displayName}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-medium text-foreground truncate max-w-[180px]">
+                {agent.displayName}
+              </p>
+              {isPlaceholderName(agent.displayName) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRefreshName() }}
+                  disabled={refreshingName}
+                  title="Retry resolving this agent's real name from Meta"
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  {refreshingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                </button>
+              )}
+              {(agent.sharedAccountCount ?? 0) > 1 && (
+                <span
+                  title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                >
+                  <Users className="h-2.5 w-2.5" />
+                  Shared WABA
+                </span>
+              )}
+            </div>
             {agent.systemPrompt && (
               <p className="text-xs text-muted-foreground truncate max-w-[180px]">
                 {agent.systemPrompt}
@@ -140,6 +236,24 @@ function AgentRow({ agent, onEdit }: { agent: AgentRow; onEdit: () => void }) {
       {/* Phone Number */}
       <td className="px-4 py-3 text-sm text-muted-foreground">
         {agent.phoneNumberId ?? '—'}
+      </td>
+
+      {/* WABA ID */}
+      <td className="px-4 py-3 text-sm text-muted-foreground">
+        {agent.wabaId ?? '—'}
+      </td>
+
+      {/* Conversations */}
+      <td className="px-4 py-3 text-sm text-muted-foreground">
+        {conversationCount ?? '—'}
+      </td>
+
+      {/* Health */}
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground" title="Derived from status + phone connection, not Meta quality rating">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${health.dot}`} />
+          {health.label}
+        </span>
       </td>
 
       {/* Status */}
@@ -212,7 +326,7 @@ function AgentTableSkeleton() {
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/30">
-            {['Agent Name', 'Phone Number', 'Status', 'Last Updated', 'Actions'].map((h) => (
+            {['Agent Name', 'Phone Number', 'WABA ID', 'Conversations', 'Health', 'Status', 'Last Updated', 'Actions'].map((h) => (
               <th
                 key={h}
                 className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -236,6 +350,15 @@ function AgentTableSkeleton() {
               </td>
               <td className="px-4 py-3">
                 <div className="h-3.5 w-28 rounded bg-muted" />
+              </td>
+              <td className="px-4 py-3">
+                <div className="h-3.5 w-24 rounded bg-muted" />
+              </td>
+              <td className="px-4 py-3">
+                <div className="h-3.5 w-10 rounded bg-muted" />
+              </td>
+              <td className="px-4 py-3">
+                <div className="h-3.5 w-20 rounded bg-muted" />
               </td>
               <td className="px-4 py-3">
                 <div className="h-5 w-16 rounded-full bg-muted" />

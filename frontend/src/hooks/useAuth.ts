@@ -22,17 +22,12 @@ export function useLogin() {
 }
 
 export function useRegister() {
-  const setUser = useAuthStore((s) => s.setUser)
-  const navigate = useNavigate()
-
+  // Register only creates the account — SecurityService.register() issues no
+  // auth cookie, unlike login(). There is no session to adopt here, so the
+  // caller (LoginPage) decides what happens next (e.g. switch to sign-in tab).
   return useMutation({
     mutationFn: (data: RegisterInput) =>
       api.post('/auth/register', data).then((r) => r.data),
-    onSuccess: (res) => {
-      const d = res.data
-      setUser({ id: d.userId, email: d.email, name: d.email, accountId: d.accountId })
-      navigate('/dashboard')
-    },
   })
 }
 

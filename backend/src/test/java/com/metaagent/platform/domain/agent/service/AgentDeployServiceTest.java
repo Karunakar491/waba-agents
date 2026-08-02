@@ -164,6 +164,74 @@ class AgentDeployServiceTest extends IntegrationTestBase {
     }
 
     @Test
+    void should_send_handoff_enabled_true_with_message_when_agent_has_handoff_configured() {
+        Agent agent = draftAgent("777777777");
+        agent.setHandoffEnabled(true);
+        agent.setHandoffMessage("A human will join shortly.");
+        Agent saved = agentRepository.save(agent);
+        when(metaApiClient.put(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        agentDeployService.deploy(saved.getId());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(metaApiClient).put(anyString(), payloadCaptor.capture(), eq(Map.class));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> handoff = (Map<String, Object>) payloadCaptor.getValue().get("handoff");
+        assertThat(handoff.get("enabled")).isEqualTo(true);
+        assertThat(handoff.get("message")).isEqualTo("A human will join shortly.");
+    }
+
+    @Test
+    void should_send_handoff_enabled_false_by_default_when_agent_has_no_handoff_configured() {
+        Agent saved = agentRepository.save(draftAgent("888888888"));
+        when(metaApiClient.put(anyString(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        agentDeployService.deploy(saved.getId());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(metaApiClient).put(anyString(), payloadCaptor.capture(), eq(Map.class));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> handoff = (Map<String, Object>) payloadCaptor.getValue().get("handoff");
+        assertThat(handoff.get("enabled")).isEqualTo(false);
+        assertThat(handoff).doesNotContainKey("message");
+    }
+
+    // -------------------------------------------------------------------------
+    // releaseThreadControl()
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_call_thread_control_client_release_with_phone_number_id() {
+        Agent saved = agentRepository.save(draftAgent("999999999"));
+
+        agentDeployService.releaseThreadControl(saved.getId());
+
+        verify(threadControlClient).release("999999999");
+    }
+
+    @Test
+    void should_throw_business_exception_when_releasing_thread_control_without_phone_number() {
+        Agent agent = Agent.builder()
+                .accountId(accountId)
+                .displayName("No Phone Agent")
+                .enabled(false)
+                .status(Agent.Status.draft)
+                .build();
+        Agent saved = agentRepository.save(agent);
+
+        assertThatThrownBy(() -> agentDeployService.releaseThreadControl(saved.getId()))
+                .isInstanceOf(BusinessException.class);
+
+        verifyNoInteractions(threadControlClient);
+    }
+
+    @Test
     void should_throw_not_found_when_agent_belongs_to_different_account() {
         // Agent belongs to accountId (the main test account)
         Agent saved = agentRepository.save(draftAgent("666666666"));

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Bot,
@@ -118,10 +118,18 @@ export default function AppShell() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
       >
-        {/* Logo */}
-        <div
+        {/* Logo — also the feature switcher (2026-08-04): takes you back to
+            the Netflix-style /select screen from inside any feature, not
+            just at login. Always available, regardless of how many modules
+            this account has — with just one enabled, /select still works as
+            a "what's available to me" view (the rest greyed). */}
+        <Link
+          to="/select"
+          title="Switch feature"
+          aria-label="Switch feature"
+          onClick={() => setMobileOpen(false)}
           className={cn(
-            'flex h-16 items-center gap-2 border-b border-white/10',
+            'flex h-16 items-center gap-2 border-b border-white/10 transition-colors hover:bg-white/5',
             iconOnly ? 'justify-center px-0' : 'px-6',
           )}
         >
@@ -133,7 +141,7 @@ export default function AppShell() {
               Meta Agents
             </span>
           )}
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>

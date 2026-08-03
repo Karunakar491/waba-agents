@@ -453,7 +453,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioClient.java",
-      "purpose": "Single point of contact for karix-mcp's REST API (2026-08-04, extended 2026-08-04 with listTemplates/getTemplate/editTemplate/uploadMedia) — mints a fresh JWT per call via karix-mcp's own POST /oauth/token (per-WABA esme_addr/api_key, confirmed karix-mcp is ALREADY correctly multi-tenant this way, no karix-mcp change needed). Explicit 5s connect/15s read timeout, no retry, no circuit breaker (not in TECH-STACK.md, not justified without repeated-incident evidence). editTemplate/uploadMedia wrap karix-mcp endpoints that themselves wrap karix_client.py's edit_template (REPLACES components entirely, no partial patch) and upload_media (category is 'image'|'video'|'document', not MIME type — a known Karix bug malforms the returned handle's type marker for images, surfaced to the user rather than hidden)."
+      "purpose": "Single point of contact for karix-mcp's REST API (2026-08-04, extended 2026-08-04 with listTemplates/getTemplate/editTemplate/uploadMedia, extended again same day with getAuditLog) — mints a fresh JWT per call via karix-mcp's own POST /oauth/token (per-WABA esme_addr/api_key, confirmed karix-mcp is ALREADY correctly multi-tenant this way, no karix-mcp change needed). Explicit 5s connect/15s read timeout, no retry, no circuit breaker (not in TECH-STACK.md, not justified without repeated-incident evidence). editTemplate/uploadMedia wrap karix-mcp endpoints that themselves wrap karix_client.py's edit_template (REPLACES components entirely, no partial patch) and upload_media (category is 'image'|'video'|'document', not MIME type — a known Karix bug malforms the returned handle's type marker for images, surfaced to the user rather than hidden). getAuditLog calls karix-mcp's GET /api/audit-log — surfaces the api_call_log table karix_client.py already writes to on every call, no new logging added, request/response bodies are pre-redacted by api_call_logger.py before they ever reach that table (secrets never stored, safe to render raw in the UI)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioException.java",
@@ -461,7 +461,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioService.java",
-      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, same resolveCredential() gate as create/delete/bulk-import."
+      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, then getAuditLog, all through the same resolveCredential() gate as create/delete/bulk-import."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/WabaKarixCredentialService.java",
@@ -481,7 +481,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioController.java",
-      "purpose": "REST surface at /api/v1/templates/** (2026-08-04, extended 2026-08-04 with list/get/edit/media) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete/list/get/edit template, media upload, bulk-import + status poll, karix-credential get/upsert."
+      "purpose": "REST surface at /api/v1/templates/** (2026-08-04, extended 2026-08-04 with list/get/edit/media, then audit-log) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete/list/get/edit template, media upload, bulk-import + status poll, karix-credential get/upsert, GET /{wabaId}/audit-log (literal segment, correctly ranked above the /{wabaId}/{templateId} pattern by Spring's path matching, no collision)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
@@ -857,7 +857,7 @@
     },
     {
       "path": "karix-mcp/",
-      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03. Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a REST API (create/list/get/edit/delete template, media upload, bulk-import) that domain/templatestudio (Java) proxies to. karix_client.py already had list_templates/get_template/edit_template/upload_media implemented before 2026-08-04 — that day's work was wiring rest.py + template_ops.py + app.py routes to expose them, not building new Karix integration. See karix-mcp/README.md for architecture, endpoints, known Karix API quirks (e.g. the image-media-handle bug) — do not duplicate that detail here."
+      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03. Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a REST API (create/list/get/edit/delete template, media upload, bulk-import, audit-log) that domain/templatestudio (Java) proxies to. karix_client.py already had list_templates/get_template/edit_template/upload_media implemented before 2026-08-04 — that day's work was wiring rest.py + template_ops.py + app.py routes to expose them, not building new Karix integration. GET /api/audit-log (added 2026-08-04) reads the api_call_log table that karix_client.py's _retry() already writes to on every call — no new logging, just a new read path, path_prefix-filterable so a WABA's audit view can't see unrelated activity. See karix-mcp/README.md for architecture, endpoints, known Karix API quirks (e.g. the image-media-handle bug) — do not duplicate that detail here."
     },
     {
       "path": "docs/knowledge-index.json",
@@ -993,7 +993,7 @@
     },
     {
       "path": "frontend/src/pages/TemplateSettingsPage.tsx",
-      "purpose": "Settings section of Template Studio (2026-08-04) — WABA + Karix esme_addr/API key CRUD, extracted from TemplateStudioPage's old inline blocking CredentialForm so it's always reachable (rotate a key, re-point a WABA) without losing the rest of the page. PM-required fix: the old design had no way back to credential config once past first-time setup."
+      "purpose": "Settings section of Template Studio (2026-08-04) — WABA + Karix esme_addr/API key CRUD, extracted from TemplateStudioPage's old inline blocking CredentialForm so it's always reachable (rotate a key, re-point a WABA) without losing the rest of the page. PM-required fix: the old design had no way back to credential config once past first-time setup. Also has AuditLogPanel (added 2026-08-04) — auto-loads on mount (EL round-1 caught an enabled:false that made it never auto-load, only fixed to load-on-mount + manual Refresh button), expandable rows showing method/path/status/request+response body for every karix-mcp call under /api/templates for this WABA. Bodies are pre-redacted server-side (api_call_logger.py) before they're ever stored — safe to render raw."
     },
     {
       "path": "frontend/src/pages/TemplateIrisPage.tsx",

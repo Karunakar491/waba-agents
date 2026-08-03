@@ -95,6 +95,21 @@ async def delete_template_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=200 if result["ok"] else 502)
 
 
+async def audit_log_endpoint(request: Request) -> JSONResponse:
+    """GET /api/audit-log?path_prefix=/api/templates — every Karix call this
+    esme_addr has made under that prefix, newest first. Reads the SAME
+    api_call_log every karix_client.py call already writes to (see
+    KarixClient._retry) — no second copy of this data, no new table."""
+    try:
+        esme_addr = resolve_esme_addr()
+    except RuntimeError as exc:
+        return _credential_error_response(exc)
+
+    path_prefix = request.query_params.get("path_prefix")
+    rows = db.get_api_call_logs(esme_addr, path_prefix=path_prefix)
+    return JSONResponse({"ok": True, "result": [_serialize_row(r) for r in rows]})
+
+
 async def list_templates_endpoint(request: Request) -> JSONResponse:
     try:
         client = _client()

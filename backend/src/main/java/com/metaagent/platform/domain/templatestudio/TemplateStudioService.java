@@ -74,6 +74,11 @@ public class TemplateStudioService {
         return templateStudioClient.editTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId, payload);
     }
 
+    public Map<String, Object> getAuditLog(Long wabaId, String pathPrefix) {
+        ResolvedCredential cred = resolveCredential(wabaId);
+        return templateStudioClient.getAuditLog(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), pathPrefix);
+    }
+
     public Map<String, Object> uploadMedia(Long wabaId, String category, MultipartFile file) {
         ResolvedCredential cred = resolveCredential(wabaId);
         try {

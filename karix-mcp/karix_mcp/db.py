@@ -202,12 +202,21 @@ def insert_api_call_log(esme_addr: str, method: str, path: str, status_code, dur
         )
 
 
-def get_api_call_logs(esme_addr: str) -> list[dict]:
-    """Tenant-scoped read — used by tests today; a future ops-facing debug
-    endpoint would reuse this rather than querying api_call_log directly."""
+def get_api_call_logs(esme_addr: str, path_prefix: str = None, limit: int = 200) -> list[dict]:
+    """Tenant-scoped read, newest first. path_prefix narrows to one feature's
+    calls (e.g. "/api/templates") without exposing every Karix call this
+    esme_addr has ever made — the ops-facing audit endpoint (rest.py) always
+    passes one, so a WABA's audit view can't leak unrelated activity."""
     with cursor() as cur:
-        cur.execute(
-            "SELECT * FROM api_call_log WHERE esme_addr = %s ORDER BY called_at",
-            (esme_addr,),
-        )
+        if path_prefix:
+            cur.execute(
+                "SELECT * FROM api_call_log WHERE esme_addr = %s AND path LIKE %s "
+                "ORDER BY called_at DESC LIMIT %s",
+                (esme_addr, path_prefix + '%', limit),
+            )
+        else:
+            cur.execute(
+                "SELECT * FROM api_call_log WHERE esme_addr = %s ORDER BY called_at DESC LIMIT %s",
+                (esme_addr, limit),
+            )
         return cur.fetchall()

@@ -107,6 +107,7 @@ routes = [
     Route("/oauth/authorize",                     auth.authorize_endpoint,  methods=["GET"]),
     Route("/oauth/token",                         auth.token_endpoint,      methods=["POST"]),
     Route("/.well-known/oauth-authorization-server", auth.oauth_metadata,  methods=["GET"]),
+    Route("/api/audit-log",                       rest.audit_log_endpoint,            methods=["GET"]),
     Route("/api/templates",                       rest.create_template_endpoint,      methods=["POST"]),
     Route("/api/templates",                       rest.list_templates_endpoint,       methods=["GET"]),
     Route("/api/templates/media",                 rest.upload_media_endpoint,         methods=["POST"]),

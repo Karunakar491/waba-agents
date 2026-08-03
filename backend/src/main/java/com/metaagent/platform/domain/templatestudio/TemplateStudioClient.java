@@ -227,6 +227,28 @@ public class TemplateStudioClient {
                 .body(Map.class);
     }
 
+    // karix-mcp always returns a JSON object at this endpoint — Map.class is
+    // a raw-type cast, safe by contract with the karix-mcp REST API.
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getAuditLog(String esmeAddr, String apiKey, String wabaId, String pathPrefix) {
+        String token = mintToken(esmeAddr, apiKey, wabaId);
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    var b = uriBuilder.path("/api/audit-log");
+                    if (pathPrefix != null && !pathPrefix.isBlank()) {
+                        b.queryParam("path_prefix", pathPrefix);
+                    }
+                    return b.build();
+                })
+                .header("Authorization", "Bearer " + token)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new TemplateStudioException(
+                            "Could not fetch audit log.", resp.getStatusCode().value(), readBodyBestEffort(resp));
+                })
+                .body(Map.class);
+    }
+
     private static String readBodyBestEffort(org.springframework.http.client.ClientHttpResponse resp) {
         try {
             return new String(resp.getBody().readAllBytes(), StandardCharsets.UTF_8);

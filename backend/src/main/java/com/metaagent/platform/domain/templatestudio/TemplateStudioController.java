@@ -39,6 +39,12 @@ public class TemplateStudioController {
         return ApiResponse.ok(templateStudioService.listTemplates(wabaId, status));
     }
 
+    @GetMapping("/{wabaId}/audit-log")
+    public ApiResponse<Map<String, Object>> getAuditLog(@PathVariable Long wabaId,
+                                                         @RequestParam(required = false) String pathPrefix) {
+        return ApiResponse.ok(templateStudioService.getAuditLog(wabaId, pathPrefix));
+    }
+
     @GetMapping("/{wabaId}/{templateId}")
     public ApiResponse<Map<String, Object>> getTemplate(@PathVariable Long wabaId, @PathVariable String templateId) {
         return ApiResponse.ok(templateStudioService.getTemplate(wabaId, templateId));

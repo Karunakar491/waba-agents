@@ -18,7 +18,7 @@ function extractMessage(err: unknown): string {
 // Settings section of Template Studio (2026-08-04 nav split) — WABA + Karix
 // credential configuration, always reachable (unlike the old inline blocking
 // screen this replaced) so an operator can rotate a key or re-point a WABA
-// without losing sight of Templates/Campaigns.
+// without losing sight of Templates/Iris.
 export default function TemplateSettingsPage() {
   const { wabas, isLoading: wabasLoading, selectedWabaId, setSelectedWabaId } = useSelectedWaba()
 

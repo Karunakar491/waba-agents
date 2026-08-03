@@ -11,7 +11,7 @@ export interface WabaEntry {
 
 const STORAGE_KEY = 'template-studio-waba'
 
-// Shared across all three Template Studio sections (Templates/Campaigns/Settings)
+// Shared across all Template Studio sections (Iris/Templates/Settings)
 // so picking a WABA on one page keeps it selected when switching sections —
 // each page used to hold this in isolated local state before the nav split.
 export function useSelectedWaba() {

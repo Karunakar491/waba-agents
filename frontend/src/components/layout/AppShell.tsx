@@ -13,7 +13,6 @@ import {
   PanelLeft,
   BarChart3,
   FileText,
-  Megaphone,
   Settings as SettingsIcon,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
@@ -44,12 +43,15 @@ const NAV = [
 
 // Template Studio is its own module (separate AccountModule entitlement,
 // see ModuleAccessFilter) sharing this same AppShell — it must NOT show the
-// Business Agents nav above. Templates/Campaigns/Settings are siblings, not
+// Business Agents nav above. Iris/Templates/Settings are siblings, not
 // nested pages of one another — `end: true` on Templates keeps its NavLink
-// from staying highlighted while on /templates/campaigns or /templates/settings.
+// from staying highlighted while on /templates/iris or /templates/settings.
+// No dedicated Campaigns section (2026-08-04) — bulk-send lives as a "Send"
+// action on Templates and conversationally through Iris, same backend
+// endpoint either way, not a separate nav destination.
 const TEMPLATE_STUDIO_NAV = [
+  { to: '/templates/iris', icon: MessageSquare, label: 'Iris', soon: false, end: false },
   { to: '/templates', icon: FileText, label: 'Templates', soon: false, end: true },
-  { to: '/templates/campaigns', icon: Megaphone, label: 'Campaigns', soon: false, end: false },
   { to: '/templates/settings', icon: SettingsIcon, label: 'Settings', soon: false, end: false },
 ]
 

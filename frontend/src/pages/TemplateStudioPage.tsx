@@ -7,8 +7,8 @@ import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
 
-// Templates section of Template Studio (2026-08-04, split into Templates/
-// Campaigns/Settings nav 2026-08-04) — structured UI first, chat interface
+// Templates section of Template Studio (2026-08-04, split into Iris/
+// Templates/Settings nav 2026-08-04) — structured UI first, chat interface
 // layered on top later (both call the SAME backend logic via
 // domain/templatestudio's proxy to karix-mcp — never diverge). Reuses the
 // existing AppShell, gated by the TEMPLATE_STUDIO module entitlement via

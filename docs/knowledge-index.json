@@ -812,6 +812,14 @@
       "purpose": "POST/GET /agent_event — trigger agent from business events"
     },
     {
+      "path": "docs/meta-api/business_info.md",
+      "purpose": "GET/PUT/DELETE /agent_config/business_info — payment/return/purchase/delivery/contact info. Backfilled 2026-08-04 from founder-pasted official spec; implementation (BusinessProfileDeployService) already existed and was confirmed live before this doc did."
+    },
+    {
+      "path": "docs/meta-api/ui-skills.md",
+      "purpose": "GET/POST/PUT/DELETE /agent-ui-skills — rich-message components (carousel/CTA/flow/image/list/location), separate surface from plain text-instruction Skills. Added 2026-08-04, genuinely new capability, NOT implemented anywhere in this codebase yet."
+    },
+    {
       "path": "docs/meta-api/agent-test.md",
       "purpose": "POST /agent_test — send test messages, get agent response, multi-turn support"
     },

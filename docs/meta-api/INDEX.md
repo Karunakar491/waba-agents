@@ -13,8 +13,10 @@ entity_id: WhatsApp Business Phone Number ID
 |------|-----------|---------|---------|
 | eligibility.md | `/{entity_id}/agent_eligibility` | GET | Check if phone number can use Meta Business Agent |
 | settings.md | `/{entity_id}/agent_config/settings` | GET, PUT | Enable/disable agent, handoff, followup, audience |
+| business_info.md | `/{entity_id}/agent_config/business_info` | GET, PUT, DELETE | Business knowledge (payment/return/delivery/contact info) |
 | allowlist.md | `/{entity_id}/agent_config/allowlist` | GET, POST, DELETE | Restrict agent to specific consumer phone numbers |
 | skills.md | `/{entity_id}/agent_config/skills` | GET, POST, PUT, DELETE | Agent behavior instructions (tone, triggers, flows) |
+| ui-skills.md | `/{entity_id}/agent-ui-skills` | GET, POST, PUT, DELETE | Rich-message components (carousel, CTA, flow, image, list, location) — separate from plain text-instruction Skills |
 | faq.md | `/{entity_id}/agent_config/faq` | GET, POST, PUT, DELETE | Q&A knowledge base |
 | files.md | `/{entity_id}/agent_config/files` | GET, POST, DELETE | Document uploads (PDF, DOCX, images, CSV, XLSX) |
 | websites.md | `/{entity_id}/agent_config/websites` | GET, POST, PUT, DELETE | URLs for agent to crawl |
@@ -70,5 +72,6 @@ entity_id: WhatsApp Business Phone Number ID
 
 ## Still Missing (paste when available)
 - [ ] Onboarding API
-- [ ] Business Info API
+- [x] Business Info API — see `business_info.md` (2026-08-04; implementation already existed via BusinessProfileDeployService, doc was just never backfilled until now)
+- [x] UI Skills API — see `ui-skills.md` (2026-08-04; genuinely new, not yet implemented)
 - [x] Webhook payload schemas (messages, standby) — see `webhook-standby-handoff.md`. No `messaging_handovers` field observed in real traffic; handoff signal is standby-wrapper presence/absence instead.

@@ -96,6 +96,12 @@ function AiCredentialSetup() {
             {(providers[provider] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         )}
+        {provider && (
+          <p className="text-xs text-muted-foreground">
+            Template content and marketing discussion will be sent to {provider}'s hosted endpoint under their own
+            terms — this is your key, not ours.
+          </p>
+        )}
         <input
           type="password"
           value={apiKey}

@@ -48,6 +48,10 @@ karix-mcp:
 karix:
   send-base-url: http://localhost  # not called in tests — KarixMessagingClient is @MockBean'd where used
 
+nvidia:
+  api:
+    base-url: http://localhost  # not called in tests
+
 logging:
   level:
     com.metaagent: DEBUG

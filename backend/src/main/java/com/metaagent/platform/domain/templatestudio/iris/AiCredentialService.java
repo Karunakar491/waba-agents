@@ -26,7 +26,7 @@ public class AiCredentialService {
 
     public CredentialStatus getStatus() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        return repository.findByAccountIdAndProvider(accountId, AiProvider.CLAUDE.name())
+        return firstCredentialForAccount(accountId)
                 .map(c -> new CredentialStatus(true, c.getProvider(), c.getModel()))
                 .orElse(new CredentialStatus(false, null, null));
     }
@@ -42,6 +42,13 @@ public class AiCredentialService {
             throw new BusinessException("Model \"" + model + "\" is not supported for provider " + provider + ".");
         }
 
+        // Enforce "one active provider per account" — switching providers
+        // replaces the old one rather than leaving two rows, which would
+        // make firstCredentialForAccount()'s pick non-deterministic.
+        repository.findAllByAccountId(accountId).stream()
+                .filter(c -> !c.getProvider().equals(providerEnum.name()))
+                .forEach(repository::delete);
+
         AiProviderCredential credential = repository.findByAccountIdAndProvider(accountId, providerEnum.name())
                 .orElseGet(() -> AiProviderCredential.builder().accountId(accountId).provider(providerEnum.name()).build());
         credential.setModel(model);
@@ -56,7 +63,7 @@ public class AiCredentialService {
     /** Decrypted key + model — only ever called from IrisConversationService, never returned via any GET endpoint. */
     ResolvedAiCredential resolveForConversation() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        AiProviderCredential credential = repository.findByAccountIdAndProvider(accountId, AiProvider.CLAUDE.name())
+        AiProviderCredential credential = firstCredentialForAccount(accountId)
                 .orElseThrow(() -> new BusinessException(
                         "Iris needs an AI provider key configured first — set one up in Settings."));
         return new ResolvedAiCredential(credential.getProvider(), credential.getModel(), secretEncryptor.decrypt(credential.getEncryptedApiKey()));
@@ -68,6 +75,18 @@ public class AiCredentialService {
         } catch (IllegalArgumentException e) {
             throw new BusinessException("Unsupported provider \"" + provider + "\".");
         }
+    }
+
+    /**
+     * EL-caught bug (2026-08-04): getStatus()/resolveForConversation() used
+     * to hardcode AiProvider.CLAUDE.name(), so an account that configured
+     * NVIDIA_LLAMA (or any non-CLAUDE provider) would silently never be
+     * found — Iris would claim "no key configured" even with one saved.
+     * An account has one ACTIVE provider at a time in practice; this picks
+     * whichever one exists rather than assuming which provider it is.
+     */
+    private java.util.Optional<AiProviderCredential> firstCredentialForAccount(Long accountId) {
+        return repository.findAllByAccountId(accountId).stream().findFirst();
     }
 
     record ResolvedAiCredential(String provider, String model, String apiKey) {}

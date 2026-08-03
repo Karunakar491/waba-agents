@@ -108,6 +108,13 @@ karix:
   # karix_client.py).
   send-base-url: ${KARIX_SEND_BASE_URL:https://rcmapi.instaalerts.zone}
 
+nvidia:
+  # NVIDIA NIM (meta/llama-3.3-70b-instruct), Iris's second BYOK provider —
+  # OpenAI-compatible wire format, distinct base_url/model catalog from any
+  # future real OpenAI adapter.
+  api:
+    base-url: ${NVIDIA_API_BASE_URL:https://integrate.api.nvidia.com/v1}
+
 crypto:
   # AES-256-GCM master key (SecretEncryptor) — base64-encoded 32 bytes.
   # NO DEFAULT (EL-caught, 2026-08-04): a hardcoded fallback here would be a

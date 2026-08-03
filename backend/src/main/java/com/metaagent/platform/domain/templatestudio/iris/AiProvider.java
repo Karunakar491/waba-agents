@@ -10,13 +10,16 @@ import java.util.Map;
  * Validated server-side on every credential write — never trust the
  * frontend dropdown alone.
  *
- * CLAUDE only for v1 — OPENAI is a deliberate P1 addition (its own adapter,
- * its own test pass) per the approved build order, not added here until
- * that adapter actually exists. Do not add a provider to this enum without
- * a matching AiProviderAdapter registered in IrisConversationService.
+ * Do not add a provider to this enum without a matching AiProviderAdapter
+ * registered in IrisConversationService — CLAUDE and NVIDIA_LLAMA both have
+ * one; OPENAI (real api.openai.com) remains a deliberate future addition,
+ * not added until its own adapter exists and passes review.
  */
 public enum AiProvider {
-    CLAUDE(List.of("claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"));
+    CLAUDE(List.of("claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022")),
+    // Scoped to this exact model family, not "any NVIDIA-hosted model" —
+    // same closed-set discipline as CLAUDE's own allowed-models list.
+    NVIDIA_LLAMA(List.of("meta/llama-3.3-70b-instruct"));
 
     private final List<String> allowedModels;
 

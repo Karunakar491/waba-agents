@@ -82,6 +82,33 @@ class AiCredentialServiceTest extends IntegrationTestBase {
     }
 
     @Test
+    void should_work_for_a_non_claude_provider_not_just_claude() {
+        // EL-caught bug: getStatus()/resolveForConversation() used to
+        // hardcode AiProvider.CLAUDE.name(), so a NVIDIA_LLAMA credential
+        // was silently invisible to both — Iris claimed "not configured"
+        // even with a real key saved.
+        credentialService.upsert("NVIDIA_LLAMA", "meta/llama-3.3-70b-instruct", "nvapi-real-key");
+
+        AiCredentialService.CredentialStatus status = credentialService.getStatus();
+        assertThat(status.configured()).isTrue();
+        assertThat(status.provider()).isEqualTo("NVIDIA_LLAMA");
+
+        AiCredentialService.ResolvedAiCredential resolved = credentialService.resolveForConversation();
+        assertThat(resolved.provider()).isEqualTo("NVIDIA_LLAMA");
+        assertThat(resolved.apiKey()).isEqualTo("nvapi-real-key");
+    }
+
+    @Test
+    void should_replace_prior_provider_when_switching() {
+        credentialService.upsert("CLAUDE", "claude-3-5-sonnet-20241022", "sk-claude-key");
+        credentialService.upsert("NVIDIA_LLAMA", "meta/llama-3.3-70b-instruct", "nvapi-new-key");
+
+        AiCredentialService.CredentialStatus status = credentialService.getStatus();
+        assertThat(status.provider()).isEqualTo("NVIDIA_LLAMA");
+        assertThat(credentialRepository.findAll()).hasSize(1);
+    }
+
+    @Test
     void should_decrypt_real_key_for_conversation_use() {
         credentialService.upsert("CLAUDE", "claude-3-5-haiku-20241022", "sk-real-key-xyz");
         AiCredentialService.ResolvedAiCredential resolved = credentialService.resolveForConversation();

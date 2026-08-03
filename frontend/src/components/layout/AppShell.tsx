@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   BarChart3,
+  FileText,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
@@ -39,6 +40,14 @@ const NAV = [
   { to: '/profile',  icon: User,          label: 'Profile',        soon: false },
 ]
 
+// Template Studio is its own module (separate AccountModule entitlement,
+// see ModuleAccessFilter) sharing this same AppShell — it must NOT show the
+// Business Agents nav above. Single item today; grows the same way NAV does
+// as Template Studio gains sub-pages, no redesign needed.
+const TEMPLATE_STUDIO_NAV = [
+  { to: '/templates', icon: FileText, label: 'Templates', soon: false },
+]
+
 const COLLAPSE_KEY = 'sidebar-collapsed'
 
 export default function AppShell() {
@@ -55,6 +64,7 @@ export default function AppShell() {
   // Hover-to-peek: while collapsed, hovering the rail floats it open over the
   // content (doesn't reflow main) — like Notion/Linear/VS Code's activity bar.
   const [railHover, setRailHover] = useState(false)
+  const activeNav = location.pathname.startsWith('/templates') ? TEMPLATE_STUDIO_NAV : NAV
 
   // Whether the sidebar is showing full labels right now (persisted collapse
   // state OFF, or hovering the rail while collapsed). Mobile drawer always
@@ -156,7 +166,7 @@ export default function AppShell() {
 
         {/* Nav */}
         <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
-          {NAV.map(({ to, icon: Icon, label, soon }) => (
+          {activeNav.map(({ to, icon: Icon, label, soon }) => (
             <div key={to}>
               <NavLink
                 to={to}
@@ -296,7 +306,7 @@ export default function AppShell() {
             </button>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">
-                {NAV.find((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))?.label ?? 'Agents'}
+                {activeNav.find((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))?.label ?? activeNav[0]?.label}
               </span>
               <ChevronRight className="h-3.5 w-3.5" />
             </div>

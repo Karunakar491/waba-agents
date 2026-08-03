@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS api_call_log (
 CREATE TABLE IF NOT EXISTS bulk_import_rows (
     id            VARCHAR(36)  NOT NULL PRIMARY KEY,
     job_id        VARCHAR(36)  NOT NULL,
-    row_number    INT          NOT NULL,
+    `row_number`  INT          NOT NULL, -- reserved word in MySQL 8.0 (window function) — must be backticked everywhere
     raw_json      JSON         NOT NULL,                -- the spreadsheet row, as read
     status        ENUM('pending', 'valid', 'invalid', 'submitted', 'submit_failed') NOT NULL DEFAULT 'pending',
     errors_json   JSON         NULL,                     -- validator errors, if any

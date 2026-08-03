@@ -111,7 +111,7 @@ def add_job_row(job_id: str, row_number: int, raw: dict) -> str:
     with cursor() as cur:
         cur.execute(
             """INSERT INTO bulk_import_rows
-               (id, job_id, row_number, raw_json, status, created_at, updated_at)
+               (id, job_id, `row_number`, raw_json, status, created_at, updated_at)
                VALUES (%s, %s, %s, %s, 'pending', %s, %s)""",
             (row_id, job_id, row_number, json.dumps(raw), ts, ts),
         )
@@ -137,7 +137,7 @@ def add_job_rows_batch(job_id: str, rows: list[dict]) -> list[str]:
     with cursor() as cur:
         cur.executemany(
             """INSERT INTO bulk_import_rows
-               (id, job_id, row_number, raw_json, status, created_at, updated_at)
+               (id, job_id, `row_number`, raw_json, status, created_at, updated_at)
                VALUES (%s, %s, %s, %s, 'pending', %s, %s)""",
             entries,
         )
@@ -182,7 +182,7 @@ def get_job(job_id: str, esme_addr: str) -> dict | None:
 def get_job_rows(job_id: str) -> list[dict]:
     with cursor() as cur:
         cur.execute(
-            "SELECT * FROM bulk_import_rows WHERE job_id = %s ORDER BY row_number",
+            "SELECT * FROM bulk_import_rows WHERE job_id = %s ORDER BY `row_number`",
             (job_id,),
         )
         return cur.fetchall()

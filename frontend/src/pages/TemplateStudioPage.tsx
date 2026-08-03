@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Loader2, Upload, List, Plus, Trash2, Pencil, RefreshCw, Settings as SettingsIcon } from 'lucide-react'
+import { FileText, Loader2, Upload, List, Plus, Trash2, Pencil, RefreshCw, Settings as SettingsIcon, CheckCircle2, Clock, XCircle, LayoutGrid } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
@@ -55,32 +55,32 @@ function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
     queryFn: () => api.get(`/templates/${wabaId}/karix-credential`).then((r) => r.data.data),
   })
 
-  if (credentialQuery.isLoading) {
-    return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-  }
+  const configured = credentialQuery.data?.configured ?? false
 
-  if (!credentialQuery.data?.configured) {
-    return (
-      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-2">
-        <p className="text-sm text-muted-foreground">
-          This WABA doesn't have Karix credentials configured yet — set them up in Settings before creating templates.
-        </p>
-        <Link
-          to="/templates/settings"
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <SettingsIcon className="h-4 w-4" />
-          Go to Settings
-        </Link>
-      </div>
-    )
-  }
-
+  // Dashboard shell always renders — configuring credentials is a data
+  // state (zero counts, disabled actions), never a blocking wall. See
+  // knowledge-index entry: founder explicitly rejected the prior full-page
+  // redirect-to-Settings behavior.
   return (
     <div className="space-y-6">
-      <TemplateListPanel wabaId={wabaId} />
-      <TemplateBuilderForm wabaId={wabaId} mode="create" />
-      <BulkImportPanel wabaId={wabaId} />
+      {!credentialQuery.isLoading && !configured && (
+        <div className="flex items-center justify-between rounded-xl border border-dashed bg-muted/30 px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            This WABA doesn't have Karix credentials configured yet — creating templates is disabled until then.
+          </p>
+          <Link
+            to="/templates/settings"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <SettingsIcon className="h-3.5 w-3.5" />
+            Go to Settings
+          </Link>
+        </div>
+      )}
+
+      <TemplateListPanel wabaId={wabaId} configured={configured} configuredLoading={credentialQuery.isLoading} />
+      {configured && <TemplateBuilderForm wabaId={wabaId} mode="create" />}
+      {configured && <BulkImportPanel wabaId={wabaId} />}
     </div>
   )
 }
@@ -96,104 +96,240 @@ interface TemplateSummary {
   reject_reason?: string
   category?: string
   language?: string
+  quality_score?: { score?: string } | string
 }
 
 function templateId(t: TemplateSummary): string {
   return String(t.id ?? t.sno ?? t.template_id ?? '')
 }
 
-function TemplateListPanel({ wabaId }: { wabaId: string }) {
-  const [statusFilter, setStatusFilter] = useState('')
-  const [editingTemplate, setEditingTemplate] = useState<TemplateSummary | null>(null)
-  const listQuery = useQuery({
-    queryKey: ['templates', wabaId, statusFilter],
-    queryFn: () => api.get(`/templates/${wabaId}`, { params: statusFilter ? { status: statusFilter } : {} }).then((r) => r.data.data),
-  })
+function qualityLabel(t: TemplateSummary): string | null {
+  const q = t.quality_score
+  if (!q) return null
+  return typeof q === 'string' ? q : q.score ?? null
+}
 
-  const templates: TemplateSummary[] =
-    listQuery.data?.result?.templates ?? listQuery.data?.result?.data ?? (Array.isArray(listQuery.data?.result) ? listQuery.data.result : [])
+// Meta's template statuses, tallied client-side from a single unfiltered
+// list call (EM-approved 2026-08-04 — the whole library is fetched once;
+// the table below paginates client-side, see PAGE_SIZE).
+const STATUS_COUNTERS = [
+  { key: 'APPROVED', label: 'Approved', icon: CheckCircle2, tint: 'text-brand-green', bg: 'bg-brand-green/10' },
+  { key: 'PENDING', label: 'Pending', icon: Clock, tint: 'text-amber-600', bg: 'bg-amber-500/10' },
+  { key: 'REJECTED', label: 'Rejected', icon: XCircle, tint: 'text-destructive', bg: 'bg-destructive/10' },
+] as const
+
+// Single source of truth for status classification — the status pill and
+// the counter tally must never disagree on what counts as e.g. "pending"
+// (Design Evaluator caught these using two different matching rules).
+function classifyStatus(status: string | undefined): 'APPROVED' | 'PENDING' | 'REJECTED' | 'PAUSED' | 'OTHER' {
+  const s = status || ''
+  if (/approved/i.test(s)) return 'APPROVED'
+  if (/rejected/i.test(s)) return 'REJECTED'
+  if (/pending|submitted/i.test(s)) return 'PENDING'
+  if (/paused/i.test(s)) return 'PAUSED'
+  return 'OTHER'
+}
+
+const PAGE_SIZE = 10
+
+function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: string; configured: boolean; configuredLoading: boolean }) {
+  const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(0)
+  const [editingTemplate, setEditingTemplate] = useState<TemplateSummary | null>(null)
+  // Unfiltered fetch is the base query — it's what the counters need, and
+  // it's what the table needs whenever no filter is selected. A second,
+  // filtered fetch only fires once the operator actually picks a status,
+  // so the common (no-filter) case makes exactly one network call.
+  const allQuery = useQuery({
+    queryKey: ['templates', wabaId, 'all'],
+    queryFn: () => api.get(`/templates/${wabaId}`).then((r) => r.data.data),
+    enabled: configured,
+  })
+  const filteredQuery = useQuery({
+    queryKey: ['templates', wabaId, statusFilter],
+    queryFn: () => api.get(`/templates/${wabaId}`, { params: { status: statusFilter } }).then((r) => r.data.data),
+    enabled: configured && !!statusFilter,
+  })
+  const listQuery = statusFilter ? filteredQuery : allQuery
+
+  const extractTemplates = (data: typeof allQuery.data): TemplateSummary[] =>
+    data?.result?.templates ?? data?.result?.data ?? (Array.isArray(data?.result) ? data.result : [])
+
+  const templates: TemplateSummary[] = configured ? extractTemplates(listQuery.data) : []
+  const allTemplates: TemplateSummary[] = configured ? extractTemplates(allQuery.data) : []
+  const counts = STATUS_COUNTERS.reduce<Record<string, number>>((acc, c) => {
+    acc[c.key] = allTemplates.filter((t) => classifyStatus(t.status) === c.key).length
+    return acc
+  }, {})
+  const countersLoading = configuredLoading || (configured && allQuery.isLoading)
+
+  const pageCount = Math.max(1, Math.ceil(templates.length / PAGE_SIZE))
+  const pagedTemplates = templates.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <List className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">Templates</h3>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Total
+          </div>
+          {countersLoading ? (
+            <div className="mt-1.5 h-7 w-10 animate-pulse rounded-md bg-muted" />
+          ) : (
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{configured ? allTemplates.length : 0}</p>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-lg border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            <option value="">All statuses</option>
-            <option value="APPROVED">Approved</option>
-            <option value="PENDING">Pending</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="PAUSED">Paused</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => listQuery.refetch()}
-            className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:bg-muted transition"
-          >
-            <RefreshCw className={cn('h-3 w-3', listQuery.isFetching && 'animate-spin')} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {listQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-      {listQuery.isError && <p className="text-xs text-destructive">Could not load templates. {extractMessage(listQuery.error)}</p>}
-      {listQuery.data && listQuery.data.ok === false && <p className="text-xs text-destructive">{listQuery.data.error}</p>}
-
-      {templates.length === 0 && !listQuery.isLoading && !listQuery.isError && (
-        <p className="text-xs text-muted-foreground">No templates yet.</p>
-      )}
-
-      <div className="divide-y">
-        {templates.map((t) => (
-          <div key={templateId(t)} className="flex items-center justify-between py-2 text-sm">
-            <div>
-              <p className="font-medium text-foreground">{t.template_name || t.name}</p>
-              <p className="text-xs text-muted-foreground">{t.category} · {t.language}</p>
-              {(t.status === 'REJECTED' || t.status === 'Rejected') && (t.rejected_reason || t.reject_reason) && (
-                <p className="text-xs text-destructive mt-0.5">Rejected: {t.rejected_reason || t.reject_reason}</p>
-              )}
+        {STATUS_COUNTERS.map(({ key, label, icon: Icon, tint, bg }) => (
+          <div key={key} className="rounded-xl border bg-card p-4">
+            <div className={cn('flex h-6 w-6 items-center justify-center rounded-full', bg)}>
+              <Icon className={cn('h-3.5 w-3.5', tint)} />
             </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-xs font-medium',
-                  /approved/i.test(t.status || '') && 'bg-brand-green/10 text-brand-green',
-                  /rejected/i.test(t.status || '') && 'bg-destructive/10 text-destructive',
-                  /pending|submitted/i.test(t.status || '') && 'bg-amber-500/10 text-amber-600',
-                  /paused/i.test(t.status || '') && 'bg-muted text-muted-foreground',
-                )}
-              >
-                {t.status || 'unknown'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setEditingTemplate(t)}
-                className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted transition"
-                aria-label="Edit template"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <p className="mt-1.5 text-xs font-medium text-muted-foreground">{label}</p>
+            {countersLoading ? (
+              <div className="mt-1 h-7 w-10 animate-pulse rounded-md bg-muted" />
+            ) : (
+              <p className={cn('text-2xl font-semibold tabular-nums', tint)}>{configured ? counts[key] ?? 0 : 0}</p>
+            )}
           </div>
         ))}
       </div>
 
-      {editingTemplate && (
-        <TemplateBuilderForm
-          wabaId={wabaId}
-          mode="edit"
-          templateId={templateId(editingTemplate)}
-          onDone={() => setEditingTemplate(null)}
-        />
-      )}
+      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <List className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Templates</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(0) }}
+              disabled={!configured}
+              className="rounded-lg border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+            >
+              <option value="">All statuses</option>
+              <option value="APPROVED">Approved</option>
+              <option value="PENDING">Pending</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="PAUSED">Paused</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => { allQuery.refetch(); if (statusFilter) filteredQuery.refetch() }}
+              disabled={!configured}
+              className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:bg-muted transition disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-3 w-3', listQuery.isFetching && 'animate-spin')} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {configuredLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {!configured && !configuredLoading && (
+          <p className="text-xs text-muted-foreground">No templates to show yet — configure Karix credentials for this WABA first.</p>
+        )}
+        {configured && listQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {configured && listQuery.isError && <p className="text-xs text-destructive">Could not load templates. {extractMessage(listQuery.error)}</p>}
+        {configured && listQuery.data && listQuery.data.ok === false && <p className="text-xs text-destructive">{listQuery.data.error}</p>}
+
+        {configured && templates.length === 0 && !listQuery.isLoading && !listQuery.isError && (
+          <p className="text-xs text-muted-foreground">No templates match this filter.</p>
+        )}
+
+        {configured && templates.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-2 pr-3">Name</th>
+                  <th className="pb-2 pr-3">Category</th>
+                  <th className="pb-2 pr-3">Language</th>
+                  <th className="pb-2 pr-3">Quality</th>
+                  <th className="pb-2 pr-3">Status</th>
+                  <th className="pb-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {pagedTemplates.map((t) => (
+                  <tr key={templateId(t)}>
+                    <td className="py-2 pr-3 max-w-[220px]">
+                      <p className="truncate font-medium text-foreground" title={t.template_name || t.name}>{t.template_name || t.name}</p>
+                      {classifyStatus(t.status) === 'REJECTED' && (t.rejected_reason || t.reject_reason) && (
+                        <p className="truncate text-xs text-destructive" title={t.rejected_reason || t.reject_reason}>
+                          Rejected: {t.rejected_reason || t.reject_reason}
+                        </p>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">{t.category ?? '—'}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{t.language ?? '—'}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{qualityLabel(t) ?? '—'}</td>
+                    <td className="py-2 pr-3">
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-0.5 text-xs font-medium',
+                          classifyStatus(t.status) === 'APPROVED' && 'bg-brand-green/10 text-brand-green',
+                          classifyStatus(t.status) === 'REJECTED' && 'bg-destructive/10 text-destructive',
+                          classifyStatus(t.status) === 'PENDING' && 'bg-amber-500/10 text-amber-600',
+                          classifyStatus(t.status) === 'PAUSED' && 'bg-muted text-muted-foreground',
+                        )}
+                      >
+                        {t.status || 'unknown'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setEditingTemplate(t)}
+                        className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted transition"
+                        aria-label="Edit template"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pageCount > 1 && (
+              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  Showing {page * PAGE_SIZE + 1}–{Math.min(templates.length, (page + 1) * PAGE_SIZE)} of {templates.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={page === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="rounded-lg border px-2 py-1 hover:bg-muted transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="tabular-nums">Page {page + 1} of {pageCount}</span>
+                  <button
+                    type="button"
+                    disabled={page >= pageCount - 1}
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    className="rounded-lg border px-2 py-1 hover:bg-muted transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {editingTemplate && (
+          <TemplateBuilderForm
+            wabaId={wabaId}
+            mode="edit"
+            templateId={templateId(editingTemplate)}
+            onDone={() => setEditingTemplate(null)}
+          />
+        )}
+      </div>
     </div>
   )
 }

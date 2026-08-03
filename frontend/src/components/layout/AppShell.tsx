@@ -13,6 +13,8 @@ import {
   PanelLeft,
   BarChart3,
   FileText,
+  Megaphone,
+  Settings as SettingsIcon,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
@@ -31,21 +33,24 @@ const AGENT_SUB_NAV = [
 ]
 
 const NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',    soon: false },
-  { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false },
-  { to: '/reports',  icon: BarChart3,    label: 'Reports',        soon: false },
-  { to: '/wabas',    icon: Building2,    label: 'WABAs',          soon: false },
-  { to: '/inbox',    icon: MessageSquare, label: 'Inbox',          soon: false },
-  { to: '/handover', icon: Users,         label: 'Human Handover', soon: true  },
-  { to: '/profile',  icon: User,          label: 'Profile',        soon: false },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',    soon: false, end: false },
+  { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false, end: false },
+  { to: '/reports',  icon: BarChart3,    label: 'Reports',        soon: false, end: false },
+  { to: '/wabas',    icon: Building2,    label: 'WABAs',          soon: false, end: false },
+  { to: '/inbox',    icon: MessageSquare, label: 'Inbox',          soon: false, end: false },
+  { to: '/handover', icon: Users,         label: 'Human Handover', soon: true,  end: false },
+  { to: '/profile',  icon: User,          label: 'Profile',        soon: false, end: false },
 ]
 
 // Template Studio is its own module (separate AccountModule entitlement,
 // see ModuleAccessFilter) sharing this same AppShell — it must NOT show the
-// Business Agents nav above. Single item today; grows the same way NAV does
-// as Template Studio gains sub-pages, no redesign needed.
+// Business Agents nav above. Templates/Campaigns/Settings are siblings, not
+// nested pages of one another — `end: true` on Templates keeps its NavLink
+// from staying highlighted while on /templates/campaigns or /templates/settings.
 const TEMPLATE_STUDIO_NAV = [
-  { to: '/templates', icon: FileText, label: 'Templates', soon: false },
+  { to: '/templates', icon: FileText, label: 'Templates', soon: false, end: true },
+  { to: '/templates/campaigns', icon: Megaphone, label: 'Campaigns', soon: false, end: false },
+  { to: '/templates/settings', icon: SettingsIcon, label: 'Settings', soon: false, end: false },
 ]
 
 const COLLAPSE_KEY = 'sidebar-collapsed'
@@ -166,10 +171,11 @@ export default function AppShell() {
 
         {/* Nav */}
         <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
-          {activeNav.map(({ to, icon: Icon, label, soon }) => (
+          {activeNav.map(({ to, icon: Icon, label, soon, end }) => (
             <div key={to}>
               <NavLink
                 to={to}
+                end={end}
                 title={iconOnly ? label : undefined}
                 onClick={() => { if (!soon) setMobileOpen(false) }}
                 className={({ isActive }) =>
@@ -306,7 +312,9 @@ export default function AppShell() {
             </button>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">
-                {activeNav.find((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))?.label ?? activeNav[0]?.label}
+                {activeNav.find((n) => location.pathname === n.to)?.label
+                  ?? activeNav.find((n) => location.pathname.startsWith(n.to + '/'))?.label
+                  ?? activeNav[0]?.label}
               </span>
               <ChevronRight className="h-3.5 w-3.5" />
             </div>

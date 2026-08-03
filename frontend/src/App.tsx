@@ -17,6 +17,8 @@ import HumanHandoverPage from './pages/HumanHandoverPage'
 import ProfilePage from './pages/ProfilePage'
 import ModuleSelectorPage from './pages/ModuleSelectorPage'
 import TemplateStudioPage from './pages/TemplateStudioPage'
+import TemplateCampaignsPage from './pages/TemplateCampaignsPage'
+import TemplateSettingsPage from './pages/TemplateSettingsPage'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/router/ProtectedRoute'
 import { useModuleEntitlements, type ModuleName } from './hooks/useModuleEntitlements'
@@ -72,6 +74,8 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/templates" element={<TemplateStudioPage />} />
+              <Route path="/templates/campaigns" element={<TemplateCampaignsPage />} />
+              <Route path="/templates/settings" element={<TemplateSettingsPage />} />
               <Route path="/agents"   element={<AgentsPage />} />
               <Route path="/agents/new" element={<CreateAgentPage />} />
               <Route path="/agents/:id" element={<AgentDetailPage />} />

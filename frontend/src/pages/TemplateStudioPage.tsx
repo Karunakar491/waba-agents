@@ -1,22 +1,19 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Loader2, Upload, KeyRound, Save, List, Plus, Trash2, Pencil, RefreshCw } from 'lucide-react'
+import { FileText, Loader2, Upload, List, Plus, Trash2, Pencil, RefreshCw, Settings as SettingsIcon } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
+import { useSelectedWaba } from '../hooks/useSelectedWaba'
+import WabaPicker from '../components/templatestudio/WabaPicker'
 
-// Template Studio landing page (2026-08-04) — structured UI first, chat
-// interface layered on top later (both call the SAME backend logic via
+// Templates section of Template Studio (2026-08-04, split into Templates/
+// Campaigns/Settings nav 2026-08-04) — structured UI first, chat interface
+// layered on top later (both call the SAME backend logic via
 // domain/templatestudio's proxy to karix-mcp — never diverge). Reuses the
 // existing AppShell, gated by the TEMPLATE_STUDIO module entitlement via
 // ProtectedRoute + ModuleAccessFilter (path-prefix routed to that module,
 // not BUSINESS_AGENTS).
-
-interface WabaEntry {
-  id: string
-  wabaId: string
-  label: string | null
-  status: string
-}
 
 interface CredentialStatus {
   configured: boolean
@@ -29,11 +26,7 @@ function extractMessage(err: unknown): string {
 }
 
 export default function TemplateStudioPage() {
-  const { data: wabas = [], isLoading: wabasLoading } = useQuery<WabaEntry[]>({
-    queryKey: ['wabas'],
-    queryFn: () => api.get('/waba').then((r) => r.data.data),
-  })
-  const [selectedWabaId, setSelectedWabaId] = useState<string>('')
+  const { wabas, isLoading: wabasLoading, selectedWabaId, setSelectedWabaId } = useSelectedWaba()
 
   if (wabasLoading) {
     return <div className="p-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -42,26 +35,14 @@ export default function TemplateStudioPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Template Studio</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Create and bulk-import WhatsApp message templates — separate from Business Agents' Skills/Knowledge Base,
           this is about the templates themselves, not agent behavior.
         </p>
       </div>
 
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <label className="block text-sm font-medium text-foreground mb-1.5">WABA</label>
-        <select
-          value={selectedWabaId}
-          onChange={(e) => setSelectedWabaId(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        >
-          <option value="">Select a WABA…</option>
-          {wabas.map((w) => (
-            <option key={w.id} value={w.id}>{w.label || w.wabaId}</option>
-          ))}
-        </select>
-      </div>
+      <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
 
       {selectedWabaId && <WabaTemplateStudio wabaId={selectedWabaId} />}
     </div>
@@ -69,8 +50,6 @@ export default function TemplateStudioPage() {
 }
 
 function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
-  const queryClient = useQueryClient()
-
   const credentialQuery = useQuery<CredentialStatus>({
     queryKey: ['karix-credential', wabaId],
     queryFn: () => api.get(`/templates/${wabaId}/karix-credential`).then((r) => r.data.data),
@@ -82,19 +61,23 @@ function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
 
   if (!credentialQuery.data?.configured) {
     return (
-      <CredentialForm
-        wabaId={wabaId}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ['karix-credential', wabaId] })}
-      />
+      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-2">
+        <p className="text-sm text-muted-foreground">
+          This WABA doesn't have Karix credentials configured yet — set them up in Settings before creating templates.
+        </p>
+        <Link
+          to="/templates/settings"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          <SettingsIcon className="h-4 w-4" />
+          Go to Settings
+        </Link>
+      </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-card p-4 shadow-sm flex items-center gap-2 text-sm text-muted-foreground">
-        <KeyRound className="h-4 w-4" />
-        Karix credential configured ({credentialQuery.data.esmeAddr})
-      </div>
       <TemplateListPanel wabaId={wabaId} />
       <TemplateBuilderForm wabaId={wabaId} mode="create" />
       <BulkImportPanel wabaId={wabaId} />
@@ -211,57 +194,6 @@ function TemplateListPanel({ wabaId }: { wabaId: string }) {
           onDone={() => setEditingTemplate(null)}
         />
       )}
-    </div>
-  )
-}
-
-function CredentialForm({ wabaId, onSaved }: { wabaId: string; onSaved: () => void }) {
-  const [esmeAddr, setEsmeAddr] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const mutation = useMutation({
-    mutationFn: () => api.put(`/templates/${wabaId}/karix-credential`, { esmeAddr, apiKey }),
-    onSuccess: onSaved,
-    onError: (err) => setError(extractMessage(err)),
-  })
-
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
-      <div className="flex items-center gap-2">
-        <KeyRound className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Karix credentials required</h3>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        This WABA needs its Karix esme_addr and API key before Template Studio can create templates for it.
-        Contact Karix to get these values for this WABA.
-      </p>
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={esmeAddr}
-          onChange={(e) => setEsmeAddr(e.target.value)}
-          placeholder="esme_addr"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        />
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="api_key"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        />
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <button
-        type="button"
-        disabled={!esmeAddr.trim() || !apiKey.trim() || mutation.isPending}
-        onClick={() => { setError(null); mutation.mutate() }}
-        className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        Save credentials
-      </button>
     </div>
   )
 }

@@ -346,9 +346,13 @@ public class WabaService {
 
         boolean agentIdPresent;
         try {
+            // EL-caught (2026-08-03, same channel-blindness bug class as the
+            // Wave 1a settings-array fix): matching on ANY channel entry's
+            // agent_id means a messenger-only agent on this number would
+            // make this true for WhatsApp too. Only the whatsapp entry counts.
             List<?> settings = metaApiClient.get("/" + phoneNumberId + "/agent_config/settings", List.class);
-            agentIdPresent = settings != null && settings.stream()
-                    .anyMatch(entry -> entry instanceof Map<?, ?> m && m.get("agent_id") != null);
+            Map<String, Object> whatsappEntry = MetaApiClient.findChannelEntry(settings, "whatsapp");
+            agentIdPresent = whatsappEntry != null && whatsappEntry.get("agent_id") != null;
         } catch (MetaApiException e) {
             // 404 means no settings configured on this number yet — safe, not a conflict.
             if (e.isNotFound()) {

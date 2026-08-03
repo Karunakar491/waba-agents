@@ -160,15 +160,46 @@ public class AgentService {
                 throw new BusinessException("Meta isn't responding. Wait a moment and try again.");
             }
 
-            // 2. Provision on Meta — disabled until user activates
-            // Settings PUT is a full replace — always send all fields (spec rule)
+            // 2. Provision on Meta — disabled until user activates.
+            // Settings PUT is a full replace (settings.md) — an imported/pre-
+            // existing Meta-side number may already have a real followup
+            // config, audience restriction, or handoff message configured
+            // directly on Meta; hardcoding these to off/EVERYONE (as this
+            // used to) silently destroyed them at connect time, before an
+            // operator ever saw the config. Read the live WhatsApp-channel
+            // entry first, hydrate this agent's own handoff fields from it
+            // (a fresh local Agent row has never seen this), and carry
+            // followup/ai_audience through unchanged. Same fix as
+            // AgentDeployService.putSettings — see Wave 1a.
             String settingsPath = String.format("/%s/agent_config/settings", phoneNumberId);
-            Map<String, Object> settingsPayload = Map.of(
-                    "rollout", Map.of("enabled", false),
-                    "handoff", Map.of("enabled", false),
-                    "followup", Map.of("enabled", false),
-                    "ai_audience", "EVERYONE"
-            );
+            Map<String, Object> live;
+            try {
+                List<?> currentSettings = metaApiClient.get(settingsPath, List.class);
+                live = MetaApiClient.findChannelEntry(currentSettings, "whatsapp");
+            } catch (Exception e) {
+                live = null;
+            }
+            // EL-caught (2026-08-03): only hydrate when the local row has
+            // nothing configured yet. handoff.message is optional per
+            // settings.md's own schema — a live entry with enabled=true and
+            // no message would otherwise null out a handoff message the
+            // operator already configured locally (in the wizard, before
+            // ever binding a phone) but hasn't deployed yet. That's a
+            // regression of the exact class this fix exists to prevent.
+            if (live != null && agent.getHandoffMessage() == null && !agent.isHandoffEnabled()
+                    && live.get("handoff") instanceof Map<?, ?> liveHandoff) {
+                agent.setHandoffEnabled(Boolean.TRUE.equals(liveHandoff.get("enabled")));
+                Object msg = liveHandoff.get("message");
+                agent.setHandoffMessage(msg != null ? msg.toString() : null);
+            }
+
+            Map<String, Object> settingsPayload = new HashMap<>();
+            settingsPayload.put("rollout", Map.of("enabled", false));
+            settingsPayload.put("handoff", agent.getHandoffMessage() != null
+                    ? Map.of("enabled", agent.isHandoffEnabled(), "message", agent.getHandoffMessage())
+                    : Map.of("enabled", agent.isHandoffEnabled()));
+            settingsPayload.put("followup", live != null && live.get("followup") != null ? live.get("followup") : Map.of("enabled", false));
+            settingsPayload.put("ai_audience", live != null && live.get("ai_audience") != null ? live.get("ai_audience") : "EVERYONE");
             try {
                 metaApiClient.put(settingsPath, settingsPayload, Map.class);
             } catch (Exception e) {
@@ -239,8 +270,19 @@ public class AgentService {
 
         try {
             List<?> settings = metaApiClient.get("/" + agent.getPhoneNumberId() + "/agent_config/settings", List.class);
-            Map<?, ?> entry = settings != null && !settings.isEmpty() && settings.get(0) instanceof Map<?, ?> m ? m : null;
-            boolean realEnabled = entry != null && entry.get("rollout") instanceof Map<?, ?> rollout
+            Map<?, ?> entry = MetaApiClient.findChannelEntry(settings, "whatsapp");
+
+            // EL-caught (2026-08-03): no whatsapp entry found is UNKNOWN, not
+            // "disabled" — a malformed/channel-less response (or a number
+            // whose settings haven't propagated yet) must never be treated
+            // as confirmation that a live agent is off. Leave the existing
+            // status untouched rather than writing a guess.
+            if (entry == null) {
+                log.warn("No whatsapp channel entry in settings response — leaving existing status as-is: agentId={}", agent.getId());
+                return;
+            }
+
+            boolean realEnabled = entry.get("rollout") instanceof Map<?, ?> rollout
                     && Boolean.TRUE.equals(rollout.get("enabled"));
 
             if (realEnabled && agent.getStatus() != Agent.Status.active) {

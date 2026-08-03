@@ -66,6 +66,26 @@ public class MetaApiClient {
         return basePath + (basePath.contains("?") ? "&" : "?") + "agent_id=" + metaAgentId;
     }
 
+    /**
+     * agent_config/settings GET returns one entry per configured channel
+     * (settings.md) — a phone number can have email/instagram/whatsapp/etc
+     * entries in the same array. Never assume index 0 is WhatsApp; a
+     * multi-channel number would silently read/reconcile the wrong
+     * channel's state. Returns null if no entry matches.
+     */
+    @SuppressWarnings("unchecked")
+    public static java.util.Map<String, Object> findChannelEntry(java.util.List<?> settings, String channel) {
+        if (settings == null) {
+            return null;
+        }
+        for (Object o : settings) {
+            if (o instanceof java.util.Map<?, ?> m && channel.equals(m.get("channel"))) {
+                return (java.util.Map<String, Object>) m;
+            }
+        }
+        return null;
+    }
+
     /** Graph API (graph.facebook.com) — for standard WhatsApp Business API endpoints. */
     public <T> T graphGet(String path, Class<T> responseType) {
         return timed("GET", path, null, () -> graphRestClient.get()

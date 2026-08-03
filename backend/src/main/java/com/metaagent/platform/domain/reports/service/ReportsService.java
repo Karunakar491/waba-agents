@@ -72,26 +72,31 @@ public class ReportsService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> runEval(Long agentId, String evalCaseIds, Map<String, Object> body) {
         String phoneNumberId = phoneNumberIdFor(agentId);
-        String path = "/" + phoneNumberId + "/agent-eval/run?eval_case_ids=" + evalCaseIds;
+        String path = "/" + phoneNumberId + "/agent-eval/run?eval_case_ids=" + urlEncode(evalCaseIds);
         return metaApiClient.post(path, body, Map.class);
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> pollEvalRun(Long agentId, String jobId) {
         String phoneNumberId = phoneNumberIdFor(agentId);
-        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/run?job_id=" + jobId, Map.class);
+        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/run?job_id=" + urlEncode(jobId), Map.class);
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> getEvalDetails(Long agentId, String evalIds) {
         String phoneNumberId = phoneNumberIdFor(agentId);
-        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/details?eval_ids=" + evalIds, Map.class);
+        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/details?eval_ids=" + urlEncode(evalIds), Map.class);
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> getEvalSummary(Long agentId, String summaryIds) {
         String phoneNumberId = phoneNumberIdFor(agentId);
-        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/summary?summary_ids=" + summaryIds, Map.class);
+        return metaApiClient.get("/" + phoneNumberId + "/agent-eval/summary?summary_ids=" + urlEncode(summaryIds), Map.class);
+    }
+
+    /** Eval ids (e.g. pfbid-style) can contain &, #, = — encode before concatenating into a query string. */
+    private static String urlEncode(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private String phoneNumberIdFor(Long agentId) {

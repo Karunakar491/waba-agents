@@ -73,7 +73,62 @@ public class BusinessProfileDeployService {
     public BusinessProfile getLive(String phoneNumberId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         phoneNumberAccessGuard.requireAccess(accountId, phoneNumberId);
-        return repository.findByPhoneNumberIdAndStatus(phoneNumberId, Status.DEPLOYED).orElse(null);
+        return repository.findByPhoneNumberIdAndStatus(phoneNumberId, Status.DEPLOYED)
+                .orElseGet(() -> ensureBackfilled(phoneNumberId, accountId));
+    }
+
+    /**
+     * Wave 1b (2026-08-03): an agent discovered via reconciliation (imported,
+     * not built through this app's wizard) can have real business_info
+     * already configured directly on Meta with zero local BusinessProfile
+     * row — confirmed live (Wave 0 verification) for a real production
+     * number. Same bug class already fixed for Skills/FAQs/Files/Websites
+     * via AgentService's ensure*Backfilled methods; this was the one domain
+     * that never got it. Reactive (fires on read, not a background job) and
+     * best-effort — never fails the primary getLive() read; a Meta hiccup
+     * just leaves the operator seeing "no persona yet", same as today.
+     *
+     * EL-caught race (2026-08-03): this is reachable from an ordinary page
+     * load, so two concurrent getLive() calls missing the same not-yet-
+     * backfilled number is routine, not exotic — both would otherwise save
+     * their own DEPLOYED row, and findByPhoneNumberIdAndStatus (an Optional
+     * lookup) would then throw IncorrectResultSizeDataAccessException for
+     * every future call on that number, permanently. Takes the same
+     * deployLocks lock as deploy()/resetLive() and re-checks for an existing
+     * row *inside* the lock before ever saving one.
+     */
+    private BusinessProfile ensureBackfilled(String phoneNumberId, Long accountId) {
+        Object lock = deployLocks.computeIfAbsent(phoneNumberId, k -> new Object());
+        synchronized (lock) {
+            // Another thread may have backfilled (or deployed) between the
+            // outer check and acquiring this lock — re-check before writing.
+            BusinessProfile existing = repository
+                    .findByPhoneNumberIdAndStatus(phoneNumberId, Status.DEPLOYED)
+                    .orElse(null);
+            if (existing != null) {
+                return existing;
+            }
+
+            try {
+                Map<?, ?> live = getBusinessInfo(phoneNumberId);
+                if (live == null || live.isEmpty()) {
+                    return null;
+                }
+                BusinessProfile discovered = fromMetaResponse(live, phoneNumberId);
+                // Unlike deploy()'s drift-recording use of fromMetaResponse
+                // (genuinely unmanaged, accountId stays null per this
+                // entity's own convention), this row is being actively
+                // surfaced to the requesting account right now — attribute it.
+                discovered.setAccountId(accountId);
+                discovered.setStatus(Status.DEPLOYED);
+                discovered.setArchivedAt(null);
+                discovered.setDeployedAt(LocalDateTime.now());
+                return repository.save(discovered);
+            } catch (Exception e) {
+                log.warn("Business info backfill failed for phoneNumberId={}: {}", phoneNumberId, e.getMessage());
+                return null;
+            }
+        }
     }
 
     public List<BusinessProfile> getHistory(String phoneNumberId) {
@@ -202,13 +257,25 @@ public class BusinessProfileDeployService {
         if (draft.getContactHoursOfOperation() != null) contactInfo.put("hours_of_operation", draft.getContactHoursOfOperation());
         if (draft.getContactAddress() != null) contactInfo.put("address", draft.getContactAddress());
 
+        // business_info PUT is a full replace — an explicit null for a field
+        // the operator simply didn't fill in this draft would wipe real
+        // content that was live on Meta (e.g. from ensureBackfilled or a
+        // prior deploy). Only send fields this draft actually has a value
+        // for, same conditional pattern contact_info already used below.
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
-        payload.put("payment_method", draft.getPaymentMethod());
-        payload.put("return_policy", draft.getReturnPolicy());
-        payload.put("purchase_info", draft.getPurchaseInfo());
-        payload.put("delivery_and_shipping", draft.getDeliveryAndShipping());
-        payload.put("business_description", draft.getBusinessDescription());
+        if (draft.getPaymentMethod() != null) payload.put("payment_method", draft.getPaymentMethod());
+        if (draft.getReturnPolicy() != null) payload.put("return_policy", draft.getReturnPolicy());
+        if (draft.getPurchaseInfo() != null) payload.put("purchase_info", draft.getPurchaseInfo());
+        if (draft.getDeliveryAndShipping() != null) payload.put("delivery_and_shipping", draft.getDeliveryAndShipping());
+        if (draft.getBusinessDescription() != null) payload.put("business_description", draft.getBusinessDescription());
         if (!contactInfo.isEmpty()) payload.put("contact_info", contactInfo);
+
+        // A draft with nothing filled in at all would otherwise PUT an empty
+        // object to a full-replace endpoint — unverified/unwanted behavior
+        // against real client data. Reject before the call, not after.
+        if (payload.isEmpty()) {
+            throw new BusinessException("This draft has no fields filled in — add at least one before deploying.");
+        }
 
         metaApiClient.put("/" + phoneNumberId + "/agent_config/business_info", payload, Map.class);
     }

@@ -47,12 +47,19 @@ public class ThreadControlClient {
                 .build();
     }
 
-    /** Releases thread control back to Meta Business Agent for the given phone number. */
-    public void release(String phoneNumberId) {
-        Map<String, Object> body = Map.of(
-                "messaging_product", "whatsapp",
-                "action", "release"
-        );
+    /**
+     * Releases thread control back to Meta Business Agent for the given phone number.
+     *
+     * @param customerPhone thread-control.md's "to" field (consumer phone
+     *                       number / WhatsApp ID) — optional per Meta's docs,
+     *                       but omitting it releases the whole number rather
+     *                       than one conversation. Pass null only when there's
+     *                       genuinely no specific conversation to target.
+     */
+    public void release(String phoneNumberId, String customerPhone) {
+        Map<String, Object> body = customerPhone != null
+                ? Map.of("messaging_product", "whatsapp", "action", "release", "to", customerPhone)
+                : Map.of("messaging_product", "whatsapp", "action", "release");
 
         try {
             restClient.post()

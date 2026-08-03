@@ -113,9 +113,13 @@ public class AgentController {
         return ApiResponse.ok(agentDeployService.getEventStatus(id, agentEventId));
     }
 
+    // "to" (thread-control.md: consumer phone number / WhatsApp ID) is optional
+    // but recommended — without it, release() targets the whole number rather
+    // than a specific conversation. Pass it whenever the operator is releasing
+    // control from a specific conversation's inbox view.
     @PostMapping("/{id}/thread-control/release")
-    public ApiResponse<Void> releaseThreadControl(@PathVariable Long id) {
-        agentDeployService.releaseThreadControl(id);
+    public ApiResponse<Void> releaseThreadControl(@PathVariable Long id, @RequestParam(required = false) String to) {
+        agentDeployService.releaseThreadControl(id, to);
         return ApiResponse.ok();
     }
 
@@ -257,6 +261,30 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @PutMapping("/{id}/connectors/{connectorId}/api-key")
+    public ApiResponse<Map<String, Object>> upsertConnectorApiKey(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.upsertConnectorApiKey(id, connectorId, payload));
+    }
+
+    @PutMapping("/{id}/connectors/{connectorId}/certificate")
+    public ApiResponse<Map<String, Object>> upsertConnectorCertificate(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.upsertConnectorCertificate(id, connectorId, payload));
+    }
+
+    @PutMapping("/{id}/connectors/{connectorId}/oauth")
+    public ApiResponse<Map<String, Object>> upsertConnectorOAuth(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.upsertConnectorOAuth(id, connectorId, payload));
+    }
+
     @GetMapping("/{id}/connectors/{connectorId}/logs")
     public ApiResponse<Map<String, Object>> getConnectorLogs(
             @PathVariable Long id,
@@ -264,8 +292,11 @@ public class AgentController {
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime,
             @RequestParam(required = false) String toolId,
-            @RequestParam(required = false) Integer limit) {
-        return ApiResponse.ok(agentDeployService.getConnectorLogs(id, connectorId, startTime, endTime, toolId, limit));
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Boolean includeStats,
+            @RequestParam(required = false) Boolean summaryOnly,
+            @RequestParam(required = false) Integer topN) {
+        return ApiResponse.ok(agentDeployService.getConnectorLogs(id, connectorId, startTime, endTime, toolId, limit, includeStats, summaryOnly, topN));
     }
 
     // ── Tools ─────────────────────────────────────────────────────────────────
@@ -283,6 +314,23 @@ public class AgentController {
             @PathVariable String connectorId,
             @RequestBody Map<String, Object> payload) {
         return ApiResponse.ok(agentDeployService.createTool(id, connectorId, payload));
+    }
+
+    @GetMapping("/{id}/connectors/{connectorId}/tools/{toolId}")
+    public ApiResponse<Map<String, Object>> getTool(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @PathVariable String toolId) {
+        return ApiResponse.ok(agentDeployService.getTool(id, connectorId, toolId));
+    }
+
+    @PutMapping("/{id}/connectors/{connectorId}/tools/{toolId}")
+    public ApiResponse<Map<String, Object>> updateTool(
+            @PathVariable Long id,
+            @PathVariable String connectorId,
+            @PathVariable String toolId,
+            @RequestBody Map<String, Object> payload) {
+        return ApiResponse.ok(agentDeployService.updateTool(id, connectorId, toolId, payload));
     }
 
     @DeleteMapping("/{id}/connectors/{connectorId}/tools/{toolId}")

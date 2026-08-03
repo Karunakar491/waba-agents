@@ -201,7 +201,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDeployService.java",
-      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (minimal params only — full stats surface deferred), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; Tools GET-single/PUT and upsertCertificate deliberately deferred (see project memory)"
+      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (now includes include_stats/summary_only/top_n params, 2026-08-03), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; getTool/updateTool (tool GET-single/PUT) and upsertConnectorApiKey/upsertConnectorCertificate/upsertConnectorOAuth (credential rotation, connectors.md) added 2026-08-03 — previously deferred, no longer deferred; settings PUT is now a real read-modify-write preserving followup/ai_audience instead of hardcoding them (2026-08-03 Wave 1a fix)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
@@ -461,7 +461,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/reports/service/ReportsService.java",
-      "purpose": "Thin proxy to Meta agent-eval (cases/run/details/summary), per-agent; plus account-wide getConversationsReport (success=closed+!needsHuman, no new column) and getApiCallLog read"
+      "purpose": "Thin proxy to Meta agent-eval (cases/run/details/summary), per-agent; plus account-wide getConversationsReport (success=closed+!needsHuman, no new column) and getApiCallLog read; eval query-string ids URL-encoded before concatenation (2026-08-03 — ids can contain &, #, =)"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/reports/service/ReportsServiceTest.java",
+      "purpose": "Covers eval id URL-encoding fix (2026-08-03) for run/pollEvalRun/getEvalDetails/getEvalSummary"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/reports/controller/ReportsController.java",
@@ -489,7 +493,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogRedactor.java",
-      "purpose": "Allowlist-style secret redaction (key-name regex + connector auth-header {field_name,value} shape) before persisting request/response bodies — never blanket-hides bodies"
+      "purpose": "Allowlist-style secret redaction (key-name regex + connector auth-header {field_name,value} shape) before persisting request/response bodies — never blanket-hides bodies; regex extended 2026-08-03 to catch client_key/private_key (mTLS cert rotation payload) without blanket-redacting public client_certificate/ca_certificate"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogRedactorTest.java",
+      "purpose": "Covers 2026-08-03 client_key/private_key redaction fix — confirms public certificate fields still pass through unredacted"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/infrastructure/meta/audit/ApiCallLogWriter.java",
@@ -549,7 +557,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/persona/service/BusinessProfileDeployService.java",
-      "purpose": "Deploy sequence for BusinessProfile: GET Meta live business_info -> archive prior DEPLOYED row (or record drift) -> PUT new draft -> flip to DEPLOYED. Rolls back local archive if PUT fails; per-phoneNumberId lock guards against concurrent deploys. resetLive() (2026-07-28) resets Meta's business_info to defaults + archives the DEPLOYED row, same lock"
+      "purpose": "Deploy sequence for BusinessProfile: GET Meta live business_info -> archive prior DEPLOYED row (or record drift) -> PUT new draft -> flip to DEPLOYED. Rolls back local archive if PUT fails; per-phoneNumberId lock guards against concurrent deploys. resetLive() (2026-07-28) resets Meta's business_info to defaults + archives the DEPLOYED row, same lock. getLive() (2026-08-03 Wave 1b) now backfills from Meta's real business_info GET when no local row exists (same pattern as Skills/FAQs/Files/Websites); backfill reuses deployLocks + a re-check inside the lock to prevent a duplicate-DEPLOYED-row race on concurrent first reads; backfilled rows stamp accountId to the requesting account; putBusinessInfo rejects an entirely-empty draft"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/persona/service/BusinessProfileDeployServiceTest.java",
+      "purpose": "Covers 2026-08-03 Wave 1b backfill fix — including duplicate-row-prevention under concurrent getLive() and empty-payload rejection on putBusinessInfo"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/persona/controller/BusinessProfileController.java",

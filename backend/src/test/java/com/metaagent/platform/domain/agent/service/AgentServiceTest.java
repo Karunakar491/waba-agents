@@ -15,6 +15,8 @@ import com.metaagent.platform.domain.agent.repository.AgentSkillRepository;
 import com.metaagent.platform.domain.user.entity.BusinessAccount;
 import com.metaagent.platform.domain.user.repository.BusinessAccountRepository;
 import com.metaagent.platform.domain.waba.entity.Waba;
+import com.metaagent.platform.domain.waba.entity.WabaAccountAccess;
+import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.support.IntegrationTestBase;
 import org.junit.jupiter.api.AfterEach;
@@ -58,10 +60,16 @@ class AgentServiceTest extends IntegrationTestBase {
     private AgentSkillRepository agentSkillRepository;
 
     @Autowired
+    private com.metaagent.platform.domain.agent.repository.AgentFileRepository agentFileRepository;
+
+    @Autowired
     private BusinessAccountRepository businessAccountRepository;
 
     @Autowired
     private WabaRepository wabaRepository;
+
+    @Autowired
+    private WabaAccountAccessRepository wabaAccountAccessRepository;
 
     private Long accountId;
 
@@ -81,7 +89,9 @@ class AgentServiceTest extends IntegrationTestBase {
         SecurityContextHolder.clearContext();
         agentFaqRepository.deleteAll();
         agentSkillRepository.deleteAll();
+        agentFileRepository.deleteAll();
         agentRepository.deleteAll();
+        wabaAccountAccessRepository.deleteAll();
         wabaRepository.deleteAll();
         businessAccountRepository.deleteAll();
     }
@@ -124,6 +134,75 @@ class AgentServiceTest extends IntegrationTestBase {
 
         assertThat(bound.getPhoneNumberId()).isEqualTo("777888999");
         assertThat(bound.getWabaId()).isEqualTo(waba.getId());
+    }
+
+    // Wave 1a, 2026-08-03: bindPhone's settings PUT is a full replace
+    // (settings.md) — an imported/pre-existing Meta-side number may already
+    // have a real handoff message and followup/audience config. Before this
+    // fix, bindPhone hardcoded these off/EVERYONE, destroying them at
+    // connect-time before an operator ever saw the config.
+    @Test
+    void should_hydrate_handoff_and_preserve_followup_and_audience_from_live_settings_on_bind() {
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Waba waba = ownedWaba("100200301");
+        stubPhoneList("100200301", "777888111");
+        when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
+                .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))
+                .thenReturn(List.of(Map.of(
+                        "channel", "whatsapp",
+                        "handoff", Map.of("enabled", true, "message", "Connecting you to a human."),
+                        "followup", Map.of("enabled", true, "message", "Still around?"),
+                        "ai_audience", "ALLOWLISTED_ONLY")));
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        when(metaApiClient.put(contains("/agent_config/settings"), payloadCaptor.capture(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        Agent bound = agentService.bindPhone(agent.getId(), "777888111", waba.getId());
+
+        assertThat(bound.isHandoffEnabled()).isTrue();
+        assertThat(bound.getHandoffMessage()).isEqualTo("Connecting you to a human.");
+
+        Map<String, Object> sentPayload = payloadCaptor.getValue();
+        assertThat(sentPayload.get("ai_audience")).isEqualTo("ALLOWLISTED_ONLY");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sentFollowup = (Map<String, Object>) sentPayload.get("followup");
+        assertThat(sentFollowup.get("message")).isEqualTo("Still around?");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sentHandoff = (Map<String, Object>) sentPayload.get("handoff");
+        assertThat(sentHandoff.get("message")).isEqualTo("Connecting you to a human.");
+    }
+
+    // EL-caught regression (2026-08-03): handoff.message is optional per
+    // settings.md's own schema — a live entry with enabled=true and no
+    // message must NOT null out a handoff message the operator already
+    // configured locally (e.g. in the wizard, before ever binding a phone).
+    // The hydration in bindPhone must only fire when the local row has
+    // nothing configured yet.
+    @Test
+    void should_preserve_local_handoff_message_when_live_handoff_has_no_message() {
+        Agent agent = agentService.createAgent(new AgentRequest(
+                "Bind Agent", null, null, null, null, null, null, true, "My own handoff message."));
+        Waba waba = ownedWaba("100200302");
+        stubPhoneList("100200302", "777888222");
+        when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
+                .thenReturn(Map.of("is_eligible", true));
+        // Live entry has handoff.enabled=true but no message — legal per
+        // settings.md (message is optional).
+        when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))
+                .thenReturn(List.of(Map.of(
+                        "channel", "whatsapp",
+                        "handoff", Map.of("enabled", true))));
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        when(metaApiClient.put(contains("/agent_config/settings"), payloadCaptor.capture(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        Agent bound = agentService.bindPhone(agent.getId(), "777888222", waba.getId());
+
+        assertThat(bound.getHandoffMessage()).isEqualTo("My own handoff message.");
+
+        Map<String, Object> sentHandoff = (Map<String, Object>) payloadCaptor.getValue().get("handoff");
+        assertThat(sentHandoff.get("message")).isEqualTo("My own handoff message.");
     }
 
     @Test
@@ -181,18 +260,72 @@ class AgentServiceTest extends IntegrationTestBase {
     }
 
     private Waba ownedWaba(String metaWabaId) {
-        return wabaRepository.save(Waba.builder()
+        Waba waba = wabaRepository.save(Waba.builder()
                 .accountId(accountId)
                 .wabaId(metaWabaId)
                 .build());
+        // bindPhone checks access via WabaAccountAccess, not Waba.accountId
+        // directly (2026-07-28 decoupling) — a Waba row alone isn't enough.
+        wabaAccountAccessRepository.save(WabaAccountAccess.builder()
+                .wabaId(waba.getId())
+                .accountId(accountId)
+                .grantedBy(accountId)
+                .build());
+        return waba;
     }
 
     private void stubPhoneList(String metaWabaId, String phoneNumberId) {
-        when(metaApiClient.get(eq("/" + metaWabaId + "/phone_numbers"), eq(Map.class)))
+        // phoneBelongsToWaba() calls graphGet (Graph API), not get (Business
+        // API) — a pre-existing stub/production mismatch, unrelated to any
+        // change in this pass.
+        when(metaApiClient.graphGet(eq("/" + metaWabaId + "/phone_numbers"), eq(Map.class)))
                 .thenReturn(Map.of("data", List.of(Map.of(
                         "id", phoneNumberId,
                         "display_phone_number", "+1 555 0100",
                         "verified_name", "Test Business"))));
+    }
+
+    // -------------------------------------------------------------------------
+    // reconcileStatus()
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_leave_status_unchanged_when_no_whatsapp_entry_in_settings_response() {
+        Agent agent = agentRepository.save(activeAgent("333222111"));
+        // A malformed/channel-less response, or a multi-channel number with
+        // no whatsapp entry — EL-caught (2026-08-03): this is UNKNOWN, not
+        // "disabled". Must never pause a live agent on a guess.
+        when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))
+                .thenReturn(List.of(Map.of("channel", "messenger", "rollout", Map.of("enabled", false))));
+
+        agentService.reconcileStatus(agent);
+
+        Agent fromDb = agentRepository.findById(agent.getId()).orElseThrow();
+        assertThat(fromDb.getStatus()).isEqualTo(Agent.Status.active);
+        assertThat(fromDb.getStatusReconciledAt()).isNull();
+    }
+
+    @Test
+    void should_pause_when_whatsapp_entry_shows_disabled() {
+        Agent agent = agentRepository.save(activeAgent("333222112"));
+        when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))
+                .thenReturn(List.of(Map.of("channel", "whatsapp", "rollout", Map.of("enabled", false))));
+
+        agentService.reconcileStatus(agent);
+
+        Agent fromDb = agentRepository.findById(agent.getId()).orElseThrow();
+        assertThat(fromDb.getStatus()).isEqualTo(Agent.Status.paused);
+        assertThat(fromDb.getStatusReconciledAt()).isNotNull();
+    }
+
+    private Agent activeAgent(String phoneNumberId) {
+        return Agent.builder()
+                .accountId(accountId)
+                .phoneNumberId(phoneNumberId)
+                .displayName("Test Agent")
+                .enabled(true)
+                .status(Agent.Status.active)
+                .build();
     }
 
     // -------------------------------------------------------------------------

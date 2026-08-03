@@ -1,5 +1,6 @@
 package com.metaagent.platform.support;
 
+import com.metaagent.platform.domain.scheduler.GlobalSyncScheduler;
 import com.metaagent.platform.infrastructure.claude.ClaudeApiClient;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import com.metaagent.platform.infrastructure.meta.ThreadControlClient;
@@ -58,4 +59,20 @@ public abstract class IntegrationTestBase {
 
     @MockBean
     protected ThreadControlClient threadControlClient;
+
+    // GlobalSyncScheduler's @Scheduled cron methods (every 20 min / hourly)
+    // are NOT profile-gated in production code (@EnableScheduling on
+    // PlatformApplication is unconditional) — a long-running combined test
+    // suite can genuinely cross one of those wall-clock boundaries mid-run.
+    // When it fires for real, it calls businessAccountRepository.findAll()
+    // across every account any test in the suite has created, then fans
+    // out per-account work across metaSyncExecutor's up to 16 threads —
+    // all competing with the tests' own JPA calls for the same small
+    // HikariCP test pool. Confirmed live (2026-08-03): reproduced a
+    // multi-hour hang, root-caused via thread dump to HikariCP pool
+    // exhaustion with a live "scheduling-1" thread present. Mocking this
+    // bean means Spring still "schedules" it, but each invocation calls a
+    // Mockito no-op instead of the real fan-out.
+    @MockBean
+    protected GlobalSyncScheduler globalSyncScheduler;
 }

@@ -77,13 +77,27 @@ public class WabaAgentReconciliationService {
             return;
         }
 
-        Map<?, ?> entry = settings.get(0) instanceof Map<?, ?> m ? m : null;
+        // Settings GET returns one entry per configured channel (settings.md)
+        // — never assume index 0 is WhatsApp on a multi-channel number.
+        Map<?, ?> entry = MetaApiClient.findChannelEntry(settings, "whatsapp");
         if (entry == null || entry.get("agent_id") == null) {
             return; // no live Meta agent on this number
         }
 
         boolean rolloutEnabled = entry.get("rollout") instanceof Map<?, ?> rollout
                 && Boolean.TRUE.equals(rollout.get("enabled"));
+
+        // Hydrate handoff from Meta's real config — without this, an imported
+        // agent's real handoff message is silently lost the first time this
+        // app writes settings (deploy/pause), since that write always
+        // rebuilds handoff from these local columns. See Wave 1a.
+        boolean handoffEnabled = false;
+        String handoffMessage = null;
+        if (entry.get("handoff") instanceof Map<?, ?> handoff) {
+            handoffEnabled = Boolean.TRUE.equals(handoff.get("enabled"));
+            Object msg = handoff.get("message");
+            handoffMessage = msg != null ? msg.toString() : null;
+        }
 
         Agent agent = Agent.builder()
                 .accountId(accountId) // informational creator stamp only — see Agent.accountId javadoc
@@ -101,6 +115,8 @@ public class WabaAgentReconciliationService {
                 .channel(Agent.Channel.whatsapp)
                 .status(rolloutEnabled ? Agent.Status.active : Agent.Status.paused)
                 .enabled(rolloutEnabled)
+                .handoffEnabled(handoffEnabled)
+                .handoffMessage(handoffMessage)
                 .build();
         try {
             agentRepository.saveAndFlush(agent);

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -217,9 +218,37 @@ public class AgentDeployService {
         return metaApiClient.put(path, payload, Map.class);
     }
 
-    /** Minimal slice of Meta's logs query surface (start/end/tool/limit) — the debugging read, not the analytics/stats surface (deferred, see project memory). */
+    /** Rotates a connector's API key credentials without recreating the connector (connectors.md POST /{connector_id}/upsertApiKey). */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> getConnectorLogs(Long agentId, String connectorId, String startTime, String endTime, String toolId, Integer limit) {
+    public Map<String, Object> upsertConnectorApiKey(Long agentId, String connectorId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/upsertApiKey", agent.getMetaAgentId());
+        return metaApiClient.post(path, payload, Map.class);
+    }
+
+    /** Rotates a connector's mTLS certificate without recreating the connector (connectors.md POST /{connector_id}/upsertCertificate). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> upsertConnectorCertificate(Long agentId, String connectorId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/upsertCertificate", agent.getMetaAgentId());
+        return metaApiClient.post(path, payload, Map.class);
+    }
+
+    /** Rotates a connector's OAuth 2.0 credentials without recreating the connector (connectors.md POST /{connector_id}/upsertOAuth). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> upsertConnectorOAuth(Long agentId, String connectorId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/upsertOAuth", agent.getMetaAgentId());
+        return metaApiClient.post(path, payload, Map.class);
+    }
+
+    /** Meta's logs query surface: debugging (start/end/tool/limit) plus the analytics/stats surface (include_stats/summary_only/top_n — docs/meta-api/connectors.md). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getConnectorLogs(Long agentId, String connectorId, String startTime, String endTime, String toolId, Integer limit,
+                                                 Boolean includeStats, Boolean summaryOnly, Integer topN) {
         Agent agent = loadOwnedAgent(agentId);
         requirePhoneNumberId(agent);
 
@@ -228,6 +257,9 @@ public class AgentDeployService {
         if (endTime != null) params.add("end_time=" + endTime);
         if (toolId != null) params.add("tool_id=" + toolId);
         if (limit != null) params.add("limit=" + limit);
+        if (includeStats != null) params.add("include_stats=" + includeStats);
+        if (summaryOnly != null) params.add("summary_only=" + summaryOnly);
+        if (topN != null) params.add("top_n=" + topN);
 
         String basePath = "/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/logs"
                 + (params.isEmpty() ? "" : "?" + String.join("&", params));
@@ -302,6 +334,22 @@ public class AgentDeployService {
         requirePhoneNumberId(agent);
         String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools", agent.getMetaAgentId());
         return metaApiClient.post(path, payload, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getTool(Long agentId, String connectorId, String toolId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools/" + toolId, agent.getMetaAgentId());
+        return metaApiClient.get(path, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateTool(Long agentId, String connectorId, String toolId, Map<String, Object> payload) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId + "/tools/" + toolId, agent.getMetaAgentId());
+        return metaApiClient.put(path, payload, Map.class);
     }
 
     public void deleteTool(Long agentId, String connectorId, String toolId) {
@@ -389,12 +437,18 @@ public class AgentDeployService {
      * Releases thread control back to Meta Business Agent — the AI resumes
      * responding to NEW messages on this number. No DB state to update; this
      * is a pure proxy to Meta's Thread Control API.
+     *
+     * @param customerPhone thread-control.md's "to" field — the specific
+     *                       conversation to release. Optional per Meta's docs,
+     *                       but omitting it means release() targets the whole
+     *                       number rather than one conversation (EL-flagged
+     *                       gap, Wave 2 2026-08-03) — pass it whenever known.
      */
-    public void releaseThreadControl(Long agentId) {
+    public void releaseThreadControl(Long agentId, String customerPhone) {
         Agent agent = loadOwnedAgent(agentId);
         requirePhoneNumberId(agent);
-        threadControlClient.release(agent.getPhoneNumberId());
-        log.info("Thread control released: agentId={} phoneNumberId={}", agentId, agent.getPhoneNumberId());
+        threadControlClient.release(agent.getPhoneNumberId(), customerPhone);
+        log.info("Thread control released: agentId={} phoneNumberId={} to={}", agentId, agent.getPhoneNumberId(), customerPhone);
     }
 
     // -------------------------------------------------------------------------
@@ -411,19 +465,32 @@ public class AgentDeployService {
     private void putSettings(Agent agent, boolean enabled) {
         String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/settings", agent.getMetaAgentId());
 
-        // Settings PUT is a full replace — always send all fields.
+        // Settings PUT is a full replace (settings.md) — followup and
+        // ai_audience are real operator-configured fields we don't manage
+        // here, so hardcoding them (as this used to) silently destroyed a
+        // client's real audience restriction / followup config on every
+        // deploy, pause, or bindPhone. Read the live WhatsApp-channel entry
+        // first and carry those two fields through unchanged. Confirmed live
+        // (Wave 0, 2026-08-03): Meta's GET returns them in full when set —
+        // a genuine read-modify-write, not a guess. A failed read has
+        // nothing to preserve, so it falls back to Meta's own documented
+        // defaults (followup off, ai_audience EVERYONE) rather than blocking
+        // deploy/pause.
+        Map<String, Object> live = readLiveWhatsappSettings(agent.getPhoneNumberId(), agent.getMetaAgentId());
+        Object followup = live != null ? live.get("followup") : null;
+        Object aiAudience = live != null ? live.get("ai_audience") : null;
+
         // Handoff is a real per-agent setting (settings.md handoff.{enabled,message}) —
         // never hardcode this off; it reflects the operator's configured toggle.
         Map<String, Object> handoff = agent.getHandoffMessage() != null
                 ? Map.of("enabled", agent.isHandoffEnabled(), "message", agent.getHandoffMessage())
                 : Map.of("enabled", agent.isHandoffEnabled());
 
-        Map<String, Object> payload = Map.of(
-                "rollout", Map.of("enabled", enabled),
-                "handoff", handoff,
-                "followup", Map.of("enabled", false),
-                "ai_audience", "EVERYONE"
-        );
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rollout", Map.of("enabled", enabled));
+        payload.put("handoff", handoff);
+        payload.put("followup", followup != null ? followup : Map.of("enabled", false));
+        payload.put("ai_audience", aiAudience != null ? aiAudience : "EVERYONE");
 
         Map<String, Object> response;
         try {
@@ -437,6 +504,34 @@ public class AgentDeployService {
         if (agent.getMetaAgentId() == null && response != null && response.get("agent_id") != null) {
             agent.setMetaAgentId(response.get("agent_id").toString());
             agentRepository.save(agent);
+        }
+    }
+
+    /**
+     * Best-effort read of the live WhatsApp-channel settings entry — returns
+     * null (never throws) on any failure, so a read hiccup falls back to
+     * safe Meta defaults rather than blocking deploy/pause. Scoped the same
+     * way the actual PUT/getSettings() reads already are (EL review,
+     * 2026-08-03) — harmless today (one agent per number) but removes any
+     * chance of ever reading a different agent's settings on this path.
+     */
+    private Map<String, Object> readLiveWhatsappSettings(String phoneNumberId, String metaAgentId) {
+        String path = MetaApiClient.scopedPath("/" + phoneNumberId + "/agent_config/settings", metaAgentId);
+        try {
+            List<?> settings = metaApiClient.get(path, List.class);
+            return MetaApiClient.findChannelEntry(settings, "whatsapp");
+        } catch (MetaApiException e) {
+            // Not deployed yet — nothing configured on Meta's side for a
+            // brand-new agent's first deploy. Routine, not a failure.
+            if (e.isNotFound()) {
+                log.debug("No live settings yet (first deploy): phoneNumberId={}", phoneNumberId);
+            } else {
+                log.warn("Could not read live settings before PUT — proceeding with safe defaults (followup off, EVERYONE): phoneNumberId={} error={}", phoneNumberId, e.getMessage());
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("Could not read live settings before PUT — proceeding with safe defaults (followup off, EVERYONE): phoneNumberId={} error={}", phoneNumberId, e.getMessage());
+            return null;
         }
     }
 

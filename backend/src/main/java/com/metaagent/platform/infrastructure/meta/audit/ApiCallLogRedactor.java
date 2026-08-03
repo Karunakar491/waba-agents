@@ -21,8 +21,15 @@ import java.util.regex.Pattern;
  */
 public final class ApiCallLogRedactor {
 
+    // EL-caught (2026-08-03): upsertConnectorCertificate sends an mTLS
+    // private key as "client_key" (docs/meta-api/connectors.md) — matched
+    // neither "secret" nor "api[_-]?key" (needs a literal "api"), so it was
+    // being written to api_call_log in plaintext. Added client[_-]?key and
+    // private[_-]?key specifically, NOT a bare "key" — that would blanket-
+    // redact client_certificate/ca_certificate too, which are public and
+    // genuinely useful for debugging a connector's TLS config.
     private static final Pattern SECRET_KEY = Pattern.compile(
-            "(?i)secret|token|password|authorization|api[_-]?key|client[_-]?secret");
+            "(?i)secret|token|password|authorization|api[_-]?key|client[_-]?secret|client[_-]?key|private[_-]?key");
     private static final int MAX_LENGTH = 4000;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

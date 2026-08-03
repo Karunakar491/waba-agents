@@ -2,13 +2,28 @@
 
 Auth: the manually-issued API key is sent directly as the (non-standard)
 `Authentication: Bearer <key>` header. No token exchange.
+
+Every call is logged to api_call_log via api_call_logger — see that module
+for the redaction rules. Centralized in _retry() so every method gets audit
+logging uniformly; adding a new method here gets it for free.
 """
 import time
 import requests
 
+from karix_mcp import api_call_logger
+
 
 class KarixError(RuntimeError):
     pass
+
+
+def _safe_json(resp):
+    if resp is None or not resp.text:
+        return None
+    try:
+        return resp.json()
+    except ValueError:
+        return resp.text[:500]
 
 
 class KarixClient:
@@ -26,19 +41,42 @@ class KarixClient:
                 "Content-Type": "application/json",
                 "Accept": "application/json"}
 
-    def _retry(self, fn):
+    def _retry(self, method: str, log_path: str, request_body_for_log, fn):
+        """Retries on 5xx, then logs the call — success, terminal failure, or
+        a network-level exception — to api_call_log. request_body_for_log is
+        ONLY for the audit row; it is never sent over the wire (fn already
+        has whatever payload it needs baked in)."""
+        started = time.monotonic()
         last = None
-        for attempt in range(self.max_retries + 1):
-            resp = fn()
-            if resp.status_code < 500:
-                return resp
-            last = resp
-            time.sleep(0.5 * (2 ** attempt))
-        return last
+        try:
+            for attempt in range(self.max_retries + 1):
+                resp = fn()
+                if resp.status_code < 500:
+                    api_call_logger.log_call(
+                        method, log_path, resp.status_code,
+                        int((time.monotonic() - started) * 1000),
+                        request_body=request_body_for_log, response_body=_safe_json(resp),
+                    )
+                    return resp
+                last = resp
+                time.sleep(0.5 * (2 ** attempt))
+            api_call_logger.log_call(
+                method, log_path, last.status_code if last else None,
+                int((time.monotonic() - started) * 1000),
+                request_body=request_body_for_log,
+                response_body=_safe_json(last) if last else None,
+            )
+            return last
+        except requests.RequestException as exc:
+            api_call_logger.log_call(
+                method, log_path, None, int((time.monotonic() - started) * 1000),
+                request_body=request_body_for_log, error=str(exc)[:2000],
+            )
+            raise
 
     def send_message(self, body: dict) -> dict:
         url = f"{self.send_base}/services/rcm/sendMessage"
-        resp = self._retry(lambda: requests.post(
+        resp = self._retry("POST", "/services/rcm/sendMessage", body, lambda: requests.post(
             url, headers=self._headers(), json=body, timeout=self.timeout))
         if resp.status_code >= 400:
             raise KarixError(f"sendMessage failed {resp.status_code}: {resp.text[:300]}")
@@ -54,7 +92,8 @@ class KarixClient:
             params["from"] = date_from
         if date_to:
             params["to"] = date_to
-        resp = self._retry(lambda: requests.get(
+        log_path = f"/api/v1.0/template/{self.waba_id}"
+        resp = self._retry("GET", log_path, params or None, lambda: requests.get(
             url, headers=self._headers(), params=params, timeout=self.timeout))
         if resp.status_code >= 400:
             raise KarixError(f"list_templates failed {resp.status_code}: {resp.text[:300]}")
@@ -62,7 +101,8 @@ class KarixClient:
 
     def get_template(self, template_id: str) -> dict:
         url = f"{self.template_base}/api/v1.0/template/{self.waba_id}/{template_id}"
-        resp = self._retry(lambda: requests.get(
+        log_path = f"/api/v1.0/template/{self.waba_id}/{template_id}"
+        resp = self._retry("GET", log_path, None, lambda: requests.get(
             url, headers=self._headers(), timeout=self.timeout))
         if resp.status_code >= 400:
             raise KarixError(f"get_template failed {resp.status_code}: {resp.text[:300]}")
@@ -73,7 +113,8 @@ class KarixClient:
         API docs: {template_name, language, category, components: [...], ...}.
         Validate with validator.validate_template() before calling this."""
         url = f"{self.template_base}/api/v1.0/template/{self.waba_id}"
-        resp = self._retry(lambda: requests.post(
+        log_path = f"/api/v1.0/template/{self.waba_id}"
+        resp = self._retry("POST", log_path, payload, lambda: requests.post(
             url, headers=self._headers(), json=payload, timeout=self.timeout))
         if resp.status_code >= 400:
             raise KarixError(f"create_template failed {resp.status_code}: {resp.text[:300]}")
@@ -82,7 +123,8 @@ class KarixClient:
     def delete_template(self, template_id: str) -> dict:
         """DELETE /api/v1.0/template/{wabaId}/{templateId}."""
         url = f"{self.template_base}/api/v1.0/template/{self.waba_id}/{template_id}"
-        resp = self._retry(lambda: requests.delete(
+        log_path = f"/api/v1.0/template/{self.waba_id}/{template_id}"
+        resp = self._retry("DELETE", log_path, None, lambda: requests.delete(
             url, headers=self._headers(), timeout=self.timeout))
         if resp.status_code >= 400:
             raise KarixError(f"delete_template failed {resp.status_code}: {resp.text[:300]}")
@@ -103,7 +145,8 @@ class KarixClient:
             payload["alt_temp_body"] = alt_temp_body
         if edit_alt_body is not None:
             payload["edit_alt_body"] = edit_alt_body
-        resp = self._retry(lambda: requests.post(
+        log_path = f"/api/v1.0/template/{self.waba_id}/edit/{template_id}"
+        resp = self._retry("POST", log_path, payload, lambda: requests.post(
             url, headers=self._headers(), json=payload,
             params={"allowCategoryChange": str(allow_category_change).lower()},
             timeout=self.timeout))
@@ -134,7 +177,12 @@ class KarixClient:
         headers = {"Authentication": f"Bearer {self.api_key}", "Accept": "application/json"}
         files = {"file": (filename, file_bytes, mime_type)}
         data = {"file_type": category}
-        resp = self._retry(lambda: requests.post(
+        log_path = f"/api/v1.0/template/{self.waba_id}/media"
+        # EM-caught: never put file_bytes in the audit log — binary blob into
+        # a TEXT/JSON column is both a redaction risk and storage bloat. Log
+        # only the metadata describing the upload, never the payload itself.
+        log_body = {"filename": filename, "mime_type": mime_type, "category": category, "size_bytes": len(file_bytes)}
+        resp = self._retry("POST", log_path, log_body, lambda: requests.post(
             url, headers=headers, files=files, data=data,
             params={"mediaType": category.upper()}, timeout=self.timeout))
         if resp.status_code >= 400:

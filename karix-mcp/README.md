@@ -68,6 +68,12 @@ Table below reflects what's actually implemented in `server.py` — verify with 
 
 Approved/live templates are never stored locally — `list_templates`/`describe_template` always read live from Karix. Apply `schema.sql` once against a `karix_mcp_db` database; see `.env.example` for the `MYSQL_*` variables.
 
+---
+
+## API Call Logging
+
+Every outbound call `KarixClient` makes (send/list/get/create/delete/edit/upload) is logged to `api_call_log` — same job as the Java platform's `ApiCallLog`/`ApiCallLogRedactor`. Centralized in `KarixClient._retry()`, so every method gets it automatically. Request/response bodies are redacted (`api_call_logger.py`, allowlist key-name regex — never blanket-hidden) before being truncated and stored; headers (including the `Authentication` bearer header) are never logged at all, not even redacted. `upload_media` logs only filename/mime_type/category/size, never the file bytes. A failed audit write is swallowed and warn-logged — it can never break the real Karix call.
+
 Bulk import (`POST /api/bulk-import`) expects a fixed column format (not free-text/AI-normalized like a similar internal prototype) — see the docstring at the top of `bulk_import.py` for the exact header names. It paces submissions to stay under Karix's 100/hour per-WABA template-creation cap.
 
 ---

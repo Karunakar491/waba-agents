@@ -35,6 +35,25 @@ CREATE TABLE IF NOT EXISTS bulk_import_jobs (
     INDEX idx_bulk_import_jobs_tenant (esme_addr, waba_id)
 );
 
+-- One row per outbound Karix API call (send/list/create/delete/edit/media) —
+-- same job as the Java platform's api_call_log. esme_addr scopes every row
+-- to a tenant, same as template_drafts/bulk_import_jobs. Bodies are
+-- redacted+truncated by api_call_logger.py before insert, never raw.
+CREATE TABLE IF NOT EXISTS api_call_log (
+    id            VARCHAR(36)  NOT NULL PRIMARY KEY,
+    esme_addr     VARCHAR(64)  NOT NULL,
+    method        VARCHAR(10)  NOT NULL,
+    path          VARCHAR(512) NOT NULL,
+    status_code   INT          NULL,
+    duration_ms   INT          NOT NULL,
+    request_body  TEXT         NULL,
+    response_body TEXT         NULL,
+    error         TEXT         NULL,
+    called_at     DATETIME     NOT NULL,
+    INDEX idx_api_call_log_tenant (esme_addr),
+    INDEX idx_api_call_log_called_at (called_at)
+);
+
 CREATE TABLE IF NOT EXISTS bulk_import_rows (
     id            VARCHAR(36)  NOT NULL PRIMARY KEY,
     job_id        VARCHAR(36)  NOT NULL,

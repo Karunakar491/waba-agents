@@ -186,3 +186,28 @@ def get_job_rows(job_id: str) -> list[dict]:
             (job_id,),
         )
         return cur.fetchall()
+
+
+# ── API call log ──────────────────────────────────────────────────────────
+
+def insert_api_call_log(esme_addr: str, method: str, path: str, status_code, duration_ms: int,
+                         request_body: str = None, response_body: str = None, error: str = None) -> None:
+    with cursor() as cur:
+        cur.execute(
+            """INSERT INTO api_call_log
+               (id, esme_addr, method, path, status_code, duration_ms, request_body, response_body, error, called_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (new_id(), esme_addr, method, path, status_code, duration_ms,
+             request_body, response_body, error, now()),
+        )
+
+
+def get_api_call_logs(esme_addr: str) -> list[dict]:
+    """Tenant-scoped read — used by tests today; a future ops-facing debug
+    endpoint would reuse this rather than querying api_call_log directly."""
+    with cursor() as cur:
+        cur.execute(
+            "SELECT * FROM api_call_log WHERE esme_addr = %s ORDER BY called_at",
+            (esme_addr,),
+        )
+        return cur.fetchall()

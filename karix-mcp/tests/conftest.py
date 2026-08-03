@@ -84,6 +84,7 @@ def mysql_env(mysql_container, monkeypatch):
             cur.execute("TRUNCATE TABLE bulk_import_rows")
             cur.execute("TRUNCATE TABLE bulk_import_jobs")
             cur.execute("TRUNCATE TABLE template_drafts")
+            cur.execute("TRUNCATE TABLE api_call_log")
             cur.execute("SET FOREIGN_KEY_CHECKS=1")
         conn.commit()
     finally:

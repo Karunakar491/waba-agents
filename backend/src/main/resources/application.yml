@@ -100,6 +100,14 @@ karix-mcp:
   # public mcp.karix.online domain, to avoid an unnecessary external hop.
   base-url: ${KARIX_MCP_BASE_URL:http://localhost:8001}
 
+karix:
+  # Direct Karix RCM send API (2026-08-04, Iris's send_test_template) — NOT
+  # via karix-mcp, which has no REST endpoint for sending today. Same host
+  # karix-mcp itself talks to (KarixMessagingClient only needs the api_key
+  # as a Bearer header, no OAuth exchange, confirmed from karix-mcp's own
+  # karix_client.py).
+  send-base-url: ${KARIX_SEND_BASE_URL:https://rcmapi.instaalerts.zone}
+
 crypto:
   # AES-256-GCM master key (SecretEncryptor) — base64-encoded 32 bytes.
   # NO DEFAULT (EL-caught, 2026-08-04): a hardcoded fallback here would be a

@@ -45,6 +45,9 @@ crypto:
 karix-mcp:
   base-url: http://localhost  # not called in tests — TemplateStudioClient is @MockBean'd
 
+karix:
+  send-base-url: http://localhost  # not called in tests — KarixMessagingClient is @MockBean'd where used
+
 logging:
   level:
     com.metaagent: DEBUG

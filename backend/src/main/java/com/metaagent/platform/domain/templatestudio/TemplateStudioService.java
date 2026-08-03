@@ -104,7 +104,7 @@ public class TemplateStudioService {
      * test" rather than a designed selection rule; revisit if real Karix
      * behavior ever shows the choice matters).
      */
-    private ResolvedCredential resolveCredential(Long wabaId) {
+    public ResolvedCredential resolveCredential(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
             throw new NotFoundException("WABA not found");
@@ -123,5 +123,6 @@ public class TemplateStudioService {
                 waba.getWabaId());
     }
 
-    private record ResolvedCredential(String esmeAddr, String apiKey, String karixWabaId) {}
+    /** Public so KarixMessagingClient (Iris's in-house send capability) can reuse this same resolution — never duplicate it. */
+    public record ResolvedCredential(String esmeAddr, String apiKey, String karixWabaId) {}
 }

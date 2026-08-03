@@ -146,6 +146,87 @@ public class TemplateStudioClient {
                 .body(Map.class);
     }
 
+    // karix-mcp always returns a JSON object at this endpoint — Map.class is
+    // a raw-type cast, safe by contract with the karix-mcp REST API.
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listTemplates(String esmeAddr, String apiKey, String wabaId, String status) {
+        String token = mintToken(esmeAddr, apiKey, wabaId);
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    var b = uriBuilder.path("/api/templates");
+                    if (status != null && !status.isBlank()) {
+                        b.queryParam("status", status);
+                    }
+                    return b.build();
+                })
+                .header("Authorization", "Bearer " + token)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new TemplateStudioException(
+                            "Could not fetch templates.", resp.getStatusCode().value(), readBodyBestEffort(resp));
+                })
+                .body(Map.class);
+    }
+
+    // karix-mcp always returns a JSON object at this endpoint — Map.class is
+    // a raw-type cast, safe by contract with the karix-mcp REST API.
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getTemplate(String esmeAddr, String apiKey, String wabaId, String templateId) {
+        String token = mintToken(esmeAddr, apiKey, wabaId);
+        return restClient.get()
+                .uri("/api/templates/{id}", templateId)
+                .header("Authorization", "Bearer " + token)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new TemplateStudioException(
+                            "Could not fetch template.", resp.getStatusCode().value(), readBodyBestEffort(resp));
+                })
+                .body(Map.class);
+    }
+
+    // karix-mcp always returns a JSON object at this endpoint — Map.class is
+    // a raw-type cast, safe by contract with the karix-mcp REST API.
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> editTemplate(String esmeAddr, String apiKey, String wabaId, String templateId, Map<String, Object> payload) {
+        String token = mintToken(esmeAddr, apiKey, wabaId);
+        return restClient.post()
+                .uri("/api/templates/{id}/edit", templateId)
+                .header("Authorization", "Bearer " + token)
+                .body(payload)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new TemplateStudioException(
+                            "Template edit failed. Check the template details and try again.",
+                            resp.getStatusCode().value(), readBodyBestEffort(resp));
+                })
+                .body(Map.class);
+    }
+
+    // karix-mcp always returns a JSON object at this endpoint — Map.class is
+    // a raw-type cast, safe by contract with the karix-mcp REST API.
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> uploadMedia(String esmeAddr, String apiKey, String wabaId, String filename,
+                                           String contentType, String category, byte[] fileBytes) {
+        String token = mintToken(esmeAddr, apiKey, wabaId);
+        MultipartBodyBuilder multipart = new MultipartBodyBuilder();
+        multipart.part("file", fileBytes).filename(filename).contentType(MediaType.parseMediaType(
+                contentType != null && !contentType.isBlank() ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE));
+        multipart.part("category", category);
+
+        return restClient.post()
+                .uri("/api/templates/media")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(multipart.build())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                    throw new TemplateStudioException(
+                            "Media upload failed. Check the file and try again.",
+                            resp.getStatusCode().value(), readBodyBestEffort(resp));
+                })
+                .body(Map.class);
+    }
+
     private static String readBodyBestEffort(org.springframework.http.client.ClientHttpResponse resp) {
         try {
             return new String(resp.getBody().readAllBytes(), StandardCharsets.UTF_8);

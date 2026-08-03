@@ -33,6 +33,30 @@ public class TemplateStudioController {
         return ApiResponse.ok();
     }
 
+    @GetMapping("/{wabaId}")
+    public ApiResponse<Map<String, Object>> listTemplates(@PathVariable Long wabaId,
+                                                           @RequestParam(required = false) String status) {
+        return ApiResponse.ok(templateStudioService.listTemplates(wabaId, status));
+    }
+
+    @GetMapping("/{wabaId}/{templateId}")
+    public ApiResponse<Map<String, Object>> getTemplate(@PathVariable Long wabaId, @PathVariable String templateId) {
+        return ApiResponse.ok(templateStudioService.getTemplate(wabaId, templateId));
+    }
+
+    @PostMapping("/{wabaId}/{templateId}/edit")
+    public ApiResponse<Map<String, Object>> editTemplate(@PathVariable Long wabaId, @PathVariable String templateId,
+                                                          @Valid @RequestBody EditTemplateRequest request) {
+        return ApiResponse.ok(templateStudioService.editTemplate(wabaId, templateId, request.toKarixPayload()));
+    }
+
+    @PostMapping(value = "/{wabaId}/media", consumes = "multipart/form-data")
+    public ApiResponse<Map<String, Object>> uploadMedia(@PathVariable Long wabaId,
+                                                         @RequestParam("category") String category,
+                                                         @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(templateStudioService.uploadMedia(wabaId, category, file));
+    }
+
     @PostMapping(value = "/{wabaId}/bulk-import", consumes = "multipart/form-data")
     public ApiResponse<Map<String, Object>> bulkImport(@PathVariable Long wabaId, @RequestParam("file") MultipartFile file) {
         return ApiResponse.ok(templateStudioService.bulkImport(wabaId, file));

@@ -453,7 +453,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioClient.java",
-      "purpose": "Single point of contact for karix-mcp's REST API (2026-08-04) — mints a fresh JWT per call via karix-mcp's own POST /oauth/token (per-WABA esme_addr/api_key, confirmed karix-mcp is ALREADY correctly multi-tenant this way, no karix-mcp change needed). Explicit 5s connect/15s read timeout, no retry, no circuit breaker (not in TECH-STACK.md, not justified without repeated-incident evidence)."
+      "purpose": "Single point of contact for karix-mcp's REST API (2026-08-04, extended 2026-08-04 with listTemplates/getTemplate/editTemplate/uploadMedia) — mints a fresh JWT per call via karix-mcp's own POST /oauth/token (per-WABA esme_addr/api_key, confirmed karix-mcp is ALREADY correctly multi-tenant this way, no karix-mcp change needed). Explicit 5s connect/15s read timeout, no retry, no circuit breaker (not in TECH-STACK.md, not justified without repeated-incident evidence). editTemplate/uploadMedia wrap karix-mcp endpoints that themselves wrap karix_client.py's edit_template (REPLACES components entirely, no partial patch) and upload_media (category is 'image'|'video'|'document', not MIME type — a known Karix bug malforms the returned handle's type marker for images, surfaced to the user rather than hidden)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioException.java",
@@ -461,7 +461,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioService.java",
-      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService)."
+      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, same resolveCredential() gate as create/delete/bulk-import."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/WabaKarixCredentialService.java",
@@ -472,12 +472,16 @@
       "purpose": "Create-template request DTO — template_name/language/category/components, @NotBlank/@NotEmpty validated at the boundary"
     },
     {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/EditTemplateRequest.java",
+      "purpose": "Edit-template request DTO (2026-08-04) — components/altTempBody/editAltBody/allowCategoryChange. Components REPLACES the template's full component set on Karix's side, not a patch — the frontend must submit the complete desired shape, not a diff."
+    },
+    {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/KarixCredentialRequest.java",
       "purpose": "esmeAddr/apiKey request DTO for WabaKarixCredentialService.upsert()"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioController.java",
-      "purpose": "REST surface at /api/v1/templates/** (2026-08-04) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete template, bulk-import + status poll, karix-credential get/upsert."
+      "purpose": "REST surface at /api/v1/templates/** (2026-08-04, extended 2026-08-04 with list/get/edit/media) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete/list/get/edit template, media upload, bulk-import + status poll, karix-credential get/upsert."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
@@ -853,7 +857,7 @@
     },
     {
       "path": "karix-mcp/",
-      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03 (was previously untracked on the server). Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a new REST API (create_template/delete_template/bulk-import) that this platform's future Java proxy module (domain/templatestudio, not yet built) will call. See karix-mcp/README.md for its own architecture, endpoints, and known Karix API quirks — do not duplicate that detail here."
+      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03. Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a REST API (create/list/get/edit/delete template, media upload, bulk-import) that domain/templatestudio (Java) proxies to. karix_client.py already had list_templates/get_template/edit_template/upload_media implemented before 2026-08-04 — that day's work was wiring rest.py + template_ops.py + app.py routes to expose them, not building new Karix integration. See karix-mcp/README.md for architecture, endpoints, known Karix API quirks (e.g. the image-media-handle bug) — do not duplicate that detail here."
     },
     {
       "path": "docs/knowledge-index.json",
@@ -985,7 +989,7 @@
     },
     {
       "path": "frontend/src/pages/TemplateStudioPage.tsx",
-      "purpose": "Template Studio structured UI (2026-08-04) — WABA selector, inline Karix credential entry (esmeAddr/apiKey, shown only when GET .../karix-credential says not configured), create-template form (name/language/category/body text only in v1 — no header/footer/button builder yet), bulk-import upload + job-status poll (stops polling once status is completed/failed). Structured UI first per founder's decision — a chat interface would layer on top later, calling the SAME /api/v1/templates/** endpoints, never a separate implementation."
+      "purpose": "Template Studio structured UI (2026-08-04, rich-editing pass same day) — WABA selector, inline Karix credential entry, TemplateListPanel (live status/rejection-reason from Karix, no local cache, status filter, per-row Edit), TemplateBuilderForm shared by create+edit modes with HeaderEditor (TEXT/IMAGE/VIDEO/DOCUMENT, media upload wired to /media endpoint, surfaces the known Karix image-handle bug rather than hiding it)/BodyEditor (auto-detects {{n}} variables, per-variable example inputs)/FooterEditor/ButtonsEditor (QUICK_REPLY/URL/PHONE_NUMBER)/TemplateMetaFields (name/language/category, create-only). Edit mode fetches GET .../{templateId} and seeds all builder state via seedFromComponents() BEFORE allowing submit (canSubmit requires seeded===true) — Karix's edit API replaces components entirely, so submitting without seeding would silently wipe the template (EL-caught round 1, 2026-08-04). Structured UI first per founder's decision — a chat interface would layer on top later, calling the SAME /api/v1/templates/** endpoints, never a separate implementation."
     },
     {
       "path": "frontend/src/pages/ModuleSelectorPage.tsx",

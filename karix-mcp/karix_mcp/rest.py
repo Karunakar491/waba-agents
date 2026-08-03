@@ -95,6 +95,72 @@ async def delete_template_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=200 if result["ok"] else 502)
 
 
+async def list_templates_endpoint(request: Request) -> JSONResponse:
+    try:
+        client = _client()
+    except RuntimeError as exc:
+        return _credential_error_response(exc)
+
+    result = template_ops.list_templates(
+        client,
+        status=request.query_params.get("status"),
+        date_from=request.query_params.get("from"),
+        date_to=request.query_params.get("to"),
+    )
+    return JSONResponse(result, status_code=200 if result["ok"] else 502)
+
+
+async def get_template_endpoint(request: Request) -> JSONResponse:
+    template_id = request.path_params["template_id"]
+    try:
+        client = _client()
+    except RuntimeError as exc:
+        return _credential_error_response(exc)
+
+    result = template_ops.get_template(client, template_id)
+    return JSONResponse(result, status_code=200 if result["ok"] else 502)
+
+
+async def edit_template_endpoint(request: Request) -> JSONResponse:
+    template_id = request.path_params["template_id"]
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request", "error_description": "Expected JSON body"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "invalid_request", "error_description": "Body must be a JSON object"}, status_code=400)
+
+    try:
+        client = _client()
+    except RuntimeError as exc:
+        return _credential_error_response(exc)
+
+    result = template_ops.edit_template(client, template_id, body)
+    status = 200 if result["ok"] else 422
+    return JSONResponse(result, status_code=status)
+
+
+async def upload_media_endpoint(request: Request) -> JSONResponse:
+    form = await request.form()
+    upload = form.get("file")
+    category = form.get("category")
+    if upload is None or not category:
+        return JSONResponse(
+            {"error": "invalid_request", "error_description": "file and category are required"}, status_code=400,
+        )
+
+    file_bytes = await upload.read()
+    try:
+        client = _client()
+    except RuntimeError as exc:
+        return _credential_error_response(exc)
+
+    result = template_ops.upload_media(
+        client, file_bytes, upload.filename, upload.content_type or "application/octet-stream", category,
+    )
+    return JSONResponse(result, status_code=200 if result["ok"] else 422)
+
+
 async def bulk_import_endpoint(request: Request) -> JSONResponse:
     form = await request.form()
     upload = form.get("file")

@@ -59,6 +59,31 @@ public class TemplateStudioService {
         return templateStudioClient.getBulkImportStatus(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), jobId);
     }
 
+    public Map<String, Object> listTemplates(Long wabaId, String status) {
+        ResolvedCredential cred = resolveCredential(wabaId);
+        return templateStudioClient.listTemplates(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), status);
+    }
+
+    public Map<String, Object> getTemplate(Long wabaId, String templateId) {
+        ResolvedCredential cred = resolveCredential(wabaId);
+        return templateStudioClient.getTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId);
+    }
+
+    public Map<String, Object> editTemplate(Long wabaId, String templateId, Map<String, Object> payload) {
+        ResolvedCredential cred = resolveCredential(wabaId);
+        return templateStudioClient.editTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId, payload);
+    }
+
+    public Map<String, Object> uploadMedia(Long wabaId, String category, MultipartFile file) {
+        ResolvedCredential cred = resolveCredential(wabaId);
+        try {
+            return templateStudioClient.uploadMedia(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(),
+                    file.getOriginalFilename(), file.getContentType(), category, file.getBytes());
+        } catch (IOException e) {
+            throw new BusinessException("Could not read the uploaded file: " + e.getMessage());
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Private
     // -------------------------------------------------------------------------

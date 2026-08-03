@@ -1912,6 +1912,9 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         )}
       </div>
 
+      {/* Audience / Allowlist */}
+      <AudienceSection agentId={agent.id} phoneNumberId={agent.phoneNumberId} />
+
       {/* Actions */}
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-foreground">Actions</h3>
@@ -2060,6 +2063,164 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       {showEventModal && (
         <TriggerEventModal agentId={agent.id} onClose={() => setShowEventModal(false)} />
       )}
+    </div>
+  )
+}
+
+// ── Audience / Allowlist ────────────────────────────────────────────────────────
+// Meta's live settings.ai_audience + agent_config/allowlist — independent of
+// the local Agent form above since this reflects Meta's own live state, same
+// pattern as BusinessProfileTab's separate draft/live model. One list serves
+// both "test against known numbers" and "phased rollout" use cases — PM call
+// (2026-08-04): same mechanism, not two features.
+
+interface AllowlistEntry {
+  id: string
+  consumer_phone_number: string
+}
+
+function AudienceSection({ agentId, phoneNumberId }: { agentId: number; phoneNumberId: string | null }) {
+  const queryClient = useQueryClient()
+  const [newNumber, setNewNumber] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const settingsQuery = useQuery({
+    queryKey: ['agent-settings', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/settings`).then((r) => r.data.data as any[]),
+    enabled: !!phoneNumberId,
+  })
+  const whatsappEntry = settingsQuery.data?.find((e) => e.channel === 'whatsapp')
+  const currentAudience: 'EVERYONE' | 'ALLOWLISTED_ONLY' = whatsappEntry?.ai_audience ?? 'EVERYONE'
+
+  const allowlistQuery = useQuery({
+    queryKey: ['agent-allowlist', agentId],
+    queryFn: () => api.get(`/agents/${agentId}/allowlist`).then((r) => r.data.data as AllowlistEntry[]),
+    enabled: !!phoneNumberId,
+  })
+  const allowlist = allowlistQuery.data ?? []
+
+  const audienceMutation = useMutation({
+    mutationFn: (ai_audience: string) => api.put(`/agents/${agentId}/settings/audience`, { ai_audience }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agent-settings', agentId] }),
+    onError: (err) => setError(extractMessage(err)),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: (consumer_phone_number: string) =>
+      api.post(`/agents/${agentId}/allowlist`, { consumer_phone_number }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-allowlist', agentId] })
+      setNewNumber('')
+    },
+    onError: (err) => setError(extractMessage(err)),
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (entryId: string) => api.delete(`/agents/${agentId}/allowlist/${entryId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agent-allowlist', agentId] }),
+    onError: (err) => setError(extractMessage(err)),
+  })
+
+  if (!phoneNumberId) return null
+
+  const handleToggleAudience = () => {
+    setError(null)
+    if (currentAudience === 'EVERYONE') {
+      // Guard (PM condition, 2026-08-04): never let ALLOWLISTED_ONLY go live
+      // with zero numbers — that silently blocks every consumer with no
+      // visible explanation.
+      if (allowlist.length === 0) {
+        setError('Add at least one number to the allowlist before restricting the audience.')
+        return
+      }
+      audienceMutation.mutate('ALLOWLISTED_ONLY')
+    } else {
+      audienceMutation.mutate('EVERYONE')
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Audience</h3>
+          <p className="text-xs text-muted-foreground">
+            Restrict responses to specific numbers — for testing before launch or a client-controlled phased rollout.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={currentAudience === 'ALLOWLISTED_ONLY'}
+          disabled={audienceMutation.isPending || settingsQuery.isLoading}
+          onClick={handleToggleAudience}
+          className={cn(
+            'relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50',
+            currentAudience === 'ALLOWLISTED_ONLY' ? 'bg-brand-pink' : 'bg-muted',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+              currentAudience === 'ALLOWLISTED_ONLY' ? 'translate-x-5' : 'translate-x-0.5',
+            )}
+          />
+        </button>
+      </div>
+
+      {currentAudience === 'ALLOWLISTED_ONLY' && (
+        <p className="text-xs font-medium text-brand-pink">
+          Only the numbers below receive AI responses. Everyone else is silently ignored.
+        </p>
+      )}
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <div className="space-y-2">
+        {allowlistQuery.isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading allowlist…</p>
+        ) : allowlist.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No numbers added yet.</p>
+        ) : (
+          <ul className="space-y-1">
+            {allowlist.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
+                <span className="text-foreground">{entry.consumer_phone_number}</span>
+                <button
+                  type="button"
+                  onClick={() => removeMutation.mutate(entry.id)}
+                  disabled={removeMutation.isPending}
+                  className="text-xs text-destructive hover:underline disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <input
+            type="text"
+            value={newNumber}
+            onChange={(e) => setNewNumber(e.target.value)}
+            placeholder="+15551234567 (E.164 format)"
+            className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
+              placeholder:text-muted-foreground focus:outline-none focus:ring-2
+              focus:ring-primary/50 focus:border-primary transition"
+          />
+          <button
+            type="button"
+            disabled={!newNumber.trim() || addMutation.isPending}
+            onClick={() => { setError(null); addMutation.mutate(newNumber.trim()) }}
+            className="flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium
+              text-foreground transition-colors hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

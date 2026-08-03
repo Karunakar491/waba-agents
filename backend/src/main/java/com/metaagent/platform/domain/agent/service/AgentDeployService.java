@@ -107,6 +107,102 @@ public class AgentDeployService {
         }
     }
 
+    private static final java.util.Set<String> VALID_AI_AUDIENCE = java.util.Set.of("EVERYONE", "ALLOWLISTED_ONLY");
+
+    /**
+     * Sets ai_audience (settings.md) — the field that gates whether Meta
+     * responds to EVERYONE or only ALLOWLISTED_ONLY numbers. Until now this
+     * field was only ever read-and-preserved (Wave 1a) on deploy/pause/bind;
+     * this is the first path that lets an operator actually change it —
+     * needed for QA against known test numbers and client-controlled phased
+     * rollouts (both real, founder-confirmed use cases, 2026-08-04).
+     *
+     * Same read-modify-write as putSettings(): preserve rollout/handoff/
+     * followup exactly as they are, only replace ai_audience.
+     */
+    @Transactional
+    public void updateAiAudience(Long agentId, String aiAudience) {
+        if (!VALID_AI_AUDIENCE.contains(aiAudience)) {
+            throw new BusinessException("ai_audience must be EVERYONE or ALLOWLISTED_ONLY");
+        }
+        synchronized (lockFor(agentId)) {
+            Agent agent = loadOwnedAgent(agentId);
+            requirePhoneNumberId(agent);
+            String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/settings", agent.getMetaAgentId());
+
+            // EL-caught: unlike putSettings(agent, enabled), this method has no
+            // caller-supplied rollout truth — deploy()/pause() always know the
+            // intended rollout state because THEY set it. Here, a failed live
+            // read has nothing safe to fall back to: guessing rollout from
+            // local Agent.status risks silently flipping a live agent's real
+            // Meta state as a side effect of an audience-only change, which
+            // contradicts this method's whole purpose (change ai_audience
+            // ONLY). Abort instead of guessing.
+            Map<String, Object> live = readLiveWhatsappSettings(agent.getPhoneNumberId(), agent.getMetaAgentId());
+            if (live == null) {
+                throw new BusinessException(
+                        "Could not read current agent settings from Meta — ai_audience unchanged. Try again.");
+            }
+            Object rollout = live.get("rollout") != null
+                    ? live.get("rollout") : Map.of("enabled", agent.getStatus() == Agent.Status.active);
+            Object followup = live.get("followup");
+
+            Map<String, Object> handoff = agent.getHandoffMessage() != null
+                    ? Map.of("enabled", agent.isHandoffEnabled(), "message", agent.getHandoffMessage())
+                    : Map.of("enabled", agent.isHandoffEnabled());
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("rollout", rollout);
+            payload.put("handoff", handoff);
+            payload.put("followup", followup != null ? followup : Map.of("enabled", false));
+            payload.put("ai_audience", aiAudience);
+
+            try {
+                metaApiClient.put(path, payload, Map.class);
+            } catch (Exception e) {
+                throw new BusinessException("Meta settings update failed — ai_audience unchanged: " + e.getMessage());
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Allowlist — agent_config/allowlist (allowlist.md). Meta's API is
+    // add-one/list/delete-by-id, NOT full-replace like settings — do not
+    // build a full-replace abstraction over it (unearned; Meta's own shape
+    // already fits the UI's add/remove-one-at-a-time interaction).
+    // -------------------------------------------------------------------------
+
+    /** Meta returns a bare JSON array (allowlist.md) — List.class, matching listTools()'s pattern. */
+    @SuppressWarnings("unchecked")
+    public List<Object> getAllowlist(Long agentId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/allowlist", agent.getMetaAgentId());
+        try {
+            return metaApiClient.get(path, List.class);
+        } catch (MetaApiException e) {
+            if (e.isNotFound()) {
+                return List.of();
+            }
+            throw e;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> addToAllowlist(Long agentId, String consumerPhoneNumber) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/allowlist", agent.getMetaAgentId());
+        return metaApiClient.post(path, Map.of("consumer_phone_number", consumerPhoneNumber), Map.class);
+    }
+
+    public void removeFromAllowlist(Long agentId, String entryId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/allowlist/" + entryId, agent.getMetaAgentId());
+        metaApiClient.delete(path);
+    }
+
     /**
      * Read-through — lets an operator see current rollout/handoff/followup state
      * without cross-referencing our own DB against what may have drifted on

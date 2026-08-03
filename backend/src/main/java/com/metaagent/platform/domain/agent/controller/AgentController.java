@@ -2,6 +2,8 @@ package com.metaagent.platform.domain.agent.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.domain.agent.dto.AgentRequest;
+import com.metaagent.platform.domain.agent.dto.AllowlistRequest;
+import com.metaagent.platform.domain.agent.dto.AudienceRequest;
 import com.metaagent.platform.domain.agent.dto.AgentTestRequest;
 import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.dto.BindPhoneRequest;
@@ -93,6 +95,28 @@ public class AgentController {
     @GetMapping("/{id}/settings")
     public ApiResponse<List<?>> getSettings(@PathVariable Long id) {
         return ApiResponse.ok(agentDeployService.getSettings(id));
+    }
+
+    @PutMapping("/{id}/settings/audience")
+    public ApiResponse<Void> updateAiAudience(@PathVariable Long id, @Valid @RequestBody AudienceRequest request) {
+        agentDeployService.updateAiAudience(id, request.aiAudience());
+        return ApiResponse.ok();
+    }
+
+    @GetMapping("/{id}/allowlist")
+    public ApiResponse<List<Object>> getAllowlist(@PathVariable Long id) {
+        return ApiResponse.ok(agentDeployService.getAllowlist(id));
+    }
+
+    @PostMapping("/{id}/allowlist")
+    public ApiResponse<Map<String, Object>> addToAllowlist(@PathVariable Long id, @Valid @RequestBody AllowlistRequest request) {
+        return ApiResponse.ok(agentDeployService.addToAllowlist(id, request.consumerPhoneNumber()));
+    }
+
+    @DeleteMapping("/{id}/allowlist/{entryId}")
+    public ApiResponse<Void> removeFromAllowlist(@PathVariable Long id, @PathVariable String entryId) {
+        agentDeployService.removeFromAllowlist(id, entryId);
+        return ApiResponse.ok();
     }
 
     @DeleteMapping("/{id}/meta-agent")

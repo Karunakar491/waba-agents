@@ -2079,7 +2079,7 @@ interface AllowlistEntry {
   consumer_phone_number: string
 }
 
-function AudienceSection({ agentId, phoneNumberId }: { agentId: number; phoneNumberId: string | null }) {
+function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNumberId: string | null }) {
   const queryClient = useQueryClient()
   const [newNumber, setNewNumber] = useState('')
   const [error, setError] = useState<string | null>(null)

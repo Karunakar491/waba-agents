@@ -13,6 +13,7 @@ frontend/dist/
 *.key
 .env
 .env.*
+!.env.example
 
 # OS
 .DS_Store

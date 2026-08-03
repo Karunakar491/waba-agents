@@ -789,7 +789,11 @@
     },
     {
       "path": "docs/infrastructure.md",
-      "purpose": "AWS server details — SSH bastion (13.232.241.246), app server (10.1.17.16), installed services, ports, credentials (dev only)"
+      "purpose": "AWS server details — SSH bastion (13.232.241.246), app server (10.1.17.16), installed services, ports, credentials (dev only). karix-mcp (port 8000/8001) is no longer just \"leave running, unrelated\" (2026-08-03) — this platform's Template Studio module proxies to its new REST API, so a karix-mcp deploy/outage can now break a feature here that it couldn't before."
+    },
+    {
+      "path": "karix-mcp/",
+      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03 (was previously untracked on the server). Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a new REST API (create_template/delete_template/bulk-import) that this platform's future Java proxy module (domain/templatestudio, not yet built) will call. See karix-mcp/README.md for its own architecture, endpoints, and known Karix API quirks — do not duplicate that detail here."
     },
     {
       "path": "docs/knowledge-index.json",

@@ -27,7 +27,7 @@ from starlette.routing import Route
 
 load_dotenv()
 
-from karix_mcp import auth
+from karix_mcp import auth, rest
 from karix_mcp.credentials import set_request_credentials
 from karix_mcp.server import mcp
 
@@ -35,7 +35,16 @@ sse_app  = mcp.sse_app()
 http_app = mcp.streamable_http_app()
 
 _MCP_PATHS   = {"/sse", "/mcp"}
-_AUTH_ENABLED = bool(os.environ.get("JWT_SECRET"))
+_API_PREFIX  = "/api/"  # Template Studio REST — same auth as MCP paths
+
+
+def _auth_enabled() -> bool:
+    """Read live, not cached at import — matches auth.py's _jwt_secret()
+    pattern. EL-caught (round 2): a module-level `bool(os.environ.get(...))`
+    binds once at import time, before test fixtures (or a real .env load
+    order) can set JWT_SECRET, silently disabling auth enforcement for
+    anything gated by it — a real bug, not just theoretical fragility."""
+    return bool(os.environ.get("JWT_SECRET"))
 
 _CONNECT_HTML = Path(__file__).parent / "connect.html"
 
@@ -44,7 +53,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """Validates Bearer JWT on MCP endpoints when JWT_SECRET is configured."""
 
     async def dispatch(self, request: Request, call_next):
-        if _AUTH_ENABLED and request.url.path in _MCP_PATHS:
+        path = request.url.path
+        if _auth_enabled() and (path in _MCP_PATHS or path.startswith(_API_PREFIX)):
             header = request.headers.get("Authorization", "")
             if not header.startswith("Bearer "):
                 return JSONResponse(
@@ -81,7 +91,7 @@ async def lifespan(app):
 async def health(request: Request) -> JSONResponse:
     return JSONResponse({
         "status": "ok",
-        "auth": "enabled" if _AUTH_ENABLED else "disabled",
+        "auth": "enabled" if _auth_enabled() else "disabled",
     })
 
 
@@ -97,6 +107,10 @@ routes = [
     Route("/oauth/authorize",                     auth.authorize_endpoint,  methods=["GET"]),
     Route("/oauth/token",                         auth.token_endpoint,      methods=["POST"]),
     Route("/.well-known/oauth-authorization-server", auth.oauth_metadata,  methods=["GET"]),
+    Route("/api/templates",                       rest.create_template_endpoint,      methods=["POST"]),
+    Route("/api/templates/{template_id}",         rest.delete_template_endpoint,      methods=["DELETE"]),
+    Route("/api/bulk-import",                     rest.bulk_import_endpoint,          methods=["POST"]),
+    Route("/api/bulk-import/{job_id}",             rest.bulk_import_status_endpoint,   methods=["GET"]),
     *sse_app.routes,
     *http_app.routes,
 ]

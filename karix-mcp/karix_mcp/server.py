@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from karix_mcp.credentials import resolve_api_key, resolve_waba_id, resolve_sender_id, resolve_esme_addr
 from karix_mcp.karix_client import KarixClient
-from karix_mcp import builders, templates, config
+from karix_mcp import builders, templates, template_ops, config
 
 load_dotenv()
 
@@ -91,6 +91,52 @@ example parameter values. Always call this before send_template_message
 to know how many positional param_values to pass and what format they
 expect (e.g. a name, a date, a currency amount)."""
     return templates.describe_template(_client(), template_id)
+
+
+@mcp.tool()
+def create_template(template_name: str, language: str, category: str, components: list) -> dict:
+    """Submit a new WhatsApp template for Meta approval.
+
+template_name: lowercase letters, numbers, underscores only (e.g. 'order_confirmation')
+language: e.g. 'en', 'en_US'
+category: 'AUTHENTICATION' | 'UTILITY' | 'MARKETING'
+components: list of component dicts, e.g.
+  [{"type": "BODY", "text": "Hi {{1}}, your order shipped.",
+    "example": {"body_text": [["John"]]}}]
+  - Exactly one BODY component is required.
+  - A variable ({{1}}) cannot be the first or last thing in BODY text —
+    Meta rejects this (must have real text on both sides).
+  - Any component with a variable needs an "example" with a resolved sample value.
+  - AUTHENTICATION templates cannot have an IMAGE/VIDEO/DOCUMENT header.
+  - IMAGE/VIDEO/DOCUMENT headers need example.header_handle — call the media
+    upload flow first (not yet exposed as a tool; ask if you need this).
+
+Validates locally before calling Karix — a validation failure returns
+{"ok": False, "error": "...", "warnings": [...]} without ever hitting the
+API, so it never burns your daily template-creation quota on a preventable
+rejection.
+
+Returns {"ok": True, "draft_id": ..., "karix_template_id": ..., "result": {...}}
+on success, or {"ok": False, "draft_id": ..., "error": "..."} on failure —
+draft_id lets you retry submission without re-entering the template."""
+    payload = {
+        "template_name": template_name,
+        "language": language,
+        "category": category,
+        "components": components,
+    }
+    return template_ops.create_template(_client(), resolve_esme_addr(), resolve_waba_id(), payload)
+
+
+@mcp.tool()
+def delete_template(template_id: str) -> dict:
+    """Delete a WhatsApp template by ID.
+
+template_id: the templateId/sno from list_templates / describe_template.
+This is irreversible — Karix does not support undeleting a template.
+
+Returns {"ok": True, "result": {...}} on success or {"ok": False, "error": "..."}."""
+    return template_ops.delete_template(_client(), template_id)
 
 
 # ── Sending ───────────────────────────────────────────────────────────────────

@@ -33,13 +33,13 @@ ssh -i "D:/karix-mcp/karix-interna-AI-POC.pem" \
 | RabbitMQ | (apt default) | 5672 (AMQP), 15672 (mgmt) | rabbitmq-server | vhost: meta_agent_vhost, user: meta_agent |
 | Nginx | — | 80 | nginx | Pre-existing — do not remove |
 
-### Pre-existing Services (do not touch)
+### Pre-existing Services
 
 | Service | Port | Notes |
 |---------|------|-------|
-| karix-mcp | 8000 | Python — leave running |
+| karix-mcp | 8000/8001 | Python — **no longer purely "leave running, unrelated" (2026-08-03)**. Source now tracked in this monorepo under `karix-mcp/` (was untracked on the server before). This platform's Template Studio module proxies to its REST API (`/api/templates`, `/api/bulk-import`) — a karix-mcp deploy or outage can now break a feature in this platform. See `karix-mcp/README.md`. |
 | karix-messaging | 8080 | Java 17, Spring Boot — can pause for our app |
-| wismo-mcp | 8001 | Python — leave running |
+| wismo-mcp | 8001 | Python — leave running (unrelated to karix-mcp above despite the port table entry — verify actual port assignment on server, docs may be stale) |
 | cloudflared | — | Tunnel — leave running |
 
 ### Our App Port

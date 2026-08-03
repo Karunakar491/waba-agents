@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../store/authStore'
 
-export type ModuleName = 'BUSINESS_AGENTS'
+export type ModuleName = 'BUSINESS_AGENTS' | 'TEMPLATE_STUDIO'
 
 export function useModuleEntitlements() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)

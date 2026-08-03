@@ -15,9 +15,12 @@ export default function ProtectedRoute() {
     return null
   }
 
-  // Fail closed: a fetch error or a response missing the key must lock,
-  // not pass through — undetermined entitlement is never "enabled".
-  if (isError || !entitlements?.BUSINESS_AGENTS) {
+  // Fail closed: a fetch error, or an account with literally zero modules
+  // enabled, must lock — undetermined entitlement is never "enabled".
+  // Not hardcoded to BUSINESS_AGENTS (2026-08-04) — a Template-Studio-only
+  // account must not be wrongly locked out of the whole app.
+  const hasAnyModule = entitlements ? Object.values(entitlements).some(Boolean) : false
+  if (isError || !hasAnyModule) {
     return <ModuleLockedScreen />
   }
 
@@ -28,9 +31,9 @@ function ModuleLockedScreen() {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background px-6 text-center">
       <div className="max-w-md space-y-2">
-        <h1 className="text-lg font-semibold text-foreground">This module isn't enabled for your account</h1>
+        <h1 className="text-lg font-semibold text-foreground">No features are enabled for this account</h1>
         <p className="text-sm text-muted-foreground">
-          Contact your Karix account manager to enable Business Agents for this account.
+          Contact your Karix account manager to enable a feature for this account.
         </p>
       </div>
     </div>

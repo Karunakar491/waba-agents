@@ -15,8 +15,10 @@ import WabasPage from './pages/WabasPage'
 import InboxPage from './pages/InboxPage'
 import HumanHandoverPage from './pages/HumanHandoverPage'
 import ProfilePage from './pages/ProfilePage'
+import ModuleSelectorPage from './pages/ModuleSelectorPage'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/router/ProtectedRoute'
+import { useModuleEntitlements, type ModuleName } from './hooks/useModuleEntitlements'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +29,38 @@ const queryClient = new QueryClient({
   },
 })
 
+// Maps a module to where it lands when it's the operator's only enabled
+// feature (skip the selector entirely — PM: zero friction for the common
+// case, which is 100% of accounts today since only BUSINESS_AGENTS exists).
+// TODO(TASK-TEMPLATE-STUDIO-UI): /templates has no route yet — if
+// TEMPLATE_STUDIO is enabled for an account before that UI ships, this
+// redirects into a dead end (catch-all bounces back to "/"). Wire a real
+// route here in the same pass that builds Template Studio's frontend.
+const MODULE_HOME_ROUTE: Record<ModuleName, string> = {
+  BUSINESS_AGENTS: '/dashboard',
+  TEMPLATE_STUDIO: '/templates',
+}
+
+/**
+ * "/" only — decides where an authenticated operator lands. Reads the SAME
+ * cached entitlements query ProtectedRoute already fetched (no extra
+ * network call). Every OTHER route (bookmarks, deep-links, sessionStorage
+ * last-agent:{tab} resume) bypasses this entirely — this is the post-login
+ * default, not a checkpoint on navigation.
+ */
+function RootRedirect() {
+  const { data: entitlements, isLoading } = useModuleEntitlements()
+  if (isLoading) return null
+
+  const enabledModules = (Object.keys(MODULE_HOME_ROUTE) as ModuleName[]).filter((m) => entitlements?.[m])
+  if (enabledModules.length === 1) {
+    return <Navigate to={MODULE_HOME_ROUTE[enabledModules[0]]} replace />
+  }
+  // 0 enabled is handled by ProtectedRoute's lock screen before this ever
+  // renders; 2+ enabled shows the selector.
+  return <Navigate to="/select" replace />
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -35,8 +69,10 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
 
           <Route element={<ProtectedRoute />}>
+            <Route path="/"       element={<RootRedirect />} />
+            <Route path="/select" element={<ModuleSelectorPage />} />
+
             <Route element={<AppShell />}>
-              <Route path="/"         element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/agents"   element={<AgentsPage />} />
               <Route path="/agents/new" element={<CreateAgentPage />} />
@@ -55,7 +91,7 @@ export default function App() {
             </Route>
           </Route>
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

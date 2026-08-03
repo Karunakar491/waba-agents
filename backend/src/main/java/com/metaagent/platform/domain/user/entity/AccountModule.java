@@ -8,9 +8,11 @@ import java.time.LocalDateTime;
 
 /**
  * Per-account entitlement for a product module (BUSINESS_AGENTS today,
- * AI_CAMPAIGNS_TEMPLATES later). Admin-set, DB-backed — no self-serve
- * upgrade flow. Missing row for a given (account, module) means disabled;
- * see AccountModuleService.isEnabled().
+ * TEMPLATE_STUDIO added 2026-08-04 — no account has this seeded true yet,
+ * defaults to disabled/"Not enabled for this account" for everyone until
+ * explicitly granted). Admin-set, DB-backed — no self-serve upgrade flow.
+ * Missing row for a given (account, module) means disabled; see
+ * AccountModuleService.isEnabled().
  */
 @Entity
 @Table(name = "account_modules")
@@ -22,7 +24,8 @@ import java.time.LocalDateTime;
 public class AccountModule {
 
     public enum Module {
-        BUSINESS_AGENTS
+        BUSINESS_AGENTS,
+        TEMPLATE_STUDIO
     }
 
     @Id

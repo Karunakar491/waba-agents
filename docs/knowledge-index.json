@@ -389,7 +389,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/entity/AccountModule.java",
-      "purpose": "Per-account module entitlement (2026-08-03) — account_modules(account_id, module, enabled), Module enum currently just BUSINESS_AGENTS (room for AI_CAMPAIGNS_TEMPLATES later). Admin/DB-set only, no self-serve toggle UI."
+      "purpose": "Per-account module entitlement (2026-08-03) — account_modules(account_id, module, enabled). Module enum: BUSINESS_AGENTS, TEMPLATE_STUDIO (added 2026-08-04, no account seeded true yet — defaults disabled for everyone until explicitly granted). Admin/DB-set only, no self-serve toggle UI."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/AccountModuleRepository.java",
@@ -929,7 +929,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "purpose": "Root — QueryClientProvider, BrowserRouter. \"/\" and unmatched routes redirect to /dashboard (landing page). Protected routes via ProtectedRoute+AppShell: /dashboard, /agents, /agents/new, /agents/:id, /library/skills, /wabas, /inbox, /handover, /profile."
+      "purpose": "Root — QueryClientProvider, BrowserRouter. \"/\" now renders RootRedirect (2026-08-04, Netflix-style module picker): reads cached entitlements (no extra fetch), redirects straight to the module's home route if exactly ONE is enabled (zero friction for today's 100% single-module reality), else to /select (ModuleSelectorPage). /select sits under ProtectedRoute but OUTSIDE AppShell (account-level chrome, not feature nav) — all deep-links (/agents/123, sessionStorage last-agent:{tab} resume) bypass this entirely, only \"/\" itself runs the redirect decision. Unmatched routes now redirect to \"/\" (not directly to /dashboard) so the entitlement-aware logic still applies. Protected routes via ProtectedRoute+AppShell unchanged: /dashboard, /agents, /agents/new, /agents/:id, /library/skills, /wabas, /inbox, /handover, /profile."
+    },
+    {
+      "path": "frontend/src/pages/ModuleSelectorPage.tsx",
+      "purpose": "Netflix-profile-style feature picker (2026-08-04) — one card per Module (Business Agents, Template Studio), greyed + \"Not enabled for this account\" when disabled per useModuleEntitlements. Only reached when 2+ modules enabled (see App.tsx RootRedirect). Not wrapped in AppShell."
     },
     {
       "path": "frontend/src/components/layout/AppShell.tsx",
@@ -937,7 +941,7 @@
     },
     {
       "path": "frontend/src/components/router/ProtectedRoute.tsx",
-      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login. Module-gated (2026-08-03): also fails closed (locked screen, not Outlet) when useModuleEntitlements is loading→ok, but errors or returns BUSINESS_AGENTS=false — undetermined entitlement is never treated as enabled. No frontend test infra exists yet to cover this path (flagged as a follow-up, not silently dropped)."
+      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login. Module-gated (2026-08-03): also fails closed (locked screen, not Outlet) when useModuleEntitlements is loading→ok, but errors OR literally zero modules enabled (2026-08-04: changed from hardcoded BUSINESS_AGENTS check to Object.values(...).some(Boolean) — a Template-Studio-only account must not be wrongly locked out). No frontend test infra exists yet to cover this path (flagged as a follow-up, not silently dropped)."
     },
     {
       "path": "frontend/src/components/waba/ConnectPhoneModal.tsx",
@@ -949,7 +953,7 @@
     },
     {
       "path": "frontend/src/hooks/useModuleEntitlements.ts",
-      "purpose": "Queries GET /api/v1/modules/entitlements (2026-08-03) — single source of truth ProtectedRoute uses for module gating; only enabled once authenticated"
+      "purpose": "Queries GET /api/v1/modules/entitlements (2026-08-03) — single source of truth ProtectedRoute/RootRedirect/ModuleSelectorPage all share; only enabled once authenticated. ModuleName type: 'BUSINESS_AGENTS' | 'TEMPLATE_STUDIO' (2026-08-04)"
     },
     {
       "path": "frontend/src/index.css",

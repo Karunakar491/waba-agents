@@ -37,9 +37,9 @@ ssh -i "D:/karix-mcp/karix-interna-AI-POC.pem" \
 
 | Service | Port | Notes |
 |---------|------|-------|
-| karix-mcp | 8000/8001 | Python — **no longer purely "leave running, unrelated" (2026-08-03)**. Source now tracked in this monorepo under `karix-mcp/` (was untracked on the server before). This platform's Template Studio module proxies to its REST API (`/api/templates`, `/api/bulk-import`) — a karix-mcp deploy or outage can now break a feature in this platform. See `karix-mcp/README.md`. |
+| karix-mcp | **8001** (confirmed 2026-08-04 via systemd `karix-mcp.service` + `curl localhost:8001/health` → `{"status":"ok"}`; port 8000 returns 404, is NOT karix-mcp — this table's earlier "8000" entry was wrong) | Python — **no longer purely "leave running, unrelated" (2026-08-03)**. Source now tracked in this monorepo under `karix-mcp/` (was untracked on the server before). This platform's Template Studio module proxies to its REST API (`/api/templates`, `/api/bulk-import`) — a karix-mcp deploy or outage can now break a feature in this platform. See `karix-mcp/README.md`. Also has its own MySQL database now (`karix_mcp_db`, user `karix_mcp` — see Credentials below), added 2026-08-04. |
 | karix-messaging | 8080 | Java 17, Spring Boot — can pause for our app |
-| wismo-mcp | 8001 | Python — leave running (unrelated to karix-mcp above despite the port table entry — verify actual port assignment on server, docs may be stale) |
+| wismo-mcp | port unconfirmed — NOT 8001 (that's karix-mcp, confirmed above). Verify actual port before relying on this table entry. | Python — leave running |
 | cloudflared | — | Tunnel — leave running |
 
 ### Our App Port
@@ -54,6 +54,8 @@ ssh -i "D:/karix-mcp/karix-interna-AI-POC.pem" \
 | MySQL DB | meta_agent_db |
 | Redis | requirepass MetaAgent2024 |
 | RabbitMQ | meta_agent / MetaAgent2024 on vhost meta_agent_vhost |
+| MySQL karix-mcp | karix_mcp / (generated, in server's `/home/ubuntu/karix-mcp/.env` only — not committed) |
+| MySQL karix-mcp DB | karix_mcp_db (added 2026-08-04 — template_drafts, bulk_import_jobs, bulk_import_rows, api_call_log) |
 
 ## Instance Sizing
 

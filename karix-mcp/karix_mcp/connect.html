@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Karix MCP — Connect</title>
+  <style>
+    :root {
+      --ground:    #1a1a1a;
+      --surface:   #242424;
+      --surface-2: #2d2d2d;
+      --border:    #333333;
+      --border-2:  #3f3f3f;
+      --text:      #ffffff;
+      --muted:     #888888;
+      --muted-2:   #555555;
+      --blue:      #3b6eff;
+      --blue-dim:  #2a50c4;
+      --blue-glow: rgba(59, 110, 255, 0.15);
+      --danger:    #f87171;
+      --success:   #34d399;
+      --mono:      "SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+      --sans:      -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background: #111111;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--ground);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header-logo img {
+      height: 28px;
+      display: block;
+    }
+
+    .header-badge {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 12px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .page-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 10px;
+    }
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .page-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--ground);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .card-body {
+      padding: 28px;
+    }
+
+    /* ── Form ── */
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #cccccc;
+      margin-bottom: 7px;
+    }
+
+    label .hint {
+      font-size: 12px;
+      color: var(--muted-2);
+      font-weight: 400;
+      margin-left: auto;
+    }
+
+    input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+    }
+    input::placeholder { color: var(--muted-2); font-family: var(--sans); }
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-glow);
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 6px 0 22px;
+    }
+
+    /* ── Button ── */
+    .btn {
+      width: 100%;
+      background: var(--blue);
+      color: #ffffff;
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 13px;
+      border: none;
+      border-radius: 9px;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.01em;
+    }
+    .btn:hover:not(:disabled) {
+      background: #4d7cff;
+      box-shadow: 0 4px 16px rgba(59, 110, 255, 0.3);
+    }
+    .btn:active:not(:disabled) { transform: scale(0.99); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .btn.loading .spinner { display: block; }
+    .btn.loading .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ── */
+    .error-box {
+      display: none;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      margin-top: 14px;
+      line-height: 1.5;
+    }
+    .error-box.visible { display: block; }
+
+    /* ── Token section ── */
+    .token-section {
+      display: none;
+      border-top: 1px solid var(--border);
+    }
+    .token-section.visible { display: block; }
+
+    .token-header {
+      padding: 20px 28px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--success);
+    }
+    .success-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+    }
+    .token-expiry {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .token-body {
+      padding: 16px 28px 28px;
+    }
+
+    .token-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .token-box {
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .token-text {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: #93c5fd;
+      word-break: break-all;
+      flex: 1;
+      line-height: 1.8;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
+      font-family: var(--sans);
+    }
+    .copy-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }
+    .copy-btn.copied { color: var(--success); border-color: rgba(52,211,153,0.4); }
+
+    /* ── Next steps tabs ── */
+    .steps-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 4px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      font-family: var(--sans);
+    }
+    .tab-btn.active {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .step-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--blue);
+      padding-top: 2px;
+      min-width: 20px;
+      flex-shrink: 0;
+    }
+    .step em { color: var(--text); font-style: normal; font-weight: 500; }
+
+    .snippet {
+      background: #111111;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 13px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.75;
+      overflow-x: auto;
+      white-space: pre;
+      margin-top: 10px;
+    }
+    .snippet .k { color: var(--muted); }
+    .snippet .v { color: #93c5fd; }
+    .snippet .s { color: #86efac; }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--ground);
+      border-top: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .footer-text {
+      font-size: 12px;
+      color: var(--muted-2);
+    }
+    .footer-link {
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .footer-link:hover { color: var(--text); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; }
+    }
+
+    @media (max-width: 520px) {
+      .header { padding: 0 16px; }
+      .footer { padding: 16px; flex-direction: column; gap: 6px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-logo">
+    <img src="https://cdn.prod.website-files.com/68c6698e3517c4af35b889cf/68d8019bf5fa5f83c9defd4d_Karix%20white%20logo.webp"
+         alt="Karix" height="28">
+  </div>
+  <div class="header-badge">MCP Server</div>
+</header>
+
+<!-- Main -->
+<main class="main">
+  <div class="container">
+
+    <div class="page-eyebrow">Account Setup</div>
+    <div class="page-title">Connect to Karix</div>
+    <div class="page-sub">Enter your credentials to generate a Bearer token for AI agent integrations.</div>
+
+    <div class="card">
+      <div class="card-body">
+        <form id="connectForm" autocomplete="off">
+
+          <div class="field">
+            <label for="esme_addr">
+              ESME Address
+              <span class="hint">your account ID</span>
+            </label>
+            <input id="esme_addr" name="esme_addr" type="text"
+                   placeholder="e.g. karix_company" spellcheck="false" required>
+          </div>
+
+          <div class="field">
+            <label for="api_key">API Key</label>
+            <input id="api_key" name="api_key" type="password"
+                   placeholder="Your Karix API key" autocomplete="new-password" required>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label for="waba_id">
+              WABA ID
+              <span class="hint">WhatsApp Business Account</span>
+            </label>
+            <input id="waba_id" name="waba_id" type="text"
+                   placeholder="e.g. 494227720434920" spellcheck="false" required>
+          </div>
+
+          <button type="submit" class="btn" id="connectBtn">
+            <div class="spinner"></div>
+            <span class="btn-label">Validate &amp; Get Token</span>
+          </button>
+
+        </form>
+
+        <div class="error-box" id="errorBox"></div>
+      </div>
+
+      <!-- Token reveal -->
+      <div class="token-section" id="tokenSection">
+        <div class="token-header">
+          <div class="success-badge">
+            <div class="success-dot"></div>
+            Verified
+          </div>
+          <div class="token-expiry" id="tokenExpiry"></div>
+        </div>
+
+        <div class="token-body">
+          <div class="token-label">Bearer Token</div>
+          <div class="token-box">
+            <div class="token-text" id="tokenText"></div>
+            <button class="copy-btn" id="copyBtn" type="button">Copy</button>
+          </div>
+
+          <div class="steps-label">Next steps</div>
+
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="convogent" type="button">Convogent</button>
+            <button class="tab-btn" data-tab="claude" type="button">Claude Desktop</button>
+          </div>
+
+          <!-- Convogent -->
+          <div class="tab-panel active" id="tab-convogent">
+            <div class="step">
+              <div class="step-num">01</div>
+              <div>Open your flow in <em>Convogent</em> → Integrations → Add MCP integration.</div>
+            </div>
+            <div class="step">
+              <div class="step-num">02</div>
+              <div>Set these values:</div>
+            </div>
+            <div class="snippet"><span class="k">URL  </span>  <span class="v">https://mcp.karix.online/sse</span>
+<span class="k">Auth </span>  <span class="v">Bearer</span>
+<span class="k">Token</span>  <span class="v" id="snippetToken">—</span></div>
+            <div class="step" style="margin-top:14px">
+              <div class="step-num">03</div>
+              <div>In node objectives, reference tools with <em>@tool_name</em> — e.g. <code style="font-family:var(--mono);font-size:12px;color:#93c5fd">@send_template_message</code>. Specify the sender in your prompt; the agent resolves it dynamically via <code style="font-family:var(--mono);font-size:12px;color:#93c5fd">get_sender_details()</code>.</div>
+            </div>
+          </div>
+
+          <!-- Claude Desktop -->
+          <div class="tab-panel" id="tab-claude">
+            <div class="step">
+              <div class="step-num">01</div>
+              <div>Add this to <em>claude_desktop_config.json</em> — Claude will open this page and authenticate automatically:</div>
+            </div>
+            <div class="snippet">{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"karix"</span>: {
+      <span class="s">"url"</span>: <span class="v">"https://mcp.karix.online/mcp"</span>
+    }
+  }
+}</div>
+            <div class="step" style="margin-top:14px">
+              <div class="step-num">02</div>
+              <div>Or supply the token directly if you prefer manual control:</div>
+            </div>
+            <div class="snippet">{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"karix"</span>: {
+      <span class="s">"url"</span>: <span class="v">"https://mcp.karix.online/mcp"</span>,
+      <span class="s">"headers"</span>: {
+        <span class="s">"Authorization"</span>: <span class="v">"Bearer <span id="claudeToken">…</span>"</span>
+      }
+    }
+  }
+}</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-text">Tokens expire in 24 hours &middot; mcp.karix.online</div>
+  <a href="https://www.karix.com" class="footer-link" target="_blank" rel="noopener">karix.com</a>
+</footer>
+
+<script>
+  // ── OAuth params (Claude Desktop flow) ─────────────────────────────────────
+  const urlParams = new URLSearchParams(location.search);
+  const oauthMode = !!(urlParams.get("code_challenge") && urlParams.get("redirect_uri"));
+
+  // ── Tab switching ───────────────────────────────────────────────────────────
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  // ── Typewriter ──────────────────────────────────────────────────────────────
+  function typewrite(el, text, speed = 4) {
+    el.textContent = "";
+    let i = 0;
+    const tick = () => {
+      if (i < text.length) { el.textContent += text[i++]; setTimeout(tick, speed); }
+    };
+    tick();
+  }
+
+  // ── Copy ────────────────────────────────────────────────────────────────────
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    const token = document.getElementById("tokenText").textContent;
+    const btn = document.getElementById("copyBtn");
+    try {
+      await navigator.clipboard.writeText(token);
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById("tokenText"));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+  });
+
+  // ── Form submit ─────────────────────────────────────────────────────────────
+  document.getElementById("connectForm").addEventListener("submit", async e => {
+    e.preventDefault();
+
+    const errorBox = document.getElementById("errorBox");
+    const btn = document.getElementById("connectBtn");
+    errorBox.classList.remove("visible");
+    btn.disabled = true;
+    btn.classList.add("loading");
+
+    const body = {
+      esme_addr: document.getElementById("esme_addr").value.trim(),
+      api_key:   document.getElementById("api_key").value.trim(),
+      waba_id:   document.getElementById("waba_id").value.trim(),
+    };
+
+    if (oauthMode) {
+      body.code_challenge = urlParams.get("code_challenge");
+      body.redirect_uri   = urlParams.get("redirect_uri");
+      body.state          = urlParams.get("state") || "";
+    }
+
+    try {
+      const resp = await fetch("/connect/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error_description || data.error || `Error ${resp.status}`);
+      }
+
+      if (oauthMode && data.redirect_url) {
+        window.location.href = data.redirect_url;
+        return;
+      }
+
+      // Show token
+      const token = data.access_token;
+      const short = token.slice(0, 24) + "…" + token.slice(-8);
+
+      document.getElementById("tokenSection").classList.add("visible");
+      typewrite(document.getElementById("tokenText"), token, 3);
+
+      const exp = new Date(Date.now() + data.expires_in * 1000);
+      document.getElementById("tokenExpiry").textContent =
+        "expires " + exp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      document.getElementById("snippetToken").textContent = short;
+      document.getElementById("claudeToken").textContent  = short;
+
+      setTimeout(() => {
+        document.getElementById("tokenSection").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 350);
+
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add("visible");
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("loading");
+    }
+  });
+</script>
+
+</body>
+</html>

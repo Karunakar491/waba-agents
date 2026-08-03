@@ -98,7 +98,7 @@ Header on all requests: `X-API-Version: 2.0.0`
 | success_criteria | string[] | | Criteria agent must meet to pass |
 
 ### BizAIComboRunRequest
-No additional properties allowed. Schema TBD — paste when available.
+Empty object — no additional properties allowed. Confirmed final (2026-08-04), not a placeholder.
 
 ### BizAIComboRunResponse
 | Field | Type | Required | Notes |

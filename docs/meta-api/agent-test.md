@@ -9,6 +9,7 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 ## Purpose
 Send test messages to the agent and receive responses through the full pipeline — no consumer phone number required.
 Supports multi-turn conversations via `conversation_id`.
+**Tokens consumed while testing through this endpoint are NOT billed** (per official spec, 2026-08-04) — relevant given Meta's Aug 2026 Business Agent token pricing.
 
 ## Endpoints
 

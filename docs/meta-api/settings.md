@@ -56,8 +56,10 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 ### BizAIOmniChannelSettingsHandoff
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| enabled | boolean | ✓ | Enable/disable human handoff |
-| message | string | | Message shown to user on handoff |
+| enabled | boolean | ✓ | **NOT "handoff on/off."** Controls only whether the CUSTOM `message` is sent (true) vs. Meta's default translated message (false) at the moment a handoff occurs. Handoff itself is NOT gated by this field — Meta's AI triggers handoff automatically based on conversation signals (low confidence, integrity violation, user asking for a human), regardless of this value. |
+| message | string | | Message shown to user on handoff (only used when enabled=true) |
+
+**Correction (2026-08-04):** the row above previously read "Enable/disable human handoff," which is wrong per the official spec — flagging for EM/EL review since `AgentService`/`AgentDeployService` name this field `handoffEnabled`/`isHandoffEnabled()` throughout, which reads exactly like "handoff feature on/off." If any code path (UI copy, validation, docs) currently tells an operator that setting this to false "disables handoff," that's a real, user-facing correctness bug — Meta will still hand off automatically, just with its own default message instead of the operator's custom one. Not fixed here — this is a documentation correction only; verify actual code/UI behavior before touching it.
 
 ### BizAIOmniChannelSettingsFollowup
 | Field | Type | Required | Notes |

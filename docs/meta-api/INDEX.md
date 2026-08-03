@@ -12,6 +12,7 @@ entity_id: WhatsApp Business Phone Number ID
 | File | Base Path | Methods | Purpose |
 |------|-----------|---------|---------|
 | eligibility.md | `/{entity_id}/agent_eligibility` | GET | Check if phone number can use Meta Business Agent |
+| agent-onboarding.md | `/{entity_id}/agent_onboarding` | POST | Trigger AI agent onboarding for entity+channel — creates entities, schedules async data-prep jobs |
 | settings.md | `/{entity_id}/agent_config/settings` | GET, PUT | Enable/disable agent, handoff, followup, audience |
 | business_info.md | `/{entity_id}/agent_config/business_info` | GET, PUT, DELETE | Business knowledge (payment/return/delivery/contact info) |
 | allowlist.md | `/{entity_id}/agent_config/allowlist` | GET, POST, DELETE | Restrict agent to specific consumer phone numbers |
@@ -23,7 +24,8 @@ entity_id: WhatsApp Business Phone Number ID
 | connectors.md | `/{entity_id}/agent_connectors` | GET, POST, PUT, DELETE + auth upserts + logs | External API integrations |
 | connector-tools.md | `/{entity_id}/agent_connectors/{connector_id}/tools` | GET, POST, PUT, DELETE, run | Individual operations per connector |
 | agent-eval.md | `/{entity_id}/agent-eval` | GET /cases, GET /details, GET /run, GET /summary, POST /run | Test and evaluate agent performance |
-| agent-test.md | `/{entity_id}/agent_test` | POST | Send test messages, get agent response, multi-turn support |
+| agent-test.md | `/{entity_id}/agent_test` | POST | Send test messages, get agent response, multi-turn support (NOT billed) |
+| delete-agent.md | `/{entity_id}/delete_agent` | DELETE | Remove agent from phone number, disconnects integration if last agent on account |
 | agent-event.md | `/{entity_id}/agent_event` | POST, GET /{id} | Trigger agent from business events (payment, delivery, etc.) |
 | thread-control.md | `/business/whatsapp/phone_numbers/{id}/thread_control` | POST | Hand conversation back to Meta Business Agent (release action) |
 
@@ -71,7 +73,7 @@ entity_id: WhatsApp Business Phone Number ID
 ---
 
 ## Still Missing (paste when available)
-- [ ] Onboarding API
+- [x] Onboarding API — see `agent-onboarding.md` (2026-08-04). Not implemented anywhere in this codebase yet — flagged for EM review on whether it's a required precursor to the current settings-first createAgent() flow.
 - [x] Business Info API — see `business_info.md` (2026-08-04; implementation already existed via BusinessProfileDeployService, doc was just never backfilled until now)
 - [x] UI Skills API — see `ui-skills.md` (2026-08-04; genuinely new, not yet implemented)
 - [x] Webhook payload schemas (messages, standby) — see `webhook-standby-handoff.md`. No `messaging_handovers` field observed in real traffic; handoff signal is standby-wrapper presence/absence instead.

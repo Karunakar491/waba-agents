@@ -125,7 +125,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
-      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind"
+      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind. PUT /{id}/settings/audience (2026-08-04) makes ai_audience operator-settable for the first time (previously read-and-preserved only); GET/POST /{id}/allowlist + DELETE /{id}/allowlist/{entryId} — real use case: QA against test numbers, client-controlled phased rollouts."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentRequest.java",
@@ -154,6 +154,14 @@
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/WebsiteRequest.java",
       "purpose": "Agent knowledge website URL request DTO"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AudienceRequest.java",
+      "purpose": "ai_audience update request DTO (2026-08-04) — @Pattern validates EVERYONE|ALLOWLISTED_ONLY, @JsonProperty maps snake_case ai_audience (no global Jackson naming strategy configured in this codebase)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AllowlistRequest.java",
+      "purpose": "Allowlist add-entry request DTO (2026-08-04) — @Pattern enforces E.164 format on consumer_phone_number before it ever reaches Meta (EL round-1 REJECT caught the missing validation)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/Agent.java",
@@ -209,7 +217,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDeployService.java",
-      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (now includes include_stats/summary_only/top_n params, 2026-08-03), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; getTool/updateTool (tool GET-single/PUT) and upsertConnectorApiKey/upsertConnectorCertificate/upsertConnectorOAuth (credential rotation, connectors.md) added 2026-08-03 — previously deferred, no longer deferred; settings PUT is now a real read-modify-write preserving followup/ai_audience instead of hardcoding them (2026-08-03 Wave 1a fix)"
+      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (now includes include_stats/summary_only/top_n params, 2026-08-03), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; getTool/updateTool (tool GET-single/PUT) and upsertConnectorApiKey/upsertConnectorCertificate/upsertConnectorOAuth (credential rotation, connectors.md) added 2026-08-03 — previously deferred, no longer deferred; settings PUT is now a real read-modify-write preserving followup/ai_audience instead of hardcoding them (2026-08-03 Wave 1a fix); updateAiAudience (2026-08-04) makes ai_audience operator-settable for the first time — same read-modify-write as putSettings but ABORTS (does not guess from local Agent.status) if the live read fails, since unlike deploy()/pause() there's no caller-supplied rollout truth to fall back on (EL round-1 REJECT caught the original guessing fallback as a silent-rollout-flip risk); getAllowlist/addToAllowlist/removeFromAllowlist (allowlist.md) added same pass — thin proxies matching Meta's actual add-one/list/delete-by-id shape, deliberately not a full-replace abstraction"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
@@ -961,7 +969,7 @@
     },
     {
       "path": "frontend/src/pages/AgentDetailPage.tsx",
-      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal, Thread Control release button+confirm modal shown when handoffEnabled), Knowledge Base/Skills/Connectors/Business Profile/Eval/Settings tabs; initial tab seeded from ?tab= query param, writes sessionStorage last-agent:{tab}=id on every tab view (feeds AppShell's grouped Agents sub-nav deep-links); Delete-from-Meta danger block, Trigger Event action; 'Shared WABA' badge in header when sharedAccountCount>1; maps ApiResponse envelope + entity fields, string TSIDs. TASK-062: WebsitesSection/FilesSection were previously entirely unwired placeholders (hardcoded '0', TASK-036 TODO comments) — now real list/add/upload/delete wired to the backend, with a shared NotSyncedBadge component (also used by FaqsSection, refactored from inline duplicate markup) showing metaSynced=false. File upload MUST pass `headers: { 'Content-Type': undefined }` on the multipart POST — the shared api instance's default application/json header would otherwise override FormData's automatic boundary detection (EL REJECT caught this, and a hardcoded 'multipart/form-data' string is equally wrong — it strips the boundary= param)."
+      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal, Thread Control release button+confirm modal shown when handoffEnabled), Knowledge Base/Skills/Connectors/Business Profile/Eval/Settings tabs; initial tab seeded from ?tab= query param, writes sessionStorage last-agent:{tab}=id on every tab view (feeds AppShell's grouped Agents sub-nav deep-links); Delete-from-Meta danger block, Trigger Event action; 'Shared WABA' badge in header when sharedAccountCount>1; maps ApiResponse envelope + entity fields, string TSIDs. TASK-062: WebsitesSection/FilesSection were previously entirely unwired placeholders (hardcoded '0', TASK-036 TODO comments) — now real list/add/upload/delete wired to the backend, with a shared NotSyncedBadge component (also used by FaqsSection, refactored from inline duplicate markup) showing metaSynced=false. File upload MUST pass `headers: { 'Content-Type': undefined }` on the multipart POST — the shared api instance's default application/json header would otherwise override FormData's automatic boundary detection (EL REJECT caught this, and a hardcoded 'multipart/form-data' string is equally wrong — it strips the boundary= param). AudienceSection component (2026-08-04, in Settings tab) — ai_audience toggle + allowlist number CRUD; one list serves both QA-test-numbers and phased-rollout use cases (PM: same mechanism, not two features); guards against enabling ALLOWLISTED_ONLY with zero numbers (would silently block everyone with no visible explanation)."
     },
     {
       "path": "frontend/src/pages/AgentsPage.tsx",

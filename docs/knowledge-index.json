@@ -97,11 +97,19 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/common/security/SecurityService.java",
-      "purpose": "Auth business logic — register, login, refresh, logout. httpOnly cookies. Redis lockout (5 fails → 15min). Refresh token rotation with reuse detection."
+      "purpose": "Auth business logic — register, login, refresh, logout. httpOnly cookies. Redis lockout (5 fails → 15min). Refresh token rotation with reuse detection. register() (2026-08-03) also seeds AccountModule.BUSINESS_AGENTS=true for the new account — new signups get the base product by default; module gating is opt-in only for future modules."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/common/security/TenantDetails.java",
       "purpose": "Authenticated principal record carrying tenantId + userId, set by JWT filter"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/common/security/ModuleAccessFilter.java",
+      "purpose": "Runs after JwtAuthFilter in the security chain (2026-08-03) — 403s any authenticated request when AccountModule.BUSINESS_AGENTS is disabled for the caller's account. Exempts /auth/**, /webhook/**, /actuator/**, and GET /modules/entitlements itself. Fails closed on missing entitlement row (delegates to AccountModuleService)."
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/common/security/ModuleAccessFilterTest.java",
+      "purpose": "MockMvc coverage for ModuleAccessFilter — enabled passes, disabled/missing-row both 403, entitlements endpoint exempt even when disabled, unauthenticated stays 401 (not shadowed by the module filter)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/config/RabbitMqConfig.java",
@@ -113,7 +121,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/config/SecurityConfig.java",
-      "purpose": "Spring Security config - CSRF disabled (SameSite=Strict cookie mitigates, not statelessness), CorsConfigurationSource bean (origins from cors.allowed-origins/CORS_ALLOWED_ORIGINS, allowCredentials, trimmed origin list), auth endpoints public, JWT filter + RateLimitFilter wired before UsernamePasswordAuthenticationFilter, BCrypt cost 12"
+      "purpose": "Spring Security config - CSRF disabled (SameSite=Strict cookie mitigates, not statelessness), CorsConfigurationSource bean (origins from cors.allowed-origins/CORS_ALLOWED_ORIGINS, allowCredentials, trimmed origin list), auth endpoints public, JWT filter + RateLimitFilter wired before UsernamePasswordAuthenticationFilter, BCrypt cost 12; ModuleAccessFilter (2026-08-03) added after JwtAuthFilter — module entitlement gate runs once tenant details are resolved"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
@@ -372,8 +380,32 @@
       "purpose": "User entity — TSID PK, accountId FK, email, passwordHash, Role(owner/admin/agent), Status(active/inactive/suspended)"
     },
     {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/entity/AccountModule.java",
+      "purpose": "Per-account module entitlement (2026-08-03) — account_modules(account_id, module, enabled), Module enum currently just BUSINESS_AGENTS (room for AI_CAMPAIGNS_TEMPLATES later). Admin/DB-set only, no self-serve toggle UI."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/AccountModuleRepository.java",
+      "purpose": "AccountModule repo — findByAccountIdAndModule (fail-closed lookup), findAllByAccountId"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/service/AccountModuleService.java",
+      "purpose": "isEnabled() fail-closed (missing row = disabled); getEntitlements() returns every known Module defaulted false then overlaid with real rows — single source of truth consumed by both ModuleAccessFilter (backend enforcement) and GET /api/v1/modules/entitlements (frontend nav/route gating)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/user/controller/AccountModuleController.java",
+      "purpose": "GET /api/v1/modules/entitlements — current account's module map, exempted from ModuleAccessFilter itself so a locked-out account can still see why"
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/user/service/AccountModuleServiceTest.java",
+      "purpose": "Covers fail-closed default (no row/disabled row = false), enabled row = true, getEntitlements default map"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V32__create_account_modules.sql",
+      "purpose": "account_modules table (BIGINT UNSIGNED per V5 convention) + one-time backfill seeding BUSINESS_AGENTS=true for every pre-existing business_account row — avoids locking out current users when the gate goes live. Backfill row IDs are a plain ROW_NUMBER() sequence, not TsidGenerator (Flyway has no NODE_ID context) — safe because they're far below any real TSID's magnitude and this is a one-time seed of a brand-new table."
+    },
+    {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/BusinessAccountRepository.java",
-      "purpose": "BusinessAccount JPA repository"
+      "purpose": "BusinessAccount JPA repository — findByEmail (2026-08-03, added for module-entitlement tests)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/RefreshTokenFamilyRepository.java",
@@ -877,7 +909,7 @@
     },
     {
       "path": "frontend/src/components/router/ProtectedRoute.tsx",
-      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login"
+      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login. Module-gated (2026-08-03): also fails closed (locked screen, not Outlet) when useModuleEntitlements is loading→ok, but errors or returns BUSINESS_AGENTS=false — undetermined entitlement is never treated as enabled. No frontend test infra exists yet to cover this path (flagged as a follow-up, not silently dropped)."
     },
     {
       "path": "frontend/src/components/waba/ConnectPhoneModal.tsx",
@@ -886,6 +918,10 @@
     {
       "path": "frontend/src/hooks/useAuth.ts",
       "purpose": "Auth hooks — useLogin, useRegister (mutate→setUser→/dashboard), useLogout (mutate→clearAuth→/login), useMe (query /auth/me, staleTime 5min)"
+    },
+    {
+      "path": "frontend/src/hooks/useModuleEntitlements.ts",
+      "purpose": "Queries GET /api/v1/modules/entitlements (2026-08-03) — single source of truth ProtectedRoute uses for module gating; only enabled once authenticated"
     },
     {
       "path": "frontend/src/index.css",

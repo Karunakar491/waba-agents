@@ -5,9 +5,11 @@ import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.domain.user.dto.AuthResponse;
 import com.metaagent.platform.domain.user.dto.LoginRequest;
 import com.metaagent.platform.domain.user.dto.RegisterRequest;
+import com.metaagent.platform.domain.user.entity.AccountModule;
 import com.metaagent.platform.domain.user.entity.BusinessAccount;
 import com.metaagent.platform.domain.user.entity.RefreshTokenFamily;
 import com.metaagent.platform.domain.user.entity.User;
+import com.metaagent.platform.domain.user.repository.AccountModuleRepository;
 import com.metaagent.platform.domain.user.repository.BusinessAccountRepository;
 import com.metaagent.platform.domain.user.repository.RefreshTokenFamilyRepository;
 import com.metaagent.platform.domain.user.repository.UserRepository;
@@ -38,6 +40,7 @@ public class SecurityService {
 
     private final UserRepository userRepository;
     private final BusinessAccountRepository businessAccountRepository;
+    private final AccountModuleRepository accountModuleRepository;
     private final RefreshTokenFamilyRepository refreshTokenFamilyRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
@@ -75,6 +78,15 @@ public class SecurityService {
                 .passwordHash(encodedPassword)
                 .build();
         businessAccountRepository.save(account);
+
+        // New accounts get the base product by default — module gating is
+        // opt-in for FUTURE modules (e.g. AI Campaigns/Templates), not a
+        // barrier to the product being registered for right now.
+        accountModuleRepository.save(AccountModule.builder()
+                .accountId(account.getId())
+                .module(AccountModule.Module.BUSINESS_AGENTS)
+                .enabled(true)
+                .build());
 
         // Create User (Owner of account)
         User user = User.builder()

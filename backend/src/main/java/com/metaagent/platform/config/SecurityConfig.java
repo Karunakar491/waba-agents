@@ -3,6 +3,7 @@ package com.metaagent.platform.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.common.security.JwtAuthFilter;
+import com.metaagent.platform.common.security.ModuleAccessFilter;
 import com.metaagent.platform.common.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +36,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final ModuleAccessFilter moduleAccessFilter;
     private final ObjectMapper objectMapper;
 
     @Value("${cors.allowed-origins}")
@@ -57,7 +59,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(moduleAccessFilter, JwtAuthFilter.class);
 
         return http.build();
     }

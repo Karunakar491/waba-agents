@@ -122,23 +122,34 @@ export default function AppShell() {
             the Netflix-style /select screen from inside any feature, not
             just at login. Always available, regardless of how many modules
             this account has — with just one enabled, /select still works as
-            a "what's available to me" view (the rest greyed). */}
+            a "what's available to me" view (the rest greyed). Custom tooltip
+            instead of a native `title` (only shown in the collapsed rail —
+            expanded mode already has the "Meta Agents" label doing that job).
+            Motion kept to DESIGN.md's own rule: feedback only, ≤200ms ease-out,
+            no ambient/attention-seeking animation. */}
         <Link
           to="/select"
-          title="Switch feature"
           aria-label="Switch feature"
           onClick={() => setMobileOpen(false)}
           className={cn(
-            'flex h-16 items-center gap-2 border-b border-white/10 transition-colors hover:bg-white/5',
+            'group relative flex h-16 items-center gap-2 border-b border-white/10 transition-colors hover:bg-white/5',
             iconOnly ? 'justify-center px-0' : 'px-6',
           )}
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-pink">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-pink transition-transform duration-150 ease-out group-hover:scale-110">
             <Bot className="h-4 w-4 text-white" />
           </div>
           {!iconOnly && (
             <span className="truncate text-lg font-semibold tracking-tight text-white">
               Meta Agents
+            </span>
+          )}
+          {iconOnly && (
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-lg opacity-0 -translate-x-1 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:translate-x-0 z-50"
+            >
+              Switch feature
             </span>
           )}
         </Link>

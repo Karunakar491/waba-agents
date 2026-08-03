@@ -31,7 +31,6 @@ const MODULES: ModuleDef[] = [
     label: 'Template Studio',
     description: 'Create and bulk-import WhatsApp message templates.',
     icon: FileText,
-    // TODO(TASK-TEMPLATE-STUDIO-UI): /templates isn't a real route yet — see App.tsx.
     homeRoute: '/templates',
   },
 ]

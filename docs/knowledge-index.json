@@ -105,7 +105,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/common/security/ModuleAccessFilter.java",
-      "purpose": "Runs after JwtAuthFilter in the security chain (2026-08-03) — 403s any authenticated request when AccountModule.BUSINESS_AGENTS is disabled for the caller's account. Exempts /auth/**, /webhook/**, /actuator/**, and GET /modules/entitlements itself. Fails closed on missing entitlement row (delegates to AccountModuleService)."
+      "purpose": "Runs after JwtAuthFilter in the security chain (2026-08-03) — 403s any authenticated request when the CALLER'S REQUIRED MODULE (see requiredModule(), path-prefix routed — 2026-08-04, was hardcoded to BUSINESS_AGENTS for the whole /api/v1/** surface until a Template-Studio-only account would have been wrongly blocked) is disabled for the account. Exempts /auth/**, /webhook/**, /actuator/**, and GET /modules/entitlements itself. Fails closed on missing entitlement row (delegates to AccountModuleService). /api/v1/templates/** requires TEMPLATE_STUDIO; everything else defaults to BUSINESS_AGENTS."
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/common/security/ModuleAccessFilterTest.java",
@@ -412,6 +412,10 @@
       "purpose": "account_modules table (BIGINT UNSIGNED per V5 convention) + one-time backfill seeding BUSINESS_AGENTS=true for every pre-existing business_account row — avoids locking out current users when the gate goes live. Backfill row IDs are a plain ROW_NUMBER() sequence, not TsidGenerator (Flyway has no NODE_ID context) — safe because they're far below any real TSID's magnitude and this is a one-time seed of a brand-new table."
     },
     {
+      "path": "backend/src/main/resources/db/migration/V33__create_waba_karix_credential.sql",
+      "purpose": "waba_karix_credential table (2026-08-04) — per-WABA esme_addr + encrypted_api_key, unique on waba_id, FK to waba. V31 (Wave 2, still uncommitted) occupies the V31 slot on disk, hence V33 not V32-follow-on confusion — verify next available number against disk, not just git, before adding a migration."
+    },
+    {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/BusinessAccountRepository.java",
       "purpose": "BusinessAccount JPA repository — findByEmail (2026-08-03, added for module-entitlement tests)"
     },
@@ -434,6 +438,46 @@
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/Waba.java",
       "purpose": "WABA registry entity — account-scoped, Meta WABA ID, label, status"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/WabaKarixCredential.java",
+      "purpose": "Per-WABA Karix RCM API credentials (esme_addr + encrypted_api_key), added 2026-08-04 — needed because karix-mcp's own auth ties one JWT to one waba_id, and each client WABA has its own separate Karix-issued credential (no single master credential covers all clients, confirmed by founder). Separate table from Waba (different lifecycle). apiKey encrypted via SecretEncryptor, decrypted only at outbound-call time (TemplateStudioService) — no GET path ever returns it."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaKarixCredentialRepository.java",
+      "purpose": "findByWabaId for WabaKarixCredential"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/infrastructure/crypto/SecretEncryptor.java",
+      "purpose": "AES-256-GCM encrypt/decrypt for secrets-at-rest (2026-08-04) — first (and only) consumer WabaKarixCredential.encryptedApiKey. Single master key from crypto.master-key/CRYPTO_MASTER_KEY env var, random 12-byte IV per value, no KMS/rotation yet (EM-scoped v1, upgrade path documented in-file, not built until a second consumer or real rotation need exists — this codebase had NO encryption-at-rest utility before this; a prior BYOK-credentials-table proposal was blocked specifically because this didn't exist)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioClient.java",
+      "purpose": "Single point of contact for karix-mcp's REST API (2026-08-04) — mints a fresh JWT per call via karix-mcp's own POST /oauth/token (per-WABA esme_addr/api_key, confirmed karix-mcp is ALREADY correctly multi-tenant this way, no karix-mcp change needed). Explicit 5s connect/15s read timeout, no retry, no circuit breaker (not in TECH-STACK.md, not justified without repeated-incident evidence)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioException.java",
+      "purpose": "karix-mcp call failure — carries HTTP status (isCredentialFailure() for 401/403), mirrors MetaApiException's shape. Raw karix-mcp error body captured for logging only, never surfaced verbatim to the frontend."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioService.java",
+      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/WabaKarixCredentialService.java",
+      "purpose": "Admin-entry path for per-WABA Karix credentials — staff-entered once Karix issues them, no self-serve flow. getStatus() never returns the API key, encrypted or not — only configured(bool)+esmeAddr."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateRequest.java",
+      "purpose": "Create-template request DTO — template_name/language/category/components, @NotBlank/@NotEmpty validated at the boundary"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/KarixCredentialRequest.java",
+      "purpose": "esmeAddr/apiKey request DTO for WabaKarixCredentialService.upsert()"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioController.java",
+      "purpose": "REST surface at /api/v1/templates/** (2026-08-04) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete template, bulk-import + status poll, karix-credential get/upsert."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
@@ -752,6 +796,14 @@
       "purpose": "Unit test — TsidGenerator: uniqueness, time-ordering, NODE_ID encoding"
     },
     {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/templatestudio/TemplateStudioServiceTest.java",
+      "purpose": "Real MySQL via Testcontainers, real SecretEncryptor round-trip, only TemplateStudioClient mocked (network boundary). Covers: tenant isolation (no WABA access -> NotFoundException), missing credential -> BusinessException, decrypted key + real Karix waba_id passed to client, credential status never exposes the raw key. Actually executed 2026-08-04 (not just statically reviewed), passed."
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/infrastructure/crypto/SecretEncryptorTest.java",
+      "purpose": "Pure unit test, no Spring context — round-trip, distinct ciphertext per call (random IV), wrong key fails, tampered ciphertext fails (GCM auth tag), rejects non-32-byte key. Actually executed 2026-08-04, passed."
+    },
+    {
       "path": "backend/src/test/java/com/metaagent/platform/domain/agent/service/AgentDeployServiceTest.java",
       "purpose": "Integration test — AgentDeployService: deploy sets active, pause sets paused, Meta API first"
     },
@@ -929,7 +981,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "purpose": "Root — QueryClientProvider, BrowserRouter. \"/\" now renders RootRedirect (2026-08-04, Netflix-style module picker): reads cached entitlements (no extra fetch), redirects straight to the module's home route if exactly ONE is enabled (zero friction for today's 100% single-module reality), else to /select (ModuleSelectorPage). /select sits under ProtectedRoute but OUTSIDE AppShell (account-level chrome, not feature nav) — all deep-links (/agents/123, sessionStorage last-agent:{tab} resume) bypass this entirely, only \"/\" itself runs the redirect decision. Unmatched routes now redirect to \"/\" (not directly to /dashboard) so the entitlement-aware logic still applies. Protected routes via ProtectedRoute+AppShell unchanged: /dashboard, /agents, /agents/new, /agents/:id, /library/skills, /wabas, /inbox, /handover, /profile."
+      "purpose": "Root — QueryClientProvider, BrowserRouter. \"/\" now renders RootRedirect (2026-08-04, Netflix-style module picker): reads cached entitlements (no extra fetch), redirects straight to the module's home route if exactly ONE is enabled (zero friction for today's 100% single-module reality), else to /select (ModuleSelectorPage). /select sits under ProtectedRoute but OUTSIDE AppShell (account-level chrome, not feature nav) — all deep-links (/agents/123, sessionStorage last-agent:{tab} resume) bypass this entirely, only \"/\" itself runs the redirect decision. Unmatched routes now redirect to \"/\" (not directly to /dashboard) so the entitlement-aware logic still applies. Protected routes via ProtectedRoute+AppShell: /dashboard, /templates (TemplateStudioPage, added 2026-08-04 — reuses AppShell, TEMPLATE_STUDIO's TODO resolved now that this route exists), /agents, /agents/new, /agents/:id, /library/skills, /wabas, /inbox, /handover, /profile."
+    },
+    {
+      "path": "frontend/src/pages/TemplateStudioPage.tsx",
+      "purpose": "Template Studio structured UI (2026-08-04) — WABA selector, inline Karix credential entry (esmeAddr/apiKey, shown only when GET .../karix-credential says not configured), create-template form (name/language/category/body text only in v1 — no header/footer/button builder yet), bulk-import upload + job-status poll (stops polling once status is completed/failed). Structured UI first per founder's decision — a chat interface would layer on top later, calling the SAME /api/v1/templates/** endpoints, never a separate implementation."
     },
     {
       "path": "frontend/src/pages/ModuleSelectorPage.tsx",

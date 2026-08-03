@@ -95,6 +95,21 @@ jwt:
   public-key-path: ${JWT_PUBLIC_KEY_PATH:/opt/metaagent/keys/jwt-public.pem}
   expiry-seconds: 86400
 
+karix-mcp:
+  # Same server as this app (10.1.17.16) — call it via localhost, not the
+  # public mcp.karix.online domain, to avoid an unnecessary external hop.
+  base-url: ${KARIX_MCP_BASE_URL:http://localhost:8001}
+
+crypto:
+  # AES-256-GCM master key (SecretEncryptor) — base64-encoded 32 bytes.
+  # NO DEFAULT (EL-caught, 2026-08-04): a hardcoded fallback here would be a
+  # real key checked into source control that silently becomes the actual
+  # production key if the env var is ever unset — this is the one utility
+  # whose entire job is protecting secrets at rest, so it cannot itself
+  # default to a public secret. Same rule as meta.api.token above. Generate
+  # per-environment via `openssl rand -base64 32`, set CRYPTO_MASTER_KEY.
+  master-key: ${CRYPTO_MASTER_KEY}
+
 management:
   endpoints:
     web:

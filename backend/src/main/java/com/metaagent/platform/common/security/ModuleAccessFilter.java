@@ -18,12 +18,18 @@ import java.io.IOException;
 
 /**
  * Runs after JwtAuthFilter — gates every authenticated API call on the
- * account's BUSINESS_AGENTS entitlement (AccountModule). Auth, webhook,
- * health, and the entitlements-read endpoint itself are exempt: a disabled
- * account must still be able to log in, log out, and see WHY the rest of
- * the app is locked. Fails closed on any error resolving tenant details —
- * an unauthenticated/malformed request is SecurityConfig's problem, not
- * this filter's, so it lets those pass through untouched.
+ * account's entitlement for WHICHEVER module owns that path (see
+ * requiredModule()). Auth, webhook, health, and the entitlements-read
+ * endpoint itself are exempt: a disabled account must still be able to log
+ * in, log out, and see WHY the rest of the app is locked. Fails closed on
+ * any error resolving tenant details — an unauthenticated/malformed
+ * request is SecurityConfig's problem, not this filter's, so it lets those
+ * pass through untouched.
+ *
+ * 2026-08-04: this used to hardcode BUSINESS_AGENTS for the entire
+ * /api/v1/** surface — a Template-Studio-only account (no BUSINESS_AGENTS)
+ * would have been wrongly blocked from Template Studio's own endpoints.
+ * Fixed to be path-aware.
  */
 @Component
 @RequiredArgsConstructor
@@ -49,7 +55,7 @@ public class ModuleAccessFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!accountModuleService.isEnabled(tenantDetails.getAccountId(), AccountModule.Module.BUSINESS_AGENTS)) {
+        if (!accountModuleService.isEnabled(tenantDetails.getAccountId(), requiredModule(path))) {
             response.setStatus(403);
             response.setContentType("application/json");
             objectMapper.writeValue(response.getWriter(),
@@ -65,5 +71,15 @@ public class ModuleAccessFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/v1/webhook/")
                 || path.equals("/api/v1/modules/entitlements")
                 || path.startsWith("/actuator/");
+    }
+
+    /** Path-prefix routing to the module that owns it. Add a case here for
+     * every NEW module's endpoint prefix — everything unmatched still
+     * defaults to BUSINESS_AGENTS (the whole rest of the platform). */
+    private AccountModule.Module requiredModule(String path) {
+        if (path.startsWith("/api/v1/templates/")) {
+            return AccountModule.Module.TEMPLATE_STUDIO;
+        }
+        return AccountModule.Module.BUSINESS_AGENTS;
     }
 }

@@ -38,6 +38,13 @@ security:
   bcrypt:
     cost: 4  # Low cost for fast tests — never use in production
 
+crypto:
+  # Fixed test-only key (32 bytes base64) — never used outside this profile.
+  master-key: dGVzdC1vbmx5LWtleS1uZXZlci11c2UtaW4tcHJvZCE=
+
+karix-mcp:
+  base-url: http://localhost  # not called in tests — TemplateStudioClient is @MockBean'd
+
 logging:
   level:
     com.metaagent: DEBUG

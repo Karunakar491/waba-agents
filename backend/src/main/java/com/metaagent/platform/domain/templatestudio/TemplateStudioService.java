@@ -3,10 +3,12 @@ package com.metaagent.platform.domain.templatestudio;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.waba.entity.KarixEsmeCredential;
+import com.metaagent.platform.domain.waba.entity.PhoneEsmeMapping;
 import com.metaagent.platform.domain.waba.entity.Waba;
-import com.metaagent.platform.domain.waba.entity.WabaKarixCredential;
+import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialRepository;
+import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
-import com.metaagent.platform.domain.waba.repository.WabaKarixCredentialRepository;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +32,8 @@ public class TemplateStudioService {
 
     private final WabaRepository wabaRepository;
     private final WabaAccountAccessRepository wabaAccountAccessRepository;
-    private final WabaKarixCredentialRepository credentialRepository;
+    private final PhoneEsmeMappingRepository phoneEsmeMappingRepository;
+    private final KarixEsmeCredentialRepository esmeCredentialRepository;
     private final SecretEncryptor secretEncryptor;
     private final TemplateStudioClient templateStudioClient;
 
@@ -93,6 +96,14 @@ public class TemplateStudioService {
     // Private
     // -------------------------------------------------------------------------
 
+    /**
+     * Template operations are approved by Meta at the WABA level, not per
+     * phone number, so any phone's mapped esme_addr credential under this
+     * WABA is equally valid for a create/edit/list call — picks the first
+     * mapping found (2026-08-04, pragmatic default per founder: "try it and
+     * test" rather than a designed selection rule; revisit if real Karix
+     * behavior ever shows the choice matters).
+     */
     private ResolvedCredential resolveCredential(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
@@ -100,9 +111,11 @@ public class TemplateStudioService {
         }
         Waba waba = wabaRepository.findById(wabaId)
                 .orElseThrow(() -> new NotFoundException("WABA not found"));
-        WabaKarixCredential credential = credentialRepository.findByWabaId(wabaId)
+        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaId(wabaId)
                 .orElseThrow(() -> new BusinessException(
-                        "Karix credentials aren't configured for this WABA yet — contact your Karix account manager."));
+                        "No phone number on this WABA has a Karix credential configured yet — set one up in Settings."));
+        KarixEsmeCredential credential = esmeCredentialRepository.findById(mapping.getEsmeCredentialId())
+                .orElseThrow(() -> new BusinessException("Karix credential not found for the mapped phone number."));
 
         return new ResolvedCredential(
                 credential.getEsmeAddr(),

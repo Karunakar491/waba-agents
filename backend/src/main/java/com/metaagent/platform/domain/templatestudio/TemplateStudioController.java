@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,7 +21,7 @@ import java.util.Map;
 public class TemplateStudioController {
 
     private final TemplateStudioService templateStudioService;
-    private final WabaKarixCredentialService credentialService;
+    private final KarixCredentialService credentialService;
 
     @PostMapping("/{wabaId}")
     public ApiResponse<Map<String, Object>> createTemplate(@PathVariable Long wabaId, @Valid @RequestBody TemplateRequest request) {
@@ -73,14 +74,30 @@ public class TemplateStudioController {
         return ApiResponse.ok(templateStudioService.getBulkImportStatus(wabaId, jobId));
     }
 
-    @GetMapping("/{wabaId}/karix-credential")
-    public ApiResponse<WabaKarixCredentialService.CredentialStatus> getCredentialStatus(@PathVariable Long wabaId) {
-        return ApiResponse.ok(credentialService.getStatus(wabaId));
+    @GetMapping("/{wabaId}/phone-mappings")
+    public ApiResponse<List<KarixCredentialService.MappingView>> listMappings(@PathVariable Long wabaId) {
+        return ApiResponse.ok(credentialService.listMappings(wabaId));
     }
 
-    @PutMapping("/{wabaId}/karix-credential")
-    public ApiResponse<Void> upsertCredential(@PathVariable Long wabaId, @Valid @RequestBody KarixCredentialRequest request) {
-        credentialService.upsert(wabaId, request.esmeAddr(), request.apiKey());
+    @GetMapping("/{wabaId}/unmapped-phones")
+    public ApiResponse<List<String>> listUnmappedPhoneNumbers(@PathVariable Long wabaId) {
+        return ApiResponse.ok(credentialService.listUnmappedPhoneNumbers(wabaId));
+    }
+
+    @GetMapping("/esme-options")
+    public ApiResponse<List<KarixCredentialService.EsmeOption>> listEsmeOptions() {
+        return ApiResponse.ok(credentialService.listEsmeOptions());
+    }
+
+    @PostMapping("/{wabaId}/phone-mappings/existing-esme")
+    public ApiResponse<Void> mapToExistingEsme(@PathVariable Long wabaId, @Valid @RequestBody MapExistingEsmeRequest request) {
+        credentialService.mapToExistingEsme(wabaId, request.phoneNumberId(), request.esmeCredentialId());
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/{wabaId}/phone-mappings/new-esme")
+    public ApiResponse<Void> mapToNewEsme(@PathVariable Long wabaId, @Valid @RequestBody MapNewEsmeRequest request) {
+        credentialService.mapToNewEsme(wabaId, request.phoneNumberId(), request.esmeAddr(), request.label(), request.apiKey());
         return ApiResponse.ok();
     }
 }

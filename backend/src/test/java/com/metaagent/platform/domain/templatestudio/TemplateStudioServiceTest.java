@@ -7,10 +7,10 @@ import com.metaagent.platform.domain.user.entity.BusinessAccount;
 import com.metaagent.platform.domain.user.repository.BusinessAccountRepository;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.entity.WabaAccountAccess;
+import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialRepository;
+import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
-import com.metaagent.platform.domain.waba.repository.WabaKarixCredentialRepository;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
-import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import com.metaagent.platform.support.IntegrationTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,20 +36,26 @@ import static org.mockito.Mockito.when;
 /**
  * Real MySQL via Testcontainers, real SecretEncryptor (round-trips a real
  * decrypted value through to the mocked client) — only TemplateStudioClient
- * (the network boundary to karix-mcp) is mocked.
+ * (the network boundary to karix-mcp) is mocked. Covers the corrected
+ * credential model (2026-08-04): a credential belongs to an esme_addr, a
+ * phone number maps onto one via PhoneEsmeMapping, and template calls use
+ * whichever mapping exists first for the WABA (Meta approves templates at
+ * the WABA level, not per phone number).
  */
 class TemplateStudioServiceTest extends IntegrationTestBase {
 
     @Autowired
     private TemplateStudioService templateStudioService;
     @Autowired
-    private WabaKarixCredentialService credentialService;
+    private KarixCredentialService credentialService;
     @Autowired
     private WabaRepository wabaRepository;
     @Autowired
     private WabaAccountAccessRepository wabaAccountAccessRepository;
     @Autowired
-    private WabaKarixCredentialRepository credentialRepository;
+    private PhoneEsmeMappingRepository phoneEsmeMappingRepository;
+    @Autowired
+    private KarixEsmeCredentialRepository esmeCredentialRepository;
     @Autowired
     private BusinessAccountRepository businessAccountRepository;
 
@@ -83,7 +89,8 @@ class TemplateStudioServiceTest extends IntegrationTestBase {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
-        credentialRepository.deleteAll();
+        phoneEsmeMappingRepository.deleteAll();
+        esmeCredentialRepository.deleteAll();
         wabaAccountAccessRepository.deleteAll();
         wabaRepository.deleteAll();
         businessAccountRepository.deleteAll();
@@ -97,17 +104,17 @@ class TemplateStudioServiceTest extends IntegrationTestBase {
     }
 
     @Test
-    void should_reject_when_no_karix_credential_configured() {
+    void should_reject_when_no_phone_mapped_to_a_credential() {
         authenticateAs(ownerAccountId);
         assertThatThrownBy(() -> templateStudioService.createTemplate(wabaId, Map.of("template_name", "x")))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Karix credentials aren't configured");
+                .hasMessageContaining("No phone number on this WABA");
     }
 
     @Test
     void should_decrypt_credential_and_pass_real_waba_id_to_client() {
         authenticateAs(ownerAccountId);
-        credentialService.upsert(wabaId, "esme-123", "raw-api-key-abc");
+        credentialService.mapToNewEsme(wabaId, "918591689475", "esme-123", "Presales", "raw-api-key-abc");
 
         when(templateStudioClient.createTemplate(any(), any(), any(), any()))
                 .thenReturn(Map.of("ok", true));
@@ -120,23 +127,54 @@ class TemplateStudioServiceTest extends IntegrationTestBase {
     }
 
     @Test
-    void should_never_return_raw_api_key_from_credential_status() {
+    void should_reuse_existing_esme_credential_across_multiple_phone_numbers() {
         authenticateAs(ownerAccountId);
-        credentialService.upsert(wabaId, "esme-123", "raw-api-key-abc");
+        credentialService.mapToNewEsme(wabaId, "918591689475", "esme-shared", "Test_Call_Ft", "raw-api-key-shared");
+        var options = credentialService.listEsmeOptions();
+        Long esmeCredentialId = options.get(0).id();
 
-        WabaKarixCredentialService.CredentialStatus status = credentialService.getStatus(wabaId);
+        credentialService.mapToExistingEsme(wabaId, "919010011634", esmeCredentialId);
 
-        assertThat(status.configured()).isTrue();
-        assertThat(status.esmeAddr()).isEqualTo("esme-123");
-        // CredentialStatus record has exactly two fields (configured, esmeAddr) —
-        // there is no field to accidentally expose the key even if someone tried.
-        assertThat(WabaKarixCredentialService.CredentialStatus.class.getRecordComponents()).hasSize(2);
+        var mappings = credentialService.listMappings(wabaId);
+        assertThat(mappings).hasSize(2);
+        assertThat(mappings).allMatch(m -> "esme-shared".equals(m.esmeAddr()));
     }
 
     @Test
-    void should_reject_credential_upsert_when_account_has_no_access() {
+    void should_reject_mapping_the_same_phone_number_twice() {
+        authenticateAs(ownerAccountId);
+        credentialService.mapToNewEsme(wabaId, "918591689475", "esme-123", "Presales", "raw-api-key-abc");
+
+        assertThatThrownBy(() -> credentialService.mapToNewEsme(wabaId, "918591689475", "esme-456", "Other", "another-key"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already mapped");
+    }
+
+    @Test
+    void should_reject_duplicate_esme_addr() {
+        authenticateAs(ownerAccountId);
+        credentialService.mapToNewEsme(wabaId, "918591689475", "esme-123", "Presales", "raw-api-key-abc");
+
+        assertThatThrownBy(() -> credentialService.mapToNewEsme(wabaId, "919010011634", "esme-123", "Presales again", "another-key"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already configured");
+    }
+
+    @Test
+    void should_never_expose_raw_api_key_via_mappings_or_options() {
+        authenticateAs(ownerAccountId);
+        credentialService.mapToNewEsme(wabaId, "918591689475", "esme-123", "Presales", "raw-api-key-abc");
+
+        // MappingView/EsmeOption record shapes carry no api-key field at all —
+        // there is no accessor to accidentally expose the key even if someone tried.
+        assertThat(KarixCredentialService.MappingView.class.getRecordComponents()).hasSize(4);
+        assertThat(KarixCredentialService.EsmeOption.class.getRecordComponents()).hasSize(3);
+    }
+
+    @Test
+    void should_reject_mapping_when_account_has_no_access() {
         authenticateAs(otherAccountId);
-        assertThatThrownBy(() -> credentialService.upsert(wabaId, "esme-x", "key-x"))
+        assertThatThrownBy(() -> credentialService.mapToNewEsme(wabaId, "918591689475", "esme-x", "label", "key-x"))
                 .isInstanceOf(NotFoundException.class);
     }
 

@@ -12,7 +12,7 @@ import java.util.Base64;
 
 /**
  * AES-256-GCM encryption for secrets we must store at rest (first consumer:
- * WabaKarixCredential.encryptedApiKey — a real Karix API key, not a value
+ * KarixEsmeCredential.encryptedApiKey — a real Karix API key, not a value
  * we can leave in plaintext). Minimal v1: single master key from env, no
  * KMS/key-rotation — EM-approved scope for now, upgrade path documented
  * below, not built until a second consumer or a real rotation need exists.

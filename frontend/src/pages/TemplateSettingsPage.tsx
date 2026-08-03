@@ -1,15 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown } from 'lucide-react'
+import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown, Plus, Phone } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
-
-interface CredentialStatus {
-  configured: boolean
-  esmeAddr: string | null
-}
 
 function extractMessage(err: unknown): string {
   const e = err as { response?: { data?: { error?: string } } }
@@ -40,7 +35,7 @@ export default function TemplateSettingsPage() {
 
       {selectedWabaId && (
         <>
-          <WabaCredentialSettings wabaId={selectedWabaId} />
+          <ConnectedPhonesPanel wabaId={selectedWabaId} />
           <AuditLogPanel wabaId={selectedWabaId} />
         </>
       )}
@@ -142,80 +137,212 @@ function AuditLogPanel({ wabaId }: { wabaId: string }) {
   )
 }
 
-function WabaCredentialSettings({ wabaId }: { wabaId: string }) {
+interface MappingView {
+  phoneNumberId: string
+  displayPhoneNumber: string | null
+  esmeAddr: string | null
+  esmeLabel: string | null
+}
+
+interface EsmeOption {
+  id: string
+  esmeAddr: string
+  label: string
+}
+
+// Connected phone numbers + their Karix esme_addr credential, corrected
+// 2026-08-04 from a wrong one-credential-per-WABA model — credentials
+// belong to an esme_addr (one api_key each), and phone numbers map
+// many-to-one onto it. The same esme_addr can also serve phone numbers
+// under a DIFFERENT WABA, so "esme options" is account-wide, not WABA-scoped.
+function ConnectedPhonesPanel({ wabaId }: { wabaId: string }) {
   const queryClient = useQueryClient()
-  const credentialQuery = useQuery<CredentialStatus>({
-    queryKey: ['karix-credential', wabaId],
-    queryFn: () => api.get(`/templates/${wabaId}/karix-credential`).then((r) => r.data.data),
+  const [connecting, setConnecting] = useState(false)
+
+  const mappingsQuery = useQuery<MappingView[]>({
+    queryKey: ['phone-mappings', wabaId],
+    queryFn: () => api.get(`/templates/${wabaId}/phone-mappings`).then((r) => r.data.data),
   })
 
-  if (credentialQuery.isLoading) {
-    return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['phone-mappings', wabaId] })
+    queryClient.invalidateQueries({ queryKey: ['unmapped-phones', wabaId] })
   }
 
   return (
-    <div className="space-y-4">
-      {credentialQuery.data?.configured && (
-        <div className="rounded-xl border bg-card p-4 shadow-sm flex items-center gap-2 text-sm text-muted-foreground">
-          <KeyRound className="h-4 w-4" />
-          Karix credential configured ({credentialQuery.data.esmeAddr})
+    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">Connected phone numbers</h3>
         </div>
+        <button
+          type="button"
+          onClick={() => setConnecting((c) => !c)}
+          className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs text-muted-foreground hover:bg-muted transition"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Connect a phone number
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Each phone number under this WABA needs a Karix esme_addr + API key to send templates. The same esme_addr
+        can be reused across multiple phone numbers.
+      </p>
+
+      {mappingsQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+      {mappingsQuery.isError && <p className="text-xs text-destructive">{extractMessage(mappingsQuery.error)}</p>}
+      {mappingsQuery.data && mappingsQuery.data.length === 0 && !connecting && (
+        <p className="text-xs text-muted-foreground">No phone numbers connected yet.</p>
       )}
-      <CredentialForm
-        wabaId={wabaId}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ['karix-credential', wabaId] })}
-      />
+
+      <div className="divide-y">
+        {mappingsQuery.data?.map((m) => (
+          <div key={m.phoneNumberId} className="flex items-center justify-between py-2 text-sm">
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-medium text-foreground">{m.displayPhoneNumber || m.phoneNumberId}</span>
+            </div>
+            <span className="text-xs text-muted-foreground">{m.esmeLabel} ({m.esmeAddr})</span>
+          </div>
+        ))}
+      </div>
+
+      {connecting && (
+        <ConnectPhoneForm
+          wabaId={wabaId}
+          onDone={() => { setConnecting(false); invalidate() }}
+          onCancel={() => setConnecting(false)}
+        />
+      )}
     </div>
   )
 }
 
-function CredentialForm({ wabaId, onSaved }: { wabaId: string; onSaved: () => void }) {
+function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone: () => void; onCancel: () => void }) {
+  const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+  const [esmeCredentialId, setEsmeCredentialId] = useState('')
   const [esmeAddr, setEsmeAddr] = useState('')
+  const [label, setLabel] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  const unmappedQuery = useQuery<string[]>({
+    queryKey: ['unmapped-phones', wabaId],
+    queryFn: () => api.get(`/templates/${wabaId}/unmapped-phones`).then((r) => r.data.data),
+  })
+  const esmeOptionsQuery = useQuery<EsmeOption[]>({
+    queryKey: ['esme-options'],
+    queryFn: () => api.get('/templates/esme-options').then((r) => r.data.data),
+  })
+
   const mutation = useMutation({
-    mutationFn: () => api.put(`/templates/${wabaId}/karix-credential`, { esmeAddr, apiKey }),
-    onSuccess: () => { setEsmeAddr(''); setApiKey(''); onSaved() },
+    mutationFn: () => mode === 'existing'
+      ? api.post(`/templates/${wabaId}/phone-mappings/existing-esme`, { phoneNumberId, esmeCredentialId })
+      : api.post(`/templates/${wabaId}/phone-mappings/new-esme`, { phoneNumberId, esmeAddr, label, apiKey }),
+    onSuccess: onDone,
     onError: (err) => setError(extractMessage(err)),
   })
 
+  const hasExistingOptions = (esmeOptionsQuery.data?.length ?? 0) > 0
+
+  useEffect(() => {
+    if (esmeOptionsQuery.data && !hasExistingOptions) setMode('new')
+  }, [esmeOptionsQuery.data, hasExistingOptions])
+  const canSubmit = !!phoneNumberId
+    && (mode === 'existing' ? !!esmeCredentialId : (esmeAddr.trim() && label.trim() && apiKey.trim()))
+
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
-      <div className="flex items-center gap-2">
-        <KeyRound className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Karix credentials</h3>
+    <div className="rounded-lg border border-dashed p-4 space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-foreground mb-1">Phone number</label>
+        <select
+          value={phoneNumberId}
+          onChange={(e) => setPhoneNumberId(e.target.value)}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        >
+          <option value="">Select a phone number…</option>
+          {unmappedQuery.data?.map((id) => <option key={id} value={id}>{id}</option>)}
+        </select>
+        {unmappedQuery.data && unmappedQuery.data.length === 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">Every synced phone number on this WABA is already connected.</p>
+        )}
       </div>
-      <p className="text-sm text-muted-foreground">
-        Contact Karix to get the esme_addr and API key issued for this WABA. Saving replaces any existing
-        credential for this WABA.
-      </p>
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={esmeAddr}
-          onChange={(e) => setEsmeAddr(e.target.value)}
-          placeholder="esme_addr"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        />
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="api_key"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        />
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode('existing')}
+          disabled={!hasExistingOptions}
+          className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed',
+            mode === 'existing' ? 'border-brand-pink bg-brand-pink/10 text-brand-pink' : 'text-muted-foreground hover:bg-muted')}
+        >
+          Use an existing esme_addr
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('new')}
+          className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition',
+            mode === 'new' ? 'border-brand-pink bg-brand-pink/10 text-brand-pink' : 'text-muted-foreground hover:bg-muted')}
+        >
+          Add a new esme_addr
+        </button>
       </div>
+
+      {mode === 'existing' ? (
+        <select
+          value={esmeCredentialId}
+          onChange={(e) => setEsmeCredentialId(e.target.value)}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        >
+          <option value="">Select an esme_addr…</option>
+          {esmeOptionsQuery.data?.map((o) => (
+            <option key={o.id} value={o.id}>{o.label} ({o.esmeAddr})</option>
+          ))}
+        </select>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Label (Karix internal username)"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <input
+            type="text"
+            value={esmeAddr}
+            onChange={(e) => setEsmeAddr(e.target.value)}
+            placeholder="esme_addr"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="api_key"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
+      )}
+
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <button
-        type="button"
-        disabled={!esmeAddr.trim() || !apiKey.trim() || mutation.isPending}
-        onClick={() => { setError(null); mutation.mutate() }}
-        className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        Save credentials
-      </button>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!canSubmit || mutation.isPending}
+          onClick={() => { setError(null); mutation.mutate() }}
+          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Connect
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:bg-muted transition">
+          Cancel
+        </button>
+      </div>
     </div>
   )
 }

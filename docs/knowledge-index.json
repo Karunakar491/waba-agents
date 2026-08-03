@@ -413,7 +413,11 @@
     },
     {
       "path": "backend/src/main/resources/db/migration/V33__create_waba_karix_credential.sql",
-      "purpose": "waba_karix_credential table (2026-08-04) — per-WABA esme_addr + encrypted_api_key, unique on waba_id, FK to waba. V31 (Wave 2, still uncommitted) occupies the V31 slot on disk, hence V33 not V32-follow-on confusion — verify next available number against disk, not just git, before adding a migration."
+      "purpose": "HISTORICAL — created waba_karix_credential (per-WABA esme_addr + api_key), DROPPED by V34 same day (2026-08-04) once the real Karix model turned out to be per-esme_addr not per-WABA (confirmed 0 rows in production before the drop). Never modify an applied migration — V34 undoes this one, matching the V29/V30 precedent. V31 (Wave 2, still uncommitted) occupies the V31 slot on disk, hence V33 not V32-follow-on confusion — verify next available number against disk, not just git, before adding a migration."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V34__karix_credential_per_phone.sql",
+      "purpose": "Corrects the Karix credential model (2026-08-04): drops waba_karix_credential (verified 0 rows first), creates karix_esme_credential (esme_addr UNIQUE, no waba_id — an esme_addr can serve phone numbers under DIFFERENT WABAs, confirmed by founder with real production data) and phone_esme_mapping (waba_id + phone_number_id UNIQUE, FK to karix_esme_credential; phone_number_id is NOT an FK to phone_number_snapshot since that's a resyncable cache and this mapping must survive a resync)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/user/repository/BusinessAccountRepository.java",
@@ -440,16 +444,24 @@
       "purpose": "WABA registry entity — account-scoped, Meta WABA ID, label, status"
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/WabaKarixCredential.java",
-      "purpose": "Per-WABA Karix RCM API credentials (esme_addr + encrypted_api_key), added 2026-08-04 — needed because karix-mcp's own auth ties one JWT to one waba_id, and each client WABA has its own separate Karix-issued credential (no single master credential covers all clients, confirmed by founder). Separate table from Waba (different lifecycle). apiKey encrypted via SecretEncryptor, decrypted only at outbound-call time (TemplateStudioService) — no GET path ever returns it."
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/KarixEsmeCredential.java",
+      "purpose": "A Karix esme_addr identity (one api_key each), added 2026-08-04 replacing WabaKarixCredential (deleted same day — was wrongly modeled as one-credential-per-WABA). Carries account_id for tenant scoping but NO waba_id — the same esme_addr can serve phone numbers under different WABAs (confirmed by founder with real production data). Which WABA(s) it's used for is entirely a property of PhoneEsmeMapping rows. apiKey encrypted via SecretEncryptor, decrypted only at outbound-call time (TemplateStudioService.resolveCredential) — no GET path ever returns it."
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaKarixCredentialRepository.java",
-      "purpose": "findByWabaId for WabaKarixCredential"
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/PhoneEsmeMapping.java",
+      "purpose": "Maps one phone number (under one WABA) to the KarixEsmeCredential used for it, added 2026-08-04. Many phones can point to the same credential — confirmed by founder with real Karix data (one esme_addr, six phone numbers). phoneNumberId matches PhoneNumberSnapshot.phoneNumberId by value, NOT an FK (snapshot is a resyncable cache; mapping must survive a resync). UNIQUE(waba_id, phone_number_id) enforces one credential per phone."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/KarixEsmeCredentialRepository.java",
+      "purpose": "findByEsmeAddr (uniqueness check), findAllByAccountId (dropdown of an account's esme_addr credentials — account-wide, not WABA-scoped, since esme_addr isn't WABA-scoped either)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/PhoneEsmeMappingRepository.java",
+      "purpose": "findAllByWabaId (list connected phones), findFirstByWabaId (TemplateStudioService.resolveCredential's pragmatic \"any mapped phone's credential works for a WABA-level template call\" pick), findByWabaIdAndPhoneNumberId."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/infrastructure/crypto/SecretEncryptor.java",
-      "purpose": "AES-256-GCM encrypt/decrypt for secrets-at-rest (2026-08-04) — first (and only) consumer WabaKarixCredential.encryptedApiKey. Single master key from crypto.master-key/CRYPTO_MASTER_KEY env var, random 12-byte IV per value, no KMS/rotation yet (EM-scoped v1, upgrade path documented in-file, not built until a second consumer or real rotation need exists — this codebase had NO encryption-at-rest utility before this; a prior BYOK-credentials-table proposal was blocked specifically because this didn't exist)."
+      "purpose": "AES-256-GCM encrypt/decrypt for secrets-at-rest (2026-08-04) — first (and only) consumer KarixEsmeCredential.encryptedApiKey (was WabaKarixCredential.encryptedApiKey before the 2026-08-04 credential-model correction — same encryption utility, just a different entity holding the ciphertext now). Single master key from crypto.master-key/CRYPTO_MASTER_KEY env var, random 12-byte IV per value, no KMS/rotation yet (EM-scoped v1, upgrade path documented in-file, not built until a second consumer or real rotation need exists — this codebase had NO encryption-at-rest utility before this; a prior BYOK-credentials-table proposal was blocked specifically because this didn't exist)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioClient.java",
@@ -461,11 +473,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioService.java",
-      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, then getAuditLog, all through the same resolveCredential() gate as create/delete/bulk-import."
+      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, then getAuditLog, all through the same resolveCredential() gate as create/delete/bulk-import. resolveCredential() rewritten same day for the corrected credential model — picks the FIRST PhoneEsmeMapping found for the WABA (Meta approves templates at the WABA level, not per phone, so any mapped phone's esme_addr is equally valid; pragmatic default per founder's \"try it and test\", not a designed selection rule — revisit if real Karix behavior ever shows the choice matters). Fails closed with a clear message if zero phones are mapped."
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/WabaKarixCredentialService.java",
-      "purpose": "Admin-entry path for per-WABA Karix credentials — staff-entered once Karix issues them, no self-serve flow. getStatus() never returns the API key, encrypted or not — only configured(bool)+esmeAddr."
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/KarixCredentialService.java",
+      "purpose": "Replaces WabaKarixCredentialService (deleted 2026-08-04, wrong per-WABA model). listMappings/listUnmappedPhoneNumbers/listEsmeOptions/mapToExistingEsme/mapToNewEsme — every method tenant-checks via existsByWabaIdAndAccountId; mapToExistingEsme ADDITIONALLY verifies the reused esme_addr credential belongs to the caller's own accountId (EL-verified, real cross-tenant leak risk otherwise). mapToNewEsme catches a duplicate-esme_addr DataIntegrityViolationException and returns a BusinessException telling the operator to use the dropdown instead, same for duplicate phone-mapping. Never returns a raw or encrypted api_key — MappingView/EsmeOption carry no such field."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateRequest.java",
@@ -476,12 +488,16 @@
       "purpose": "Edit-template request DTO (2026-08-04) — components/altTempBody/editAltBody/allowCategoryChange. Components REPLACES the template's full component set on Karix's side, not a patch — the frontend must submit the complete desired shape, not a diff."
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/KarixCredentialRequest.java",
-      "purpose": "esmeAddr/apiKey request DTO for WabaKarixCredentialService.upsert()"
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/MapExistingEsmeRequest.java",
+      "purpose": "phoneNumberId + esmeCredentialId request DTO (2026-08-04) for KarixCredentialService.mapToExistingEsme() — reuses an already-configured esme_addr credential for a new phone number."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/MapNewEsmeRequest.java",
+      "purpose": "phoneNumberId/esmeAddr/label/apiKey request DTO (2026-08-04) for KarixCredentialService.mapToNewEsme() — creates a brand-new esme_addr credential and maps a phone number to it in one call."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioController.java",
-      "purpose": "REST surface at /api/v1/templates/** (2026-08-04, extended 2026-08-04 with list/get/edit/media, then audit-log) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete/list/get/edit template, media upload, bulk-import + status poll, karix-credential get/upsert, GET /{wabaId}/audit-log (literal segment, correctly ranked above the /{wabaId}/{templateId} pattern by Spring's path matching, no collision)."
+      "purpose": "REST surface at /api/v1/templates/** (2026-08-04, extended 2026-08-04 with list/get/edit/media, then audit-log, then the corrected credential model) — this exact prefix is what ModuleAccessFilter routes to TEMPLATE_STUDIO, do not move without updating that filter. create/delete/list/get/edit template, media upload, bulk-import + status poll, GET /{wabaId}/audit-log (literal segment, correctly ranked above the /{wabaId}/{templateId} pattern by Spring's path matching, no collision). Old karix-credential get/upsert REPLACED same day by: GET /{wabaId}/phone-mappings, GET /{wabaId}/unmapped-phones, GET /esme-options (account-wide, not WABA-scoped — also a literal segment correctly ranked above /{wabaId}), POST /{wabaId}/phone-mappings/existing-esme, POST /{wabaId}/phone-mappings/new-esme."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/repository/WabaRepository.java",
@@ -801,7 +817,7 @@
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/domain/templatestudio/TemplateStudioServiceTest.java",
-      "purpose": "Real MySQL via Testcontainers, real SecretEncryptor round-trip, only TemplateStudioClient mocked (network boundary). Covers: tenant isolation (no WABA access -> NotFoundException), missing credential -> BusinessException, decrypted key + real Karix waba_id passed to client, credential status never exposes the raw key. Actually executed 2026-08-04 (not just statically reviewed), passed."
+      "purpose": "Real MySQL via Testcontainers, real SecretEncryptor round-trip, only TemplateStudioClient mocked (network boundary). Rewritten 2026-08-04 for the corrected per-esme_addr credential model. Covers: tenant isolation (no WABA access -> NotFoundException), zero-mapping -> BusinessException, decrypted key + real Karix waba_id passed to client, esme_addr reuse across 2 phone numbers, duplicate-phone-mapping rejection, duplicate-esme_addr rejection, mapping rejected when account has no WABA access, never exposes the raw key via any DTO. Actually executed (not just statically reviewed) — exit 0, all 8 tests pass against real Testcontainers MySQL."
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/infrastructure/crypto/SecretEncryptorTest.java",
@@ -993,7 +1009,7 @@
     },
     {
       "path": "frontend/src/pages/TemplateSettingsPage.tsx",
-      "purpose": "Settings section of Template Studio (2026-08-04) — WABA + Karix esme_addr/API key CRUD, extracted from TemplateStudioPage's old inline blocking CredentialForm so it's always reachable (rotate a key, re-point a WABA) without losing the rest of the page. PM-required fix: the old design had no way back to credential config once past first-time setup. Also has AuditLogPanel (added 2026-08-04) — auto-loads on mount (EL round-1 caught an enabled:false that made it never auto-load, only fixed to load-on-mount + manual Refresh button), expandable rows showing method/path/status/request+response body for every karix-mcp call under /api/templates for this WABA. Bodies are pre-redacted server-side (api_call_logger.py) before they're ever stored — safe to render raw."
+      "purpose": "Settings section of Template Studio (2026-08-04) — always reachable (rotate a credential, connect a phone) unlike the old inline blocking screen it replaced. ConnectedPhonesPanel (rewritten 2026-08-04 for the corrected credential model) lists phone->esme_addr mappings for the WABA; ConnectPhoneForm has two modes — reuse an existing esme_addr (account-wide dropdown, prevents accidentally creating duplicate esme_addr rows with the same api_key) or add a brand-new one — defaults to \"new\" mode when the account has zero existing esme_addr options (EL round-1 non-blocking note, fixed same day). Phone-number dropdown sources only unmapped phones. Also has AuditLogPanel (added 2026-08-04) — auto-loads on mount (EL round-1 caught an enabled:false that made it never auto-load, only fixed to load-on-mount + manual Refresh button), expandable rows showing method/path/status/request+response body for every karix-mcp call under /api/templates for this WABA. Bodies are pre-redacted server-side (api_call_logger.py) before they're ever stored — safe to render raw."
     },
     {
       "path": "frontend/src/pages/TemplateIrisPage.tsx",

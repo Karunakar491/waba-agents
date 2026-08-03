@@ -7,38 +7,38 @@ import org.hibernate.annotations.GenericGenerator;
 import java.time.LocalDateTime;
 
 /**
- * Per-WABA Karix RCM API credentials (esme_addr + api_key) — needed to mint
- * a karix-mcp JWT (POST /oauth/token) scoped to THIS waba_id. Separate
- * table from Waba (not a column on it): different lifecycle — staff-entered,
- * rotatable, Karix-issued, not Meta-sourced. Confirmed necessary (not
- * speculative) 2026-08-04: karix-mcp's own auth ties one JWT to one
- * waba_id, and this platform manages many different client WABAs, each
- * requiring its own Karix-issued credential (no single master credential
- * covers all clients).
+ * A Karix esme_addr identity (one api_key each) — replaces waba_karix_credential
+ * (2026-08-04, was wrongly modeled as one-credential-per-WABA). An esme_addr
+ * carries no waba_id: the same esme_addr can serve phone numbers under
+ * different WABAs (confirmed by founder). Scoping is by account_id only —
+ * which WABA(s) it's actually used for is entirely a property of
+ * PhoneEsmeMapping rows, not of this credential.
  *
- * apiKey is encrypted at rest via SecretEncryptor — never stored or logged
- * in plaintext. No GET endpoint ever returns the decrypted value; decrypt
- * only happens at outbound-call time (see TemplateStudioClient).
+ * encryptedApiKey is AES-256-GCM ciphertext (SecretEncryptor) — never stored
+ * or logged in plaintext, never returned by any GET endpoint.
  */
 @Entity
-@Table(name = "waba_karix_credential")
+@Table(name = "karix_esme_credential")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WabaKarixCredential {
+public class KarixEsmeCredential {
 
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
     private Long id;
 
-    @Column(name = "waba_id", nullable = false, unique = true)
-    private Long wabaId;
+    @Column(name = "account_id", nullable = false)
+    private Long accountId;
 
-    @Column(name = "esme_addr", nullable = false, length = 64)
+    @Column(name = "esme_addr", nullable = false, unique = true, length = 64)
     private String esmeAddr;
+
+    @Column(nullable = false, length = 100)
+    private String label;
 
     @Column(name = "encrypted_api_key", nullable = false, columnDefinition = "TEXT")
     private String encryptedApiKey;

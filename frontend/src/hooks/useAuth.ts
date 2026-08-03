@@ -16,7 +16,11 @@ export function useLogin() {
     onSuccess: (res) => {
       const d = res.data
       setUser({ id: d.userId, email: d.email, name: d.email, accountId: d.accountId })
-      navigate('/dashboard')
+      // "/" (not "/dashboard" directly) — RootRedirect decides single-module
+      // vs. multi-module landing from there. Hardcoding "/dashboard" here
+      // bypassed that logic entirely on the one path that matters most: an
+      // actual login (2026-08-04 bug — module selector never fired).
+      navigate('/')
     },
   })
 }

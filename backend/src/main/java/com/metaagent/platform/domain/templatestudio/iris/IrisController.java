@@ -24,6 +24,16 @@ public class IrisController {
         return ApiResponse.ok(conversationService.createSession(request.wabaId()));
     }
 
+    @GetMapping("/sessions")
+    public ApiResponse<java.util.List<IrisConversationService.SessionSummary>> listSessions() {
+        return ApiResponse.ok(conversationService.listSessions());
+    }
+
+    @GetMapping("/sessions/{sessionId}/messages")
+    public ApiResponse<java.util.List<IrisConversationService.MessageDto>> getMessages(@PathVariable Long sessionId) {
+        return ApiResponse.ok(conversationService.getMessages(sessionId));
+    }
+
     @PostMapping("/sessions/{sessionId}/messages")
     public ApiResponse<IrisConversationService.TurnResponse> sendMessage(@PathVariable Long sessionId, @Valid @RequestBody SendMessageRequest request) {
         return ApiResponse.ok(conversationService.sendMessage(sessionId, request.text()));

@@ -6,6 +6,7 @@ import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
+import { templateQueryKeys } from '../lib/templateQueryKeys'
 
 // Templates section of Template Studio (2026-08-04, split into Iris/
 // Templates/Settings nav 2026-08-04) — structured UI first, chat interface
@@ -141,12 +142,12 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
   // filtered fetch only fires once the operator actually picks a status,
   // so the common (no-filter) case makes exactly one network call.
   const allQuery = useQuery({
-    queryKey: ['templates', wabaId, 'all'],
+    queryKey: [...templateQueryKeys.list(wabaId), 'all'],
     queryFn: () => api.get(`/templates/${wabaId}`).then((r) => r.data.data),
     enabled: configured,
   })
   const filteredQuery = useQuery({
-    queryKey: ['templates', wabaId, statusFilter],
+    queryKey: [...templateQueryKeys.list(wabaId), statusFilter],
     queryFn: () => api.get(`/templates/${wabaId}`, { params: { status: statusFilter } }).then((r) => r.data.data),
     enabled: configured && !!statusFilter,
   })
@@ -504,7 +505,7 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
           : res.data?.data?.error || 'Submission failed.',
       })
       if (ok) {
-        queryClient.invalidateQueries({ queryKey: ['templates', wabaId] })
+        queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(wabaId) })
         if (isEdit) onDone?.()
       }
     },

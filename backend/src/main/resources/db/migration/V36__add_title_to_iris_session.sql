@@ -1,0 +1,1 @@
+ALTER TABLE iris_session ADD COLUMN title VARCHAR(120) NULL AFTER waba_id;

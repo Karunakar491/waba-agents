@@ -34,6 +34,10 @@ public class IrisSession {
     @Column(name = "waba_id")
     private Long wabaId;
 
+    /** Set once from a truncated first user message — "New chat" is a frontend fallback for null, never stored. */
+    @Column(name = "title", length = 120)
+    private String title;
+
     @Column(name = "pending_tool_name", length = 50)
     private String pendingToolName;
 

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle } from 'lucide-react'
+import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle, Plus } from 'lucide-react'
 import api from '../lib/api'
+import { cn } from '../lib/utils'
+import { templateQueryKeys } from '../lib/templateQueryKeys'
 
 function extractMessage(err: unknown): string {
   const e = err as { response?: { data?: { error?: string } } }
@@ -46,7 +48,7 @@ export default function TemplateIrisPage() {
   const wabaCount = wabasQuery.data?.length ?? 0
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">Iris</h1>
         <p className="text-sm text-muted-foreground">
@@ -66,7 +68,7 @@ export default function TemplateIrisPage() {
       ) : !credentialQuery.data?.configured ? (
         <AiCredentialSetup />
       ) : (
-        <IrisChat />
+        <IrisWorkspace />
       )}
     </div>
   )
@@ -218,6 +220,8 @@ interface TurnResponse {
 }
 
 interface ChatEntry { who: 'user' | 'iris'; text: string }
+interface SessionSummary { id: string; title: string | null; updatedAt: string }
+interface MessageDto { role: string; content: string; createdAt: string }
 
 const SUGGESTIONS = [
   'Create a shipping-update template',
@@ -225,12 +229,49 @@ const SUGGESTIONS = [
   'Send a test of an approved template',
 ]
 
-function IrisChat() {
+// Sidebar + chat together — lifted here (rather than inside the chat panel
+// alone) since "new chat" / "resume a past one" controls the same session
+// state the chat reads and writes.
+function IrisWorkspace() {
+  const queryClient = useQueryClient()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [input, setInput] = useState('')
   const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resuming, setResuming] = useState(false)
+
+  const sessionsQuery = useQuery<SessionSummary[]>({
+    queryKey: ['iris-sessions'],
+    queryFn: () => api.get('/templates/iris/sessions').then((r) => r.data.data),
+  })
+
+  function startNewChat() {
+    setSessionId(null)
+    setEntries([])
+    setPending(null)
+    setError(null)
+    setInput('')
+  }
+
+  async function resumeSession(id: string) {
+    setResuming(true)
+    setError(null)
+    try {
+      const messages = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as MessageDto[])
+      setSessionId(id)
+      setEntries(messages.map((m) => ({ who: m.role === 'USER' ? 'user' : 'iris', text: m.content })))
+      // A session with a pending confirmation still awaiting action re-opens
+      // as plain history — the operator can just ask again. Known v1
+      // limitation, not silently broken: nothing here claims a pending
+      // action survived the resume.
+      setPending(null)
+    } catch (err) {
+      setError(extractMessage(err))
+    } finally {
+      setResuming(false)
+    }
+  }
 
   // No wabaId here — Iris asks which WABA in conversation and resolves it
   // itself (see IrisConversationService's dynamic system prompt).
@@ -248,6 +289,7 @@ function IrisChat() {
     onSuccess: (res) => {
       setEntries((prev) => [...prev, { who: 'iris', text: res.reply }])
       setPending(res.needsConfirmation ? { toolName: res.pendingToolName!, args: res.pendingToolArgs! } : null)
+      queryClient.invalidateQueries({ queryKey: ['iris-sessions'] })
     },
     onError: (err) => setError(extractMessage(err)),
   })
@@ -256,6 +298,13 @@ function IrisChat() {
     mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
     onSuccess: () => {
       setEntries((prev) => [...prev, { who: 'iris', text: 'Confirmed and submitted.' }])
+      // Iris resolves wabaId itself — it's on the pending tool's own args,
+      // never known to this component ahead of time. Refresh the Templates
+      // table for that WABA so a newly created/edited template shows up
+      // there without a manual page refresh.
+      if ((pending?.toolName === 'create_template' || pending?.toolName === 'edit_template') && pending.args.wabaId != null) {
+        queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(String(pending.args.wabaId)) })
+      }
       setPending(null)
     },
     onError: (err) => setError(extractMessage(err)),
@@ -281,19 +330,32 @@ function IrisChat() {
   const started = entries.length > 0
 
   return (
-    // Fixed-width preview pane (360px), no responsive breakpoint — deliberate:
-    // this is a desktop-only internal operator tool, not a public mobile
-    // surface (UX gate 2026-08-04 confirmed this reading, flagged to document).
-    <div className="grid gap-4 rounded-xl border bg-card shadow-sm overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
+    <div className="grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
+      <SessionSidebar
+        sessions={sessionsQuery.data ?? []}
+        loading={sessionsQuery.isLoading}
+        activeId={sessionId}
+        onNewChat={startNewChat}
+        onSelect={resumeSession}
+      />
+      {/* Fixed-width preview pane (360px), no responsive breakpoint —
+          deliberate: this is a desktop-only internal operator tool, not a
+          public mobile surface (UX gate 2026-08-04 confirmed this reading). */}
+      <div className="grid gap-4 rounded-xl border bg-card shadow-sm overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
       <div className="flex min-w-0 flex-col">
-        {started && (
+        {resuming && (
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {!resuming && started && (
           <div className="flex items-center gap-1.5 border-b px-5 py-2 text-xs text-muted-foreground">
             <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
             Nothing is submitted to Meta until you review and confirm the exact result.
           </div>
         )}
 
-        {!started ? (
+        {!resuming && !started ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
             <div className="space-y-1.5">
               <h2 className="text-lg font-semibold text-foreground">What do you want to send today?</h2>
@@ -336,7 +398,7 @@ function IrisChat() {
               ))}
             </div>
           </div>
-        ) : (
+        ) : !resuming ? (
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
             {entries.map((e, i) =>
               e.who === 'user' ? (
@@ -357,9 +419,9 @@ function IrisChat() {
               </p>
             )}
           </div>
-        )}
+        ) : null}
 
-        {started && (
+        {!resuming && started && (
           <div className="border-t p-3">
             <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
               <input
@@ -395,6 +457,50 @@ function IrisChat() {
           cancelling={cancelAction.isPending}
         />
       )}
+      </div>
+    </div>
+  )
+}
+
+function SessionSidebar({ sessions, loading, activeId, onNewChat, onSelect }: {
+  sessions: SessionSummary[]
+  loading: boolean
+  activeId: string | null
+  onNewChat: () => void
+  onSelect: (id: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2" style={{ height: 560 }}>
+      <button
+        type="button"
+        onClick={onNewChat}
+        className="flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        New chat
+      </button>
+      {sessions.length > 0 && (
+        <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Recent</p>
+      )}
+      <div className="flex-1 space-y-0.5 overflow-y-auto">
+        {loading && <Loader2 className="mx-auto mt-4 h-4 w-4 animate-spin text-muted-foreground" />}
+        {!loading && sessions.length === 0 && (
+          <p className="px-2 py-4 text-center text-xs text-muted-foreground">No chats yet.</p>
+        )}
+        {sessions.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onSelect(s.id)}
+            className={cn(
+              'block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm transition',
+              s.id === activeId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+            )}
+          >
+            {s.title ?? 'New chat'}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

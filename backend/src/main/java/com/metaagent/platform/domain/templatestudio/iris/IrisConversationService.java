@@ -97,11 +97,29 @@ public class IrisConversationService {
     );
 
     public record TurnResponse(Long sessionId, String reply, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
+    public record SessionSummary(Long id, String title, java.time.LocalDateTime updatedAt) {}
+    public record MessageDto(String role, String content, java.time.LocalDateTime createdAt) {}
+
+    private static final int TITLE_MAX_LENGTH = 120;
 
     public IrisSession createSession(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         IrisSession session = IrisSession.builder().accountId(accountId).wabaId(wabaId).build();
         return sessionRepository.save(session);
+    }
+
+    public List<SessionSummary> listSessions() {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        return sessionRepository.findByAccountIdOrderByUpdatedAtDesc(accountId).stream()
+                .map(s -> new SessionSummary(s.getId(), s.getTitle(), s.getUpdatedAt()))
+                .toList();
+    }
+
+    public List<MessageDto> getMessages(Long sessionId) {
+        requireOwnedSession(sessionId);
+        return conversationHistory(sessionId).stream()
+                .map(m -> new MessageDto(m.getRole().name(), m.getContent(), m.getCreatedAt()))
+                .toList();
     }
 
     public TurnResponse sendMessage(Long sessionId, String userText) {
@@ -111,6 +129,10 @@ public class IrisConversationService {
         }
 
         messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.USER).content(userText).build());
+        if (session.getTitle() == null) {
+            session.setTitle(truncateForTitle(userText));
+            sessionRepository.save(session);
+        }
 
         AiCredentialService.ResolvedAiCredential cred = aiCredentialService.resolveForConversation();
         AiProviderAdapter adapter = adapters.stream()
@@ -118,8 +140,7 @@ public class IrisConversationService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("No adapter available for provider " + cred.provider()));
 
-        List<AiMessage> history = messageRepository.findAllBySessionIdOrderByCreatedAtAsc(sessionId).stream()
-                .filter(m -> m.getRole() != IrisMessage.Role.TOOL)
+        List<AiMessage> history = conversationHistory(sessionId).stream()
                 .map(m -> new AiMessage(m.getRole() == IrisMessage.Role.USER ? AiMessage.Role.USER : AiMessage.Role.ASSISTANT, m.getContent()))
                 .toList();
 
@@ -216,6 +237,25 @@ public class IrisConversationService {
         return wabas.stream()
                 .map(w -> "- \"%s\" (wabaId: %d)".formatted(w.getLabel(), w.getId()))
                 .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * USER/ASSISTANT-only, chronological — the single source both the
+     * model's history (sendMessage) and the resumable transcript
+     * (getMessages) read from, so the two never drift on what counts as
+     * displayable conversation vs. internal tool bookkeeping.
+     */
+    private List<IrisMessage> conversationHistory(Long sessionId) {
+        return messageRepository.findAllBySessionIdOrderByCreatedAtAsc(sessionId).stream()
+                .filter(m -> m.getRole() != IrisMessage.Role.TOOL)
+                .toList();
+    }
+
+    private String truncateForTitle(String text) {
+        String trimmed = text.trim();
+        return trimmed.length() > TITLE_MAX_LENGTH - 3
+                ? trimmed.substring(0, TITLE_MAX_LENGTH - 3) + "..."
+                : trimmed;
     }
 
     private IrisSession requireOwnedSession(Long sessionId) {

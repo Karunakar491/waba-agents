@@ -1,5 +1,7 @@
 package com.metaagent.platform.domain.templatestudio.iris;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.metaagent.platform.common.id.TsidGenerator;
 import jakarta.persistence.*;
 import lombok.*;
@@ -26,6 +28,7 @@ public class IrisSession {
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
+    @JsonSerialize(using = ToStringSerializer.class) // TSID exceeds JS Number.MAX_SAFE_INTEGER
     private Long id;
 
     @Column(name = "account_id", nullable = false)

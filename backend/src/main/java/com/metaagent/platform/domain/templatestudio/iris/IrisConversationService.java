@@ -96,8 +96,10 @@ public class IrisConversationService {
                     true)
     );
 
-    public record TurnResponse(Long sessionId, String reply, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
-    public record SessionSummary(Long id, String title, java.time.LocalDateTime updatedAt) {}
+    // sessionId/id as String — TSID values exceed JS Number.MAX_SAFE_INTEGER,
+    // same convention as WabaResponse (see WabaDtos.java).
+    public record TurnResponse(String sessionId, String reply, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
+    public record SessionSummary(String id, String title, java.time.LocalDateTime updatedAt) {}
     public record MessageDto(String role, String content, java.time.LocalDateTime createdAt) {}
 
     private static final int TITLE_MAX_LENGTH = 120;
@@ -111,7 +113,7 @@ public class IrisConversationService {
     public List<SessionSummary> listSessions() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         return sessionRepository.findByAccountIdOrderByUpdatedAtDesc(accountId).stream()
-                .map(s -> new SessionSummary(s.getId(), s.getTitle(), s.getUpdatedAt()))
+                .map(s -> new SessionSummary(String.valueOf(s.getId()), s.getTitle(), s.getUpdatedAt()))
                 .toList();
     }
 
@@ -151,7 +153,7 @@ public class IrisConversationService {
 
         if (result.type() == AiTurnResult.Type.TEXT) {
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT).content(result.text()).build());
-            return new TurnResponse(sessionId, result.text(), false, null, null);
+            return new TurnResponse(String.valueOf(sessionId), result.text(), false, null, null);
         }
 
         AiToolSpec tool = TOOLS.stream().filter(t -> t.name().equals(result.toolName())).findFirst()
@@ -162,7 +164,7 @@ public class IrisConversationService {
             String summary = "Tool " + tool.name() + " result: " + writeJson(toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
-            return new TurnResponse(sessionId, summary, false, null, null);
+            return new TurnResponse(String.valueOf(sessionId), summary, false, null, null);
         }
 
         session.setPendingToolName(tool.name());
@@ -171,7 +173,7 @@ public class IrisConversationService {
         messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT)
                 .content("I've drafted this — review it and confirm to submit.").toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
 
-        return new TurnResponse(sessionId, "I've drafted this — review it and confirm to submit.", true, tool.name(), result.toolArguments());
+        return new TurnResponse(String.valueOf(sessionId), "I've drafted this — review it and confirm to submit.", true, tool.name(), result.toolArguments());
     }
 
     public Map<String, Object> confirmPendingAction(Long sessionId) {

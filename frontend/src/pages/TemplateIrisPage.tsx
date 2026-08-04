@@ -1,9 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle } from 'lucide-react'
 import api from '../lib/api'
-import { useSelectedWaba } from '../hooks/useSelectedWaba'
-import WabaPicker from '../components/templatestudio/WabaPicker'
 
 function extractMessage(err: unknown): string {
   const e = err as { response?: { data?: { error?: string } } }
@@ -15,14 +14,24 @@ function extractMessage(err: unknown): string {
 // strategy. Nothing else — see project_iris_scope_and_byok memory. Every
 // mutating tool call pauses for explicit confirmation (ConfirmPanel) before
 // anything is submitted — Iris never submits invisibly from a chat reply.
+//
+// No WABA picker (2026-08-04) — a session no longer binds to one WABA
+// upfront. Iris is told the account's full WABA list in its system prompt
+// (backend) and resolves which one the operator means from conversation,
+// supplying wabaId on every tool call itself — see IrisConversationService.
+interface WabaEntry { id: string; label: string | null }
+
 export default function TemplateIrisPage() {
-  const { wabas, isLoading: wabasLoading, selectedWabaId, setSelectedWabaId } = useSelectedWaba()
   const credentialQuery = useQuery({
     queryKey: ['iris-credential'],
     queryFn: () => api.get('/templates/iris/credential').then((r) => r.data.data),
   })
+  const wabasQuery = useQuery<WabaEntry[]>({
+    queryKey: ['wabas'],
+    queryFn: () => api.get('/waba').then((r) => r.data.data),
+  })
 
-  if (wabasLoading || credentialQuery.isLoading) {
+  if (credentialQuery.isLoading || wabasQuery.isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <div className="space-y-2">
@@ -34,6 +43,8 @@ export default function TemplateIrisPage() {
     )
   }
 
+  const wabaCount = wabasQuery.data?.length ?? 0
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div className="space-y-2">
@@ -42,19 +53,37 @@ export default function TemplateIrisPage() {
           Create or edit templates, send a test message, or talk through marketing copy — Iris always shows you
           the exact thing it's about to submit before anything goes out.
         </p>
+        {wabaCount > 1 && (
+          <p className="text-xs text-muted-foreground">Iris will ask which WABA you mean before taking any action.</p>
+        )}
         {credentialQuery.data?.configured && (
           <ConnectedStrip provider={credentialQuery.data.provider} model={credentialQuery.data.model} />
         )}
       </div>
 
-      {!credentialQuery.data?.configured ? (
+      {wabaCount === 0 ? (
+        <NoWabaState />
+      ) : !credentialQuery.data?.configured ? (
         <AiCredentialSetup />
       ) : (
-        <>
-          <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
-          {selectedWabaId && <IrisChat wabaId={selectedWabaId} />}
-        </>
+        <IrisChat />
       )}
+    </div>
+  )
+}
+
+function NoWabaState() {
+  return (
+    <div className="rounded-xl border border-dashed bg-muted/30 p-5 text-center">
+      <p className="text-sm text-muted-foreground">
+        This account has no WABA connected yet — Iris needs one to create or send templates.
+      </p>
+      <Link
+        to="/wabas"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Connect a WABA
+      </Link>
     </div>
   )
 }
@@ -196,15 +225,17 @@ const SUGGESTIONS = [
   'Send a test of an approved template',
 ]
 
-function IrisChat({ wabaId }: { wabaId: string }) {
+function IrisChat() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [input, setInput] = useState('')
   const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // No wabaId here — Iris asks which WABA in conversation and resolves it
+  // itself (see IrisConversationService's dynamic system prompt).
   const startSession = useMutation({
-    mutationFn: () => api.post('/templates/iris/sessions', { wabaId }).then((r) => r.data.data.id as string),
+    mutationFn: () => api.post('/templates/iris/sessions', {}).then((r) => r.data.data.id as string),
   })
 
   const sendMessage = useMutation({

@@ -5,12 +5,16 @@ import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioService;
+import com.metaagent.platform.domain.waba.entity.Waba;
+import com.metaagent.platform.domain.waba.service.WabaService;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Iris's tool-calling loop. Fixed allowlist (2026-08-04, locked scope) —
@@ -38,17 +42,25 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class IrisConversationService {
 
-    private static final String SYSTEM_PROMPT = """
+    private static final String SYSTEM_PROMPT_BASE = """
             You are Iris, the WhatsApp template assistant inside Template Studio. You help create templates, \
             edit templates, list existing templates, send a TEST template to a test number, and discuss \
             marketing copy/strategy for WhatsApp templates. You do nothing else — no bulk sends, no campaigns, \
-            no account or settings changes. If asked for something outside this, say plainly that you can't do that here.""";
+            no account or settings changes. If asked for something outside this, say plainly that you can't do that here.
+
+            Every tool call requires a wabaId. Here are the WABAs this operator can use:
+            %s
+            If there is only one, use it without asking. If there are several, ask which one they mean before \
+            doing anything — never guess. Once you know which WABA, say its name back in your reply before \
+            proposing any action (e.g. "Using WABA \\"Acme Retail\\" — here's the template I'll create") so the \
+            operator always sees which WABA an action applies to.""";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;
     private final AiCredentialService aiCredentialService;
     private final TemplateStudioService templateStudioService;
     private final KarixMessagingClient karixMessagingClient;
+    private final WabaService wabaService;
     private final List<AiProviderAdapter> adapters;
     private final ObjectMapper objectMapper;
 
@@ -111,7 +123,10 @@ public class IrisConversationService {
                 .map(m -> new AiMessage(m.getRole() == IrisMessage.Role.USER ? AiMessage.Role.USER : AiMessage.Role.ASSISTANT, m.getContent()))
                 .toList();
 
-        AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), SYSTEM_PROMPT, history, TOOLS);
+        List<Waba> accountWabas = wabaService.listForAccount(session.getAccountId());
+        String systemPrompt = SYSTEM_PROMPT_BASE.formatted(describeWabas(accountWabas));
+
+        AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, TOOLS);
 
         if (result.type() == AiTurnResult.Type.TEXT) {
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT).content(result.text()).build());
@@ -122,7 +137,7 @@ public class IrisConversationService {
                 .orElseThrow(() -> new BusinessException("Iris tried to use a tool that isn't allowed: " + result.toolName()));
 
         if (!tool.requiresConfirmation()) {
-            Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments());
+            Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), accountWabas);
             String summary = "Tool " + tool.name() + " result: " + writeJson(toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
@@ -146,7 +161,7 @@ public class IrisConversationService {
         String toolName = session.getPendingToolName();
         Map<String, Object> args = readJson(session.getPendingToolArgsJson());
 
-        Map<String, Object> result = executeTool(toolName, args);
+        Map<String, Object> result = executeTool(toolName, args, wabaService.listForAccount(session.getAccountId()));
 
         session.setPendingToolName(null);
         session.setPendingToolArgsJson(null);
@@ -166,9 +181,20 @@ public class IrisConversationService {
                 .content("Cancelled — nothing was submitted.").build());
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> executeTool(String toolName, Map<String, Object> args) {
+    /**
+     * Iris resolves wabaId itself from conversation (no upfront picker) —
+     * the model supplies it on every tool call. This is the one place ALL
+     * tool dispatch passes through, so the account-membership check lives
+     * here rather than trusting each downstream service to remember its
+     * own (TemplateStudioService/KarixMessagingClient both already check
+     * too, but that's defense in depth, not a substitute for this).
+     */
+    private Map<String, Object> executeTool(String toolName, Map<String, Object> args, List<Waba> accountWabas) {
         Long wabaId = Long.valueOf(String.valueOf(args.get("wabaId")));
+        Set<Long> accountWabaIds = accountWabas.stream().map(Waba::getId).collect(Collectors.toSet());
+        if (!accountWabaIds.contains(wabaId)) {
+            throw new BusinessException("That WABA isn't available on this account.");
+        }
         return switch (toolName) {
             case "create_template" -> templateStudioService.createTemplate(wabaId, Map.of(
                     "template_name", args.get("templateName"),
@@ -181,6 +207,15 @@ public class IrisConversationService {
             case "send_test_template" -> karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateId")), String.valueOf(args.get("testPhoneNumber")));
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };
+    }
+
+    private String describeWabas(List<Waba> wabas) {
+        if (wabas.isEmpty()) {
+            return "(none — this account has no WABAs yet, tell the operator there's nothing to work with)";
+        }
+        return wabas.stream()
+                .map(w -> "- \"%s\" (wabaId: %d)".formatted(w.getLabel(), w.getId()))
+                .collect(Collectors.joining("\n"));
     }
 
     private IrisSession requireOwnedSession(Long sessionId) {

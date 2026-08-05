@@ -166,9 +166,9 @@ export default function FileLibraryPage() {
 
       <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
         {tab === 'files' ? (
-          <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => setPendingDeleteFile(row)} />
+          <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => { setDeleteError(null); setPendingDeleteFile(row) }} />
         ) : (
-          <WebsitesTable isLoading={websitesLoading} rows={websites} deletingId={deletingId} onDelete={(row) => setPendingDeleteWebsite(row)} />
+          <WebsitesTable isLoading={websitesLoading} rows={websites} deletingId={deletingId} onDelete={(row) => { setDeleteError(null); setPendingDeleteWebsite(row) }} />
         )}
       </div>
 

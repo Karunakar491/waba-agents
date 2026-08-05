@@ -215,8 +215,8 @@ function EvalRollup() {
 
       {rollup && (
         <>
-          <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5 flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-brand-navy shrink-0" />
+          <div className="rounded-xl border bg-muted/30 p-5 flex items-center gap-3">
+            <BarChart3 className="h-5 w-5 text-muted-foreground shrink-0" />
             <div>
               <p className="text-sm font-medium text-foreground">
                 {rollup.status === 'COMPLETED' ? 'Rollup complete' : `Running… ${rollup.completed}/${rollup.total} agents`}

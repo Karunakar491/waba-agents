@@ -321,7 +321,10 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
                 type="button"
                 disabled={!input.trim() || !!pending || sendMessage.isPending}
                 onClick={() => submit()}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-pink text-white disabled:opacity-40"
+                className={cn(
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40',
+                  pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
+                )}
                 aria-label="Send"
               >
                 <Send className="h-3.5 w-3.5" />

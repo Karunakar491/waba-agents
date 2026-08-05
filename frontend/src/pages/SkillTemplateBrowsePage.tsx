@@ -108,8 +108,8 @@ export default function SkillTemplateBrowsePage() {
                 onClick={() => copyMutation.mutate(template.id)}
                 disabled={!waba || copyMutation.isPending}
                 title={!waba ? 'Connect a WABA first' : undefined}
-                className="mt-4 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold
-                  text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+                  text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {copyMutation.isPending && copyMutation.variables === template.id ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -131,7 +131,7 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
     <button
       onClick={onClick}
       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-        active ? 'bg-brand-pink text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+        active ? 'border border-primary bg-primary/10 text-primary' : 'border border-transparent bg-muted text-muted-foreground hover:bg-muted/70'
       }`}
     >
       {label}

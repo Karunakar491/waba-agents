@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Bot, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useLogin, useRegister } from '../hooks/useAuth'
 import ErrorBanner from '../components/shared/ErrorBanner'
 
@@ -47,12 +47,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-navy">
-            <Bot className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-semibold text-foreground">Meta Agents</span>
-        </div>
+        {/* Wordmark per DESIGN.md §0 anti-patterns — no Lucide-icon-in-a-square
+            "logo". Card sits on bg-background (light), not brand-navy, so the
+            mark uses text-foreground rather than the spec's literal
+            text-white to stay legible on this surface. */}
+        <span className="text-lg font-semibold tracking-tight text-foreground">Meta Agents</span>
 
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-foreground">

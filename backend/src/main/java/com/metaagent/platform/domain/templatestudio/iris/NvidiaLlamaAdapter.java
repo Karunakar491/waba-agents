@@ -41,8 +41,12 @@ public class NvidiaLlamaAdapter implements AiProviderAdapter {
                                @Value("${nvidia.api.base-url:https://integrate.api.nvidia.com/v1}") String baseUrl) {
         this.objectMapper = objectMapper;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(5));
-        requestFactory.setReadTimeout(Duration.ofSeconds(30));
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        // 70B model behind a shared NIM endpoint can genuinely take >30s on a
+        // cold or loaded backend — 30s was tight enough to read as "could not
+        // reach the endpoint" when it was actually just slow. 60s is Claude's
+        // own effective ceiling for a tool-calling turn; matches that.
+        requestFactory.setReadTimeout(Duration.ofSeconds(60));
         this.restClient = builder.requestFactory(requestFactory).baseUrl(baseUrl).build();
     }
 
@@ -95,7 +99,11 @@ public class NvidiaLlamaAdapter implements AiProviderAdapter {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("NVIDIA API call failed: {}", e.getMessage());
+            // Logged with class + stack trace, not just getMessage() — the
+            // prior version collapsed timeout/SSL/DNS failures into one
+            // unhelpful log line, making a real production failure (reported
+            // 2026-08-06) undiagnosable after the fact.
+            log.error("NVIDIA API call failed ({}): {}", e.getClass().getSimpleName(), e.getMessage(), e);
             throw new BusinessException("Could not reach NVIDIA's endpoint — try again in a moment.");
         }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown, Plus, Phone } from 'lucide-react'
+import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown, Plus, Phone, Bot, AlertCircle } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
@@ -23,9 +23,18 @@ export default function TemplateSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configure the Karix credentials Template Studio uses to create and send templates for this WABA.
+          Configure the Karix credentials Template Studio uses to create and send templates for this WABA, and the
+          AI provider Iris uses to draft and discuss them.
         </p>
       </div>
+
+      {/* Account-wide, not WABA-scoped (2026-08-04 credential model) — placed
+          above the picker so it's reachable even with zero WABAs connected,
+          which is exactly the account this most needs to reach. Moved here
+          2026-08-06 from Iris's own chat page — the locked charter
+          (2026-08-03) always said credential/WABA config is a human-only,
+          Settings-only concern; the chat page had drifted from that. */}
+      <AiProviderPanel />
 
       <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
 
@@ -35,6 +44,150 @@ export default function TemplateSettingsPage() {
           <AuditLogPanel wabaId={selectedWabaId} />
         </>
       )}
+    </div>
+  )
+}
+
+interface CredentialStatus {
+  configured: boolean
+  provider: string
+  model: string
+}
+
+function AiProviderPanel() {
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+
+  const credentialQuery = useQuery<CredentialStatus>({
+    queryKey: ['iris-credential'],
+    queryFn: () => api.get('/templates/iris/credential').then((r) => r.data.data),
+  })
+
+  if (credentialQuery.isLoading) {
+    return <div className="h-24 animate-pulse rounded-xl border bg-card" />
+  }
+
+  const configured = credentialQuery.data?.configured ?? false
+
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
+      <div className="flex items-center gap-2">
+        <Bot className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-foreground">Iris's AI provider</h3>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Bring your own API key. Only providers we've built and tested tool-calling support for are selectable —
+        never free text. Template content and marketing discussion are sent to that provider's hosted endpoint
+        under their own terms — this is your key, not ours.
+      </p>
+
+      {!configured && !editing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          <KeyRound className="h-4 w-4" />
+          Connect a provider
+        </button>
+      )}
+
+      {configured && !editing && (
+        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+          <span className="text-foreground">
+            Using <span className="font-medium">{credentialQuery.data!.provider}</span> / {credentialQuery.data!.model}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['iris-credential-options'] })
+              setEditing(true)
+            }}
+            className="text-xs font-medium text-foreground hover:underline"
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {editing && (
+        <AiCredentialForm
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ['iris-credential'] })
+            setEditing(false)
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function AiCredentialForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const [provider, setProvider] = useState('')
+  const [model, setModel] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const optionsQuery = useQuery({
+    queryKey: ['iris-credential-options'],
+    queryFn: () => api.get('/templates/iris/credential/options').then((r) => r.data.data),
+  })
+  const providers: Record<string, string[]> = optionsQuery.data?.providers ?? {}
+
+  const mutation = useMutation({
+    mutationFn: () => api.put('/templates/iris/credential', { provider, model, apiKey }),
+    onSuccess: onDone,
+    onError: (err) => setError(extractErrorMessage(err)),
+  })
+
+  return (
+    <div className="rounded-lg border border-dashed p-4 space-y-2">
+      <select
+        value={provider}
+        onChange={(e) => { setProvider(e.target.value); setModel('') }}
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+      >
+        <option value="">Select a provider…</option>
+        {Object.keys(providers).map((p) => <option key={p} value={p}>{p}</option>)}
+      </select>
+      {provider && (
+        <select
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+        >
+          <option value="">Select a model…</option>
+          {(providers[provider] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      )}
+      <input
+        type="password"
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        placeholder="API key"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+      />
+      {error && (
+        <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!provider || !model || !apiKey.trim() || mutation.isPending}
+          onClick={() => { setError(null); mutation.mutate() }}
+          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Save
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:bg-muted transition">
+          Cancel
+        </button>
+      </div>
     </div>
   )
 }

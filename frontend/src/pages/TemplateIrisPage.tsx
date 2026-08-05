@@ -1,22 +1,29 @@
-import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle, Plus } from 'lucide-react'
+import { Loader2, Send, Check, X, ShieldAlert, AlertCircle, Plus, Settings } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
 import { extractErrorMessage } from '../lib/errors'
 
-// Iris — Template Studio's chat assistant (2026-08-04, real build). Locked
-// scope: create/edit/list templates, send TEST templates, discuss marketing
-// strategy. Nothing else — see project_iris_scope_and_byok memory. Every
-// mutating tool call pauses for explicit confirmation (ConfirmPanel) before
-// anything is submitted — Iris never submits invisibly from a chat reply.
+// Iris — Template Studio's chat assistant (2026-08-04, real build; UI
+// redesigned 2026-08-06 to read as a clean Claude/ChatGPT-style chat surface
+// — no config forms in the chat). Locked scope: create/edit/list templates,
+// send TEST templates, discuss marketing strategy. Nothing else — see
+// project_iris_scope_and_byok memory. Every mutating tool call pauses for
+// explicit confirmation (ConfirmPanel) before anything is submitted — Iris
+// never submits invisibly from a chat reply.
 //
-// No WABA picker (2026-08-04) — a session no longer binds to one WABA
-// upfront. Iris is told the account's full WABA list in its system prompt
-// (backend) and resolves which one the operator means from conversation,
-// supplying wabaId on every tool call itself — see IrisConversationService.
+// No WABA picker, no credential form (2026-08-04 charter, enforced properly
+// 2026-08-06 — both had drifted into this page despite being named
+// human-only/Settings-only from the start). Iris is told the account's full
+// WABA list in its system prompt (backend) and resolves which one the
+// operator means from conversation, supplying wabaId on every tool call
+// itself — see IrisConversationService. If there are zero WABAs or no AI
+// credential, the backend's system prompt already tells the model to say so
+// plainly in conversation — this page only adds a deterministic (not
+// text-sniffed) inline nudge toward Settings, per the same two facts.
 interface WabaEntry { id: string; label: string | null }
 
 export default function TemplateIrisPage() {
@@ -29,182 +36,10 @@ export default function TemplateIrisPage() {
     queryFn: () => api.get('/waba').then((r) => r.data.data),
   })
 
-  if (credentialQuery.isLoading || wabasQuery.isLoading) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
-        <div className="space-y-2">
-          <div className="h-7 w-24 animate-pulse rounded-md bg-muted" />
-          <div className="h-4 w-80 animate-pulse rounded-md bg-muted" />
-        </div>
-        <div className="h-40 animate-pulse rounded-xl border bg-card" />
-      </div>
-    )
-  }
+  const needsSetup = !credentialQuery.isLoading && !wabasQuery.isLoading
+    && ((wabasQuery.data?.length ?? 0) === 0 || !credentialQuery.data?.configured)
 
-  const wabaCount = wabasQuery.data?.length ?? 0
-
-  return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">Iris</h1>
-        <p className="text-sm text-muted-foreground">
-          Create or edit templates, send a test message, or talk through marketing copy — Iris always shows you
-          the exact thing it's about to submit before anything goes out.
-        </p>
-        {wabaCount > 1 && (
-          <p className="text-xs text-muted-foreground">Iris will ask which WABA you mean before taking any action.</p>
-        )}
-        {credentialQuery.data?.configured && (
-          <ConnectedStrip provider={credentialQuery.data.provider} model={credentialQuery.data.model} />
-        )}
-      </div>
-
-      {wabaCount === 0 ? (
-        <NoWabaState />
-      ) : !credentialQuery.data?.configured ? (
-        <AiCredentialSetup />
-      ) : (
-        <IrisWorkspace />
-      )}
-    </div>
-  )
-}
-
-function NoWabaState() {
-  return (
-    <div className="rounded-xl border border-dashed bg-muted/30 p-5 text-center">
-      <p className="text-sm text-muted-foreground">
-        This account has no WABA connected yet — Iris needs one to create or send templates.
-      </p>
-      <Link
-        to="/wabas"
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-      >
-        Connect a WABA
-      </Link>
-    </div>
-  )
-}
-
-function ConnectedStrip({ provider, model }: { provider: string; model: string }) {
-  const queryClient = useQueryClient()
-  const [changing, setChanging] = useState(false)
-
-  if (changing) {
-    return (
-      <div className="space-y-2">
-        <AiCredentialSetup onSaved={() => setChanging(false)} />
-        <button
-          type="button"
-          onClick={() => setChanging(false)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <p className="pt-1 text-xs text-muted-foreground">
-      Using {provider} / {model}
-      {' · '}
-      <button
-        type="button"
-        onClick={() => {
-          queryClient.invalidateQueries({ queryKey: ['iris-credential-options'] })
-          setChanging(true)
-        }}
-        className="text-foreground hover:underline"
-      >
-        Change
-      </button>
-    </p>
-  )
-}
-
-function AiCredentialSetup({ onSaved }: { onSaved?: () => void }) {
-  const queryClient = useQueryClient()
-  const [provider, setProvider] = useState('')
-  const [model, setModel] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const optionsQuery = useQuery({
-    queryKey: ['iris-credential-options'],
-    queryFn: () => api.get('/templates/iris/credential/options').then((r) => r.data.data),
-  })
-  const providers: Record<string, string[]> = optionsQuery.data?.providers ?? {}
-
-  const mutation = useMutation({
-    mutationFn: () => api.put('/templates/iris/credential', { provider, model, apiKey }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['iris-credential'] })
-      onSaved?.()
-    },
-    onError: (err) => setError(extractErrorMessage(err)),
-  })
-
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Connect an AI provider</h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Bring your own API key. Only providers we've built and tested support for are selectable — never free text.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <select
-            value={provider}
-            onChange={(e) => { setProvider(e.target.value); setModel('') }}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
-          >
-            <option value="">Select a provider…</option>
-            {Object.keys(providers).map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          {provider && (
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
-            >
-              <option value="">Select a model…</option>
-              {(providers[provider] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          )}
-          {provider && (
-            <p className="text-xs text-muted-foreground">
-              Template content and marketing discussion will be sent to {provider}'s hosted endpoint under their own
-              terms — this is your key, not ours.
-            </p>
-          )}
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="API key"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
-          />
-        </div>
-        {error && (
-          <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={!provider || !model || !apiKey.trim() || mutation.isPending}
-          onClick={() => { setError(null); mutation.mutate() }}
-          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save
-        </button>
-      </div>
-    </div>
-  )
+  return <IrisWorkspace needsSetup={needsSetup} />
 }
 
 interface TurnResponse {
@@ -228,7 +63,7 @@ const SUGGESTIONS = [
 // Sidebar + chat together — lifted here (rather than inside the chat panel
 // alone) since "new chat" / "resume a past one" controls the same session
 // state the chat reads and writes.
-function IrisWorkspace() {
+function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
@@ -356,18 +191,34 @@ function IrisWorkspace() {
   const started = entries.length > 0
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
-      <SessionSidebar
-        sessions={sessionsQuery.data ?? []}
-        loading={sessionsQuery.isLoading}
-        activeId={sessionId}
-        onNewChat={startNewChat}
-        onSelect={resumeSession}
-      />
-      {/* Fixed-width preview pane (360px), no responsive breakpoint —
-          deliberate: this is a desktop-only internal operator tool, not a
-          public mobile surface (UX gate 2026-08-04 confirmed this reading). */}
-      <div className="grid gap-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
+    <div className="mx-auto max-w-6xl space-y-4 p-6">
+      {/* Minimal header — Claude/ChatGPT-style: wordmark + one always-visible
+          settings entry point, no description block, no config surfaced
+          here at all (2026-08-06 redesign). */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-foreground">Iris</h1>
+        <Link
+          to="/templates/settings"
+          aria-label="Iris settings"
+          title="AI provider & WABA settings"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Settings className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
+        <SessionSidebar
+          sessions={sessionsQuery.data ?? []}
+          loading={sessionsQuery.isLoading}
+          activeId={sessionId}
+          onNewChat={startNewChat}
+          onSelect={resumeSession}
+        />
+        {/* Fixed-width preview pane (360px), no responsive breakpoint —
+            deliberate: this is a desktop-only internal operator tool, not a
+            public mobile surface (UX gate 2026-08-04 confirmed this reading). */}
+        <div className="grid gap-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
       <div className="flex min-w-0 flex-col">
         {resuming && (
           <div className="flex flex-1 items-center justify-center">
@@ -390,7 +241,8 @@ function IrisWorkspace() {
                 before anything goes out.
               </p>
             </div>
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md space-y-2">
+              {needsSetup && <SetupBanner />}
               {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
               <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
                 <input
@@ -456,7 +308,8 @@ function IrisWorkspace() {
         ) : null}
 
         {!resuming && started && (
-          <div className="border-t p-3">
+          <div className="space-y-2 border-t p-3">
+            {needsSetup && <SetupBanner />}
             {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
             <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
               <input
@@ -492,7 +345,26 @@ function IrisWorkspace() {
           cancelling={cancelAction.isPending}
         />
       )}
+        </div>
       </div>
+    </div>
+  )
+}
+
+// Deterministic (client-side known facts — zero WABAs or no AI credential
+// configured), never text-sniffed from Iris's own reply. No shadow: inline,
+// not a separate surface, same rule as ErrorBanner.
+function SetupBanner() {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <span>No WABA or AI provider connected yet — Iris can chat, but can't create or send templates until then.</span>
+      <Link
+        to="/templates/settings"
+        className="flex shrink-0 items-center gap-1 font-medium text-foreground hover:underline"
+      >
+        <Settings className="h-3 w-3" />
+        Settings
+      </Link>
     </div>
   )
 }

@@ -46,6 +46,7 @@ public class AgentService {
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final WebhookRawRepository webhookRawRepository;
+    private final MetaMirrorReconciler metaMirrorReconciler;
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -378,55 +379,8 @@ public class AgentService {
     /** Reads from our local mirror, not a live Meta proxy — same convention as getFaqs(). */
     public List<AgentSkill> getSkills(Long agentId) {
         Agent agent = getAgent(agentId);
-        ensureSkillsBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
+        metaMirrorReconciler.ensureSkillsBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
         return agentSkillRepository.findAllByAgentId(agentId);
-    }
-
-    /**
-     * TASK-054: an agent discovered via reconciliation (found already live on
-     * Meta, not built through our own wizard) may have real skills configured
-     * directly on Meta that we've never recorded locally — our Skills feature
-     * only reads from this local mirror, never live from Meta. Confirmed live
-     * 2026-07-29: an "Imported agent" had zero local agent_skill rows but a
-     * real, content-bearing skill live on Meta.
-     *
-     * Best-effort, reactive (only fires when this agent's skills are actually
-     * read — the aggregate Skills page, TASK-053, stays batched-only per its
-     * own EM gate and does NOT trigger this in a per-agent loop): no-op if
-     * local rows already exist; on empty, fetch once from Meta and mirror
-     * into agent_skill. Same try/catch/log.warn "don't fail the primary read"
-     * pattern already used in WabaAgentReconciliationService — never throws.
-     */
-    private void ensureSkillsBackfilled(Agent agent, Long accountId) {
-        if (!agentSkillRepository.findAllByAgentId(agent.getId()).isEmpty()) return;
-        if (agent.getPhoneNumberId() == null) return;
-
-        try {
-            String path = MetaApiClient.scopedPath(
-                    String.format("/%s/agent_config/skills", agent.getPhoneNumberId()), agent.getMetaAgentId());
-            List<?> remoteSkills = metaApiClient.get(path, List.class);
-            if (remoteSkills == null) return;
-
-            for (Object item : remoteSkills) {
-                if (!(item instanceof Map<?, ?> skill)) continue;
-                Object id = skill.get("id");
-                Object title = skill.get("title");
-                Object description = skill.get("description");
-                Object body = skill.get("skill"); // Meta's field name is "skill", not "body"
-                if (title == null || body == null) continue;
-
-                agentSkillRepository.save(AgentSkill.builder()
-                        .accountId(accountId)
-                        .agentId(agent.getId())
-                        .metaSkillId(id != null ? id.toString() : null)
-                        .title(title.toString())
-                        .description(description != null ? description.toString() : "")
-                        .body(body.toString())
-                        .build());
-            }
-        } catch (Exception e) {
-            log.warn("Skill backfill failed: agentId={} error={}", agent.getId(), e.getMessage());
-        }
     }
 
     public AgentSkill getSkill(Long agentId, Long skillId) {
@@ -468,132 +422,9 @@ public class AgentService {
 
     public List<AgentFaq> getFaqs(Long agentId) {
         Agent agent = getAgent(agentId);
-        ensureFaqsBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
-        reconcileFaqs(agent);
+        metaMirrorReconciler.ensureFaqsBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
+        metaMirrorReconciler.reconcileFaqs(agent);
         return agentFaqRepository.findAllByAgentId(agentId);
-    }
-
-    /**
-     * Same gap as TASK-054's ensureSkillsBackfilled, just never closed for FAQs:
-     * an agent discovered via reconciliation (imported, not built through our
-     * wizard) can have real FAQs live on Meta with zero local agent_faq rows.
-     * reconcileFaqs() alone can never fix this — it only flips meta_synced on
-     * rows that already exist locally, it has no path to create a row from
-     * nothing. Confirmed live 2026-08-02: 5 imported agents on Karix Demo WABA
-     * had 10/3/6/4/0 real FAQs on Meta and 0 local rows each.
-     *
-     * No-op if local rows already exist (never overwrites a real edit in
-     * progress) or the agent has no phoneNumberId yet (draft, nothing to
-     * fetch). Same try/catch/log.warn "never fail the primary read" pattern
-     * as ensureSkillsBackfilled — best-effort, reactive, single-agent-read
-     * only.
-     */
-    private void ensureFaqsBackfilled(Agent agent, Long accountId) {
-        if (!agentFaqRepository.findAllByAgentId(agent.getId()).isEmpty()) return;
-        if (agent.getPhoneNumberId() == null) return;
-
-        try {
-            String path = String.format("/%s/agent_config/faq", agent.getPhoneNumberId());
-            List<?> remoteFaqs = metaApiClient.get(path, List.class);
-            if (remoteFaqs == null) return;
-
-            for (Object item : remoteFaqs) {
-                if (!(item instanceof Map<?, ?> faq)) continue;
-                Object id = faq.get("id");
-                Object question = faq.get("question");
-                Object answer = faq.get("answer");
-                if (question == null || answer == null) continue;
-
-                agentFaqRepository.save(AgentFaq.builder()
-                        .accountId(accountId)
-                        .agentId(agent.getId())
-                        .metaFaqId(id != null ? id.toString() : null)
-                        .question(question.toString())
-                        .answer(answer.toString())
-                        .build());
-            }
-        } catch (Exception e) {
-            log.warn("FAQ backfill failed: agentId={} error={}", agent.getId(), e.getMessage());
-        }
-    }
-
-    /**
-     * TASK-059 (P0): before this, a failed Meta sync in addFaq/updateFaq only
-     * logged a WARN — nothing ever confirmed whether our DB and Meta's actual
-     * FAQ list still agreed, so a silent sync failure could sit undetected
-     * indefinitely (an operator would only find out when the bot answered
-     * wrong on WhatsApp). Reactive, fires on the single-agent read (never
-     * from an aggregate multi-agent listing, same rule as Skills'
-     * ensureSkillsBackfilled) — never throws, best-effort.
-     *
-     * EL REJECTed the first version of this method twice over on review, not
-     * live testing — both real, caught cold before any restart:
-     *
-     * 1. It called Meta on EVERY read, reintroducing exactly the
-     *    "always live, never cached" anti-pattern this project has been
-     *    actively moving away from (getFaqs's own doc comment says "not a
-     *    live Meta proxy" for a reason). Fixed with a TTL gate
-     *    (`Agent.faqReconciledAt`) — only spends a Meta call if this agent's
-     *    FAQs haven't been reconciled in the last {@value #META_RECONCILE_TTL_MINUTES}
-     *    minutes.
-     * 2. A draft agent's FAQs are created with `metaSyncAttempted=false`
-     *    (nothing to push yet — sync happens at bind time) and a random
-     *    locally-generated `metaFaqId`. Comparing those against Meta's real
-     *    FAQ list would have falsely flagged them "Not synced" — they were
-     *    never supposed to be there yet, that's not the same as broken.
-     *    Fixed by skipping any row where `metaSyncAttempted` is false; only
-     *    rows where a real Meta call was genuinely attempted (success or
-     *    failure) are ever compared or flagged.
-     *
-     * Pulls Meta's live FAQ list once, marks any attempted-but-not-found row
-     * as metaSynced=false (covers both "the push silently failed" and
-     * "someone deleted/changed it on Meta directly, outside this app"), and
-     * marks any row that IS present back to true — so a transient failure
-     * that later self-heals doesn't stay flagged forever.
-     */
-    private void reconcileFaqs(Agent agent) {
-        if (agent.getPhoneNumberId() == null) return;
-
-        LocalDateTime lastReconciled = agent.getFaqReconciledAt();
-        if (lastReconciled != null && lastReconciled.isAfter(LocalDateTime.now().minusMinutes(META_RECONCILE_TTL_MINUTES))) {
-            return;
-        }
-
-        List<AgentFaq> localFaqs = agentFaqRepository.findAllByAgentId(agent.getId());
-        List<AgentFaq> attemptedFaqs = localFaqs.stream().filter(AgentFaq::isMetaSyncAttempted).toList();
-
-        try {
-            if (!attemptedFaqs.isEmpty()) {
-                // No scopedPath/agent_id here — addFaq/deleteFaq's Meta calls
-                // for this same resource never scope by agent_id either (only
-                // updateFaq does, a pre-existing inconsistency, not something
-                // to imitate for a new call). Confirmed live: adding
-                // ?agent_id= to this GET caused a real Meta 500 on every call.
-                String path = String.format("/%s/agent_config/faq", agent.getPhoneNumberId());
-                List<?> remoteFaqs = metaApiClient.get(path, List.class);
-
-                var remoteIds = new java.util.HashSet<String>();
-                if (remoteFaqs != null) {
-                    for (Object item : remoteFaqs) {
-                        if (item instanceof Map<?, ?> faq && faq.get("id") != null) {
-                            remoteIds.add(String.valueOf(faq.get("id")));
-                        }
-                    }
-                }
-
-                for (AgentFaq local : attemptedFaqs) {
-                    boolean present = local.getMetaFaqId() != null && remoteIds.contains(local.getMetaFaqId());
-                    if (local.isMetaSynced() != present) {
-                        local.setMetaSynced(present);
-                        agentFaqRepository.save(local);
-                    }
-                }
-            }
-            agent.setFaqReconciledAt(LocalDateTime.now());
-            agentRepository.save(agent);
-        } catch (Exception e) {
-            log.warn("FAQ reconciliation failed for agentId={} — leaving existing meta_synced flags as-is: {}", agent.getId(), e.getMessage());
-        }
     }
 
     public AgentFaq getFaq(Long agentId, Long faqId) {
@@ -778,114 +609,15 @@ public class AgentService {
     /** Meta's files API has no update verb — list/single read only, no PUT. */
     public List<AgentFile> getFiles(Long agentId) {
         Agent agent = getAgent(agentId);
-        ensureFilesBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
-        reconcileFiles(agent);
+        metaMirrorReconciler.ensureFilesBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
+        metaMirrorReconciler.reconcileFiles(agent);
         return agentFileRepository.findAllByAgentId(agentId);
-    }
-
-    /**
-     * Same gap as ensureSkillsBackfilled/ensureFaqsBackfilled, closed here too:
-     * reconcileFiles() below only flips meta_synced on rows that already exist
-     * locally — it has no path to create a row for an imported agent with real
-     * files on Meta and zero local rows. Meta's file list only returns `id`
-     * and `file_name` (confirmed in docs/meta-api/files.md) — no mime type or
-     * size — so those two NOT NULL columns get an honest placeholder
-     * (inferred from the filename extension, "application/octet-stream" if
-     * unrecognized; size 0, genuinely unknown) rather than fabricating a value
-     * Meta never reported.
-     */
-    private void ensureFilesBackfilled(Agent agent, Long accountId) {
-        if (!agentFileRepository.findAllByAgentId(agent.getId()).isEmpty()) return;
-        if (agent.getPhoneNumberId() == null) return;
-
-        try {
-            String path = String.format("/%s/agent_config/files", agent.getPhoneNumberId());
-            List<?> remoteFiles = metaApiClient.get(path, List.class);
-            if (remoteFiles == null) return;
-
-            for (Object item : remoteFiles) {
-                if (!(item instanceof Map<?, ?> file)) continue;
-                Object id = file.get("id");
-                Object fileName = file.get("file_name");
-                if (fileName == null) continue;
-
-                agentFileRepository.save(AgentFile.builder()
-                        .accountId(accountId)
-                        .agentId(agent.getId())
-                        .metaFileId(id != null ? id.toString() : null)
-                        .filename(fileName.toString())
-                        .mimeType(guessMimeTypeFromFilename(fileName.toString()))
-                        .sizeBytes(0L)
-                        .build());
-            }
-        } catch (Exception e) {
-            log.warn("File backfill failed: agentId={} error={}", agent.getId(), e.getMessage());
-        }
-    }
-
-    private static String guessMimeTypeFromFilename(String filename) {
-        String lower = filename.toLowerCase();
-        if (lower.endsWith(".pdf")) return "application/pdf";
-        if (lower.endsWith(".doc")) return "application/msword";
-        if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".csv")) return "text/csv";
-        if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        return "application/octet-stream";
     }
 
     public AgentFile getFile(Long agentId, Long fileId) {
         getAgent(agentId);
         return agentFileRepository.findByIdAndAgentId(fileId, agentId)
                 .orElseThrow(() -> new NotFoundException("File not found"));
-    }
-
-    /**
-     * TASK-062: second item of the TASK-061 Meta-sync backlog. Same shape as
-     * reconcileFaqs (TASK-059) — reactive (single-agent read only), TTL-gated
-     * (Agent.fileReconciledAt, 10 min) so it doesn't call Meta on every read,
-     * best-effort (never throws). Simpler than FAQ's version: addFile
-     * already throws hard on a failed Meta upload, so there's no
-     * "local-only, never attempted" row state to filter out here — every
-     * local row implies its Meta create call already succeeded. The only
-     * drift this can find is content changed/deleted directly on Meta,
-     * outside this app.
-     */
-    private void reconcileFiles(Agent agent) {
-        if (agent.getPhoneNumberId() == null) return;
-
-        LocalDateTime lastReconciled = agent.getFileReconciledAt();
-        if (lastReconciled != null && lastReconciled.isAfter(LocalDateTime.now().minusMinutes(META_RECONCILE_TTL_MINUTES))) {
-            return;
-        }
-
-        List<AgentFile> localFiles = agentFileRepository.findAllByAgentId(agent.getId());
-        try {
-            if (!localFiles.isEmpty()) {
-                String path = String.format("/%s/agent_config/files", agent.getPhoneNumberId());
-                List<?> remoteFiles = metaApiClient.get(path, List.class);
-                var remoteIds = new java.util.HashSet<String>();
-                if (remoteFiles != null) {
-                    for (Object item : remoteFiles) {
-                        if (item instanceof Map<?, ?> f && f.get("id") != null) {
-                            remoteIds.add(String.valueOf(f.get("id")));
-                        }
-                    }
-                }
-                for (AgentFile local : localFiles) {
-                    boolean present = local.getMetaFileId() != null && remoteIds.contains(local.getMetaFileId());
-                    if (local.isMetaSynced() != present) {
-                        local.setMetaSynced(present);
-                        agentFileRepository.save(local);
-                    }
-                }
-            }
-            agent.setFileReconciledAt(LocalDateTime.now());
-            agentRepository.save(agent);
-        } catch (Exception e) {
-            log.warn("File reconciliation failed for agentId={} — leaving existing meta_synced flags as-is: {}", agent.getId(), e.getMessage());
-        }
     }
 
     // --- Website Crawling & Ingestion Guardrails ---
@@ -939,48 +671,9 @@ public class AgentService {
 
     public List<AgentWebsite> getWebsites(Long agentId) {
         Agent agent = getAgent(agentId);
-        ensureWebsitesBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
-        reconcileWebsites(agent);
+        metaMirrorReconciler.ensureWebsitesBackfilled(agent, SecurityContextHelper.getRequiredAccountId());
+        metaMirrorReconciler.reconcileWebsites(agent);
         return agentWebsiteRepository.findAllByAgentId(agentId);
-    }
-
-    /**
-     * Same gap as ensureFilesBackfilled, closed here too — reconcileWebsites()
-     * below only flips meta_synced on rows that already exist locally. Meta's
-     * website response includes url/crawl_status/pages_crawled directly
-     * (docs/meta-api/websites.md), so unlike Files this is a full-fidelity
-     * backfill, no placeholder fields needed.
-     */
-    private void ensureWebsitesBackfilled(Agent agent, Long accountId) {
-        if (!agentWebsiteRepository.findAllByAgentId(agent.getId()).isEmpty()) return;
-        if (agent.getPhoneNumberId() == null) return;
-
-        try {
-            String path = String.format("/%s/agent_config/websites", agent.getPhoneNumberId());
-            List<?> remoteWebsites = metaApiClient.get(path, List.class);
-            if (remoteWebsites == null) return;
-
-            for (Object item : remoteWebsites) {
-                if (!(item instanceof Map<?, ?> site)) continue;
-                Object id = site.get("id");
-                Object url = site.get("url");
-                if (url == null) continue;
-
-                Object crawlStatus = site.get("crawl_status");
-                Object pagesCrawled = site.get("pages_crawled");
-
-                agentWebsiteRepository.save(AgentWebsite.builder()
-                        .accountId(accountId)
-                        .agentId(agent.getId())
-                        .metaWebsiteId(id != null ? id.toString() : null)
-                        .url(url.toString())
-                        .crawlStatus(crawlStatus != null ? crawlStatus.toString() : null)
-                        .pagesCrawled(pagesCrawled instanceof Number n ? n.intValue() : null)
-                        .build());
-            }
-        } catch (Exception e) {
-            log.warn("Website backfill failed: agentId={} error={}", agent.getId(), e.getMessage());
-        }
     }
 
     /**
@@ -990,20 +683,14 @@ public class AgentService {
      * instead of the getSkills()/getFaqs()/etc. public methods (which require
      * SecurityContextHelper.getRequiredAccountId() through getAgent()'s access
      * check — never call that from an async/scheduled thread, no context to
-     * read). Each of the 4 calls is already independently try/catch/log.warn
-     * safe, so one domain failing never blocks the other 3 for this agent.
-     * Status (active/paused vs Meta) is intentionally NOT bundled here — it
-     * runs on its own, shorter-cadence tier since it drives the Dashboard's
-     * "needs attention" view and doesn't need the heavier per-domain calls.
+     * read). Delegates to MetaMirrorReconciler, which owns all backfill/
+     * reconcile logic (roadmap item 44 extraction). Status (active/paused vs
+     * Meta) is intentionally NOT bundled here — it runs on its own,
+     * shorter-cadence tier since it drives the Dashboard's "needs attention"
+     * view and doesn't need the heavier per-domain calls.
      */
     public void syncAgentDetails(Agent agent, Long accountId) {
-        ensureSkillsBackfilled(agent, accountId);
-        ensureFaqsBackfilled(agent, accountId);
-        reconcileFaqs(agent);
-        ensureFilesBackfilled(agent, accountId);
-        reconcileFiles(agent);
-        ensureWebsitesBackfilled(agent, accountId);
-        reconcileWebsites(agent);
+        metaMirrorReconciler.syncAgentDetails(agent, accountId);
     }
 
     /**
@@ -1059,43 +746,6 @@ public class AgentService {
         getAgent(agentId);
         return agentWebsiteRepository.findByIdAndAgentId(websiteId, agentId)
                 .orElseThrow(() -> new NotFoundException("Website not found"));
-    }
-
-    /** TASK-062 — same shape as reconcileFiles/reconcileFaqs. See reconcileFiles's javadoc. */
-    private void reconcileWebsites(Agent agent) {
-        if (agent.getPhoneNumberId() == null) return;
-
-        LocalDateTime lastReconciled = agent.getWebsiteReconciledAt();
-        if (lastReconciled != null && lastReconciled.isAfter(LocalDateTime.now().minusMinutes(META_RECONCILE_TTL_MINUTES))) {
-            return;
-        }
-
-        List<AgentWebsite> localWebsites = agentWebsiteRepository.findAllByAgentId(agent.getId());
-        try {
-            if (!localWebsites.isEmpty()) {
-                String path = String.format("/%s/agent_config/websites", agent.getPhoneNumberId());
-                List<?> remoteWebsites = metaApiClient.get(path, List.class);
-                var remoteIds = new java.util.HashSet<String>();
-                if (remoteWebsites != null) {
-                    for (Object item : remoteWebsites) {
-                        if (item instanceof Map<?, ?> w && w.get("id") != null) {
-                            remoteIds.add(String.valueOf(w.get("id")));
-                        }
-                    }
-                }
-                for (AgentWebsite local : localWebsites) {
-                    boolean present = local.getMetaWebsiteId() != null && remoteIds.contains(local.getMetaWebsiteId());
-                    if (local.isMetaSynced() != present) {
-                        local.setMetaSynced(present);
-                        agentWebsiteRepository.save(local);
-                    }
-                }
-            }
-            agent.setWebsiteReconciledAt(LocalDateTime.now());
-            agentRepository.save(agent);
-        } catch (Exception e) {
-            log.warn("Website reconciliation failed for agentId={} — leaving existing meta_synced flags as-is: {}", agent.getId(), e.getMessage());
-        }
     }
 
     /**

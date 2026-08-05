@@ -311,7 +311,7 @@ export interface ProfileEditorProps {
 export function ProfileEditor({ form, formError, saving, isEditing, onChange, onSave, onCancel }: ProfileEditorProps) {
   const inputCls =
     'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
-    'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition'
 
   return (
     <div className="border-t bg-muted/20 px-4 py-4 space-y-3">

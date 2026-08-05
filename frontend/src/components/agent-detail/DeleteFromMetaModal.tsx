@@ -77,7 +77,7 @@ export default function DeleteFromMetaModal({
         placeholder={phoneNumberId}
         autoFocus
         className="mt-4 w-full rounded-xl border bg-background px-3 py-2.5 text-sm
-          focus:outline-none focus:ring-2 focus:ring-destructive/40 focus:border-destructive transition"
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:border-destructive transition"
       />
 
       <div className="mt-4 flex gap-3">

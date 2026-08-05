@@ -105,7 +105,7 @@ export default function WabasPage() {
               onChange={(e) => { setSearch(e.target.value); setPage(0) }}
               placeholder="Search WABAs by ID or name…"
               className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-3 text-sm
-                placeholder:text-muted-foreground transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
             />
           </div>
 
@@ -201,7 +201,7 @@ function WabaRow({ waba, onOpen }: { waba: WabaEntry; onOpen: () => void }) {
 
   return (
     <tr
-      className="hover:bg-muted/20 transition-colors cursor-pointer focus-visible:bg-muted/20"
+      className="hover:bg-muted/20 transition-colors cursor-pointer focus-visible:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       onClick={onOpen}
       role="button"
       tabIndex={0}
@@ -331,9 +331,9 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
                   className={cn(
                     'w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground',
                     'placeholder:text-muted-foreground',
-                    'focus:outline-none focus:ring-2 focus:ring-brand-pink/40 focus:border-brand-pink',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary',
                     'transition-colors',
-                    validateError && 'border-destructive focus:ring-destructive/40',
+                    validateError && 'border-destructive focus-visible:ring-destructive focus-visible:ring-offset-2',
                   )}
                 />
                 <p className="text-xs text-muted-foreground">

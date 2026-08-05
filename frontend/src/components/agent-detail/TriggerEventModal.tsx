@@ -93,7 +93,7 @@ export default function TriggerEventModal({
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
             >
               <option value="payment_received">Payment received</option>
               <option value="order_shipped">Order shipped</option>
@@ -109,8 +109,8 @@ export default function TriggerEventModal({
               onChange={(e) => setTo(e.target.value)}
               placeholder="+15551234567"
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
             />
           </div>
 
@@ -122,8 +122,8 @@ export default function TriggerEventModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Customer's payment of ₹499 was received"
               className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
             />
           </div>
         </div>

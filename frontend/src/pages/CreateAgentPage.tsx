@@ -302,7 +302,7 @@ function StepIdentity({
           onChange={(e) => set('businessDescription', e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, desc: true }))}
           placeholder="e.g. We're a bakery in Pune selling custom cakes and weekly bread subscriptions."
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
         />
         <div className="flex items-start justify-between">
           <p className="text-xs text-destructive">{descError}</p>
@@ -487,7 +487,7 @@ function StepPersonality({
           value={state.behaviorRules}
           onChange={(e) => set('behaviorRules', e.target.value)}
           placeholder={'Never promise refunds — collect the order number instead.\nAlways greet the customer by name if known.'}
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
         />
       </div>
 
@@ -616,14 +616,14 @@ function StepKnowledge({
           maxLength={512}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Question — e.g. Do you deliver on Sundays?"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
         />
         <textarea
           rows={2}
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Answer"
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+          className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
         />
         <button
           type="button"
@@ -813,7 +813,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
-        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
       />
       <div className="flex items-start justify-between">
         <p className="text-xs text-destructive">{error}</p>

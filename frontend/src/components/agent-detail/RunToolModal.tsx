@@ -58,7 +58,7 @@ export default function RunToolModal({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="w-full resize-y rounded-lg border bg-background px-3 py-2 text-xs font-mono leading-relaxed
-              focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
           {parseError && <p className="text-xs text-destructive">{parseError}</p>}
         </div>

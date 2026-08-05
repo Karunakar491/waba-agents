@@ -183,8 +183,8 @@ const Field = ({ label, error, id, ...props }: FieldProps) => {
         aria-invalid={!!error}
         className={`w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none transition-colors
           placeholder:text-muted-foreground
-          focus:border-primary focus:ring-2 focus:ring-primary/20
-          ${error ? 'border-destructive focus:border-destructive focus:ring-destructive/20' : 'border-input'}`}
+          focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
+          ${error ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive focus-visible:ring-offset-2' : 'border-input'}`}
         {...props}
       />
       {error && <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p>}

@@ -252,7 +252,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
                   placeholder="Ask Iris to create a template…"
-                  className="flex-1 bg-transparent py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+                  className="flex-1 bg-transparent py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
                 />
                 <button
                   type="button"
@@ -315,7 +315,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
                 onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
                 disabled={!!pending}
                 placeholder={pending ? 'Confirm or cancel the pending action →' : 'Reply to Iris…'}
-                className="flex-1 bg-transparent py-2 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+                className="flex-1 bg-transparent py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-50"
               />
               <button
                 type="button"

@@ -584,8 +584,8 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Question"
                 className="w-full rounded-lg border bg-background px-3 py-2 text-sm
-                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                  focus:ring-primary/50 focus:border-primary transition"
+                  placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               />
               <textarea
                 rows={3}
@@ -593,8 +593,8 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
                 onChange={(e) => setAnswer(e.target.value)}
                 placeholder="Answer"
                 className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm
-                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                  focus:ring-primary/50 focus:border-primary transition"
+                  placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               />
               <div className="flex items-center gap-2">
                 <button
@@ -739,8 +739,8 @@ function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: b
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com"
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
-                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                  focus:ring-primary/50 focus:border-primary transition"
+                  placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               />
               <button
                 onClick={() => { setAddError(null); addMutation.mutate({ url: url.trim() }) }}
@@ -1047,7 +1047,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
 
   const inputCls =
     'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
-    'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition'
 
   return (
     <Modal
@@ -1242,7 +1242,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
 
   const inputCls =
     'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
-    'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition'
 
   return (
     <Modal
@@ -1781,8 +1781,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               id="s-displayName"
               type="text"
               className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               {...register('displayName')}
             />
             {errors.displayName && (
@@ -1799,8 +1799,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               id="s-systemPrompt"
               rows={6}
               className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               {...register('systemPrompt')}
             />
             <div className="flex items-start justify-between">
@@ -1821,7 +1821,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
             <select
               id="s-tone"
               className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               value={toneValue}
               onChange={(e) => setValue('tone', e.target.value, { shouldDirty: true })}
             >
@@ -1844,8 +1844,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               type="text"
               placeholder="e.g. English"
               className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               {...register('language')}
             />
           </div>
@@ -1860,8 +1860,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               id="s-behaviorRules"
               rows={4}
               className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                focus:ring-primary/50 focus:border-primary transition"
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
               {...register('behaviorRules')}
             />
           </div>
@@ -1907,8 +1907,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
                   rows={2}
                   placeholder="A team member will join the conversation shortly."
                   className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm
-                    placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                    focus:ring-primary/50 focus:border-primary transition"
+                    placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                    focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
                   {...register('handoffMessage')}
                 />
                 {errors.handoffMessage && (
@@ -2069,7 +2069,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               placeholder={agent.displayName}
               autoFocus
               className="mt-4 w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                focus:outline-none focus:ring-2 focus:ring-destructive/40 focus:border-destructive transition"
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:border-destructive transition"
             />
 
             <div className="mt-4 flex gap-3">
@@ -2260,8 +2260,8 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
             onChange={(e) => setNewNumber(e.target.value)}
             placeholder="+15551234567 (E.164 format)"
             className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
-              placeholder:text-muted-foreground focus:outline-none focus:ring-2
-              focus:ring-primary/50 focus:border-primary transition"
+              placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+              focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
           <button
             type="button"
@@ -2404,8 +2404,8 @@ function TestDrawer({
                 placeholder="Type a message…"
                 disabled={testLoading}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm
-                  placeholder:text-muted-foreground focus:outline-none focus:ring-2
-                  focus:ring-primary/50 focus:border-primary transition
+                  placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition
                   disabled:opacity-60"
               />
               <button

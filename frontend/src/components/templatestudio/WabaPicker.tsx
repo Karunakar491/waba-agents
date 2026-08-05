@@ -11,7 +11,7 @@ export default function WabaPicker({ wabas, selectedWabaId, onChange }: {
       <select
         value={selectedWabaId}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
       >
         <option value="">Select a WABA…</option>
         {wabas.map((w) => (

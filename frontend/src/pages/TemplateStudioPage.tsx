@@ -245,7 +245,7 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(0) }}
               disabled={!configured}
-              className="rounded-lg border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              className="rounded-lg border bg-background px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
             >
               <option value="">All statuses</option>
               <option value="APPROVED">Approved</option>
@@ -642,7 +642,7 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
             placeholder="order_shipped"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
         </div>
         <div>
@@ -651,7 +651,7 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
             type="text"
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
         </div>
       </div>
@@ -660,7 +660,7 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
         >
           <option value="UTILITY">Utility</option>
           <option value="MARKETING">Marketing</option>
@@ -687,7 +687,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
       <select
         value={headerFormat}
         onChange={(e) => { setHeaderFormat(e.target.value as HeaderFormat); setMediaError(null) }}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         <option value="NONE">None</option>
         <option value="TEXT">Text</option>
@@ -701,7 +701,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
           value={headerText}
           onChange={(e) => setHeaderText(e.target.value)}
           placeholder="Header text"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         />
       )}
       {(headerFormat === 'IMAGE' || headerFormat === 'VIDEO' || headerFormat === 'DOCUMENT') && (
@@ -741,7 +741,7 @@ function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
         value={bodyText}
         onChange={(e) => setBodyText(e.target.value)}
         placeholder="Hi {{1}}, your order has shipped."
-        className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+        className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
       />
       {extractVariables(bodyText).map((v) => (
         <div key={v} className="mt-2 flex items-center gap-2">
@@ -751,7 +751,7 @@ function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
             value={bodyExamples[v] || ''}
             onChange={(e) => setBodyExamples((prev) => ({ ...prev, [v]: e.target.value }))}
             placeholder="Example value"
-            className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           />
         </div>
       ))}
@@ -768,7 +768,7 @@ function FooterEditor({ footerText, setFooterText }: { footerText: string; setFo
         value={footerText}
         onChange={(e) => setFooterText(e.target.value)}
         placeholder="Footer text"
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       />
     </div>
   )

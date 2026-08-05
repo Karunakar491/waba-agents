@@ -24,7 +24,7 @@ export function PersonaFilters({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search by description..."
           className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm
-            focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
         />
       </div>
       <label htmlFor="persona-status-filter" className="sr-only">Filter by status</label>
@@ -33,7 +33,7 @@ export function PersonaFilters({
         value={statusFilter}
         onChange={(e) => onStatusFilterChange(e.target.value as StatusFilter)}
         className="rounded-lg border bg-background px-3 py-2 text-sm
-          focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
       >
         <option value="ALL">All statuses</option>
         <option value="DRAFT">Draft</option>

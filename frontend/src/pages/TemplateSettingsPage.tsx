@@ -147,7 +147,7 @@ function AiCredentialForm({ onDone, onCancel }: { onDone: () => void; onCancel: 
       <select
         value={provider}
         onChange={(e) => { setProvider(e.target.value); setModel('') }}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         <option value="">Select a provider…</option>
         {Object.keys(providers).map((p) => <option key={p} value={p}>{p}</option>)}
@@ -156,7 +156,7 @@ function AiCredentialForm({ onDone, onCancel }: { onDone: () => void; onCancel: 
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           <option value="">Select a model…</option>
           {(providers[provider] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
@@ -167,7 +167,7 @@ function AiCredentialForm({ onDone, onCancel }: { onDone: () => void; onCancel: 
         value={apiKey}
         onChange={(e) => setApiKey(e.target.value)}
         placeholder="API key"
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       />
       {error && <ErrorBanner error={error} />}
       <div className="flex gap-2">
@@ -405,7 +405,7 @@ function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone
         <select
           value={phoneNumberId}
           onChange={(e) => setPhoneNumberId(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           <option value="">Select a phone number…</option>
           {unmappedQuery.data?.map((id) => <option key={id} value={id}>{id}</option>)}
@@ -439,7 +439,7 @@ function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone
         <select
           value={esmeCredentialId}
           onChange={(e) => setEsmeCredentialId(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           <option value="">Select an esme_addr…</option>
           {esmeOptionsQuery.data?.map((o) => (
@@ -453,21 +453,21 @@ function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Label (Karix internal username)"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           />
           <input
             type="text"
             value={esmeAddr}
             onChange={(e) => setEsmeAddr(e.target.value)}
             placeholder="esme_addr"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           />
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="api_key"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           />
         </div>
       )}

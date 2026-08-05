@@ -164,7 +164,7 @@ export default function AppShell() {
           {iconOnly && (
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-lg opacity-0 -translate-x-1 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:translate-x-0 z-50"
+              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-card px-2.5 py-1.5 text-xs font-medium text-foreground shadow-surface-lifted opacity-0 -translate-x-1 transition-all duration-150 ease-out group-hover:opacity-100 group-hover:translate-x-0 z-50"
             >
               Switch feature
             </span>

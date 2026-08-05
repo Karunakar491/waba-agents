@@ -119,7 +119,7 @@ export default function BusinessProfileTab({ phoneNumberId }: { phoneNumberId: s
 
   if (!phoneNumberId) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
+      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
         <FileText className="h-10 w-10 text-muted-foreground mb-3" />
         <p className="font-semibold text-foreground">No phone number connected</p>
         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
@@ -208,7 +208,7 @@ function DraftsCard({
   saving, deploying, onNewDraft, onEditDraft, onDeleteDraft, onDeployDraft, onFormChange, onSave, onCancel,
 }: DraftsCardProps) {
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <div className="rounded-xl border bg-card shadow-surface-resting">
       <div className="flex items-center justify-between px-4 py-3.5 border-b">
         <span className="text-sm font-semibold text-foreground">Drafts</span>
         <button
@@ -365,7 +365,7 @@ export function ProfileEditor({ form, formError, saving, isEditing, onChange, on
 function HistoryCard({ history }: { history: BusinessProfileResponse[] }) {
   if (history.length === 0) return null
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <div className="rounded-xl border bg-card shadow-surface-resting">
       <div className="px-4 py-3.5 border-b">
         <span className="text-sm font-semibold text-foreground">History</span>
       </div>

@@ -26,7 +26,7 @@ export default function StatusIndicator({
         className={cn(
           'h-2 w-2 shrink-0 rounded-full',
           tone === 'positive' && 'bg-brand-green',
-          tone === 'warning' && 'bg-yellow-500',
+          tone === 'warning' && 'bg-warning',
           tone === 'negative' && 'bg-destructive',
           tone === 'neutral' && 'bg-muted-foreground/40',
           pulse && 'animate-pulse',

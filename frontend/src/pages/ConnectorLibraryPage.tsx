@@ -65,7 +65,7 @@ export default function ConnectorLibraryPage() {
             />
           </div>
 
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden overflow-x-auto">
+          <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
             <ConnectorsTable isLoading={isLoading} rows={filteredRows} />
           </div>
         </>

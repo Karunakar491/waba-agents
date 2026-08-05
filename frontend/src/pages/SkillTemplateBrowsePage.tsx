@@ -97,8 +97,8 @@ export default function SkillTemplateBrowsePage() {
           {filtered.map((template) => (
             <div
               key={template.id}
-              className="flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all
-                hover:shadow-md hover:border-primary/30"
+              className="flex flex-col rounded-xl border bg-card p-4 shadow-surface-resting transition-all
+                hover:shadow-surface-lifted hover:border-primary/30"
             >
               <p className="text-sm font-semibold text-foreground">{template.title}</p>
               <p className="mt-1.5 flex-1 text-sm text-muted-foreground line-clamp-3">{template.description}</p>

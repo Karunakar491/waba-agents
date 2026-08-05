@@ -158,7 +158,7 @@ export default function SkillLibraryPage() {
                 </p>
               </div>
 
-              <div className="rounded-xl border bg-card shadow-sm overflow-hidden overflow-x-auto">
+              <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
                 <SkillsTable
                   isLoading={isLoading}
                   totalCount={skills.length}

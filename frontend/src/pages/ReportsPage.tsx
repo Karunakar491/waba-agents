@@ -76,11 +76,11 @@ function ConversationsReport() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
           <p className="text-sm text-muted-foreground">Total conversations</p>
           <p className="mt-1 text-3xl font-bold text-foreground">{data?.totalConversations ?? 0}</p>
         </div>
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
           <p className="text-sm text-muted-foreground">Success rate</p>
           <p className="mt-1 text-3xl font-bold text-brand-green">
             {data ? Math.round(data.successRate * 100) : 0}%
@@ -90,7 +90,7 @@ function ConversationsReport() {
       </div>
 
       {data && Object.keys(data.byChannel).length > 0 && (
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
           <p className="text-sm font-semibold text-foreground mb-3">By channel</p>
           <ul className="space-y-2">
             {Object.entries(data.byChannel).map(([channel, count]) => (
@@ -229,7 +229,7 @@ function EvalRollup() {
             </div>
           </div>
 
-          <div className="rounded-xl border bg-card shadow-sm">
+          <div className="rounded-xl border bg-card shadow-surface-resting">
             <ul className="divide-y">
               {sortedResults.map((r) => (
                 <li key={r.agentId} className="flex items-center justify-between gap-3 px-4 py-3">
@@ -292,7 +292,7 @@ function ApiCallsLog() {
 
   if (calls.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
+      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
         <Code2 className="h-10 w-10 text-muted-foreground mb-3" />
         <p className="font-semibold text-foreground">No API calls logged yet</p>
         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
@@ -303,7 +303,7 @@ function ApiCallsLog() {
   }
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <ul className="divide-y">
         {calls.map((call) => {
           const isExpanded = expandedId === call.id

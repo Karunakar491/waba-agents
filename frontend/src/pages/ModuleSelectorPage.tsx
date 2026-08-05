@@ -70,10 +70,10 @@ export default function ModuleSelectorPage() {
                 onClick={() => enabled && navigate(mod.homeRoute)}
                 aria-describedby={!enabled ? `${mod.key}-disabled-reason` : undefined}
                 className={cn(
-                  'flex flex-col items-start gap-3 rounded-xl border bg-card p-6 text-left shadow-sm transition',
+                  'flex flex-col items-start gap-3 rounded-xl border bg-card p-6 text-left shadow-surface-resting transition',
                   'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   enabled
-                    ? 'hover:border-primary hover:shadow-md cursor-pointer'
+                    ? 'hover:border-primary hover:shadow-surface-lifted cursor-pointer'
                     : 'opacity-50 cursor-not-allowed',
                 )}
               >

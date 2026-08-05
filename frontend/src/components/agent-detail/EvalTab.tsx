@@ -116,7 +116,7 @@ export default function EvalTab({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
         {isLoading ? (
           <div className="p-4 space-y-2">
             {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" />)}

@@ -146,7 +146,7 @@ export default function BusinessPersonaLibraryPage() {
         <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{deployError}</div>
       )}
 
-      <div className="rounded-xl border bg-card shadow-sm overflow-x-auto">
+      <div className="rounded-xl border bg-card shadow-surface-resting overflow-x-auto">
         <PersonaTable
           isLoading={isLoading}
           totalCount={rows.length}

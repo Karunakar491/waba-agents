@@ -176,7 +176,7 @@ export default function CreateAgentPage() {
         </nav>
 
         {/* Center: form */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border bg-card p-6 shadow-surface-resting">
           {error && (
             <div role="alert" className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
@@ -875,7 +875,7 @@ function ChatPreview({ state }: { state: WizardState }) {
           : `Hi there! I'm ${name}. How can I help? 😊`
   return (
     <aside aria-label="Chat preview" className="hidden lg:block">
-      <div className="sticky top-6 overflow-hidden rounded-xl border shadow-sm">
+      <div className="sticky top-6 overflow-hidden rounded-xl border shadow-surface-resting">
         <div className="flex items-center gap-2.5 bg-whatsapp-header px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
             <Bot className="h-4 w-4 text-white" />

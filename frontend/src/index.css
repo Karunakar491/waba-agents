@@ -25,6 +25,7 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
+    --warning: 32 92% 37%;             /* #B45309 amber-700, WCAG AA on white/card */
     /* 0.75rem (12px) per DESIGN.md §2 2026-08-05 radius refresh — was 0.5rem (8px).
        Softens every existing rounded-lg (buttons/inputs/badges) app-wide with a
        single token change; no per-component edits needed for this recipe. */
@@ -34,10 +35,14 @@
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    /* Lighter than --background by design — in dark mode, elevation reads via this
+       surface-tint step-up, not via shadow (shadows barely register on dark
+       backgrounds; darkening them further to compensate is the wrong fix). */
+    --card: 240 8% 9%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 240 8% 9%;
     --popover-foreground: 0 0% 98%;
+    --warning: 38 92% 60%;             /* lighter amber for AA contrast on dark surfaces */
     --primary: 0 0% 98%;
     --primary-foreground: 240 5.9% 10%;
     --secondary: 240 3.7% 15.9%;
@@ -69,5 +74,23 @@
      ring color/offset can still override with their own focus-visible: class. */
   button, a, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]) {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+  }
+
+  /* Elevation per DESIGN.md §2 2026-08-05 — two tiers, named by role, never raw
+     shadow-md/lg/xl. Resting = a surface sitting on the page (cards/panels/
+     dropdowns, always paired with `border`). Lifted = a surface floating above
+     the page (modals/popovers only). Dark mode: near-zero opacity by design —
+     elevation reads via the --card surface-tint step-up instead. */
+  .shadow-surface-resting {
+    box-shadow: 0 1px 2px rgba(15, 15, 35, 0.04), 0 2px 8px rgba(15, 15, 35, 0.06);
+  }
+  .dark .shadow-surface-resting {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+  .shadow-surface-lifted {
+    box-shadow: 0 4px 12px rgba(15, 15, 35, 0.08), 0 16px 40px rgba(15, 15, 35, 0.12);
+  }
+  .dark .shadow-surface-lifted {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   }
 }

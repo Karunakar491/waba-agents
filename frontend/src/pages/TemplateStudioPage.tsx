@@ -130,7 +130,7 @@ function qualityLabel(t: TemplateSummary): string | null {
 // the table below paginates client-side, see PAGE_SIZE).
 const STATUS_COUNTERS = [
   { key: 'APPROVED', label: 'Approved', icon: CheckCircle2, tint: 'text-brand-green', bg: 'bg-brand-green/10' },
-  { key: 'PENDING', label: 'Pending', icon: Clock, tint: 'text-amber-600', bg: 'bg-amber-500/10' },
+  { key: 'PENDING', label: 'Pending', icon: Clock, tint: 'text-warning', bg: 'bg-warning/10' },
   { key: 'REJECTED', label: 'Rejected', icon: XCircle, tint: 'text-destructive', bg: 'bg-destructive/10' },
 ] as const
 
@@ -233,7 +233,7 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+      <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <List className="h-4 w-4 text-muted-foreground" />
@@ -567,7 +567,7 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
     && (!isEdit || seeded) && !submitMutation.isPending
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
@@ -714,7 +714,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
           {headerHandle && <p className="text-xs text-brand-green">Media uploaded.</p>}
           {mediaError && <p className="text-xs text-destructive">{mediaError}</p>}
           {headerFormat === 'IMAGE' && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-warning">
               Known Karix issue: image header handles can be rejected by Meta (error 2388084) due to a malformed
               type marker on Karix's side. If submission fails on an image header, this is likely why — not a bug
               in this form.
@@ -861,7 +861,7 @@ function BulkImportPanel({ wabaId }: { wabaId: string }) {
   })
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
       <div className="flex items-center gap-2">
         <Upload className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-semibold text-foreground">Bulk import</h3>

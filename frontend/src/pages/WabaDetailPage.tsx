@@ -87,7 +87,7 @@ export default function WabaDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
             <div className="border-b bg-muted/30 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Phone numbers ({phonesQuery.data?.length ?? 0})

@@ -30,7 +30,7 @@ function agentHealth(agent: AgentRow): Health {
 
 const HEALTH_CONFIG: Record<Health, { label: string; dot: string }> = {
   healthy: { label: 'Healthy', dot: 'bg-brand-green' },
-  attention: { label: 'Needs attention', dot: 'bg-yellow-500' },
+  attention: { label: 'Needs attention', dot: 'bg-warning' },
   inactive: { label: 'Inactive', dot: 'bg-muted-foreground/40' },
 }
 
@@ -120,7 +120,7 @@ export default function AgentsPage() {
       ) : agents.length === 0 ? (
         <EmptyState onCreateClick={() => navigate('/agents/new')} />
       ) : (
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
@@ -213,7 +213,7 @@ function AgentRow({
               {(agent.sharedAccountCount ?? 0) > 1 && (
                 <span
                   title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}
-                  className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
                 >
                   <Users className="h-2.5 w-2.5" />
                   Shared WABA
@@ -313,7 +313,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
 
 function AgentTableSkeleton() {
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/30">

@@ -94,7 +94,8 @@ Only exception: third-party UI mimicry constants, and those must still be named 
 | Font | Inter 400/500/600/700 | Everything. No other family |
 | Radius | 12px (`rounded-xl`) standard — buttons, inputs, chips; 16px (`rounded-2xl`) cards, modals, panels | Softer than the old 8px/12px scale — closer to Apple's current visual language. Never sharp corners, never fully-circular except icon-only controls |
 | Focus ring | `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2` on every interactive element, no exceptions | Not optional, not a nice-to-have — every button, link, row-action, and form control ships with this class. A REJECT-grade gap found repo-wide in the 2026-08-05 acquisition-grade audit; closing it is part of this radius/token pass, not a separate task |
-| Shadow | `shadow-sm` only | Subtle. Never heavy drop shadows |
+| Shadow | Two tiers only, tied to surface separation — **never decoration**: `.shadow-surface-resting` for cards/panels/dropdowns (a surface resting on the page — pair with `border`, never shadow alone). `.shadow-surface-lifted` for modals/popovers only (a surface floating above the page). Buttons, chips, inputs, badges, nav items: **no shadow, ever** — flat is the floor. Dark mode: elevation reads via a lighter surface tint (`--card` already lighter than `--background` in `.dark`), not via the shadow color — shadow opacity in dark mode drops to near-zero by design, don't compensate by darkening it further. | Named by role (resting/lifted), never raw `shadow-md`/`lg`/`xl` Tailwind defaults in a component — always the named utility, defined once in `index.css`, enforceable by grep the same way `shadow-sm` was |
+| Warning | `warning: #B45309` (amber-700, WCAG AA on white/card) | Dot color + inline warning text/icons only, via `StatusIndicator` — never a tinted pill background, same rule as every other status color |
 
 Semantic tokens (`background`, `foreground`, `muted`, `destructive`, `card`, `border`, …) come from shadcn CSS variables in `index.css`. Prefer semantic over brand tokens for anything that isn't identity or CTA.
 
@@ -118,10 +119,10 @@ Don't invent sizes between these. If a design needs a new level, add it here fir
 
 - Page container: content pages `max-w-2xl`–`max-w-6xl` centered; never full-bleed text
 - Vertical rhythm: `space-y-5` / `space-y-6` between form groups, `space-y-8` between page sections
-- Cards: `rounded-2xl border bg-card p-6 shadow-sm`
-- Buttons: `rounded-xl` — softer, Apple-adjacent, never a sharp corner and never a fully-pill shape except icon-only circular controls
+- Cards: `rounded-2xl border bg-card p-6 shadow-surface-resting`
+- Buttons: `rounded-xl` — softer, Apple-adjacent, never a sharp corner and never a fully-pill shape except icon-only circular controls; **no shadow**
 - Inputs: `rounded-xl border bg-background px-3 py-2.5 text-sm` + `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`
-- Modals: max 560px wide on desktop, `rounded-2xl`, real focus trap + `role="dialog"` + `aria-modal="true"` + Escape-to-close + backdrop-click-dismiss (see the shared `Modal` primitive in §6 — never a bespoke overlay per screen)
+- Modals: max 560px wide on desktop, `rounded-2xl`, `shadow-surface-lifted`, real focus trap + `role="dialog"` + `aria-modal="true"` + Escape-to-close + backdrop-click-dismiss (see the shared `Modal` primitive in §6 — never a bespoke overlay per screen)
 
 ---
 
@@ -159,6 +160,8 @@ Every screen MUST pass all of these before it ships. The UX gate checks each ite
 - ConsequenceLine (§0 move 3): one per screen with consequences — `text-sm text-muted-foreground` line placed directly under the page title or beside the primary CTA; plain language, states what will/won't happen ("Nothing goes live until you deploy"). To be extracted as a shared component at its third use (three-cases rule)
 - `StatusIndicator` (dot + plain text, per §0 move 4): the ONLY way status renders anywhere — `<span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-{state}" />{plain label}</span>`. Never a tinted-background pill (`bg-x/10 text-x rounded-full`). Confirmed as of 2026-08-05 to have been independently reinvented wrong in 11+ places before this was written down as one component — treat any new `STATUS_CONFIG`-shaped object as a signal to import this instead of writing a new one
 - `Modal` (shared primitive, per §4): every dialog in the app renders through one component with a built-in focus trap, `role="dialog"`, `aria-modal`, Escape-to-close, and backdrop-dismiss wired once. No screen builds its own `fixed inset-0` overlay from scratch
+- `ErrorBanner` (shared primitive): every inline error render — `role="alert"`, `text-sm text-destructive`, no shadow (inline, not a separate surface), optional retry action slot. Wraps `extractErrorMessage` from `lib/errors.ts`. Replaces the copy-pasted error-paragraph markup previously duplicated across 10 files
+- `IconChip` (shared primitive, scoped use only): a contained icon in a flat tinted square — **never** for empty states (those render the agent-preview/next-action pattern, §0 anti-pattern list) and **never** as a logo/identity mark (wordmark only, §0 anti-pattern list). Legitimate scope: Dashboard/ModuleSelector feature-highlight tiles, Inbox avatar-style icons. Two sizes only (`h-8 w-8` / `h-10 w-10`), flat `bg-{color}/10` tint, no gradient, no shadow
 
 ### Bento panel — scoped, not a universal layout
 
@@ -190,3 +193,4 @@ Audience: stressed, non-technical business owner. Time-to-first-value under 3 mi
 | 2026-07-22 | Initial version — created after founder feedback: design decisions were scattered, tokens undocumented, UX gate reviewed diffs without app context |
 | 2026-07-22 | Added agent guide preamble, §0 visual theme & mood, §0.1 breakpoints table — closes the "no vision" gap; inspired by Google Stitch DESIGN.md spec (VoltAgent/awesome-design-md). Design Evaluator persona added as post-UX gate |
 | 2026-08-05 | Radius scale softened (8/12px → 12/16px), mandatory `focus-visible:` ring token added (closes a REJECT-grade repo-wide gap found in the acquisition-grade audit), `StatusIndicator` and shared `Modal` primitive named as required components (closing an 11+-instance pill-badge regression and a 9-modal focus-trap gap), Bento panel pattern added — explicitly scoped to Dashboard/ModuleSelector only, not a universal layout. Pending Design Evaluator gate. |
+| 2026-08-05 | Shadow rule replaced: flat `shadow-sm` → two named tiers (`shadow-surface-resting`/`shadow-surface-lifted`) tied to surface separation, never decoration — buttons/chips/inputs/badges/nav get no shadow at all. Glassmorphism considered and explicitly rejected this session (stays banned per §0). `warning` color token (`#B45309`) added for `StatusIndicator`'s warning dot, replacing raw `yellow-500`/`amber-*` at 4 sites. Shared `ErrorBanner`, `TableSkeleton`, `TableEmptyState`, `IconChip` primitives added to §6 (IconChip scope-limited: never empty states, never identity marks). UX + Design Evaluator both PASSED (Design Evaluator: cross-screen check found §4's card recipe still hardcoded `shadow-sm` — fixed in the same pass, not left to drift). Dark-mode elevation now reads via `--card` surface-tint step-up, not shadow darkening. |

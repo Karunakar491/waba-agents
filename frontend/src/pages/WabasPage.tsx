@@ -162,7 +162,7 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
   const navigate = useNavigate()
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/30">
@@ -484,7 +484,7 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
 
 function WabaTableSkeleton() {
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/30">

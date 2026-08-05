@@ -18,7 +18,7 @@ export default function SettingsPage() {
           Account
         </h2>
 
-        <div className="rounded-xl border bg-card shadow-sm divide-y">
+        <div className="rounded-xl border bg-card shadow-surface-resting divide-y">
           {/* Name */}
           <div className="flex items-center gap-4 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">

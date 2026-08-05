@@ -540,7 +540,7 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
   }
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       {/* Section header */}
       <button
         onClick={onToggle}
@@ -709,7 +709,7 @@ function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: b
   })
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/30 transition-colors"
@@ -850,7 +850,7 @@ function FilesSection({ agentId, open, onToggle }: { agentId: string; open: bool
   })
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/30 transition-colors"
@@ -1491,7 +1491,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
 
   if (!agent.phoneNumberId) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
+      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
         <Plug className="h-10 w-10 text-muted-foreground mb-3" />
         <p className="font-semibold text-foreground">No phone number connected</p>
         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
@@ -1535,7 +1535,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
           ))}
         </div>
       ) : connectors.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-14 text-center shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-14 text-center shadow-surface-resting">
           <Plug className="h-8 w-8 text-muted-foreground mb-2" />
           <p className="text-sm font-semibold text-foreground">No connectors yet</p>
           <p className="text-xs text-muted-foreground mt-1 max-w-xs">
@@ -1550,7 +1550,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
             return (
               <div
                 key={connector.id}
-                className="rounded-xl border bg-card shadow-sm overflow-hidden"
+                className="rounded-xl border bg-card shadow-surface-resting overflow-hidden"
               >
                 {/* Connector row */}
                 <div className="flex items-center gap-3 px-4 py-3">
@@ -1677,7 +1677,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
   return (
     <div className="space-y-6">
       {/* Settings form */}
-      <div className="rounded-xl border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border bg-card p-6 shadow-surface-resting">
         <form
           onSubmit={handleSubmit((v) => { setServerError(null); saveMutation.mutate(v) })}
           noValidate
@@ -1852,7 +1852,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       </div>
 
       {/* Phone number */}
-      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+      <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Phone number</h3>
         {agent.phoneNumberId ? (
           <div className="flex items-center justify-between">
@@ -1887,7 +1887,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       <AudienceSection agentId={agent.id} phoneNumberId={agent.phoneNumberId} />
 
       {/* Actions */}
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
+      <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
         <h3 className="text-sm font-semibold text-foreground">Actions</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Trigger a business-side event (e.g. a payment or shipment update) at this agent.
@@ -1963,7 +1963,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       {/* Delete confirmation modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-surface-lifted">
             <h2 className="text-base font-semibold text-foreground">
               Delete &quot;{agent.displayName}&quot;?
             </h2>
@@ -2111,7 +2111,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
   }
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Audience</h3>

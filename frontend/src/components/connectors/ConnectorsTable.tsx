@@ -1,4 +1,7 @@
 import { Cable } from 'lucide-react'
+import StatusIndicator, { type StatusTone } from '../shared/StatusIndicator'
+import TableSkeleton from '../shared/TableSkeleton'
+import TableEmptyState from '../shared/TableEmptyState'
 
 export interface ConnectorRow {
   id: string
@@ -9,11 +12,11 @@ export interface ConnectorRow {
   status: string | null
 }
 
-function statusDotColor(status: string | null): string {
-  if (status === 'ACTIVE') return 'bg-brand-green'
-  if (status === 'PENDING_OAUTH') return 'bg-yellow-500'
-  if (status === 'ERROR' || status === 'EXPIRED') return 'bg-destructive'
-  return 'bg-muted-foreground/40'
+function statusTone(status: string | null): StatusTone {
+  if (status === 'ACTIVE') return 'positive'
+  if (status === 'PENDING_OAUTH') return 'warning'
+  if (status === 'ERROR' || status === 'EXPIRED') return 'negative'
+  return 'neutral'
 }
 
 function statusLabel(status: string | null): string {
@@ -25,22 +28,13 @@ function statusLabel(status: string | null): string {
 }
 
 export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows: ConnectorRow[] }) {
-  if (isLoading) {
-    return (
-      <div className="p-4 space-y-2">
-        {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" />)}
-      </div>
-    )
-  }
-
+  if (isLoading) return <TableSkeleton />
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
-        <Cable className="h-8 w-8 text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">
-          No connectors yet — add one from an agent's Connectors tab.
-        </p>
-      </div>
+      <TableEmptyState
+        icon={<Cable className="h-8 w-8 text-muted-foreground mb-2" />}
+        text="No connectors yet — add one from an agent's Connectors tab."
+      />
     )
   }
 
@@ -58,10 +52,7 @@ export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows:
           <tr key={`${row.agentId}-${row.id}`} className="hover:bg-muted/30">
             <td className="px-4 py-3 text-sm font-medium text-foreground">{row.name}</td>
             <td className="px-4 py-3">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotColor(row.status)}`} />
-                {statusLabel(row.status)}
-              </span>
+              <StatusIndicator label={statusLabel(row.status)} tone={statusTone(row.status)} />
             </td>
             <td className="px-4 py-3 text-muted-foreground">
               {row.agentName ?? 'Unknown agent'}{row.phoneNumberId ? ` (${row.phoneNumberId})` : ''}

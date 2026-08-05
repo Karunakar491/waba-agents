@@ -56,7 +56,7 @@ export function PersonaDraftEditor({
   onCancel: () => void
 }) {
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
+    <div className="rounded-xl border bg-card shadow-surface-resting">
       <div className="px-4 py-3.5 border-b">
         <span className="text-sm font-semibold text-foreground">
           {editingDraftId ? 'Edit draft' : 'New draft'}

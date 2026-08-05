@@ -69,7 +69,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Tab toggle */}
+        {/* Tab toggle — active state has no shadow by design: a chip, per
+            DESIGN.md §2's shadow floor (buttons/chips/inputs never get one). */}
         <div className="flex rounded-lg bg-muted p-1">
           {(['login', 'register'] as const).map((t) => (
             <button
@@ -77,7 +78,7 @@ export default function LoginPage() {
               onClick={() => setTab(t)}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 tab === t
-                  ? 'bg-white text-foreground shadow-sm'
+                  ? 'bg-white text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >

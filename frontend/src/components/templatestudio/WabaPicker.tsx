@@ -6,7 +6,7 @@ export default function WabaPicker({ wabas, selectedWabaId, onChange }: {
   onChange: (id: string) => void
 }) {
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
       <label className="block text-sm font-medium text-foreground mb-1.5">WABA</label>
       <select
         value={selectedWabaId}

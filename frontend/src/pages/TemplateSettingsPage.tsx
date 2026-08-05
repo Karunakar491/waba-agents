@@ -61,7 +61,7 @@ function AuditLogPanel({ wabaId }: { wabaId: string }) {
   const entries: AuditLogEntry[] = logQuery.data?.result ?? []
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground" />
@@ -166,7 +166,7 @@ function ConnectedPhonesPanel({ wabaId }: { wabaId: string }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-muted-foreground" />

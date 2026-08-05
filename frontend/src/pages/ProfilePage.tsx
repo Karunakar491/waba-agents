@@ -92,7 +92,7 @@ export default function ProfilePage() {
         </div>
       )}
       {(checklistLoading || checklistError || !steps.every((s) => s.complete)) && (
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
         <div className="px-5 py-4 border-b">
           <h2 className="text-base font-semibold text-foreground">Getting started</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -159,7 +159,7 @@ export default function ProfilePage() {
       )}
 
       {/* Business Info */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
         <div className="px-5 py-4 border-b">
           <h2 className="text-base font-semibold text-foreground">Business Info</h2>
         </div>

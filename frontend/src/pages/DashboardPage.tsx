@@ -153,7 +153,7 @@ function MetricsRow({ summary }: { summary: DashboardSummary }) {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {cards.map(({ label, value, icon: Icon }) => (
-        <div key={label} className="rounded-xl border bg-card p-4 shadow-sm">
+        <div key={label} className="rounded-xl border bg-card p-4 shadow-surface-resting">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Icon className="h-4 w-4" />
             <p className="text-xs font-medium">{label}</p>
@@ -169,7 +169,7 @@ function MetricsSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="rounded-xl border bg-card p-4 shadow-sm animate-pulse">
+        <div key={i} className="rounded-xl border bg-card p-4 shadow-surface-resting animate-pulse">
           <div className="h-3 w-24 rounded bg-muted" />
           <div className="mt-3 h-7 w-12 rounded bg-muted" />
         </div>
@@ -230,7 +230,7 @@ function PhoneNumbersTable({
   }
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Phone numbers ({phones.length})
@@ -424,7 +424,7 @@ function ErrorState() {
 
 function SkeletonList() {
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
       <div className="border-b bg-muted/30 px-4 py-3">
         <div className="h-3 w-32 rounded bg-muted animate-pulse" />
       </div>

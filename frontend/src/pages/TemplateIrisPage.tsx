@@ -146,7 +146,7 @@ function AiCredentialSetup({ onSaved }: { onSaved?: () => void }) {
   })
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div className="rounded-xl border bg-card p-5 shadow-surface-resting">
       <div className="space-y-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Connect an AI provider</h3>
@@ -367,7 +367,7 @@ function IrisWorkspace() {
       {/* Fixed-width preview pane (360px), no responsive breakpoint —
           deliberate: this is a desktop-only internal operator tool, not a
           public mobile surface (UX gate 2026-08-04 confirmed this reading). */}
-      <div className="grid gap-4 rounded-xl border bg-card shadow-sm overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
+      <div className="grid gap-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
       <div className="flex min-w-0 flex-col">
         {resuming && (
           <div className="flex flex-1 items-center justify-center">
@@ -391,7 +391,8 @@ function IrisWorkspace() {
               </p>
             </div>
             <div className="w-full max-w-md">
-              <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
+              {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
+              <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
                 <input
                   type="text"
                   value={input}
@@ -456,7 +457,8 @@ function IrisWorkspace() {
 
         {!resuming && started && (
           <div className="border-t p-3">
-            <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
+            {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
+            <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
               <input
                 type="text"
                 value={input}
@@ -591,7 +593,7 @@ function PendingActionPreview({ toolName, args, onConfirm, onCancel, confirming,
               {typeof args.category === 'string' && <PreviewField label="Category" value={args.category} />}
               {typeof args.language === 'string' && <PreviewField label="Language" value={args.language} />}
             </div>
-            <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border bg-white shadow-surface-resting">
               <div className="flex items-center gap-2 bg-whatsapp-header px-3 py-2 text-xs font-semibold text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
                 WhatsApp preview

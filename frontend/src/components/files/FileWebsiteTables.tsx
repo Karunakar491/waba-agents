@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
 import { FileText, Globe, Loader2, Trash2 } from 'lucide-react'
 import StatusIndicator from '../shared/StatusIndicator'
+import TableSkeleton from '../shared/TableSkeleton'
+import TableEmptyState from '../shared/TableEmptyState'
 
 export interface FileRow {
   id: string
@@ -42,7 +43,7 @@ export function FilesTable({
   onDelete: (row: FileRow) => void
 }) {
   if (isLoading) return <TableSkeleton />
-  if (rows.length === 0) return <EmptyState icon={<FileText className="h-8 w-8 text-muted-foreground mb-2" />} text="No files uploaded yet." />
+  if (rows.length === 0) return <TableEmptyState icon={<FileText className="h-8 w-8 text-muted-foreground mb-2" />} text="No files uploaded yet." />
 
   return (
     <table className="w-full text-sm">
@@ -88,7 +89,7 @@ export function WebsitesTable({
   onDelete: (row: WebsiteRow) => void
 }) {
   if (isLoading) return <TableSkeleton />
-  if (rows.length === 0) return <EmptyState icon={<Globe className="h-8 w-8 text-muted-foreground mb-2" />} text="No websites added yet." />
+  if (rows.length === 0) return <TableEmptyState icon={<Globe className="h-8 w-8 text-muted-foreground mb-2" />} text="No websites added yet." />
 
   return (
     <table className="w-full text-sm">
@@ -125,19 +126,3 @@ export function WebsitesTable({
   )
 }
 
-function TableSkeleton() {
-  return (
-    <div className="p-4 space-y-2">
-      {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" />)}
-    </div>
-  )
-}
-
-function EmptyState({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
-      {icon}
-      <p className="text-sm text-muted-foreground">{text}</p>
-    </div>
-  )
-}

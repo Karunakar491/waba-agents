@@ -96,7 +96,7 @@ export default function FileLibraryPage() {
 
       {formError && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</div>}
 
-      <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
+      <div className="rounded-xl border bg-card p-4 shadow-surface-resting space-y-3">
         <label htmlFor="upload-agent-picker" className="text-xs font-medium text-muted-foreground">
           {tab === 'files' ? 'Upload a file to' : 'Add a website to'}
         </label>
@@ -153,7 +153,7 @@ export default function FileLibraryPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden overflow-x-auto">
+      <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
         {tab === 'files' ? (
           <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => deleteFileMutation.mutate(row)} />
         ) : (

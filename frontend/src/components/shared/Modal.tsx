@@ -103,7 +103,7 @@ export default function Modal({
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'w-full rounded-2xl border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto',
+          'w-full rounded-2xl border bg-card p-6 shadow-surface-lifted max-h-[90vh] overflow-y-auto',
           maxWidthClassName,
         )}
       >

@@ -115,7 +115,7 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
       </div>
 
       {syncResults && (
-        <div className="rounded-xl border bg-card px-4 py-3 shadow-sm space-y-1.5">
+        <div className="rounded-xl border bg-card px-4 py-3 shadow-surface-resting space-y-1.5">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sync result</p>
             <button onClick={() => setSyncResults(null)} className="text-xs text-muted-foreground hover:text-foreground">
@@ -139,7 +139,7 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
           {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl border bg-muted/40 animate-pulse" />)}
         </div>
       ) : skills.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
           <Zap className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="font-semibold text-foreground">No skills yet</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-xs">
@@ -179,7 +179,7 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
             return (
               <li
                 key={skill.id}
-                className="flex items-start justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm"
+                className="flex items-start justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-surface-resting"
               >
                 <button
                   onClick={() => openEdit(skill)}

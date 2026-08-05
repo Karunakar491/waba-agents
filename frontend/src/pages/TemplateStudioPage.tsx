@@ -567,7 +567,11 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
   const submitMutation = useMutation({
     mutationFn: () => {
       const components = buildComponents()
-      const authFields = isAuthentication ? { code_expiration_minutes: codeExpirationMinutes } : {}
+      // camelCase — matches TemplateRequest/EditTemplateRequest's field name on
+      // the backend exactly, same as every sibling field in this payload (no
+      // Jackson snake_case naming strategy is configured, so a mismatched key
+      // here deserializes to null silently rather than erroring).
+      const authFields = isAuthentication ? { codeExpirationMinutes } : {}
       if (isEdit && templateId) {
         return api.post(`/templates/${wabaId}/${templateId}/edit`, { components, ...authFields })
       }

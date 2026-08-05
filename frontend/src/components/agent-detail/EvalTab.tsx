@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils'
 import api from '../../lib/api'
 import { useJobPoll } from '../../hooks/useJobPoll'
 import { extractErrorMessage } from '../../lib/errors'
+import ErrorBanner from '../shared/ErrorBanner'
 
 interface EvalCase {
   id: string
@@ -101,9 +102,7 @@ export default function EvalTab({ agentId }: { agentId: string }) {
         </div>
       </div>
 
-      {runError && (
-        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{runError}</div>
-      )}
+      {runError && <ErrorBanner error={runError} />}
 
       {summary && (
         <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5">

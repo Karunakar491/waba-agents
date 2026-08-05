@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Check, X, ShieldAlert, AlertCircle, Plus, Settings } from 'lucide-react'
+import { Loader2, Send, Check, X, ShieldAlert, Plus, Settings } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
 import { extractErrorMessage } from '../lib/errors'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 // Iris — Template Studio's chat assistant (2026-08-04, real build; UI
 // redesigned 2026-08-06 to read as a clean Claude/ChatGPT-style chat surface
@@ -298,12 +299,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
             {(sendMessage.isPending || startSession.isPending) && (
               <p className="animate-pulse text-sm italic text-muted-foreground">Iris is thinking…</p>
             )}
-            {error && (
-              <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                {error}
-              </p>
-            )}
+            {error && <ErrorBanner error={error} />}
           </div>
         ) : null}
 

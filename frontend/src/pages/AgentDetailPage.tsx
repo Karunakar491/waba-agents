@@ -37,6 +37,7 @@ import BusinessProfileTab from '../components/agent-detail/BusinessProfileTab'
 import SkillsTab from '../components/agent-detail/SkillsTab'
 import RunToolModal from '../components/agent-detail/RunToolModal'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
+import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import EvalTab from '../components/agent-detail/EvalTab'
 import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
@@ -342,8 +343,8 @@ export default function AgentDetailPage() {
           </div>
 
           {actionError && (
-            <div className="mt-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {actionError}
+            <div className="mt-3">
+              <ErrorBanner error={actionError} />
             </div>
           )}
 
@@ -457,8 +458,8 @@ function ThreadControlModal({
         </p>
 
         {error && (
-          <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+          <div className="mt-3">
+            <ErrorBanner error={error} />
           </div>
         )}
 
@@ -576,9 +577,7 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
           {/* Add form */}
           {showAddForm && (
             <div className="border-b bg-muted/20 px-4 py-4 space-y-3">
-              {addError && (
-                <p className="text-xs text-destructive">{addError}</p>
-              )}
+              {addError && <ErrorBanner error={addError} />}
               <input
                 type="text"
                 value={question}
@@ -732,7 +731,7 @@ function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: b
       {open && (
         <div className="border-t">
           <div className="px-4 py-4 space-y-3 border-b bg-muted/20">
-            {addError && <p className="text-xs text-destructive">{addError}</p>}
+            {addError && <ErrorBanner error={addError} />}
             <div className="flex gap-2">
               <input
                 type="url"
@@ -899,7 +898,9 @@ function FilesSection({ agentId, open, onToggle }: { agentId: string; open: bool
       {open && (
         <div className="border-t">
           {uploadError && (
-            <p className="px-4 py-2 text-xs text-destructive border-b bg-destructive/5">{uploadError}</p>
+            <div className="px-4 py-2 border-b bg-destructive/5">
+              <ErrorBanner error={uploadError} />
+            </div>
           )}
           {isLoading ? (
             <div className="px-4 py-4 space-y-2">
@@ -1056,8 +1057,8 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
       maxWidthClassName="max-w-md"
     >
         {error && (
-          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+          <div className="mb-3">
+            <ErrorBanner error={error} />
           </div>
         )}
 
@@ -1251,8 +1252,8 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
       maxWidthClassName="max-w-md"
     >
         {error && (
-          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+          <div className="mb-3">
+            <ErrorBanner error={error} />
           </div>
         )}
 
@@ -1683,11 +1684,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
           noValidate
           className="space-y-5"
         >
-          {serverError && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {serverError}
-            </div>
-          )}
+          {serverError && <ErrorBanner error={serverError} />}
 
           {/* displayName */}
           <div className="space-y-1.5">
@@ -1974,8 +1971,8 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
             </p>
 
             {deleteError && (
-              <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {deleteError}
+              <div className="mt-3">
+                <ErrorBanner error={deleteError} />
               </div>
             )}
 
@@ -2145,7 +2142,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
         </p>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <ErrorBanner error={error} />}
 
       <div className="space-y-2">
         {allowlistQuery.isLoading ? (

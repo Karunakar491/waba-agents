@@ -8,6 +8,7 @@ import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
 import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 type SkillTab = 'mine' | 'browse'
 
@@ -113,11 +114,7 @@ export default function SkillLibraryPage() {
         <SkillTemplateBrowsePage />
       ) : (
         <>
-          {deleteError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {deleteError}
-            </div>
-          )}
+          {deleteError && <ErrorBanner error={deleteError} />}
 
           {!isLoading && !waba ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-20 text-center">

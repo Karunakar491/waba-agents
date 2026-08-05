@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import Modal from '../shared/Modal'
+import ErrorBanner from '../shared/ErrorBanner'
 
 interface Skill {
   id: string
@@ -79,8 +80,8 @@ export default function SkillEditorModal({
       <div className="flex flex-col">
         <div>
           {error && (
-            <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
+            <div className="mb-3">
+              <ErrorBanner error={error} />
             </div>
           )}
 

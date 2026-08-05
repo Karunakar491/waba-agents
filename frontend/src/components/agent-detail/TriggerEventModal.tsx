@@ -6,6 +6,7 @@ import { useJobPoll } from '../../hooks/useJobPoll'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import Modal from '../shared/Modal'
 import { extractErrorMessage } from '../../lib/errors'
+import ErrorBanner from '../shared/ErrorBanner'
 
 const STATUS_DOT: Record<string, string> = {
   idle: 'text-muted-foreground',
@@ -80,8 +81,8 @@ export default function TriggerEventModal({
         </ConsequenceLine>
 
         {sendError && (
-          <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {sendError}
+          <div className="mt-3">
+            <ErrorBanner error={sendError} />
           </div>
         )}
 

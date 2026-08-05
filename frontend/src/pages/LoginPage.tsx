@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Bot, Loader2 } from 'lucide-react'
 import { useLogin, useRegister } from '../hooks/useAuth'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 const loginSchema = z.object({
   email:    z.string().email('Enter a valid email'),
@@ -16,11 +17,6 @@ const registerSchema = loginSchema.extend({
 
 type LoginForm    = z.infer<typeof loginSchema>
 type RegisterForm = z.infer<typeof registerSchema>
-
-function extractServerError(err: unknown): string {
-  const e = err as { response?: { data?: { message?: string } } }
-  return e?.response?.data?.message ?? 'Something went wrong. Please try again.'
-}
 
 // De-marketed 2026-08-05 (Phase 2 item 21) — this product's users are
 // internal Karix staff using this daily, not self-serve SMB signups
@@ -88,11 +84,7 @@ export default function LoginPage() {
         </div>
 
         {/* Server error */}
-        {serverError && (
-          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {extractServerError(serverError)}
-          </div>
-        )}
+        {serverError && <ErrorBanner error={serverError} />}
 
         {/* Registration success */}
         {registerSuccess && tab === 'login' && (

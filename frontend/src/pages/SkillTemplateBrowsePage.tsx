@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Loader2 } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 interface WabaEntry {
   id: string
@@ -64,11 +65,7 @@ export default function SkillTemplateBrowsePage() {
         Karix-curated reference skills, by industry and use case. Copy one to start your own — editing your copy never changes the original.
       </p>
 
-      {copyError && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {copyError}
-        </div>
-      )}
+      {copyError && <ErrorBanner error={copyError} />}
 
       {!isLoading && templates.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

@@ -4,6 +4,7 @@ import { Loader2, Upload } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import { FilesTable, WebsitesTable, type FileRow, type WebsiteRow } from '../components/files/FileWebsiteTables'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 interface WabaEntry { id: string; wabaId: string; label: string | null }
 interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null }
@@ -94,7 +95,7 @@ export default function FileLibraryPage() {
         ))}
       </div>
 
-      {formError && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</div>}
+      {formError && <ErrorBanner error={formError} />}
 
       <div className="rounded-xl border bg-card p-4 shadow-surface-resting space-y-3">
         <label htmlFor="upload-agent-picker" className="text-xs font-medium text-muted-foreground">

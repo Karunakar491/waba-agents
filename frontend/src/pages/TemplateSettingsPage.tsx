@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown, Plus, Phone, Bot, AlertCircle } from 'lucide-react'
+import { KeyRound, Loader2, Save, History, RefreshCw, ChevronDown, Plus, Phone, Bot } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
 import { extractErrorMessage } from '../lib/errors'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 // Settings section of Template Studio (2026-08-04 nav split) — WABA + Karix
 // credential configuration, always reachable (unlike the old inline blocking
@@ -168,12 +169,7 @@ function AiCredentialForm({ onDone, onCancel }: { onDone: () => void; onCancel: 
         placeholder="API key"
         className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-pink/50"
       />
-      {error && (
-        <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          {error}
-        </p>
-      )}
+      {error && <ErrorBanner error={error} />}
       <div className="flex gap-2">
         <button
           type="button"
@@ -234,7 +230,7 @@ function AuditLogPanel({ wabaId }: { wabaId: string }) {
       </p>
 
       {logQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-      {logQuery.isError && <p className="text-xs text-destructive">{extractErrorMessage(logQuery.error)}</p>}
+      {logQuery.isError && <ErrorBanner error={logQuery.error} />}
       {logQuery.data && entries.length === 0 && (
         <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
       )}
@@ -340,7 +336,7 @@ function ConnectedPhonesPanel({ wabaId }: { wabaId: string }) {
       </p>
 
       {mappingsQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-      {mappingsQuery.isError && <p className="text-xs text-destructive">{extractErrorMessage(mappingsQuery.error)}</p>}
+      {mappingsQuery.isError && <ErrorBanner error={mappingsQuery.error} />}
       {mappingsQuery.data && mappingsQuery.data.length === 0 && !connecting && (
         <p className="text-xs text-muted-foreground">No phone numbers connected yet.</p>
       )}
@@ -476,7 +472,7 @@ function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone
         </div>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <ErrorBanner error={error} />}
 
       <div className="flex gap-2">
         <button

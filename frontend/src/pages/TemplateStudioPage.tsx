@@ -9,6 +9,7 @@ import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
 import { extractErrorMessage } from '../lib/errors'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 // Templates section of Template Studio (2026-08-04, split into Iris/
 // Templates/Settings nav 2026-08-04) — structured UI first, chat interface
@@ -712,7 +713,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
           />
           {uploadMediaMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
           {headerHandle && <p className="text-xs text-brand-green">Media uploaded.</p>}
-          {mediaError && <p className="text-xs text-destructive">{mediaError}</p>}
+          {mediaError && <ErrorBanner error={mediaError} />}
           {headerFormat === 'IMAGE' && (
             <p className="text-xs text-warning">
               Known Karix issue: image header handles can be rejected by Meta (error 2388084) due to a malformed
@@ -879,7 +880,7 @@ function BulkImportPanel({ wabaId }: { wabaId: string }) {
         }}
         className="text-sm text-foreground"
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <ErrorBanner error={error} />}
       {jobId && statusQuery.data && (
         <div className="text-xs text-muted-foreground space-y-1">
           <p>Job status: <span className="font-medium text-foreground">{statusQuery.data.job?.status}</span></p>

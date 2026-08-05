@@ -13,6 +13,7 @@ import { PersonaFilters, PersonaDraftEditor } from '../components/persona/Person
 import type { StatusFilter } from '../components/persona/PersonaFilters'
 import { usePersonaData } from '../components/persona/usePersonaData'
 import Modal from '../components/shared/Modal'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 export default function BusinessPersonaLibraryPage() {
   const queryClient = useQueryClient()
@@ -142,9 +143,7 @@ export default function BusinessPersonaLibraryPage() {
         />
       )}
 
-      {deployError && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{deployError}</div>
-      )}
+      {deployError && <ErrorBanner error={deployError} />}
 
       <div className="rounded-xl border bg-card shadow-surface-resting overflow-x-auto">
         <PersonaTable

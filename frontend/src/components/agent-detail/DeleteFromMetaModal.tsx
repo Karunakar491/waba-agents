@@ -5,6 +5,7 @@ import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import Modal from '../shared/Modal'
+import ErrorBanner from '../shared/ErrorBanner'
 
 /**
  * Highest-stakes modal in the platform — fires DELETE .../delete_agent
@@ -63,8 +64,8 @@ export default function DeleteFromMetaModal({
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
+        <div className="mt-3">
+          <ErrorBanner error={error} />
         </div>
       )}
 

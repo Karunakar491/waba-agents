@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { CheckCircle2, Loader2, Play, XCircle } from 'lucide-react'
 import api from '../../lib/api'
-import { extractErrorMessage } from '../../lib/errors'
 import Modal from '../shared/Modal'
+import ErrorBanner from '../shared/ErrorBanner'
 
 export default function RunToolModal({
   agentId,
@@ -64,8 +64,8 @@ export default function RunToolModal({
         </div>
 
         {mutation.isError && (
-          <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {extractErrorMessage(mutation.error)}
+          <div className="mt-3">
+            <ErrorBanner error={mutation.error} />
           </div>
         )}
 

@@ -13,6 +13,7 @@ import {
   Rocket,
 } from 'lucide-react'
 import api from '../lib/api'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 /* ------------------------------------------------------------------ */
 /* Types + wizard store (spec section 4 — 5-step Create Agent wizard) */
@@ -178,8 +179,8 @@ export default function CreateAgentPage() {
         {/* Center: form */}
         <div className="rounded-xl border bg-card p-6 shadow-surface-resting">
           {error && (
-            <div role="alert" className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
+            <div className="mb-4">
+              <ErrorBanner error={error} />
             </div>
           )}
 

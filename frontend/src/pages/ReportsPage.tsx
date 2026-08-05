@@ -5,6 +5,7 @@ import { AlertTriangle, BarChart3, CheckCircle2, Circle, ClipboardList, Code2, L
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import { useJobPoll } from '../hooks/useJobPoll'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 type ReportTab = 'conversations' | 'eval' | 'api-calls'
 
@@ -200,9 +201,7 @@ function EvalRollup() {
         </button>
       </div>
 
-      {runError && (
-        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{runError}</div>
-      )}
+      {runError && <ErrorBanner error={runError} />}
 
       {poll.status === 'unknown' && (
         <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/30 px-4 py-3">

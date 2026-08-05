@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, ChevronDown, ChevronUp, Phone, CheckCircle2 } from 'lucide-react'
 import api from '../../lib/api'
 import Modal from '../shared/Modal'
+import ErrorBanner from '../shared/ErrorBanner'
 
 interface PhoneNumber {
   phoneNumberId: string
@@ -115,8 +116,8 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
         </p>
 
         {error && (
-          <div className="mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
+          <div className="mt-4">
+            <ErrorBanner error={error} />
           </div>
         )}
 

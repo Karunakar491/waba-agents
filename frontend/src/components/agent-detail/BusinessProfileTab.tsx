@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ConsequenceLine from '../shared/ConsequenceLine'
+import ErrorBanner from '../shared/ErrorBanner'
 
 export interface BusinessProfileResponse {
   id: string
@@ -266,8 +267,8 @@ function DraftsCard({
       )}
 
       {deployError && (
-        <div className="mx-4 mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {deployError}
+        <div className="mx-4 mb-4">
+          <ErrorBanner error={deployError} />
         </div>
       )}
 

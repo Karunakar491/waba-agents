@@ -38,6 +38,12 @@ public class AccountReportsController {
         return ApiResponse.ok(Map.of("jobId", evalRollupService.start()));
     }
 
+    /** Most recent completed rollup for this account, or null if none has ever run. */
+    @GetMapping("/eval-rollup/latest")
+    public ApiResponse<Map<String, Object>> getLatestEvalRollup() {
+        return ApiResponse.ok(evalRollupService.getLatestCompleted());
+    }
+
     @GetMapping("/eval-rollup/{jobId}")
     public ApiResponse<Map<String, Object>> pollEvalRollup(@PathVariable String jobId) {
         return ApiResponse.ok(evalRollupService.poll(jobId));

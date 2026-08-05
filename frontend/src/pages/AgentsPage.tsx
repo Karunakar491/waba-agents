@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Bot, Plus, Play, ArrowRight, Circle, Loader2, RefreshCw, Users } from 'lucide-react'
+import { Bot, Plus, Play, ArrowRight, Loader2, RefreshCw, Users } from 'lucide-react'
 import api from '../lib/api'
+import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 
 function isPlaceholderName(displayName: string): boolean {
   return displayName.startsWith('Imported agent (')
@@ -42,24 +43,19 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone; pulse?: boolean }> = {
   active: {
     label: 'Active',
-    color: 'text-brand-green',
-    bg: 'bg-brand-green/10',
-    dot: true,
+    tone: 'positive',
+    pulse: true,
   },
   paused: {
     label: 'Paused',
-    color: 'text-yellow-600',
-    bg: 'bg-yellow-50',
-    dot: true,
+    tone: 'warning',
   },
   draft: {
     label: 'Draft',
-    color: 'text-muted-foreground',
-    bg: 'bg-muted',
-    dot: false,
+    tone: 'neutral',
   },
 }
 
@@ -258,12 +254,7 @@ function AgentRow({
 
       {/* Status */}
       <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}
-        >
-          {cfg.dot && <Circle className="h-1.5 w-1.5 fill-current" />}
-          {cfg.label}
-        </span>
+        <StatusIndicator label={cfg.label} tone={cfg.tone} pulse={cfg.pulse} />
       </td>
 
       {/* Last Updated */}

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
+import Modal from '../shared/Modal'
 
 interface Skill {
   id: string
@@ -73,30 +74,14 @@ export default function SkillEditorModal({
     'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={(e) => { if (e.key === 'Escape' && !mutation.isPending) onClose() }}
+    <Modal
+      title={isEditing ? 'Edit skill' : 'Add skill'}
+      onClose={onClose}
+      preventClose={mutation.isPending}
+      maxWidthClassName="max-w-lg"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="skill-editor-title"
-        className="flex w-full max-w-lg max-h-[90vh] flex-col rounded-2xl bg-card shadow-xl"
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-          <h2 id="skill-editor-title" className="text-base font-semibold text-foreground">
-            {isEditing ? 'Edit skill' : 'Add skill'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto px-6 pb-2">
+      <div className="flex flex-col">
+        <div>
           {error && (
             <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -177,6 +162,6 @@ export default function SkillEditorModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

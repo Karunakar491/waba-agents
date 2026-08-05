@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Bot,
   Check,
@@ -220,6 +221,7 @@ export default function CreateAgentPage() {
               saving={saving}
               onBack={() => setStep(4)}
               onFinish={finish}
+              onGoToConnect={() => setStep(4)}
             />
           )}
         </div>
@@ -683,12 +685,24 @@ function StepGoLive({
   saving,
   onBack,
   onFinish,
+  onGoToConnect,
 }: {
   state: WizardState
   saving: boolean
   onBack: () => void
   onFinish: (activate: boolean) => void
+  onGoToConnect: () => void
 }) {
+  // Same precondition AgentDetailPage already enforces (`canDeploy`) — the
+  // wizard's own "Go live" step was letting Publish fire with no connected
+  // number, producing a confusing backend error instead of a clear stop here.
+  const { data: agentDetail, isLoading: checkingPhone } = useQuery({
+    queryKey: ['agent', state.agentId, 'phone-check'],
+    queryFn: () => api.get(`/agents/${state.agentId}`).then((r) => r.data.data as { phoneNumberId: string | null }),
+    enabled: !!state.agentId,
+  })
+  const canPublish = !!agentDetail?.phoneNumberId
+
   // capitalize only the channel — user-entered values render verbatim
   const rows: [string, string, boolean][] = [
     ['Agent name', state.displayName, false],
@@ -717,11 +731,22 @@ function StepGoLive({
         ))}
       </dl>
 
+      {!checkingPhone && !canPublish && (
+        <p className="text-sm text-muted-foreground">
+          Connect a WhatsApp number before publishing —{' '}
+          <button type="button" onClick={onGoToConnect} className="font-medium text-primary hover:underline">
+            go back to Connect
+          </button>
+          . You can still save as a draft now and publish once a number is connected.
+        </p>
+      )}
+
       <div className="flex items-center gap-3 pt-2">
         <button
           type="button"
           onClick={() => onFinish(true)}
-          disabled={saving}
+          disabled={saving || checkingPhone || !canPublish}
+          title={!checkingPhone && !canPublish ? 'Connect a phone number first' : undefined}
           className="flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}

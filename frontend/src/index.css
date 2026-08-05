@@ -25,7 +25,10 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
-    --radius: 0.5rem;
+    /* 0.75rem (12px) per DESIGN.md §2 2026-08-05 radius refresh — was 0.5rem (8px).
+       Softens every existing rounded-lg (buttons/inputs/badges) app-wide with a
+       single token change; no per-component edits needed for this recipe. */
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -57,5 +60,14 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Mandatory per DESIGN.md §2 2026-08-05 — zero focus-visible styling existed
+     anywhere in this app before this (confirmed via repo-wide grep in the
+     acquisition-grade audit), a REJECT-grade accessibility gap. Applies to
+     every native interactive element at once; components that need a custom
+     ring color/offset can still override with their own focus-visible: class. */
+  button, a, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]) {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
   }
 }

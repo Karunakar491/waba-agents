@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Circle, FileText, Globe, Loader2, Trash2 } from 'lucide-react'
+import { FileText, Globe, Loader2, Trash2 } from 'lucide-react'
+import StatusIndicator from '../shared/StatusIndicator'
 
 export interface FileRow {
   id: string
@@ -23,19 +24,9 @@ export interface WebsiteRow {
 
 function syncBadge(metaSynced: boolean) {
   if (metaSynced) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/10 px-2.5 py-0.5 text-xs font-medium text-brand-green">
-        <Circle className="h-1.5 w-1.5 fill-current" />
-        Synced
-      </span>
-    )
+    return <StatusIndicator label="Synced" tone="positive" />
   }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
-      <Circle className="h-1.5 w-1.5 fill-current" />
-      Not synced
-    </span>
-  )
+  return <StatusIndicator label="Not synced" tone="warning" />
 }
 
 function deployedOn(agentName: string | null, phoneNumberId: string | null) {

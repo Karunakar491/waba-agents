@@ -9,17 +9,37 @@ interface AgentRow {
   status: 'draft' | 'active' | 'paused'
 }
 
+interface WabaRow {
+  id: string
+}
+
 export default function ProfilePage() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
-  const { data: agents = [] } = useQuery<AgentRow[]>({
+  const {
+    data: agents = [],
+    isLoading: agentsLoading,
+    isError: agentsError,
+  } = useQuery<AgentRow[]>({
     queryKey: ['agents'],
     queryFn: () => api.get('/agents').then((r) => r.data.data),
   })
 
+  const {
+    data: wabas = [],
+    isLoading: wabasLoading,
+    isError: wabasError,
+  } = useQuery<WabaRow[]>({
+    queryKey: ['wabas'],
+    queryFn: () => api.get('/waba').then((r) => r.data.data),
+  })
+
+  const hasWaba = wabas.length > 0
   const hasAgent = agents.length > 0
   const hasActiveAgent = agents.some((a) => a.status === 'active')
+  const checklistLoading = agentsLoading || wabasLoading
+  const checklistError = agentsError || wabasError
 
   const steps: {
     n: number
@@ -33,7 +53,9 @@ export default function ProfilePage() {
       n: 1,
       title: 'Connect WhatsApp Business Account',
       desc: 'Link your WABA to start receiving messages.',
-      complete: false,
+      complete: hasWaba,
+      actionLabel: hasWaba ? undefined : 'Connect WABA',
+      onAction: hasWaba ? undefined : () => navigate('/wabas'),
     },
     {
       n: 2,
@@ -62,7 +84,14 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {/* Getting started */}
+      {/* Getting started — hidden once every step is done and data loaded cleanly;
+          this is onboarding chrome, not permanent furniture for daily power users. */}
+      {checklistError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          Couldn't load your onboarding progress. This is a connection problem, not something wrong with your account.
+        </div>
+      )}
+      {(checklistLoading || checklistError || !steps.every((s) => s.complete)) && (
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b">
           <h2 className="text-base font-semibold text-foreground">Getting started</h2>
@@ -70,6 +99,16 @@ export default function ProfilePage() {
             Complete these steps to get your agent live on WhatsApp.
           </p>
         </div>
+        {checklistLoading ? (
+          <div className="divide-y">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="flex items-center gap-4 px-5 py-4">
+                <div className="h-7 w-7 shrink-0 rounded-full bg-muted animate-pulse" />
+                <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="divide-y">
           {steps.map((step) => (
             <div key={step.n} className="flex items-start gap-4 px-5 py-4">
@@ -105,16 +144,19 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Complete badge */}
+              {/* Complete indicator */}
               {step.complete && (
-                <span className="shrink-0 rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-medium text-brand-green">
+                <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-brand-green">
+                  <span className="h-2 w-2 rounded-full bg-brand-green" />
                   Done
                 </span>
               )}
             </div>
           ))}
         </div>
+        )}
       </div>
+      )}
 
       {/* Business Info */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">

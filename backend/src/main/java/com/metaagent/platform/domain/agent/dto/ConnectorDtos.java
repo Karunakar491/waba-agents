@@ -12,7 +12,8 @@ public final class ConnectorDtos {
             String name,
             String agentId,
             String agentName,
-            String phoneNumberId
+            String phoneNumberId,
+            String status
     ) {}
 
     public record ConnectorListResponse(List<ConnectorRow> connectors) {}

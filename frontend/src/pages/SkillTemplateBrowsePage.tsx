@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import api from '../lib/api'
 
 interface WabaEntry {
@@ -22,8 +21,12 @@ function extractMessage(err: unknown): string {
   return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
+// Merged into SkillLibraryPage as a tab (2026-08-05) — was a separate route
+// with its own back-button/page-heading; now a self-contained tab body. Row
+// list converted to a card grid: this is a browse-and-pick catalog job, not
+// a comparison table, and a cramped single-line row undersold the "read the
+// pitch, then act" job a template gallery needs (per the earlier UX audit).
 export default function SkillTemplateBrowsePage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [industry, setIndustry] = useState('')
   const [useCase, setUseCase] = useState('')
@@ -61,19 +64,9 @@ export default function SkillTemplateBrowsePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <button
-          onClick={() => navigate('/library/skills')}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Skills
-        </button>
-        <h1 className="mt-2 text-2xl font-bold text-foreground">Skill Library</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Karix-curated reference skills, by industry and use case. Copy one to start your own — editing your copy never changes the original.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Karix-curated reference skills, by industry and use case. Copy one to start your own — editing your copy never changes the original.
+      </p>
 
       {copyError && (
         <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -96,48 +89,45 @@ export default function SkillTemplateBrowsePage() {
       )}
 
       {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-xl border bg-muted/40 animate-pulse" />)}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-40 rounded-xl border bg-muted/40 animate-pulse" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-16 text-center">
           <p className="text-sm text-muted-foreground">No templates match this filter.</p>
         </div>
       ) : (
-        <ul className="space-y-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((template) => (
-            <li key={template.id} className="rounded-xl border bg-card px-4 py-3 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{template.title}</p>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {template.industry}
-                    </span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {template.useCase}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
-                </div>
-                <button
-                  onClick={() => copyMutation.mutate(template.id)}
-                  disabled={!waba || copyMutation.isPending}
-                  title={!waba ? 'Connect a WABA first' : undefined}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold
-                    text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  {copyMutation.isPending && copyMutation.variables === template.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : copiedId === template.id ? (
-                    <Check className="h-3.5 w-3.5 text-brand-green" />
-                  ) : null}
-                  {copiedId === template.id ? 'Copied' : 'Copy to my Skills'}
-                </button>
+            <div
+              key={template.id}
+              className="flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all
+                hover:shadow-md hover:border-primary/30"
+            >
+              <p className="text-sm font-semibold text-foreground">{template.title}</p>
+              <p className="mt-1.5 flex-1 text-sm text-muted-foreground line-clamp-3">{template.description}</p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{template.industry}</span>
+                <span>·</span>
+                <span>{template.useCase}</span>
               </div>
-            </li>
+              <button
+                onClick={() => copyMutation.mutate(template.id)}
+                disabled={!waba || copyMutation.isPending}
+                title={!waba ? 'Connect a WABA first' : undefined}
+                className="mt-4 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold
+                  text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                {copyMutation.isPending && copyMutation.variables === template.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : copiedId === template.id ? (
+                  <Check className="h-3.5 w-3.5 text-brand-green" />
+                ) : null}
+                {copiedId === template.id ? 'Copied' : 'Copy to my Skills'}
+              </button>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )

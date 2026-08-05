@@ -1,8 +1,12 @@
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { MessageSquare, Bot, User } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
+import StatusIndicator from '../components/shared/StatusIndicator'
+
+type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
 interface Conversation {
   id: number
@@ -25,6 +29,7 @@ interface Message {
 export default function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('conversationId')
+  const [filter, setFilter] = useState<ConversationFilter>('ALL')
 
   const { data: conversations = [], isLoading: convsLoading } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
@@ -37,6 +42,22 @@ export default function InboxPage() {
     enabled: !!selectedId,
   })
 
+  const openCount = useMemo(() => conversations.filter((c) => c.status === 'open').length, [conversations])
+
+  // Open-first (most-recent-first within each group, per the existing API
+  // ordering — a stable sort only reorders across the open/closed boundary),
+  // per the 2026-08-05 triage fix: previously every row looked identical
+  // regardless of urgency.
+  const sortedConversations = useMemo(() => {
+    const order: Record<Conversation['status'], number> = { open: 0, closed: 1 }
+    return [...conversations].sort((a, b) => order[a.status] - order[b.status])
+  }, [conversations])
+
+  const visibleConversations = useMemo(() => {
+    if (filter === 'ALL') return sortedConversations
+    return sortedConversations.filter((c) => c.status === filter.toLowerCase())
+  }, [sortedConversations, filter])
+
   const selectedConv = conversations.find((c) => String(c.id) === selectedId) ?? null
 
   function selectConversation(id: number) {
@@ -48,8 +69,27 @@ export default function InboxPage() {
       {/* Left panel — conversation list */}
       <div className="flex w-80 shrink-0 flex-col border-r bg-white overflow-hidden">
         <div className="border-b px-4 py-3">
-          <h2 className="text-base font-semibold text-foreground">Conversations</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Conversations</h2>
+            {openCount > 0 && (
+              <span className="text-xs font-medium text-foreground">Open ({openCount})</span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">Read-only audit log</p>
+          <div className="mt-2.5 flex gap-1.5">
+            {(['ALL', 'OPEN', 'CLOSED'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                  filter === f ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {f === 'ALL' ? 'All' : f === 'OPEN' ? 'Open' : 'Closed'}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -57,8 +97,12 @@ export default function InboxPage() {
             <ConversationListSkeleton />
           ) : conversations.length === 0 ? (
             <ConversationEmptyState />
+          ) : visibleConversations.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              No {filter.toLowerCase()} conversations.
+            </p>
           ) : (
-            conversations.map((conv) => (
+            visibleConversations.map((conv) => (
               <ConversationRow
                 key={conv.id}
                 conv={conv}
@@ -137,7 +181,10 @@ function ConversationRow({
           <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
           <span className="text-xs text-muted-foreground shrink-0">{time}</span>
         </div>
-        <p className="text-xs text-muted-foreground truncate mt-0.5 capitalize">{conv.status} · {conv.channel}</p>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <StatusIndicator label={conv.status === 'open' ? 'Open' : 'Closed'} tone={conv.status === 'open' ? 'positive' : 'neutral'} />
+          <span className="text-xs text-muted-foreground capitalize">· {conv.channel}</span>
+        </div>
       </div>
     </button>
   )

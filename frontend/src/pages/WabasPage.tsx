@@ -1,18 +1,19 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   Building2,
   Plus,
-  ChevronDown,
   ChevronRight,
-  Bot,
-  Minus,
+  ChevronLeft,
   Check,
   Loader2,
-  Phone,
+  Search,
 } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
+import StatusIndicator from '../components/shared/StatusIndicator'
+import Modal from '../components/shared/Modal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,13 +44,31 @@ interface ValidatePreview {
 // WabasPage
 // ---------------------------------------------------------------------------
 
+const PAGE_SIZE = 10
+
 export default function WabasPage() {
   const [showAdd, setShowAdd] = useState(false)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
 
   const { data: wabas = [], isLoading } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
     queryFn: () => api.get('/waba').then((r) => r.data.data),
   })
+
+  // Search + pagination — this page is definitionally multi-client, and had
+  // neither before (2026-08-05 fix); an ops account with 20+ WABAs had no way
+  // to narrow beyond scrolling and eyeballing IDs.
+  const filteredWabas = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return wabas
+    return wabas.filter(
+      (w) => w.wabaId.toLowerCase().includes(q) || (w.label ?? '').toLowerCase().includes(q),
+    )
+  }, [wabas, search])
+
+  const pageCount = Math.max(1, Math.ceil(filteredWabas.length / PAGE_SIZE))
+  const pagedWabas = filteredWabas.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -77,7 +96,56 @@ export default function WabasPage() {
       ) : wabas.length === 0 ? (
         <EmptyState onAddClick={() => setShowAdd(true)} />
       ) : (
-        <WabaTable wabas={wabas} />
+        <>
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0) }}
+              placeholder="Search WABAs by ID or name…"
+              className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-3 text-sm
+                placeholder:text-muted-foreground transition"
+            />
+          </div>
+
+          {filteredWabas.length === 0 ? (
+            <p className="rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+              No WABAs match your search.
+            </p>
+          ) : (
+            <>
+              <WabaTable wabas={pagedWabas} />
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    Page {page + 1} of {pageCount} ({filteredWabas.length} total)
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      disabled={page === 0}
+                      className="flex items-center gap-1 rounded-lg border px-3 py-1.5 font-medium
+                        text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                      disabled={page >= pageCount - 1}
+                      className="flex items-center gap-1 rounded-lg border px-3 py-1.5 font-medium
+                        text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
 
       {/* Add WABA modal */}
@@ -91,40 +159,7 @@ export default function WabasPage() {
 // ---------------------------------------------------------------------------
 
 function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [phones, setPhones] = useState<Map<string, PhoneNumber[]>>(new Map())
-  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
-
-  function toggleRow(wabaId: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(wabaId)) {
-        next.delete(wabaId)
-      } else {
-        next.add(wabaId)
-        if (!phones.has(wabaId)) {
-          loadPhones(wabaId)
-        }
-      }
-      return next
-    })
-  }
-
-  function loadPhones(wabaId: string) {
-    setLoadingIds((prev) => new Set(prev).add(wabaId))
-    api
-      .get(`/waba/${wabaId}/phones`)
-      .then((r) => {
-        setPhones((prev) => new Map(prev).set(wabaId, r.data.data))
-      })
-      .finally(() => {
-        setLoadingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(wabaId)
-          return next
-        })
-      })
-  }
+  const navigate = useNavigate()
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -138,9 +173,6 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
               Business Name
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Phone Numbers
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Status
             </th>
             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -149,40 +181,9 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
           </tr>
         </thead>
         <tbody className="divide-y">
-          {wabas.map((waba) => {
-            const isExpanded = expandedIds.has(waba.wabaId)
-            const isLoadingPhones = loadingIds.has(waba.wabaId)
-            const wabaPhones = phones.get(waba.wabaId) ?? []
-
-            return (
-              <>
-                <WabaRow
-                  key={waba.id}
-                  waba={waba}
-                  isExpanded={isExpanded}
-                  onToggle={() => toggleRow(waba.wabaId)}
-                />
-                {isExpanded && (
-                  <tr key={`${waba.id}-expanded`}>
-                    <td colSpan={5} className="bg-muted/10 px-6 py-4">
-                      {isLoadingPhones ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading phone numbers…
-                        </div>
-                      ) : wabaPhones.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-2">
-                          No phone numbers found for this WABA.
-                        </p>
-                      ) : (
-                        <PhoneSubTable phones={wabaPhones} />
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </>
-            )
-          })}
+          {wabas.map((waba) => (
+            <WabaRow key={waba.id} waba={waba} onOpen={() => navigate(`/wabas/${waba.wabaId}`)} />
+          ))}
         </tbody>
       </table>
     </div>
@@ -193,19 +194,19 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
 // WabaRow
 // ---------------------------------------------------------------------------
 
-function WabaRow({
-  waba,
-  isExpanded,
-  onToggle,
-}: {
-  waba: WabaEntry
-  isExpanded: boolean
-  onToggle: () => void
-}) {
+// Phase 2 item 14b (2026-08-05) — no longer expands inline into a nested
+// table; the phone-number drill-down is now WabaDetailPage's own route.
+function WabaRow({ waba, onOpen }: { waba: WabaEntry; onOpen: () => void }) {
   const isActive = waba.status === 'active'
 
   return (
-    <tr className="hover:bg-muted/20 transition-colors">
+    <tr
+      className="hover:bg-muted/20 transition-colors cursor-pointer focus-visible:bg-muted/20"
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
+    >
       {/* WABA ID */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
@@ -219,121 +220,29 @@ function WabaRow({
         {waba.label ?? <span className="text-muted-foreground">—</span>}
       </td>
 
-      {/* Phone Numbers */}
-      <td className="px-4 py-3">
-        <button
-          onClick={onToggle}
-          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5
-            text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
-        >
-          <Phone className="h-3 w-3" />
-          View numbers
-        </button>
-      </td>
-
       {/* Status */}
       <td className="px-4 py-3">
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium',
-            isActive
-              ? 'bg-brand-green/10 text-brand-green'
-              : 'bg-destructive/10 text-destructive',
-          )}
-        >
-          <span
-            className={cn(
-              'h-1.5 w-1.5 rounded-full',
-              isActive ? 'bg-brand-green' : 'bg-destructive',
-            )}
-          />
-          {isActive ? 'Active' : 'Disconnected'}
-        </span>
+        <StatusIndicator
+          label={isActive ? 'Active' : 'Disconnected'}
+          tone={isActive ? 'positive' : 'negative'}
+          pulse={isActive}
+        />
       </td>
 
       {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex justify-end">
           <button
-            onClick={onToggle}
-            title={isExpanded ? 'Collapse' : 'Expand'}
-            className="flex items-center justify-center h-8 w-8 rounded-lg
-              text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            onClick={(e) => { e.stopPropagation(); onOpen() }}
+            className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium
+              text-foreground transition-colors hover:bg-muted"
           >
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
+            View
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </td>
     </tr>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// PhoneSubTable
-// ---------------------------------------------------------------------------
-
-function PhoneSubTable({ phones }: { phones: PhoneNumber[] }) {
-  return (
-    <div className="rounded-lg border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/40">
-            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Phone Number
-            </th>
-            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Verified Name
-            </th>
-            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Mapped Agent
-            </th>
-            <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground" />
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {phones.map((phone) => (
-            <tr key={phone.phoneNumberId} className="bg-background">
-              <td className="px-4 py-2.5 font-medium text-foreground">
-                {phone.displayPhoneNumber}
-              </td>
-              <td className="px-4 py-2.5 text-sm text-muted-foreground">
-                {phone.verifiedName}
-              </td>
-              <td className="px-4 py-2.5">
-                {phone.connectedAgentName ? (
-                  <div className="flex items-center gap-1.5 text-brand-green text-sm font-medium">
-                    <Bot className="h-3.5 w-3.5" />
-                    {phone.connectedAgentName}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
-                    <Minus className="h-3.5 w-3.5" />
-                    No agent
-                  </div>
-                )}
-              </td>
-              <td className="px-4 py-2.5">
-                <div className="flex justify-end">
-                  {!phone.alreadyConnected && (
-                    <button
-                      className="rounded-lg border px-3 py-1.5 text-xs font-medium
-                        text-foreground transition-colors hover:bg-muted"
-                    >
-                      {/* TASK-037: wire agent assignment */}
-                      Assign Agent
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   )
 }
 
@@ -387,19 +296,17 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div
-        className="w-full max-w-md rounded-2xl bg-card border shadow-xl p-6 mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal
+      title={step === 'enter' ? 'Add WABA' : 'Confirm Registration'}
+      onClose={onClose}
+      preventClose={validateMutation.isPending || registerMutation.isPending}
+      maxWidthClassName="max-w-md"
+    >
         {step === 'enter' ? (
           <>
-            <div className="mb-5">
-              <h2 className="text-lg font-bold text-foreground">Add WABA</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Enter the Meta WABA ID to validate and register.
-              </p>
-            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Enter the Meta WABA ID to validate and register.
+            </p>
 
             <form onSubmit={handleValidate} className="space-y-4">
               <div className="space-y-1.5">
@@ -463,12 +370,9 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <div className="mb-5">
-              <h2 className="text-lg font-bold text-foreground">Confirm Registration</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Review the details below before registering.
-              </p>
-            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Review the details below before registering.
+            </p>
 
             {preview && (
               <div className="space-y-4">
@@ -544,8 +448,7 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -585,7 +488,7 @@ function WabaTableSkeleton() {
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/30">
-            {['WABA ID', 'Business Name', 'Phone Numbers', 'Status', 'Actions'].map((h) => (
+            {['WABA ID', 'Business Name', 'Status', 'Actions'].map((h) => (
               <th
                 key={h}
                 className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -608,14 +511,11 @@ function WabaTableSkeleton() {
                 <div className="h-3.5 w-32 rounded bg-muted" />
               </td>
               <td className="px-4 py-3">
-                <div className="h-5 w-24 rounded-full bg-muted" />
-              </td>
-              <td className="px-4 py-3">
                 <div className="h-5 w-20 rounded-full bg-muted" />
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-end">
-                  <div className="h-8 w-8 rounded-lg bg-muted" />
+                  <div className="h-7 w-16 rounded-lg bg-muted" />
                 </div>
               </td>
             </tr>

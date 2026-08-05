@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Circle, Loader2, X } from 'lucide-react'
+import { Circle, Loader2 } from 'lucide-react'
 import api from '../../lib/api'
 import { cn } from '../../lib/utils'
 import { useJobPoll } from '../../hooks/useJobPoll'
 import ConsequenceLine from '../shared/ConsequenceLine'
+import Modal from '../shared/Modal'
 
 function extractMessage(err: unknown): string {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
@@ -71,27 +72,12 @@ export default function TriggerEventModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
+    <Modal
+      title="Trigger event"
+      onClose={onClose}
+      preventClose={poll.status === 'pending'}
+      maxWidthClassName="max-w-md"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="trigger-event-title"
-        className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 id="trigger-event-title" className="text-base font-semibold text-foreground">Trigger event</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
         <ConsequenceLine>
           Fires a business event at this agent — e.g. "payment received" — so it can react in the
           conversation.
@@ -160,7 +146,6 @@ export default function TriggerEventModal({
             {STATUS_LABEL[poll.status]}
           </span>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

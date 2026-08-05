@@ -37,7 +37,7 @@ const MODULES: ModuleDef[] = [
 
 export default function ModuleSelectorPage() {
   const navigate = useNavigate()
-  const { data: entitlements } = useModuleEntitlements()
+  const { data: entitlements, isLoading } = useModuleEntitlements()
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
@@ -47,6 +47,17 @@ export default function ModuleSelectorPage() {
           <p className="text-sm text-muted-foreground">Only features enabled for your account are available.</p>
         </div>
 
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {MODULES.map((mod) => (
+              <div key={mod.key} className="flex flex-col items-start gap-3 rounded-xl border bg-card p-6">
+                <div className="h-12 w-12 rounded-2xl bg-muted animate-pulse" />
+                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-full rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {MODULES.map((mod) => {
             const enabled = !!entitlements?.[mod.key]
@@ -57,8 +68,10 @@ export default function ModuleSelectorPage() {
                 type="button"
                 disabled={!enabled}
                 onClick={() => enabled && navigate(mod.homeRoute)}
+                aria-describedby={!enabled ? `${mod.key}-disabled-reason` : undefined}
                 className={cn(
                   'flex flex-col items-start gap-3 rounded-xl border bg-card p-6 text-left shadow-sm transition',
+                  'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   enabled
                     ? 'hover:border-primary hover:shadow-md cursor-pointer'
                     : 'opacity-50 cursor-not-allowed',
@@ -72,12 +85,15 @@ export default function ModuleSelectorPage() {
                   <p className="mt-1 text-sm text-muted-foreground">{mod.description}</p>
                 </div>
                 {!enabled && (
-                  <span className="text-xs font-medium text-muted-foreground">Not enabled for this account</span>
+                  <span id={`${mod.key}-disabled-reason`} className="text-xs font-medium text-muted-foreground">
+                    Not enabled for this account
+                  </span>
                 )}
               </button>
             )
           })}
         </div>
+        )}
       </div>
     </div>
   )

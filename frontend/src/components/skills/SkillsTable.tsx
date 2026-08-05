@@ -1,4 +1,5 @@
-import { Circle, FileText, Loader2, Trash2 } from 'lucide-react'
+import { FileText, Loader2, Trash2 } from 'lucide-react'
+import StatusIndicator from '../shared/StatusIndicator'
 
 export interface Deployment {
   agentId: string
@@ -18,20 +19,10 @@ export interface SkillRow {
 
 function statusBadge(row: SkillRow) {
   if (!row.deployed) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-        <Circle className="h-1.5 w-1.5 fill-current" />
-        Draft
-      </span>
-    )
+    return <StatusIndicator label="Draft" tone="neutral" />
   }
   const count = row.deployments.length
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/10 px-2.5 py-0.5 text-xs font-medium text-brand-green">
-      <Circle className="h-1.5 w-1.5 fill-current" />
-      Deployed{count > 0 ? ` (${count})` : ''}
-    </span>
-  )
+  return <StatusIndicator label={`Deployed${count > 0 ? ` (${count})` : ''}`} tone="positive" />
 }
 
 function deployedOn(row: SkillRow) {

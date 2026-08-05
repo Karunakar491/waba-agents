@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Bot,
-  Circle,
   ArrowLeft,
   Loader2,
   Pause,
@@ -37,9 +36,11 @@ import BusinessProfileTab from '../components/agent-detail/BusinessProfileTab'
 import SkillsTab from '../components/agent-detail/SkillsTab'
 import RunToolModal from '../components/agent-detail/RunToolModal'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
+import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import EvalTab from '../components/agent-detail/EvalTab'
 import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
 import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
+import Modal from '../components/shared/Modal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,10 +69,10 @@ interface Faq {
 
 type DetailTab = 'knowledge' | 'skills' | 'connectors' | 'profile' | 'eval' | 'settings'
 
-const STATUS_CONFIG = {
-  active: { label: 'Active',  color: 'text-brand-green', bg: 'bg-brand-green/10' },
-  paused: { label: 'Paused',  color: 'text-yellow-600',  bg: 'bg-yellow-50'      },
-  draft:  { label: 'Draft',   color: 'text-muted-foreground', bg: 'bg-muted'      },
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone; pulse?: boolean }> = {
+  active: { label: 'Active', tone: 'positive', pulse: true },
+  paused: { label: 'Paused', tone: 'warning' },
+  draft:  { label: 'Draft',  tone: 'neutral' },
 }
 
 const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
@@ -271,12 +272,7 @@ export default function AgentDetailPage() {
                         : <RefreshCw className="h-3.5 w-3.5" />}
                     </button>
                   )}
-                  <span
-                    className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}
-                  >
-                    <Circle className="h-1.5 w-1.5 fill-current" />
-                    {cfg.label}
-                  </span>
+                  <StatusIndicator label={cfg.label} tone={cfg.tone} pulse={cfg.pulse} />
                   {(agent.sharedAccountCount ?? 0) > 1 && (
                     <span
                       title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}
@@ -454,10 +450,13 @@ function ThreadControlModal({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
-        <h2 className="text-base font-semibold text-foreground">Release thread control?</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+    <Modal
+      title="Release thread control?"
+      onClose={onClose}
+      preventClose={releaseMutation.isPending}
+      maxWidthClassName="max-w-md"
+    >
+        <p className="text-sm text-muted-foreground">
           This hands active conversations on <strong className="font-semibold text-foreground">
           {phoneNumberId ?? 'this number'}</strong> back to the Meta AI agent. The agent resumes
           responding to new messages on this number.
@@ -489,8 +488,7 @@ function ThreadControlModal({
             Cancel
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -684,9 +682,9 @@ function NotSyncedBadge({ label, title }: { label: string; title?: string }) {
   return (
     <span
       title={title ?? `This ${label} hasn't synced to Meta, or was changed/removed directly on Meta outside this app`}
-      className="shrink-0 rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-medium text-yellow-700"
+      className="shrink-0"
     >
-      Not synced
+      <StatusIndicator label="Not synced" tone="warning" />
     </span>
   )
 }
@@ -974,11 +972,11 @@ const METHOD_BADGE: Record<string, string> = {
   PATCH:  'bg-orange-50 text-orange-700',
 }
 
-function connectorStatusClasses(status: string): string {
-  if (status === 'ACTIVE')         return 'bg-brand-green/10 text-brand-green'
-  if (status === 'PENDING_OAUTH')  return 'bg-yellow-50 text-yellow-700'
-  if (status === 'ERROR')          return 'bg-destructive/10 text-destructive'
-  return 'bg-muted text-muted-foreground'
+function connectorStatusTone(status: string): StatusTone {
+  if (status === 'ACTIVE')         return 'positive'
+  if (status === 'PENDING_OAUTH')  return 'warning'
+  if (status === 'ERROR')          return 'negative'
+  return 'neutral'
 }
 
 function connectorPlugColor(status: string): string {
@@ -1057,19 +1055,12 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
     'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-foreground">Add Connector</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Modal
+      title="Add Connector"
+      onClose={onClose}
+      preventClose={saving}
+      maxWidthClassName="max-w-md"
+    >
         {error && (
           <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -1213,8 +1204,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1260,19 +1250,12 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
     'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-foreground">Add Tool</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Modal
+      title="Add Tool"
+      onClose={onClose}
+      preventClose={saving}
+      maxWidthClassName="max-w-md"
+    >
         {error && (
           <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -1357,8 +1340,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1583,13 +1565,8 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     <p className="text-sm font-medium text-foreground truncate">{connector.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{connector.base_url}</p>
                   </div>
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
-                      connectorStatusClasses(status),
-                    )}
-                  >
-                    {status || 'Unknown'}
+                  <span className="shrink-0">
+                    <StatusIndicator label={status || 'Unknown'} tone={connectorStatusTone(status)} />
                   </span>
                   <button
                     onClick={() => toggleExpand(connector.id)}

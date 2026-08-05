@@ -6,12 +6,12 @@ import {
   FileEdit,
   PhoneOff,
   ArrowRight,
-  CheckCircle2,
   MessageSquare,
   Phone,
   Circle,
 } from 'lucide-react'
 import api from '../lib/api'
+import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 
 interface AgentRow {
   id: string
@@ -108,6 +108,18 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Attention narrative renders first, deliberately with no card chrome —
+          per DESIGN.md's Bento/hierarchy note, this is a headline the eye
+          should land on before the reference tables below, not one more card
+          that reads as "table, then another table" (2026-08-05 reorder). */}
+      {isLoading ? (
+        <AttentionSkeleton />
+      ) : isError ? (
+        <ErrorState />
+      ) : (
+        <AttentionList agents={agents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
+      )}
+
       {summaryLoading ? (
         <MetricsSkeleton />
       ) : summaryError ? (
@@ -125,14 +137,6 @@ export default function DashboardPage() {
           syncedAt={summary!.phoneNumbersSyncedAt}
           onOpenAgent={(id) => navigate(`/agents/${id}`)}
         />
-      )}
-
-      {isLoading ? (
-        <SkeletonList />
-      ) : isError ? (
-        <ErrorState />
-      ) : (
-        <AttentionList agents={agents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
       )}
     </div>
   )
@@ -182,10 +186,10 @@ function MetricsErrorState() {
   )
 }
 
-const PHONE_STATUS_CONFIG = {
-  active: { label: 'Active', color: 'text-brand-green', bg: 'bg-brand-green/10' },
-  paused: { label: 'Paused', color: 'text-yellow-600', bg: 'bg-yellow-50' },
-  draft: { label: 'Draft', color: 'text-muted-foreground', bg: 'bg-muted' },
+const PHONE_STATUS_CONFIG: Record<string, { label: string; tone: StatusTone; pulse?: boolean }> = {
+  active: { label: 'Active', tone: 'positive', pulse: true },
+  paused: { label: 'Paused', tone: 'warning' },
+  draft: { label: 'Draft', tone: 'neutral' },
 }
 
 // TASK-061 — Meta's quality_rating is the leading indicator before WhatsApp
@@ -194,21 +198,18 @@ const PHONE_STATUS_CONFIG = {
 // review, 2026-07-30 — flagged as unconfirmed, not sourced). Any other value
 // (blank, UNKNOWN, or something we haven't seen) renders as a neutral badge
 // rather than hiding the signal.
-const QUALITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  GREEN: { label: 'Quality: High', color: 'text-brand-green', bg: 'bg-brand-green/10' },
-  YELLOW: { label: 'Quality: Medium', color: 'text-yellow-600', bg: 'bg-yellow-50' },
-  RED: { label: 'Quality: Low', color: 'text-destructive', bg: 'bg-destructive/10' },
+const QUALITY_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  GREEN: { label: 'Quality: High', tone: 'positive' },
+  YELLOW: { label: 'Quality: Medium', tone: 'warning' },
+  RED: { label: 'Quality: Low', tone: 'negative' },
 }
 
 function QualityBadge({ qualityRating }: { qualityRating: string | null }) {
   if (!qualityRating) return null
-  const cfg = QUALITY_CONFIG[qualityRating] ?? { label: `Quality: ${qualityRating}`, color: 'text-muted-foreground', bg: 'bg-muted' }
+  const cfg = QUALITY_CONFIG[qualityRating] ?? { label: `Quality: ${qualityRating}`, tone: 'neutral' as const }
   return (
-    <span
-      title="Meta's quality rating for this number — a drop here can precede messaging restrictions"
-      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}
-    >
-      {cfg.label}
+    <span title="Meta's quality rating for this number — a drop here can precede messaging restrictions" className="shrink-0">
+      <StatusIndicator label={cfg.label} tone={cfg.tone} />
     </span>
   )
 }
@@ -286,9 +287,7 @@ function PhoneNumbersTable({
                           onClick={() => phone.agentId && onOpenAgent(phone.agentId)}
                           className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-medium transition-colors hover:bg-muted"
                         >
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 ${statusCfg.bg} ${statusCfg.color}`}>
-                            {phone.agentName ?? statusCfg.label}
-                          </span>
+                          <StatusIndicator label={phone.agentName ?? statusCfg.label} tone={statusCfg.tone} pulse={statusCfg.pulse} />
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                       ) : (
@@ -324,6 +323,8 @@ function PhoneNumbersTable({
   )
 }
 
+const ATTENTION_INLINE_CAP = 3
+
 function AttentionList({
   agents,
   onOpenAgent,
@@ -349,48 +350,60 @@ function AttentionList({
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 text-center shadow-sm">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green/10 mb-4">
-          <CheckCircle2 className="h-7 w-7 text-brand-green" />
-        </div>
-        <h3 className="text-base font-semibold text-foreground">All clear</h3>
-        <p className="mt-1 text-sm text-muted-foreground max-w-xs">
-          Every agent is live and connected. Nothing needs attention right now.
-        </p>
-      </div>
+      <p className="flex items-center gap-2 text-sm text-foreground">
+        <StatusIndicator label="All agents are live and connected. Nothing needs attention." tone="positive" />
+      </p>
     )
   }
 
+  const visible = items.slice(0, ATTENTION_INLINE_CAP)
+  const remaining = items.length - visible.length
+
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-      <div className="border-b bg-muted/30 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Needs attention ({items.length})
-        </p>
-      </div>
-      <ul className="divide-y">
-        {items.map(({ agent, reason }) => {
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-foreground">
+        {items.length} {items.length === 1 ? 'agent needs' : 'agents need'} attention
+      </p>
+      <div className="space-y-1">
+        {visible.map(({ agent, reason }) => {
           const cfg = REASON_CONFIG[reason]
           const Icon = cfg.icon
           return (
-            <li key={agent.id}>
-              <button
-                onClick={() => onOpenAgent(agent.id)}
-                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/20"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-yellow-50">
-                  <Icon className="h-4 w-4 text-yellow-600" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground truncate">{agent.displayName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{cfg.label}</p>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            </li>
+            <button
+              key={agent.id}
+              onClick={() => onOpenAgent(agent.id)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/30"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-yellow-600" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground truncate">{agent.displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{cfg.label}</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
           )
         })}
-      </ul>
+      </div>
+      {remaining > 0 && (
+        <p className="pl-2 text-xs text-muted-foreground">+{remaining} more</p>
+      )}
+    </div>
+  )
+}
+
+function AttentionSkeleton() {
+  return (
+    <div className="space-y-2">
+      <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+      {[1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 px-2 py-2 animate-pulse">
+          <div className="h-4 w-4 shrink-0 rounded bg-muted" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3.5 w-40 rounded bg-muted" />
+            <div className="h-3 w-56 rounded bg-muted" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

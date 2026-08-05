@@ -5,6 +5,9 @@ tags: [sessions, index, changelog]
 
 # Sessions — Running Changelog
 
+## 2026-08-04
+- [[session-2026-08-04|Session 2026-08-04]] — Iris redesigned 3x (brand polish → Claude-like → chat history sidebar), WABA picker removed from Iris, self-caught TSID serialization bug, deployment saga (wrong bastion, stray jar trap), local full-stack Docker test environment set up
+
 ## 2026-07-20
 - [[session-2026-07-20|Session 2026-07-20]] — Backend deployed to server, frontend scaffolded, Obsidian wiki set up
 

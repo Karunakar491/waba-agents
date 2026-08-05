@@ -13,6 +13,24 @@
 
 ---
 
+## Production Data — Sacrosanct, No Exceptions
+
+> UI, UX, features, look and feel — all of it can change, constantly, without hesitation.
+> Production DATA is never at risk. Ever. Under any framing.
+
+This is a separate, higher tier of rule than the maker-checker process above — it does not bend for "go ahead," "quickly," a small task, or an approved gate. A PM/EM/EL approval authorizes a change to code and behavior. It never authorizes risk to production data.
+
+- No migration runs against production without an explicit, current backup taken immediately before it, verified restorable.
+- No destructive SQL (`DROP`, `TRUNCATE`, `DELETE` without a scoped `WHERE`, `UPDATE` without a scoped `WHERE`) touches production under any circumstance from a build/fix/deploy task. If a task seems to require this, STOP and escalate to the founder before writing the query — do not run it and ask forgiveness after.
+- No deploy script overwrites `application.yml`, credentials, JWT keys, or any config/secrets directory on the production server without first confirming the exact target path and taking a copy of what's there (see [[../wiki/deployment/lessons]] — this has already happened once: `application.yml` was overwritten via SCP during a deploy).
+- No local-testing/mock code (harnesses, monkey-patched API clients, seed scripts) is ever imported or reachable from a production entrypoint (`App.tsx`, `main`, any file bundled/shipped) — this has already caused a real production outage once (`_PreviewHarness.tsx` leaking into the shipped bundle and replacing the live API client for every user). Any throwaway test/mock file must be deleted the moment its purpose is served, not left importable "for now."
+- Schema changes (new column, changed type, dropped column) are additive-first and reversible by default — a column is deprecated before it's dropped, not dropped in the same task it's replaced.
+- When a task's actual goal is UI/UX/feature work, and touching production data would even incidentally be a side effect (a "just re-seed it," "just run this cleanup query while we're in there," "just fix the data directly instead of the bug"), that is treated as a SEPARATE, higher-risk task requiring explicit founder sign-off before it happens — never bundled into the original task's scope or approval.
+
+If ever genuinely uncertain whether an action touches production data — treat it as if it does, and ask first.
+
+---
+
 ## What We Are Building
 
 SaaS platform where businesses create and manage Meta Business Agents — AI agents on WhatsApp, Messenger, Instagram via Meta's Business Messaging APIs.

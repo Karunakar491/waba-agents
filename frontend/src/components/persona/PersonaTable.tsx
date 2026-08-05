@@ -1,5 +1,6 @@
-import { Circle, FileText, Loader2, Rocket, Trash2 } from 'lucide-react'
+import { FileText, Loader2, Rocket, Trash2 } from 'lucide-react'
 import type { BusinessProfileResponse } from '../agent-detail/BusinessProfileTab'
+import StatusIndicator from '../shared/StatusIndicator'
 
 // One row per profile, across every phone number this account can see —
 // PM+EM gate (2026-07-30): drop the "Agent" column from the original ask,
@@ -19,16 +20,11 @@ interface PhoneEntry {
 
 function statusBadge(status: string) {
   const config = {
-    DRAFT: { label: 'Draft', cls: 'bg-muted text-muted-foreground' },
-    DEPLOYED: { label: 'Published', cls: 'bg-brand-green/10 text-brand-green' },
-    ARCHIVED: { label: 'Saved', cls: 'bg-muted text-muted-foreground' },
-  }[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' }
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${config.cls}`}>
-      <Circle className="h-1.5 w-1.5 fill-current" />
-      {config.label}
-    </span>
-  )
+    DRAFT: { label: 'Draft', tone: 'neutral' as const },
+    DEPLOYED: { label: 'Published', tone: 'positive' as const },
+    ARCHIVED: { label: 'Saved', tone: 'neutral' as const },
+  }[status] ?? { label: status, tone: 'neutral' as const }
+  return <StatusIndicator label={config.label} tone={config.tone} />
 }
 
 interface PersonaTableRowProps {

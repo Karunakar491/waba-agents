@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, Play, X, XCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, Play, XCircle } from 'lucide-react'
 import api from '../../lib/api'
+import Modal from '../shared/Modal'
 
 function extractMessage(err: unknown): string {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
@@ -44,29 +45,12 @@ export default function RunToolModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={(e) => { if (e.key === 'Escape' && !mutation.isPending) onClose() }}
+    <Modal
+      title={`Run ${toolName}`}
+      onClose={onClose}
+      preventClose={mutation.isPending}
+      maxWidthClassName="max-w-lg"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="run-tool-title"
-        className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-xl"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 id="run-tool-title" className="text-base font-semibold text-foreground">
-            Run {toolName}
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
         <p className="text-xs text-muted-foreground mb-3">
           Test-executes this tool against its real external API — the same call the agent would make in a live conversation.
         </p>
@@ -127,7 +111,6 @@ export default function RunToolModal({
             Close
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

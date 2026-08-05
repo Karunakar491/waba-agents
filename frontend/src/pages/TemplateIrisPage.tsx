@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle, Plus } from 'lucide-react'
 import api from '../lib/api'
@@ -219,7 +219,7 @@ interface TurnResponse {
   pendingToolArgs: Record<string, unknown> | null
 }
 
-interface ChatEntry { who: 'user' | 'iris'; text: string }
+interface ChatEntry { who: 'user' | 'iris'; text: string; link?: { label: string; to: string } }
 interface SessionSummary { id: string; title: string | null; updatedAt: string }
 interface MessageDto { role: string; content: string; createdAt: string }
 
@@ -234,9 +234,28 @@ const SUGGESTIONS = [
 // state the chat reads and writes.
 function IrisWorkspace() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [input, setInput] = useState('')
+
+  // "Edit with Iris" from Studio's table (2026-08-05) — prefills the input
+  // so the operator can review/adjust before sending, never auto-sends on
+  // their behalf. Clears via react-router's own navigate/replace (not raw
+  // window.history) so react-router's in-memory location is what actually
+  // changes — a bare `window.history.replaceState` doesn't update what
+  // `useLocation()` returns, so a later remount without a real navigation
+  // (e.g. a parent conditional flipping) would re-fire this effect and
+  // stomp whatever the operator had typed (EL round-1 REJECT, 2026-08-05).
+  useEffect(() => {
+    const prefill = (location.state as { prefillMessage?: string } | null)?.prefillMessage
+    if (prefill) {
+      setInput(prefill)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resuming, setResuming] = useState(false)
@@ -297,14 +316,25 @@ function IrisWorkspace() {
   const confirmAction = useMutation({
     mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
     onSuccess: () => {
-      setEntries((prev) => [...prev, { who: 'iris', text: 'Confirmed and submitted.' }])
       // Iris resolves wabaId itself — it's on the pending tool's own args,
       // never known to this component ahead of time. Refresh the Templates
       // table for that WABA so a newly created/edited template shows up
       // there without a manual page refresh.
-      if ((pending?.toolName === 'create_template' || pending?.toolName === 'edit_template') && pending.args.wabaId != null) {
+      const isTemplateAction = pending?.toolName === 'create_template' || pending?.toolName === 'edit_template'
+      if (isTemplateAction && pending.args.wabaId != null) {
         queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(String(pending.args.wabaId)) })
       }
+      // Cross-link back to Studio (2026-08-05) — previously a confirmed
+      // template submission had zero path forward; the operator had to
+      // manually navigate to Templates and trust it worked.
+      setEntries((prev) => [
+        ...prev,
+        {
+          who: 'iris',
+          text: 'Confirmed and submitted.',
+          link: isTemplateAction ? { label: 'View in Templates →', to: '/templates' } : undefined,
+        },
+      ])
       setPending(null)
     },
     onError: (err) => setError(extractMessage(err)),
@@ -406,7 +436,14 @@ function IrisWorkspace() {
                   <div className="max-w-[80%] rounded-2xl bg-brand-navy px-3.5 py-2 text-sm text-white">{e.text}</div>
                 </div>
               ) : (
-                <p key={i} className="max-w-[85%] text-[15px] leading-relaxed text-foreground">{e.text}</p>
+                <div key={i} className="max-w-[85%] space-y-1">
+                  <p className="text-[15px] leading-relaxed text-foreground">{e.text}</p>
+                  {e.link && (
+                    <Link to={e.link.to} className="inline-block text-sm font-medium text-primary hover:underline">
+                      {e.link.label}
+                    </Link>
+                  )}
+                </div>
               )
             )}
             {(sendMessage.isPending || startSession.isPending) && (

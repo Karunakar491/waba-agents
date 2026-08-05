@@ -92,7 +92,8 @@ Only exception: third-party UI mimicry constants, and those must still be named 
 | `brand-green` | `#1EBA5D` | Success states, "active/live" status |
 | `brand-dark` | `#1F1F1F` | Near-black text on light surfaces |
 | Font | Inter 400/500/600/700 | Everything. No other family |
-| Radius | 8px (`rounded-lg`) standard, 12px (`rounded-xl`) cards | |
+| Radius | 12px (`rounded-xl`) standard — buttons, inputs, chips; 16px (`rounded-2xl`) cards, modals, panels | Softer than the old 8px/12px scale — closer to Apple's current visual language. Never sharp corners, never fully-circular except icon-only controls |
+| Focus ring | `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2` on every interactive element, no exceptions | Not optional, not a nice-to-have — every button, link, row-action, and form control ships with this class. A REJECT-grade gap found repo-wide in the 2026-08-05 acquisition-grade audit; closing it is part of this radius/token pass, not a separate task |
 | Shadow | `shadow-sm` only | Subtle. Never heavy drop shadows |
 
 Semantic tokens (`background`, `foreground`, `muted`, `destructive`, `card`, `border`, …) come from shadcn CSS variables in `index.css`. Prefer semantic over brand tokens for anything that isn't identity or CTA.
@@ -117,9 +118,10 @@ Don't invent sizes between these. If a design needs a new level, add it here fir
 
 - Page container: content pages `max-w-2xl`–`max-w-6xl` centered; never full-bleed text
 - Vertical rhythm: `space-y-5` / `space-y-6` between form groups, `space-y-8` between page sections
-- Cards: `rounded-xl border bg-card p-6 shadow-sm`
-- Inputs: `rounded-lg border bg-background px-3 py-2.5 text-sm` + focus ring `focus:ring-2 focus:ring-primary/50`
-- Modals: max 560px wide on desktop
+- Cards: `rounded-2xl border bg-card p-6 shadow-sm`
+- Buttons: `rounded-xl` — softer, Apple-adjacent, never a sharp corner and never a fully-pill shape except icon-only circular controls
+- Inputs: `rounded-xl border bg-background px-3 py-2.5 text-sm` + `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`
+- Modals: max 560px wide on desktop, `rounded-2xl`, real focus trap + `role="dialog"` + `aria-modal="true"` + Escape-to-close + backdrop-click-dismiss (see the shared `Modal` primitive in §6 — never a bespoke overlay per screen)
 
 ---
 
@@ -128,7 +130,7 @@ Don't invent sizes between these. If a design needs a new level, add it here fir
 Every screen MUST pass all of these before it ships. The UX gate checks each item explicitly.
 
 ```
-[ ] Loading state for any operation > 300ms (spinner or skeleton — no dead buttons)
+[ ] Loading state for any operation > 300ms (spinner or skeleton — no dead buttons, and NEVER a blank/`null` render while a fetch resolves — a route guard, an auth check, or a gate component showing nothing is the same violation as a dead button, just less visible; found and REJECT-able as of 2026-08-05, `ProtectedRoute.tsx` returning `null` during entitlement checks)
 [ ] Empty state with a call to action (never bare "No data")
 [ ] Error state inline, next to where it went wrong (not toast-only)
 [ ] Disabled controls are always explained (inline validation message — never a silently dead button)
@@ -155,6 +157,18 @@ Every screen MUST pass all of these before it ships. The UX gate checks each ite
 - Wizards: follow `pages/CreateAgentPage.tsx` (steps rail | form | live preview 3-panel)
 - Data fetching UI: React Query states → `isLoading` skeleton, `isError` inline retry, success render
 - ConsequenceLine (§0 move 3): one per screen with consequences — `text-sm text-muted-foreground` line placed directly under the page title or beside the primary CTA; plain language, states what will/won't happen ("Nothing goes live until you deploy"). To be extracted as a shared component at its third use (three-cases rule)
+- `StatusIndicator` (dot + plain text, per §0 move 4): the ONLY way status renders anywhere — `<span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-{state}" />{plain label}</span>`. Never a tinted-background pill (`bg-x/10 text-x rounded-full`). Confirmed as of 2026-08-05 to have been independently reinvented wrong in 11+ places before this was written down as one component — treat any new `STATUS_CONFIG`-shaped object as a signal to import this instead of writing a new one
+- `Modal` (shared primitive, per §4): every dialog in the app renders through one component with a built-in focus trap, `role="dialog"`, `aria-modal`, Escape-to-close, and backdrop-dismiss wired once. No screen builds its own `fixed inset-0` overlay from scratch
+
+### Bento panel — scoped, not a universal layout
+
+For **overview/at-a-glance screens only** (confirmed scope: `DashboardPage`, `ModuleSelectorPage` — do not extend elsewhere without a Design Evaluator pass): a grid of varying-size cards (`grid grid-cols-1 md:grid-cols-3 gap-4`, cards spanning 1-2 columns by content weight) replacing same-size tiles-in-a-row. This is a considered exception, not the app's default layout:
+
+- **Tables, forms, chat, and wizards keep their established recipe (Recipe A-G, see `.claude/skills/ui-pattern-classifier.md`).** Bento is for heterogeneous glance-content (a metric, a status narrative, a shortcut) — never for comparable records that need scanning/sorting/filtering. Forcing bento onto a data table is exactly the "trendy pattern applied for its own sake" the Design Evaluator gate exists to BLOCK.
+- Card sizes vary by actual content weight (a 3-line status narrative gets more room than a single stat number) — never a uniform grid dressed up with the word "bento."
+- Same radius/shadow/border tokens as every other card — bento changes the grid, not the component recipe.
+- Card *content* must render through the existing identity primitives — `StatusIndicator` for any state, an agent-preview snippet where an agent exists, a `ConsequenceLine` where relevant — never card-local, one-off UI invented for the grid. Scoping the layout correctly and then filling it with generic content is still a BLOCK; the grid rule alone doesn't guarantee that.
+- Define overflow/underflow before building: a single-card state (e.g. only one metric to show) must not look broken, and a narrative card's content must have a defined max (truncate/line-clamp) rather than silently growing past its span.
 
 ---
 
@@ -175,3 +189,4 @@ Audience: stressed, non-technical business owner. Time-to-first-value under 3 mi
 |---|---|
 | 2026-07-22 | Initial version — created after founder feedback: design decisions were scattered, tokens undocumented, UX gate reviewed diffs without app context |
 | 2026-07-22 | Added agent guide preamble, §0 visual theme & mood, §0.1 breakpoints table — closes the "no vision" gap; inspired by Google Stitch DESIGN.md spec (VoltAgent/awesome-design-md). Design Evaluator persona added as post-UX gate |
+| 2026-08-05 | Radius scale softened (8/12px → 12/16px), mandatory `focus-visible:` ring token added (closes a REJECT-grade repo-wide gap found in the acquisition-grade audit), `StatusIndicator` and shared `Modal` primitive named as required components (closing an 11+-instance pill-badge regression and a 9-modal focus-trap gap), Bento panel pattern added — explicitly scoped to Dashboard/ModuleSelector only, not a universal layout. Pending Design Evaluator gate. |

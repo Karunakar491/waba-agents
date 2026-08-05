@@ -5,6 +5,8 @@ import com.metaagent.platform.common.security.SecurityContextHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,12 +39,16 @@ public class EvalRollupService {
         volatile String status = "RUNNING"; // RUNNING | COMPLETED
         final CopyOnWriteArrayList<AgentEvalResult> results = new CopyOnWriteArrayList<>();
         volatile int total;
+        Long accountId;
+        Instant startedAt;
     }
 
     public String start() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         String jobId = UUID.randomUUID().toString();
         RollupJob job = new RollupJob();
+        job.accountId = accountId;
+        job.startedAt = Instant.now();
         jobs.put(jobId, job);
         worker.runAsync(job, accountId);
         return jobId;
@@ -53,6 +59,27 @@ public class EvalRollupService {
         if (job == null) {
             throw new NotFoundException("Rollup job not found");
         }
+        return toResponse(jobId, job);
+    }
+
+    /**
+     * Most recent COMPLETED rollup for the current account, or null if none
+     * has ever run (frontend renders an empty "run one" state, not a
+     * spinner) — added 2026-08-05 so ReportsPage can show last-known results
+     * on tab mount instead of requiring a manual "Run rollup" click every
+     * single visit. In-memory only, same lifetime/scaling caveats as start().
+     */
+    public Map<String, Object> getLatestCompleted() {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        return jobs.entrySet().stream()
+                .filter(e -> accountId.equals(e.getValue().accountId))
+                .filter(e -> "COMPLETED".equals(e.getValue().status))
+                .max(Comparator.comparing(e -> e.getValue().startedAt))
+                .map(e -> toResponse(e.getKey(), e.getValue()))
+                .orElse(null);
+    }
+
+    private Map<String, Object> toResponse(String jobId, RollupJob job) {
         double avg = job.results.stream()
                 .filter(AgentEvalResult::ok)
                 .filter(r -> r.avgConversationScore() != null)
@@ -60,6 +87,7 @@ public class EvalRollupService {
                 .average()
                 .orElse(0.0);
         return Map.of(
+                "jobId", jobId,
                 "status", job.status,
                 "completed", job.results.size(),
                 "total", job.total,

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, CheckCircle2, Circle, ClipboardList, Code2, Loader2, MessageSquare } from 'lucide-react'
+import { AlertTriangle, BarChart3, CheckCircle2, Circle, ClipboardList, Code2, Loader2, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import { useJobPoll } from '../hooks/useJobPoll'
@@ -130,6 +130,19 @@ function EvalRollup() {
   const [rollup, setRollup] = useState<RollupPollResponse | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
 
+  // Auto-load the last completed rollup on mount (2026-08-05) — the one view
+  // that answers "which agents need me" previously required a manual click
+  // on every single visit, showing nothing until the operator triggered a
+  // fresh run.
+  const latestQuery = useQuery({
+    queryKey: ['eval-rollup-latest'],
+    queryFn: () => api.get('/reports/eval-rollup/latest').then((r) => r.data.data as RollupPollResponse | null),
+  })
+  useEffect(() => {
+    if (latestQuery.data && !rollup) setRollup(latestQuery.data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestQuery.data])
+
   const poll = useJobPoll({
     fetchStatus: async (jobId) => {
       const r = await api.get(`/reports/eval-rollup/${jobId}`)
@@ -142,6 +155,17 @@ function EvalRollup() {
     intervalMs: 2500,
     maxAttempts: 60,
   })
+
+  // Worst-first (2026-08-05) — the whole point of this view is spotting
+  // underperformers; a flat API-order list buried the one that matters at
+  // the bottom just as easily as the top. Failures surface before any score.
+  const sortedResults = useMemo(() => {
+    if (!rollup) return []
+    return [...rollup.results].sort((a, b) => {
+      if (a.ok !== b.ok) return a.ok ? 1 : -1
+      return (a.avgConversationScore ?? 0) - (b.avgConversationScore ?? 0)
+    })
+  }, [rollup])
 
   async function runRollup() {
     setRunError(null)
@@ -180,6 +204,15 @@ function EvalRollup() {
         <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{runError}</div>
       )}
 
+      {poll.status === 'unknown' && (
+        <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/30 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            This rollup is taking unusually long — it may have stalled. Showing the last known results below.
+          </p>
+        </div>
+      )}
+
       {rollup && (
         <>
           <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5 flex items-center gap-3">
@@ -198,7 +231,7 @@ function EvalRollup() {
 
           <div className="rounded-xl border bg-card shadow-sm">
             <ul className="divide-y">
-              {rollup.results.map((r) => (
+              {sortedResults.map((r) => (
                 <li key={r.agentId} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
                     <button

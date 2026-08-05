@@ -398,12 +398,18 @@ public class AgentDeployService {
                 if (entry instanceof Map<?, ?> m) {
                     Object id = m.get("id");
                     Object name = m.get("name");
+                    String status = null;
+                    if (m.get("connection_status") instanceof Map<?, ?> connectionStatus) {
+                        Object statusValue = connectionStatus.get("status");
+                        status = statusValue != null ? statusValue.toString() : null;
+                    }
                     rows.add(new ConnectorDtos.ConnectorRow(
                             id != null ? id.toString() : null,
                             name != null ? name.toString() : "Unnamed connector",
                             String.valueOf(agent.getId()),
                             agent.getDisplayName(),
-                            agent.getPhoneNumberId()
+                            agent.getPhoneNumberId(),
+                            status
                     ));
                 }
             }

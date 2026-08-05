@@ -742,3 +742,11 @@ TASK-032: webhook_raw retention job              (P1, 30-day window)
 - **EL review:** approved on first pass; confirmed no stale-closure/race risk in the deploy flow even though `phoneNumberId` now comes from a dropdown instead of a parent-passed prop (react-query re-binds the mutation's closure on every render). One non-blocking nit (phone-number `<select>` not linked to its `<label>` via `htmlFor`) — fixed immediately, not deferred.
 
 *Worker writes → Engineering Lead reviews → approved → committed. No self-approval.*
+
+---
+
+### Follow-up (not yet built) — poll(jobId) has no tenant check
+- **Flagged:** 2026-08-05, during EL review of the new `GET /eval-rollup/latest` endpoint (Phase 2 roadmap item 19).
+- **Gap:** `EvalRollupService.poll(String jobId)` has no account-ownership check at all — any authenticated account that can guess/observe a rollup job UUID can read another account's eval results (agent names, scores). `getLatestCompleted()` (built same day) correctly scopes by `accountId`; `poll()` does not, and should before this surface is hardened further.
+- **Fix shape:** verify `job.accountId.equals(currentAccountId)` inside `poll()`, 404/NotFoundException otherwise — same fail-closed pattern already used elsewhere in this codebase.
+- **Status:** `[ ] NOT STARTED` — tracked here so it isn't silently dropped, not yet scheduled.

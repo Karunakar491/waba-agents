@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Loader2, Upload, List, Plus, Trash2, Pencil, RefreshCw, Settings as SettingsIcon, CheckCircle2, Clock, XCircle, LayoutGrid } from 'lucide-react'
+import { FileText, Loader2, Upload, List, Plus, Trash2, Pencil, RefreshCw, Settings as SettingsIcon, CheckCircle2, Clock, XCircle, LayoutGrid, MessageSquare } from 'lucide-react'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
+import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
@@ -51,6 +52,7 @@ export default function TemplateStudioPage() {
 }
 
 function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const credentialQuery = useQuery<CredentialStatus>({
     queryKey: ['karix-credential', wabaId],
     queryFn: () => api.get(`/templates/${wabaId}/karix-credential`).then((r) => r.data.data),
@@ -80,7 +82,24 @@ function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
       )}
 
       <TemplateListPanel wabaId={wabaId} configured={configured} configuredLoading={credentialQuery.isLoading} />
-      {configured && <TemplateBuilderForm wabaId={wabaId} mode="create" />}
+
+      {/* Builder gated behind an explicit action (2026-08-05) — previously
+          permanently expanded under the table on every visit, even for an
+          operator who only opened this page to check approval status. */}
+      {configured && !showCreateForm && (
+        <button
+          type="button"
+          onClick={() => setShowCreateForm(true)}
+          className="flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm font-medium
+            text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+        >
+          <Plus className="h-4 w-4" />
+          New template
+        </button>
+      )}
+      {configured && showCreateForm && (
+        <TemplateBuilderForm wabaId={wabaId} mode="create" onDone={() => setShowCreateForm(false)} />
+      )}
       {configured && <BulkImportPanel wabaId={wabaId} />}
     </div>
   )
@@ -131,9 +150,18 @@ function classifyStatus(status: string | undefined): 'APPROVED' | 'PENDING' | 'R
   return 'OTHER'
 }
 
+const TEMPLATE_STATUS_TONE: Record<ReturnType<typeof classifyStatus>, StatusTone> = {
+  APPROVED: 'positive',
+  REJECTED: 'negative',
+  PENDING: 'warning',
+  PAUSED: 'neutral',
+  OTHER: 'neutral',
+}
+
 const PAGE_SIZE = 10
 
 function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: string; configured: boolean; configuredLoading: boolean }) {
+  const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(0)
   const [editingTemplate, setEditingTemplate] = useState<TemplateSummary | null>(null)
@@ -158,14 +186,27 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
 
   const templates: TemplateSummary[] = configured ? extractTemplates(listQuery.data) : []
   const allTemplates: TemplateSummary[] = configured ? extractTemplates(allQuery.data) : []
-  const counts = STATUS_COUNTERS.reduce<Record<string, number>>((acc, c) => {
-    acc[c.key] = allTemplates.filter((t) => classifyStatus(t.status) === c.key).length
-    return acc
-  }, {})
+
+  // Recomputing these on every render against an unbounded client-fetched
+  // list is a real cost at large-WABA scale (2026-08-05 fix) — memoize
+  // against the actual data, not re-derive on every parent re-render.
+  const counts = useMemo(
+    () =>
+      STATUS_COUNTERS.reduce<Record<string, number>>((acc, c) => {
+        acc[c.key] = allTemplates.filter((t) => classifyStatus(t.status) === c.key).length
+        return acc
+      }, {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allTemplates],
+  )
   const countersLoading = configuredLoading || (configured && allQuery.isLoading)
 
   const pageCount = Math.max(1, Math.ceil(templates.length / PAGE_SIZE))
-  const pagedTemplates = templates.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const pagedTemplates = useMemo(
+    () => templates.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [templates, page],
+  )
 
   return (
     <div className="space-y-4">
@@ -267,27 +308,35 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
                     <td className="py-2 pr-3 text-muted-foreground">{t.language ?? '—'}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{qualityLabel(t) ?? '—'}</td>
                     <td className="py-2 pr-3">
-                      <span
-                        className={cn(
-                          'rounded-full px-2 py-0.5 text-xs font-medium',
-                          classifyStatus(t.status) === 'APPROVED' && 'bg-brand-green/10 text-brand-green',
-                          classifyStatus(t.status) === 'REJECTED' && 'bg-destructive/10 text-destructive',
-                          classifyStatus(t.status) === 'PENDING' && 'bg-amber-500/10 text-amber-600',
-                          classifyStatus(t.status) === 'PAUSED' && 'bg-muted text-muted-foreground',
-                        )}
-                      >
-                        {t.status || 'unknown'}
-                      </span>
+                      <StatusIndicator
+                        label={t.status || 'unknown'}
+                        tone={TEMPLATE_STATUS_TONE[classifyStatus(t.status)]}
+                      />
                     </td>
                     <td className="py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setEditingTemplate(t)}
-                        className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted transition"
-                        aria-label="Edit template"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate('/templates/iris', {
+                              state: { prefillMessage: `Help me edit the template "${t.template_name || t.name}".` },
+                            })
+                          }
+                          className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted transition"
+                          aria-label="Edit with Iris"
+                          title="Edit with Iris"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingTemplate(t)}
+                          className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted transition"
+                          aria-label="Edit template"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -506,7 +555,10 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
       })
       if (ok) {
         queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(wabaId) })
-        if (isEdit) onDone?.()
+        // Delay collapse so the success message is actually visible (EL
+        // round-1 REJECT, 2026-08-05) — calling onDone in the same commit as
+        // setResult unmounts this form before React ever paints the message.
+        setTimeout(() => onDone?.(), 1500)
       }
     },
     onError: (err) => setResult({ ok: false, message: extractMessage(err) }),

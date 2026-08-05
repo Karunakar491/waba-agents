@@ -6,6 +6,22 @@ export interface ConnectorRow {
   agentId: string
   agentName: string | null
   phoneNumberId: string | null
+  status: string | null
+}
+
+function statusDotColor(status: string | null): string {
+  if (status === 'ACTIVE') return 'bg-brand-green'
+  if (status === 'PENDING_OAUTH') return 'bg-yellow-500'
+  if (status === 'ERROR' || status === 'EXPIRED') return 'bg-destructive'
+  return 'bg-muted-foreground/40'
+}
+
+function statusLabel(status: string | null): string {
+  if (status === 'ACTIVE') return 'Connected'
+  if (status === 'PENDING_OAUTH') return 'Pending authorization'
+  if (status === 'EXPIRED') return 'Expired'
+  if (status === 'ERROR') return 'Error'
+  return 'Unknown'
 }
 
 export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows: ConnectorRow[] }) {
@@ -42,8 +58,9 @@ export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows:
           <tr key={`${row.agentId}-${row.id}`} className="hover:bg-muted/30">
             <td className="px-4 py-3 text-sm font-medium text-foreground">{row.name}</td>
             <td className="px-4 py-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/10 px-2.5 py-0.5 text-xs font-medium text-brand-green">
-                Connected
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotColor(row.status)}`} />
+                {statusLabel(row.status)}
               </span>
             </td>
             <td className="px-4 py-3 text-muted-foreground">

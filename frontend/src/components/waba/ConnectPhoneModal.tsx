@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, X, ChevronDown, ChevronUp, Phone, CheckCircle2 } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, Phone, CheckCircle2 } from 'lucide-react'
 import api from '../../lib/api'
+import Modal from '../shared/Modal'
 
 interface PhoneNumber {
   phoneNumberId: string
@@ -101,32 +102,17 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onKeyDown={(e) => { if (e.key === 'Escape' && !connectMutation.isPending) onClose() }}
+    <Modal
+      title={step === 'enter' ? 'Connect a WhatsApp number' : 'Choose a phone number'}
+      onClose={onClose}
+      preventClose={connectMutation.isPending || validateMutation.isPending || preflightChecking}
+      maxWidthClassName="max-w-lg"
     >
-      <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-xl">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">
-              {step === 'enter' ? 'Connect a WhatsApp number' : 'Choose a phone number'}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {step === 'enter'
-                ? 'Enter your WhatsApp Business Account (WABA) ID to see its phone numbers.'
-                : `Numbers available on ${validated?.wabaName || 'your WABA'}.`}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={connectMutation.isPending}
-            className="rounded-lg p-1 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <p className="-mt-2 mb-2 text-sm text-muted-foreground">
+          {step === 'enter'
+            ? 'Enter your WhatsApp Business Account (WABA) ID to see its phone numbers.'
+            : `Numbers available on ${validated?.wabaName || 'your WABA'}.`}
+        </p>
 
         {error && (
           <div className="mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -303,8 +289,7 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { Loader2, Plus, Rocket } from 'lucide-react'
 import api from '../lib/api'
 import {
   EMPTY_FORM,
@@ -12,6 +12,7 @@ import { PersonaTable } from '../components/persona/PersonaTable'
 import { PersonaFilters, PersonaDraftEditor } from '../components/persona/PersonaFilters'
 import type { StatusFilter } from '../components/persona/PersonaFilters'
 import { usePersonaData } from '../components/persona/usePersonaData'
+import Modal from '../components/shared/Modal'
 
 export default function BusinessPersonaLibraryPage() {
   const queryClient = useQueryClient()
@@ -26,6 +27,7 @@ export default function BusinessPersonaLibraryPage() {
   const [deployTargets, setDeployTargets] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [pendingDeploy, setPendingDeploy] = useState<{ draftId: string; phoneNumberId: string } | null>(null)
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -87,6 +89,20 @@ export default function BusinessPersonaLibraryPage() {
     deployMutation.mutate({ draftId, phoneNumberId })
   }
 
+  function requestDeployConfirm(draftId: string, phoneNumberId: string) {
+    setPendingDeploy({ draftId, phoneNumberId })
+  }
+
+  function confirmDeploy() {
+    if (!pendingDeploy) return
+    deploy(pendingDeploy.draftId, pendingDeploy.phoneNumberId)
+    setPendingDeploy(null)
+  }
+
+  const pendingDeployPhone = pendingDeploy
+    ? phones.find((p) => p.phoneNumberId === pendingDeploy.phoneNumberId)
+    : null
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -141,12 +157,51 @@ export default function BusinessPersonaLibraryPage() {
             setDeployTargets((prev) => ({ ...prev, [draftId]: phoneNumberId }))
           }
           onEdit={startEdit}
-          onDeploy={deploy}
+          onDeploy={requestDeployConfirm}
           onDelete={(id) => deleteDraftMutation.mutate(id)}
           deploying={deployMutation.isPending}
           deployingDraftId={deployingDraftId}
         />
       </div>
+
+      {pendingDeploy && (
+        <Modal
+          title="Deploy this persona?"
+          onClose={() => setPendingDeploy(null)}
+          preventClose={deployMutation.isPending}
+          maxWidthClassName="max-w-sm"
+        >
+          <p className="text-sm text-muted-foreground">
+            This replaces what's currently live on{' '}
+            <span className="font-medium text-foreground">
+              {pendingDeployPhone?.displayPhoneNumber ?? 'this number'}
+            </span>
+            — real customers messaging this number will see the new payment terms, return policy,
+            and contact info immediately. The prior version moves to history and can be redeployed later.
+          </p>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPendingDeploy(null)}
+              disabled={deployMutation.isPending}
+              className="rounded-xl border px-3.5 py-2 text-sm font-medium hover:bg-muted transition-colors
+                disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeploy}
+              disabled={deployMutation.isPending}
+              className="flex items-center gap-1.5 rounded-xl bg-brand-pink px-3.5 py-2 text-sm font-semibold
+                text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {deployMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              Deploy now
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -1,17 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import AgentsPage from './pages/AgentsPage'
 import CreateAgentPage from './pages/CreateAgentPage'
 import AgentDetailPage from './pages/AgentDetailPage'
 import SkillLibraryPage from './pages/SkillLibraryPage'
-import SkillTemplateBrowsePage from './pages/SkillTemplateBrowsePage'
 import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
 import ConnectorLibraryPage from './pages/ConnectorLibraryPage'
 import FileLibraryPage from './pages/FileLibraryPage'
 import ReportsPage from './pages/ReportsPage'
 import WabasPage from './pages/WabasPage'
+import WabaDetailPage from './pages/WabaDetailPage'
 import InboxPage from './pages/InboxPage'
 import HumanHandoverPage from './pages/HumanHandoverPage'
 import ProfilePage from './pages/ProfilePage'
@@ -49,7 +50,13 @@ const MODULE_HOME_ROUTE: Record<ModuleName, string> = {
  */
 function RootRedirect() {
   const { data: entitlements, isLoading } = useModuleEntitlements()
-  if (isLoading) return null
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   const enabledModules = (Object.keys(MODULE_HOME_ROUTE) as ModuleName[]).filter((m) => entitlements?.[m])
   if (enabledModules.length === 1) {
@@ -80,12 +87,16 @@ export default function App() {
               <Route path="/agents/new" element={<CreateAgentPage />} />
               <Route path="/agents/:id" element={<AgentDetailPage />} />
               <Route path="/library/skills" element={<SkillLibraryPage />} />
-              <Route path="/library/skills/browse" element={<SkillTemplateBrowsePage />} />
+              {/* Merged into SkillLibraryPage as a tab (2026-08-05) — kept as a
+                  redirect, not a dead route, so any bookmarked/shared link
+                  still lands somewhere useful instead of 404ing. */}
+              <Route path="/library/skills/browse" element={<Navigate to="/library/skills?tab=browse" replace />} />
               <Route path="/library/persona" element={<BusinessPersonaLibraryPage />} />
               <Route path="/library/connectors" element={<ConnectorLibraryPage />} />
               <Route path="/library/files" element={<FileLibraryPage />} />
               <Route path="/reports"  element={<ReportsPage />} />
               <Route path="/wabas"    element={<WabasPage />} />
+              <Route path="/wabas/:wabaId" element={<WabaDetailPage />} />
               <Route path="/inbox"    element={<InboxPage />} />
               <Route path="/handover" element={<HumanHandoverPage />} />
               <Route path="/profile"  element={<ProfilePage />} />

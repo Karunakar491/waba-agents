@@ -11,6 +11,7 @@ tags: [bugs, violations, index]
 ## Bug Post-Mortems
 - [[bug-dark-mode-accent|Dark Mode Accent Bug]] — `--accent` in `.dark` collapsed to muted (EL caught)
 - [[bug-application-yml-overwrite|application.yml Overwrite]] — SCP overwrote server config, broke deploy
+- [[error-message-conflation-2026-08-04|ProtectedRoute Error-Message Conflation]] — "no modules" and "fetch failed" show the identical lock screen; plus a self-caught TSID serialization bug in Iris session DTOs
 
 ## Resolved TASKS (22 total — all done)
 See [[../docs/tasks|TASKS]] for full list. Key ones:

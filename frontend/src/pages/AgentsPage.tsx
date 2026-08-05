@@ -28,10 +28,10 @@ function agentHealth(agent: AgentRow): Health {
   return 'inactive' // draft, or active with no phone connected
 }
 
-const HEALTH_CONFIG: Record<Health, { label: string; dot: string }> = {
-  healthy: { label: 'Healthy', dot: 'bg-brand-green' },
-  attention: { label: 'Needs attention', dot: 'bg-warning' },
-  inactive: { label: 'Inactive', dot: 'bg-muted-foreground/40' },
+const HEALTH_CONFIG: Record<Health, { label: string; tone: StatusTone }> = {
+  healthy: { label: 'Healthy', tone: 'positive' },
+  attention: { label: 'Needs attention', tone: 'warning' },
+  inactive: { label: 'Inactive', tone: 'neutral' },
 }
 
 function timeAgo(dateStr: string): string {
@@ -246,9 +246,8 @@ function AgentRow({
 
       {/* Health */}
       <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground" title="Derived from status + phone connection, not Meta quality rating">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${health.dot}`} />
-          {health.label}
+        <span title="Derived from status + phone connection, not Meta quality rating">
+          <StatusIndicator label={health.label} tone={health.tone} />
         </span>
       </td>
 

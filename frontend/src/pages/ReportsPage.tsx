@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, BarChart3, CheckCircle2, Circle, ClipboardList, Code2, Loader2, MessageSquare } from 'lucide-react'
+import { AlertTriangle, BarChart3, ClipboardList, Code2, Loader2, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import { useJobPoll } from '../hooks/useJobPoll'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import StatusIndicator from '../components/shared/StatusIndicator'
 
 type ReportTab = 'conversations' | 'eval' | 'api-calls'
 
@@ -243,10 +244,11 @@ function EvalRollup() {
                       {r.ok ? (r.summary ?? 'No summary') : r.error}
                     </p>
                   </div>
-                  <span className={cn('flex items-center gap-1.5 text-xs font-medium shrink-0',
-                    r.ok ? 'text-brand-green' : 'text-destructive')}>
-                    <Circle className="h-1.5 w-1.5 fill-current" />
-                    {r.ok ? (r.avgConversationScore != null ? `${r.avgConversationScore.toFixed(1)}/5` : 'OK') : 'Failed'}
+                  <span className="shrink-0">
+                    <StatusIndicator
+                      label={r.ok ? (r.avgConversationScore != null ? `${r.avgConversationScore.toFixed(1)}/5` : 'OK') : 'Failed'}
+                      tone={r.ok ? 'positive' : 'negative'}
+                    />
                   </span>
                 </li>
               ))}
@@ -313,11 +315,7 @@ function ApiCallsLog() {
                 onClick={() => setExpandedId(isExpanded ? null : call.id)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
               >
-                {ok ? (
-                  <CheckCircle2 className="h-4 w-4 text-brand-green shrink-0" />
-                ) : (
-                  <Circle className="h-2 w-2 fill-current text-destructive shrink-0" />
-                )}
+                <StatusIndicator label={ok ? 'OK' : 'Error'} tone={ok ? 'positive' : 'negative'} />
                 <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide bg-muted text-muted-foreground">
                   {call.method}
                 </span>

@@ -291,10 +291,7 @@ function PhoneNumbersTable({
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                       ) : (
-                        <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                          <PhoneOff className="h-3 w-3" />
-                          No agent deployed
-                        </span>
+                        <StatusIndicator label="No agent deployed" tone="neutral" />
                       )}
                     </td>
                     <td className="px-4 py-3">

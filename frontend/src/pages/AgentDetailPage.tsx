@@ -1353,6 +1353,7 @@ function ToolsList({
   const queryClient = useQueryClient()
   const [showAddTool, setShowAddTool] = useState(false)
   const [runningTool, setRunningTool] = useState<ConnectorTool | null>(null)
+  const [deletingTool, setDeletingTool] = useState<ConnectorTool | null>(null)
 
   const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
     queryKey: ['tools', agentId, connectorId, refetchSignal],
@@ -1367,11 +1368,14 @@ function ToolsList({
 
   const tools = toolsRaw ?? []
 
-  const deleteTool = async (toolId: string) => {
-    if (!window.confirm('Delete this tool?')) return
-    await api.delete(`/agents/${agentId}/connectors/${connectorId}/tools/${toolId}`)
-    queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
-  }
+  const deleteToolMutation = useMutation({
+    mutationFn: (toolId: string) =>
+      api.delete(`/agents/${agentId}/connectors/${connectorId}/tools/${toolId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
+      setDeletingTool(null)
+    },
+  })
 
   return (
     <div className="border-t bg-muted/20 px-4 py-3 space-y-3">
@@ -1432,7 +1436,7 @@ function ToolsList({
                   <Play className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => deleteTool(tool.id)}
+                  onClick={() => setDeletingTool(tool)}
                   aria-label={`Delete tool ${tool.name}`}
                   className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
                 >
@@ -1465,6 +1469,45 @@ function ToolsList({
           onClose={() => setRunningTool(null)}
         />
       )}
+
+      {deletingTool && (
+        <Modal
+          title={`Delete tool "${deletingTool.name}"?`}
+          onClose={() => setDeletingTool(null)}
+          preventClose={deleteToolMutation.isPending}
+        >
+          <p className="text-sm text-muted-foreground">
+            The agent will no longer be able to call this tool. This can&apos;t be undone.
+          </p>
+
+          {deleteToolMutation.isError && (
+            <div className="mt-3">
+              <ErrorBanner error={deleteToolMutation.error} />
+            </div>
+          )}
+
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={() => deleteToolMutation.mutate(deletingTool.id)}
+              disabled={deleteToolMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
+                text-sm font-semibold text-white transition-opacity hover:opacity-90
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deleteToolMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete tool
+            </button>
+            <button
+              onClick={() => setDeletingTool(null)}
+              disabled={deleteToolMutation.isPending}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+                text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -1475,6 +1518,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const queryClient = useQueryClient()
   const [expandedConnectorId, setExpandedConnectorId] = useState<string | null>(null)
   const [showAddConnector, setShowAddConnector] = useState(false)
+  const [deletingConnector, setDeletingConnector] = useState<Connector | null>(null)
   // keyed by connectorId — tracks refetch signal per connector's tools
   const [toolRefetch] = useState<Record<string, number>>({})
 
@@ -1490,6 +1534,15 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
 
   const connectors = connectorsRaw ?? []
 
+  const deleteConnectorMutation = useMutation({
+    mutationFn: (connectorId: string) => api.delete(`/agents/${agent.id}/connectors/${connectorId}`),
+    onSuccess: (_data, connectorId) => {
+      queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
+      if (expandedConnectorId === connectorId) setExpandedConnectorId(null)
+      setDeletingConnector(null)
+    },
+  })
+
   if (!agent.phoneNumberId) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
@@ -1500,13 +1553,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
         </p>
       </div>
     )
-  }
-
-  const deleteConnector = async (connectorId: string) => {
-    if (!window.confirm('Delete this connector and all its tools?')) return
-    await api.delete(`/agents/${agent.id}/connectors/${connectorId}`)
-    queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
-    if (expandedConnectorId === connectorId) setExpandedConnectorId(null)
   }
 
   function toggleExpand(connectorId: string) {
@@ -1575,7 +1621,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     )}
                   </button>
                   <button
-                    onClick={() => deleteConnector(connector.id)}
+                    onClick={() => setDeletingConnector(connector)}
                     aria-label={`Delete connector ${connector.name}`}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
                   >
@@ -1606,6 +1652,46 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
             setShowAddConnector(false)
           }}
         />
+      )}
+
+      {deletingConnector && (
+        <Modal
+          title={`Delete connector "${deletingConnector.name}"?`}
+          onClose={() => setDeletingConnector(null)}
+          preventClose={deleteConnectorMutation.isPending}
+        >
+          <p className="text-sm text-muted-foreground">
+            This removes the connector and all of its tools. The agent will no longer be able to
+            call them. This can&apos;t be undone.
+          </p>
+
+          {deleteConnectorMutation.isError && (
+            <div className="mt-3">
+              <ErrorBanner error={deleteConnectorMutation.error} />
+            </div>
+          )}
+
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={() => deleteConnectorMutation.mutate(deletingConnector.id)}
+              disabled={deleteConnectorMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
+                text-sm font-semibold text-white transition-opacity hover:opacity-90
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deleteConnectorMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete connector
+            </button>
+            <button
+              onClick={() => setDeletingConnector(null)}
+              disabled={deleteConnectorMutation.isPending}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+                text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

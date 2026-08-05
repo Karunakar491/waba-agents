@@ -87,11 +87,14 @@ public class IrisConversationService {
                             "status", Map.of("type", "string")),
                             "required", List.of("wabaId")),
                     false),
-            new AiToolSpec("send_test_template", "Send an approved template to a single test phone number. Requires user confirmation.",
+            new AiToolSpec("send_test_template", "Send an approved template to a single test phone number. Requires user confirmation. " +
+                    "parameterValues fills the template's positional placeholders in order — for an AUTHENTICATION/OTP template " +
+                    "this is the one-time code value that goes into {{1}} and the OTP button.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
                             "templateId", Map.of("type", "string"),
-                            "testPhoneNumber", Map.of("type", "string")),
+                            "testPhoneNumber", Map.of("type", "string"),
+                            "parameterValues", Map.of("type", "array", "items", Map.of("type", "string"))),
                             "required", List.of("wabaId", "templateId", "testPhoneNumber")),
                     true)
     );
@@ -227,7 +230,13 @@ public class IrisConversationService {
             case "edit_template" -> templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")),
                     Map.of("components", args.get("components")));
             case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
-            case "send_test_template" -> karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateId")), String.valueOf(args.get("testPhoneNumber")));
+            case "send_test_template" -> {
+                @SuppressWarnings("unchecked")
+                List<String> parameterValues = args.get("parameterValues") == null
+                        ? List.of()
+                        : ((List<Object>) args.get("parameterValues")).stream().map(String::valueOf).toList();
+                yield karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateId")), String.valueOf(args.get("testPhoneNumber")), parameterValues);
+            }
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };
     }

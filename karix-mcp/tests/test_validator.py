@@ -166,3 +166,56 @@ class TestHeader:
         result = validator.validate_template(_spec(category="AUTHENTICATION", components=components))
         assert result["valid"] is False
         assert any("AUTHENTICATION" in e for e in result["errors"])
+
+    def test_authentication_valid_otp_copy_code_passes(self):
+        components = [
+            {"type": "BODY", "text": "{{1}}"},
+            {"type": "BUTTONS", "buttons": [{"type": "OTP", "otp_type": "COPY_CODE", "example": "123456"}]},
+        ]
+        spec = _spec(category="AUTHENTICATION", components=components)
+        spec["code_expiration_minutes"] = 10
+        result = validator.validate_template(spec)
+        assert result["valid"] is True, result["errors"]
+
+    def test_authentication_rejects_freeform_body(self):
+        components = [
+            {"type": "BODY", "text": "Your code is {{1}}, use it soon."},
+            {"type": "BUTTONS", "buttons": [{"type": "OTP", "otp_type": "COPY_CODE", "example": "123456"}]},
+        ]
+        spec = _spec(category="AUTHENTICATION", components=components)
+        spec["code_expiration_minutes"] = 10
+        result = validator.validate_template(spec)
+        assert result["valid"] is False
+        assert any("Meta-generated" in e for e in result["errors"])
+
+    def test_authentication_requires_code_expiration_minutes(self):
+        components = [
+            {"type": "BODY", "text": "{{1}}"},
+            {"type": "BUTTONS", "buttons": [{"type": "OTP", "otp_type": "COPY_CODE", "example": "123456"}]},
+        ]
+        result = validator.validate_template(_spec(category="AUTHENTICATION", components=components))
+        assert result["valid"] is False
+        assert any("code_expiration_minutes" in e for e in result["errors"])
+
+    def test_authentication_rejects_one_tap_as_not_yet_supported(self):
+        components = [
+            {"type": "BODY", "text": "{{1}}"},
+            {"type": "BUTTONS", "buttons": [{"type": "OTP", "otp_type": "ONE_TAP", "example": "123456"}]},
+        ]
+        spec = _spec(category="AUTHENTICATION", components=components)
+        spec["code_expiration_minutes"] = 10
+        result = validator.validate_template(spec)
+        assert result["valid"] is False
+        assert any("not supported yet" in e for e in result["errors"])
+
+    def test_authentication_rejects_footer(self):
+        components = [
+            {"type": "BODY", "text": "{{1}}"},
+            {"type": "FOOTER", "text": "Expires soon"},
+            {"type": "BUTTONS", "buttons": [{"type": "OTP", "otp_type": "COPY_CODE", "example": "123456"}]},
+        ]
+        spec = _spec(category="AUTHENTICATION", components=components)
+        spec["code_expiration_minutes"] = 10
+        result = validator.validate_template(spec)
+        assert result["valid"] is False
+        assert any("FOOTER" in e for e in result["errors"])

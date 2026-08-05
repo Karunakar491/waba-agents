@@ -80,7 +80,11 @@ def validate_template(spec: dict) -> dict:
                 if len(text) > BODY_MAX:
                     errors.append(f"BODY text exceeds {BODY_MAX} characters (got {len(text)}).")
                 placeholders = _PLACEHOLDER_RE.findall(text)
-                if placeholders:
+                # AUTHENTICATION's BODY is just the Meta-generated code slot
+                # ("{{1}}", no surrounding copy allowed — enforced below in
+                # the AUTHENTICATION block) so the "real text before/after
+                # the variable" rule below is a MARKETING/UTILITY-only rule.
+                if placeholders and category != "AUTHENTICATION":
                     example = c.get("example") or {}
                     if not example.get("body_text") and not example.get("body_text_named_params"):
                         errors.append(
@@ -144,12 +148,54 @@ def validate_template(spec: dict) -> dict:
         errors.append("Only one BODY component is allowed.")
 
     if category == "AUTHENTICATION":
-        has_media = any(
-            c.get("type") == "HEADER" and c.get("format") in ("IMAGE", "VIDEO", "DOCUMENT")
-            for c in components
-        )
-        if has_media:
-            errors.append("AUTHENTICATION templates cannot use a media header (Image/Video/Document).")
+        # Real Meta structural rules for AUTHENTICATION (roadmap item 26,
+        # MVP = OTP_COPY_CODE button variant only — ONE_TAP/ZERO_TAP deferred,
+        # they need the client's Android package name + signing hash, which
+        # this team can't test without a live Meta Business Account).
+        #
+        # Meta auto-generates the AUTHENTICATION body text/footer itself —
+        # a caller can only supply the code placeholder, never freeform copy.
+        if any(c.get("type") == "HEADER" for c in components):
+            errors.append("AUTHENTICATION templates cannot have a HEADER component at all — Meta auto-generates the OTP body/footer text.")
+
+        if any(c.get("type") == "FOOTER" for c in components):
+            errors.append("AUTHENTICATION templates cannot have a FOOTER component — Meta appends its own expiry footer automatically.")
+
+        for c in components:
+            if c.get("type") == "BODY":
+                body_text = (c.get("text") or "").strip()
+                if body_text and body_text != "{{1}}":
+                    errors.append(
+                        "AUTHENTICATION BODY text is Meta-generated and cannot contain freeform copy — "
+                        "it must be exactly the code placeholder \"{{1}}\" (or omitted entirely)."
+                    )
+
+        expiration = spec.get("code_expiration_minutes")
+        if expiration is None:
+            errors.append("AUTHENTICATION templates require a top-level code_expiration_minutes field (Meta default is 10).")
+        elif not isinstance(expiration, int) or isinstance(expiration, bool) or not (1 <= expiration <= 90):
+            errors.append("code_expiration_minutes must be an integer between 1 and 90.")
+
+        buttons_components = [c for c in components if c.get("type") == "BUTTONS"]
+        if len(buttons_components) != 1:
+            errors.append("AUTHENTICATION templates require exactly one BUTTONS component.")
+        else:
+            otp_buttons = (buttons_components[0].get("buttons") or [])
+            if len(otp_buttons) != 1:
+                errors.append("AUTHENTICATION templates require exactly one button.")
+            else:
+                otp_button = otp_buttons[0]
+                if otp_button.get("type") != "OTP":
+                    errors.append("AUTHENTICATION templates require the button type to be \"OTP\" (got \"%s\")." % otp_button.get("type"))
+                otp_type = otp_button.get("otp_type")
+                if otp_type != "COPY_CODE":
+                    if otp_type in ("ONE_TAP", "ZERO_TAP"):
+                        errors.append(
+                            "otp_type \"%s\" is not supported yet — only COPY_CODE has shipped (ONE_TAP/ZERO_TAP need the "
+                            "client's Android package name + signing hash and are deferred, see roadmap item 26)." % otp_type
+                        )
+                    else:
+                        errors.append("AUTHENTICATION OTP button requires otp_type \"COPY_CODE\" (got \"%s\")." % otp_type)
 
     for c in components:
         if c.get("type") == "BUTTONS" and isinstance(c.get("buttons"), list):

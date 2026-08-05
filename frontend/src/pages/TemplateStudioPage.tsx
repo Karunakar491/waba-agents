@@ -385,6 +385,15 @@ type HeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
 type ButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'
 interface ButtonDraft { type: ButtonType; text: string; url: string; phoneNumber: string }
 
+// AUTHENTICATION body/footer text is Meta-generated — the caller only
+// supplies the code placeholder. See karix-mcp/validator.py's AUTHENTICATION
+// block for the matching server-side rules (roadmap item 26, MVP =
+// OTP_COPY_CODE only; ONE_TAP/ZERO_TAP deferred — need the client's Android
+// package name + signing hash, can't be tested without a live Meta Business
+// Account).
+const AUTH_BODY_TEXT = '{{1}}'
+const DEFAULT_CODE_EXPIRATION_MINUTES = 10
+
 const VAR_RE = /\{\{\s*(\w+)\s*\}\}/g
 
 function extractVariables(text: string): string[] {
@@ -459,6 +468,20 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
   const [buttons, setButtons] = useState<ButtonDraft[]>([])
   const [seeded, setSeeded] = useState(!isEdit)
 
+  const isAuthentication = category === 'AUTHENTICATION'
+  const [codeExpirationMinutes, setCodeExpirationMinutes] = useState(DEFAULT_CODE_EXPIRATION_MINUTES)
+  const [otpExampleCode, setOtpExampleCode] = useState('')
+
+  // Switching into AUTHENTICATION resets the fields Meta doesn't allow for
+  // it (header/footer/freeform body/other button types) — a stale value
+  // from a prior category must never get silently submitted.
+  useEffect(() => {
+    if (!isAuthentication) return
+    setHeaderFormat('NONE')
+    setFooterText('')
+    setBodyText(AUTH_BODY_TEXT)
+  }, [isAuthentication])
+
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const existingTemplateQuery = useQuery({
@@ -499,6 +522,13 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
   })
 
   function buildComponents(): Array<Record<string, unknown>> {
+    if (isAuthentication) {
+      return [
+        { type: 'BODY', text: AUTH_BODY_TEXT },
+        { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE', example: otpExampleCode }] },
+      ]
+    }
+
     const components: Array<Record<string, unknown>> = []
 
     if (headerFormat !== 'NONE') {
@@ -537,10 +567,11 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
   const submitMutation = useMutation({
     mutationFn: () => {
       const components = buildComponents()
+      const authFields = isAuthentication ? { code_expiration_minutes: codeExpirationMinutes } : {}
       if (isEdit && templateId) {
-        return api.post(`/templates/${wabaId}/${templateId}/edit`, { components })
+        return api.post(`/templates/${wabaId}/${templateId}/edit`, { components, ...authFields })
       }
-      return api.post(`/templates/${wabaId}`, { templateName, language, category, components })
+      return api.post(`/templates/${wabaId}`, { templateName, language, category, components, ...authFields })
     },
     onSuccess: (res) => {
       const ok = res.data?.data?.ok !== false
@@ -564,7 +595,8 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
   const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT'
     ? true
     : !!headerHandle
-  const canSubmit = (isEdit || templateName.trim()) && bodyText.trim() && headerReady
+  const canSubmit = (isEdit || templateName.trim())
+    && (isAuthentication ? !!otpExampleCode.trim() : bodyText.trim() && headerReady)
     && (!isEdit || seeded) && !submitMutation.isPending
 
   return (
@@ -596,7 +628,13 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
           <button type="button" onClick={() => existingTemplateQuery.refetch()} className="underline shrink-0">Retry</button>
         </div>
       )}
-      {(!isEdit || seeded) && (
+      {(!isEdit || seeded) && isAuthentication && (
+        <AuthenticationEditor
+          codeExpirationMinutes={codeExpirationMinutes} setCodeExpirationMinutes={setCodeExpirationMinutes}
+          otpExampleCode={otpExampleCode} setOtpExampleCode={setOtpExampleCode}
+        />
+      )}
+      {(!isEdit || seeded) && !isAuthentication && (
         <>
           <HeaderEditor
             headerFormat={headerFormat} setHeaderFormat={setHeaderFormat}
@@ -755,6 +793,48 @@ function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
           />
         </div>
       ))}
+    </div>
+  )
+}
+
+// AUTHENTICATION-only editor — Meta generates the body/footer copy itself
+// (the {{1}} code placeholder is fixed, see AUTH_BODY_TEXT), so this asks
+// only for what's actually configurable: expiry window + the OTP_COPY_CODE
+// button's example code. MVP scope: ONE_TAP/ZERO_TAP variants deferred
+// (roadmap item 26) — this form never offers them.
+function AuthenticationEditor({ codeExpirationMinutes, setCodeExpirationMinutes, otpExampleCode, setOtpExampleCode }: {
+  codeExpirationMinutes: number
+  setCodeExpirationMinutes: (n: number) => void
+  otpExampleCode: string
+  setOtpExampleCode: (v: string) => void
+}) {
+  return (
+    <div className="rounded-lg border border-dashed p-3 space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Authentication templates are Meta-generated — the body text is fixed to the one-time code, with a
+        single copy-code button. Header, footer, and other button types aren't supported for this category.
+      </p>
+      <div>
+        <label className="block text-xs font-medium text-foreground mb-1">Code expiration (minutes)</label>
+        <input
+          type="number"
+          min={1}
+          max={90}
+          value={codeExpirationMinutes}
+          onChange={(e) => setCodeExpirationMinutes(Number(e.target.value))}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-foreground mb-1">Example code (for Meta's review)</label>
+        <input
+          type="text"
+          value={otpExampleCode}
+          onChange={(e) => setOtpExampleCode(e.target.value)}
+          placeholder="123456"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+        />
+      </div>
     </div>
   )
 }

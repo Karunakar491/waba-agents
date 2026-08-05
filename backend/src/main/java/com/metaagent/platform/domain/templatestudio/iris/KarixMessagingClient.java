@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -64,6 +66,21 @@ public class KarixMessagingClient {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> sendTestTemplate(Long wabaId, String templateId, String testPhoneNumber) {
+        return sendTestTemplate(wabaId, templateId, testPhoneNumber, List.of());
+    }
+
+    /**
+     * parameterValues fills the template's positional body/button placeholders
+     * in order (Karix's own convention — see karix-mcp's build_template, which
+     * keys them "0","1",... by index). For an AUTHENTICATION/OTP_COPY_CODE
+     * template this is the one-time code: it fills the {{1}} body placeholder
+     * AND is what the OTP button copies, both from the same value — Karix's
+     * sendMessage API does not take a separate button-level parameter for
+     * OTP (needs live-Meta-account validation: no test WABA with an approved
+     * AUTHENTICATION template exists yet to confirm this against a real send).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> sendTestTemplate(Long wabaId, String templateId, String testPhoneNumber, List<String> parameterValues) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         wabaAccessGuard.requireAccess(wabaId, accountId);
 
@@ -82,10 +99,15 @@ public class KarixMessagingClient {
         }
         String apiKey = secretEncryptor.decrypt(credential.getEncryptedApiKey());
 
+        Map<String, Object> parameterValuesMap = new HashMap<>();
+        for (int i = 0; i < parameterValues.size(); i++) {
+            parameterValuesMap.put(String.valueOf(i), parameterValues.get(i));
+        }
+
         Map<String, Object> body = Map.of(
                 "message", Map.of(
                         "channel", "WABA",
-                        "content", Map.of("type", "TEMPLATE", "template", Map.of("templateId", templateId, "parameterValues", Map.of())),
+                        "content", Map.of("type", "TEMPLATE", "template", Map.of("templateId", templateId, "parameterValues", parameterValuesMap)),
                         "recipient", Map.of("to", testPhoneNumber, "recipient_type", "individual"),
                         "sender", Map.of("from", sender)),
                 "metaData", Map.of("version", "v1.0.9"));

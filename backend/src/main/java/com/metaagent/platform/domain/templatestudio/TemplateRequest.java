@@ -11,13 +11,18 @@ public record TemplateRequest(
     @NotBlank(message = "template_name is required") String templateName,
     @NotBlank(message = "language is required") String language,
     @NotBlank(message = "category is required") String category,
-    @NotNull(message = "components is required") @NotEmpty(message = "components must not be empty") List<Map<String, Object>> components
+    @NotNull(message = "components is required") @NotEmpty(message = "components must not be empty") List<Map<String, Object>> components,
+    Integer codeExpirationMinutes
 ) {
     Map<String, Object> toKarixPayload() {
-        return Map.of(
-                "template_name", templateName,
-                "language", language,
-                "category", category,
-                "components", components);
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("template_name", templateName);
+        payload.put("language", language);
+        payload.put("category", category);
+        payload.put("components", components);
+        if (codeExpirationMinutes != null) {
+            payload.put("code_expiration_minutes", codeExpirationMinutes);
+        }
+        return payload;
     }
 }

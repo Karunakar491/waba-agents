@@ -9,6 +9,7 @@ import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 
 type SkillTab = 'mine' | 'browse'
 
@@ -34,6 +35,7 @@ export default function SkillLibraryPage() {
   const [showEditor, setShowEditor] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<LibrarySkill | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'deployed' | 'draft'>('all')
 
@@ -67,10 +69,12 @@ export default function SkillLibraryPage() {
         : api.delete(`/skills/${skill.id}`),
     onMutate: (skill) => { setDeletingId(skill.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] }); setPendingDelete(null) },
     // Deleting a Library skill still attached to an agent 400s (fk_attachment_skill,
     // TASK-050) — the primary expected failure here, not an edge case, since
     // the whole point of a Library skill is to be attached to multiple agents.
+    // Shown inline in the confirm modal (not close-then-toast) so the user
+    // isn't left wondering whether the delete went through.
     onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
@@ -164,13 +168,31 @@ export default function SkillLibraryPage() {
                   onEdit={openEdit}
                   onDelete={(row) => {
                     const skill = skills.find((s) => s.id === row.id)
-                    if (skill) deleteMutation.mutate(skill)
+                    if (skill) { setDeleteError(null); setPendingDelete(skill) }
                   }}
                 />
               </div>
             </>
           )}
         </>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          title="Delete skill"
+          consequence={
+            <>
+              Delete <strong className="font-semibold text-foreground">{pendingDelete.title}</strong>? Your
+              agent{pendingDelete.deployments.length > 1 ? 's' : ''} will no longer use it in conversations. This
+              cannot be undone.
+            </>
+          }
+          confirmLabel="Delete skill"
+          isPending={deletingId === pendingDelete.id}
+          error={deleteError}
+          onConfirm={() => deleteMutation.mutate(pendingDelete)}
+          onClose={() => setPendingDelete(null)}
+        />
       )}
 
       {showEditor && editingSkill && waba && (

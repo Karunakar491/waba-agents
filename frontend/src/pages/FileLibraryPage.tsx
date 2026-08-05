@@ -5,6 +5,7 @@ import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import { FilesTable, WebsitesTable, type FileRow, type WebsiteRow } from '../components/files/FileWebsiteTables'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 
 interface WabaEntry { id: string; wabaId: string; label: string | null }
 interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null }
@@ -16,6 +17,9 @@ export default function FileLibraryPage() {
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [pendingDeleteFile, setPendingDeleteFile] = useState<FileRow | null>(null)
+  const [pendingDeleteWebsite, setPendingDeleteWebsite] = useState<WebsiteRow | null>(null)
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -60,16 +64,18 @@ export default function FileLibraryPage() {
 
   const deleteFileMutation = useMutation({
     mutationFn: (row: FileRow) => api.delete(`/agents/${row.agentId}/files/${row.id}`),
-    onMutate: (row) => setDeletingId(row.id),
+    onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] }); setPendingDeleteFile(null) },
+    onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
   const deleteWebsiteMutation = useMutation({
     mutationFn: (row: WebsiteRow) => api.delete(`/agents/${row.agentId}/websites/${row.id}`),
-    onMutate: (row) => setDeletingId(row.id),
+    onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] }); setPendingDeleteWebsite(null) },
+    onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
   return (
@@ -156,11 +162,45 @@ export default function FileLibraryPage() {
 
       <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
         {tab === 'files' ? (
-          <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => deleteFileMutation.mutate(row)} />
+          <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => setPendingDeleteFile(row)} />
         ) : (
-          <WebsitesTable isLoading={websitesLoading} rows={websites} deletingId={deletingId} onDelete={(row) => deleteWebsiteMutation.mutate(row)} />
+          <WebsitesTable isLoading={websitesLoading} rows={websites} deletingId={deletingId} onDelete={(row) => setPendingDeleteWebsite(row)} />
         )}
       </div>
+
+      {pendingDeleteFile && (
+        <ConfirmDeleteModal
+          title="Delete file"
+          consequence={
+            <>
+              Delete <strong className="font-semibold text-foreground">{pendingDeleteFile.filename}</strong>?
+              Your agent will no longer use it as a knowledge source. This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete file"
+          isPending={deletingId === pendingDeleteFile.id}
+          error={deleteError}
+          onConfirm={() => deleteFileMutation.mutate(pendingDeleteFile)}
+          onClose={() => setPendingDeleteFile(null)}
+        />
+      )}
+
+      {pendingDeleteWebsite && (
+        <ConfirmDeleteModal
+          title="Delete website"
+          consequence={
+            <>
+              Delete <strong className="font-semibold text-foreground">{pendingDeleteWebsite.url}</strong>?
+              Your agent will no longer use it as a knowledge source. This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete website"
+          isPending={deletingId === pendingDeleteWebsite.id}
+          error={deleteError}
+          onConfirm={() => deleteWebsiteMutation.mutate(pendingDeleteWebsite)}
+          onClose={() => setPendingDeleteWebsite(null)}
+        />
+      )}
     </div>
   )
 }

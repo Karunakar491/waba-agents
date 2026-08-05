@@ -291,9 +291,6 @@ function AgentRow({
 function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-20 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-4">
-        <Bot className="h-7 w-7 text-primary" />
-      </div>
       <h3 className="text-base font-semibold text-foreground">No agents yet</h3>
       <p className="mt-1 text-sm text-muted-foreground max-w-xs">
         Create your first agent to get started on WhatsApp.

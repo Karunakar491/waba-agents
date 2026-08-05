@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { MessageSquare, Bot, User } from 'lucide-react'
 import { cn } from '../lib/utils'
@@ -27,6 +27,7 @@ interface Message {
 }
 
 export default function InboxPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('conversationId')
   const [filter, setFilter] = useState<ConversationFilter>('ALL')
@@ -96,7 +97,7 @@ export default function InboxPage() {
           {convsLoading ? (
             <ConversationListSkeleton />
           ) : conversations.length === 0 ? (
-            <ConversationEmptyState />
+            <ConversationEmptyState onGoToAgentsClick={() => navigate('/agents')} />
           ) : visibleConversations.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               No {filter.toLowerCase()} conversations.
@@ -227,14 +228,20 @@ function MessageBubble({ msg }: { msg: Message }) {
   )
 }
 
-function ConversationEmptyState() {
+function ConversationEmptyState({ onGoToAgentsClick }: { onGoToAgentsClick: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
       <p className="text-sm font-medium text-foreground">No conversations yet</p>
-      <p className="text-xs text-muted-foreground mt-1">
+      <p className="text-xs text-muted-foreground mt-1 max-w-xs">
         Your agent hasn't had any conversations yet. Deploy your agent to start receiving messages.
       </p>
+      <button
+        onClick={onGoToAgentsClick}
+        className="mt-5 flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2
+          text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Go to Agents
+      </button>
     </div>
   )
 }

@@ -67,6 +67,12 @@
     @apply bg-background text-foreground;
   }
 
+  /* Roadmap item 41 — headings wrap ragged without this; balances line
+     breaks on multi-word headings app-wide instead of a per-component class. */
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
   /* Mandatory per DESIGN.md §2 2026-08-05 — zero focus-visible styling existed
      anywhere in this app before this (confirmed via repo-wide grep in the
      acquisition-grade audit), a REJECT-grade accessibility gap. Applies to

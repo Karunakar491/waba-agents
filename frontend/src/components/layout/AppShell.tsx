@@ -107,7 +107,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-dvh bg-background">
       {/* Mobile drawer backdrop */}
       {mobileOpen && (
         <div

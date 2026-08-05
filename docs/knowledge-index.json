@@ -1096,6 +1096,22 @@
       "purpose": "Account overview — 'Getting started' checklist (Connect WABA/Create agent/Publish agent) + Business Info (email, plan — editing not yet built). 2026-08-05 fixes: step 1 now queries real WABA state (GET /waba) instead of hardcoded complete:false; checklist collapses entirely once all steps are done and data loaded cleanly (was permanent chrome even for finished accounts); added a distinct error banner when the agents/wabas queries fail, instead of silently rendering as zero agents; 'Done' badge converted from tinted pill to dot+text."
     },
     {
+      "path": "frontend/src/hooks/useClientScope.ts",
+      "purpose": "Client Command Bar (roadmap item 45, 2026-08-06) — reads/writes ?client=<id> in the URL, single source of truth for app-wide client scope. URL param not context state, deliberately (deep-linkable, correct back/forward nav)."
+    },
+    {
+      "path": "frontend/src/hooks/useFleetRisk.ts",
+      "purpose": "Client Command Bar (item 45) — React Query wrapper for GET /api/v1/clients/fleet-risk, staff-grant scoped, 60s refetch interval."
+    },
+    {
+      "path": "frontend/src/components/layout/ClientCommandBar.tsx",
+      "purpose": "Client Command Bar (item 45) — global chrome, one continuous navy frame with the sidebar (DESIGN.md §0 move 2, amended 2026-08-06). Risk-ordered client rail + search overlay via shared Modal."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/client/service/ClientService.java",
+      "purpose": "Client CRUD + staff access grants (ClientStaff, staff-grant scoped, fails closed) + getFleetRisk() (item 45, 2026-08-06) — blended risk score from stale-conversation age, webhook failure rate, handoff backlog, plus a disclosed approximate agent-error signal."
+    },
+    {
       "path": "frontend/src/hooks/useAuth.ts",
       "purpose": "Auth hooks — useLogin, useRegister (mutate→setUser→/dashboard), useLogout (mutate→clearAuth→/login), useMe (query /auth/me, staleTime 5min)"
     },

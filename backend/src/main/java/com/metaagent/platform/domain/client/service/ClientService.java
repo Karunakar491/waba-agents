@@ -3,12 +3,18 @@ package com.metaagent.platform.domain.client.service;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.repository.AgentRepository;
+import com.metaagent.platform.domain.analytics.repository.WebhookEventRepository;
+import com.metaagent.platform.domain.client.dto.ClientDtos;
 import com.metaagent.platform.domain.client.entity.Client;
 import com.metaagent.platform.domain.client.entity.ClientAuditLog;
 import com.metaagent.platform.domain.client.entity.ClientStaff;
 import com.metaagent.platform.domain.client.repository.ClientAuditLogRepository;
 import com.metaagent.platform.domain.client.repository.ClientRepository;
 import com.metaagent.platform.domain.client.repository.ClientStaffRepository;
+import com.metaagent.platform.domain.conversation.entity.Conversation;
+import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
 import com.metaagent.platform.domain.user.entity.User;
 import com.metaagent.platform.domain.user.repository.UserRepository;
 import com.metaagent.platform.domain.waba.dto.WabaDtos;
@@ -18,8 +24,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -40,6 +49,9 @@ public class ClientService {
     private final WabaRepository wabaRepository;
     private final WabaService wabaService;
     private final UserRepository userRepository;
+    private final AgentRepository agentRepository;
+    private final ConversationRepository conversationRepository;
+    private final WebhookEventRepository webhookEventRepository;
 
     @Transactional
     public Client create(String name, Long wabaId) {
@@ -145,6 +157,65 @@ public class ClientService {
                 .grantedBy(callerId)
                 .build());
         logChange(clientId, callerId, "granted staff access to user " + targetUserId);
+    }
+
+    /**
+     * Fleet-risk ranking for the Client Command Bar (roadmap item 45) — staff-grant
+     * scoped via {@link #listForCaller()}, same access model as every other client
+     * read, never all-access (2026-08-06 founder decision: respect the existing
+     * ClientStaff boundary rather than widen it for this feature).
+     *
+     * agentErrorRatePct is NOT a distinct tracked metric — EM decision 2026-08-06:
+     * no new error-tracking pipeline for v1. It reuses webhookFailureRatePct's
+     * underlying data (webhook_events.status != 'success'), since the schema has
+     * no way to separate "delivery failure" from "agent processing error" by
+     * event type. Always returned with approximate=true — the frontend must
+     * disclose this, not present it as a precise second signal.
+     */
+    public List<ClientDtos.FleetRiskRow> getFleetRisk() {
+        List<Client> clients = listForCaller();
+        LocalDateTime since = LocalDateTime.now().minusHours(24);
+        LocalDateTime now = LocalDateTime.now();
+
+        return clients.stream().map(client -> {
+            if (client.getWabaId() == null) {
+                return new ClientDtos.FleetRiskRow(String.valueOf(client.getId()), client.getName(), 0, 0, 0.0, 0, 0.0, true);
+            }
+            List<Long> agentIds = agentRepository.findAllByWabaId(client.getWabaId()).stream().map(Agent::getId).toList();
+            if (agentIds.isEmpty()) {
+                return new ClientDtos.FleetRiskRow(String.valueOf(client.getId()), client.getName(), 0, 0, 0.0, 0, 0.0, true);
+            }
+
+            LocalDateTime oldestOpen = conversationRepository.findOldestOpenLastMessageAt(agentIds, Conversation.Status.open);
+            long staleMins = oldestOpen != null ? Duration.between(oldestOpen, now).toMinutes() : 0;
+
+            long handoffBacklog = conversationRepository.countByAgentIdInAndStatusAndNeedsHumanTrue(agentIds, Conversation.Status.open);
+
+            var webhookStats = webhookEventRepository.countByAgentIdsSince(agentIds, since);
+            long totalEvents = webhookStats.stream().mapToLong(WebhookEventRepository.AgentWebhookStats::getTotal).sum();
+            long failedEvents = webhookStats.stream().mapToLong(WebhookEventRepository.AgentWebhookStats::getFailed).sum();
+            double failureRate = totalEvents > 0 ? (failedEvents * 100.0) / totalEvents : 0.0;
+
+            int score = blendRiskScore(staleMins, failureRate, handoffBacklog);
+
+            return new ClientDtos.FleetRiskRow(
+                    String.valueOf(client.getId()), client.getName(), score,
+                    staleMins, failureRate, handoffBacklog, failureRate, true);
+        }).sorted((a, b) -> Integer.compare(b.riskScore(), a.riskScore())).toList();
+    }
+
+    /**
+     * Weighted blend, 0-100. Weights are a starting point, not tuned against real
+     * usage yet — PM's own risk note: ship with a visible per-signal breakdown so
+     * an operator can sanity-check a misranked client on day one, don't just trust
+     * one opaque number.
+     */
+    private static int blendRiskScore(long staleMins, double failureRatePct, long handoffBacklog) {
+        double staleScore = Math.min(100, staleMins / 4.0); // 400+ min stale = maxed out
+        double failureScore = Math.min(100, failureRatePct * 2); // 50%+ failure = maxed out
+        double handoffScore = Math.min(100, handoffBacklog * 20.0); // 5+ backlog = maxed out
+        double blended = staleScore * 0.35 + failureScore * 0.35 + handoffScore * 0.30;
+        return (int) Math.round(Math.min(100, Math.max(0, blended)));
     }
 
     @Transactional

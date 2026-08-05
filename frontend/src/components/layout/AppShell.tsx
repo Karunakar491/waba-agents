@@ -18,6 +18,7 @@ import {
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
 import { cn } from '../../lib/utils'
+import ClientCommandBar from './ClientCommandBar'
 
 // Sub-items under "Agents". All four now have a real account-wide aggregate
 // Library page (TASK-050 Skills, TASK-064 Connectors — live fan-out, no
@@ -107,17 +108,25 @@ export default function AppShell() {
   }
 
   return (
-    <div className="flex h-dvh bg-background">
-      {/* Mobile drawer backdrop */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          aria-hidden="true"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+    <div className="flex h-dvh flex-col bg-background">
+      {/* Client Command Bar (roadmap item 45) — one continuous frame with the
+          sidebar below (DESIGN.md §0 move 2, amended 2026-08-06): normal flow
+          at the very top, full width, so the sidebar (fixed, offset by this
+          bar's height via top-11 below) starts exactly where this bar ends —
+          same navy, no seam, no border between them. */}
+      <ClientCommandBar />
 
-      {/* Sidebar — off-canvas drawer below md; fixed rail from md up (fixed,
+      <div className="relative flex flex-1 overflow-hidden">
+        {/* Mobile drawer backdrop */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 md:hidden"
+            aria-hidden="true"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
+        {/* Sidebar — off-canvas drawer below md; fixed rail from md up (fixed,
           not static, so hover-peek can float over content instead of
           reflowing it — main's padding-left tracks the collapsed baseline). */}
       <aside
@@ -128,7 +137,7 @@ export default function AppShell() {
         onMouseEnter={() => collapsed && setRailHover(true)}
         onMouseLeave={() => setRailHover(false)}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:transition-[width]',
+          'fixed left-0 top-11 bottom-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:transition-[width]',
           showExpanded ? 'md:w-60' : 'md:w-16',
           floating && 'md:shadow-2xl',
           'w-60',
@@ -330,6 +339,7 @@ export default function AppShell() {
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
         </main>
+        </div>
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
+import { useClientScope } from '../hooks/useClientScope'
 
 interface AgentRow {
   id: string
@@ -86,8 +87,15 @@ function triage(agents: AgentRow[]): AttentionItem[] {
   return items.sort((a, b) => order[a.reason] - order[b.reason])
 }
 
+interface ClientRow {
+  id: string
+  name: string
+  wabaId: string | null
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { clientId } = useClientScope()
 
   const { data: agents, isLoading, isError } = useQuery<AgentRow[]>({
     queryKey: ['agents'],
@@ -99,12 +107,30 @@ export default function DashboardPage() {
     queryFn: () => api.get('/dashboard/summary').then((r) => r.data.data),
   })
 
+  // Client Command Bar scope (roadmap item 45) — resolves the selected
+  // client's wabaId, then filters to agents whose phone numbers sit on that
+  // WABA. Filters client-side from data already fetched (no new query),
+  // consistent with the fleet-risk endpoint's own staff-grant scoping.
+  const { data: clients } = useQuery<ClientRow[]>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients').then((r) => r.data.data),
+    enabled: !!clientId,
+  })
+  const scopedWabaId = clientId ? clients?.find((c) => c.id === clientId)?.wabaId ?? null : null
+  const scopedAgentIds = clientId && summary
+    ? new Set(summary.phoneNumbers.filter((p) => p.wabaId === scopedWabaId && p.agentId).map((p) => p.agentId as string))
+    : null
+  const scopedAgents = scopedAgentIds ? (agents ?? []).filter((a) => scopedAgentIds.has(a.id)) : agents
+  const scopedPhones = scopedWabaId && summary ? summary.phoneNumbers.filter((p) => p.wabaId === scopedWabaId) : summary?.phoneNumbers
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          What needs your attention across all agents.
+          {clientId
+            ? `What needs your attention for ${clients?.find((c) => c.id === clientId)?.name ?? 'this client'}.`
+            : 'What needs your attention across all agents.'}
         </p>
       </div>
 
@@ -117,7 +143,7 @@ export default function DashboardPage() {
       ) : isError ? (
         <ErrorState />
       ) : (
-        <AttentionList agents={agents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
+        <AttentionList agents={scopedAgents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
       )}
 
       {summaryLoading ? (
@@ -125,14 +151,14 @@ export default function DashboardPage() {
       ) : summaryError ? (
         <MetricsErrorState />
       ) : (
-        <MetricsRow summary={summary!} />
+        <MetricsRow summary={{ ...summary!, phoneNumbers: scopedPhones ?? summary!.phoneNumbers }} />
       )}
 
       {summaryLoading ? (
         <SkeletonList />
       ) : summaryError ? null : (
         <PhoneNumbersTable
-          phones={summary!.phoneNumbers}
+          phones={scopedPhones ?? summary!.phoneNumbers}
           unavailableWabaLabels={summary!.unavailableWabaLabels}
           syncedAt={summary!.phoneNumbersSyncedAt}
           onOpenAgent={(id) => navigate(`/agents/${id}`)}

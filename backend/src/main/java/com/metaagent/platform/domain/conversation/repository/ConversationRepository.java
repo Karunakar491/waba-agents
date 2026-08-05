@@ -32,6 +32,13 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     /** Account-wide "active" count for the Dashboard summary — open conversations only. */
     long countByAccountIdAndStatus(Long accountId, Conversation.Status status);
 
+    /** Oldest still-open conversation's last-message time, across a set of agents — Client Command Bar fleet-risk (item 45). */
+    @Query("select min(c.lastMessageAt) from Conversation c where c.agentId in :agentIds and c.status = :status")
+    java.time.LocalDateTime findOldestOpenLastMessageAt(@Param("agentIds") List<Long> agentIds, @Param("status") Conversation.Status status);
+
+    /** Open conversations awaiting human handoff, across a set of agents — Client Command Bar fleet-risk (item 45). */
+    long countByAgentIdInAndStatusAndNeedsHumanTrue(List<Long> agentIds, Conversation.Status status);
+
     interface AgentConversationCount {
         Long getAgentId();
         Long getTotal();

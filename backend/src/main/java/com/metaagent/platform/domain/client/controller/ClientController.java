@@ -35,6 +35,12 @@ public class ClientController {
         return ApiResponse.ok(clientService.listForCaller().stream().map(ClientController::toResponse).toList());
     }
 
+    /** Client Command Bar (roadmap item 45) — staff-grant scoped, same as GET /clients. */
+    @GetMapping("/fleet-risk")
+    public ApiResponse<List<ClientDtos.FleetRiskRow>> fleetRisk() {
+        return ApiResponse.ok(clientService.getFleetRisk());
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<ClientDtos.ClientDetailResponse> get(@PathVariable String id) {
         Long clientId = parseId(id, "Client");

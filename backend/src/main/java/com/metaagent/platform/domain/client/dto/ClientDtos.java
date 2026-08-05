@@ -57,4 +57,24 @@ public final class ClientDtos {
             ClientResponse client,
             List<StaffResponse> staff
     ) {}
+
+    /**
+     * Fleet-risk row for the Client Command Bar (roadmap item 45). Signals are
+     * computed live (no cache table — client counts are small; revisit if p95
+     * exceeds 500ms at real scale). agentErrorRatePct is a DISCLOSED
+     * approximation, not a distinct tracked metric — see webhookFailureRatePct's
+     * javadoc on ClientService.computeFleetRisk() for why they share one
+     * underlying signal (EM decision, 2026-08-06, no new error-tracking
+     * pipeline built for v1).
+     */
+    public record FleetRiskRow(
+            String clientId,
+            String name,
+            int riskScore, // 0-100, higher = more at-risk, weighted blend of the 4 signals below
+            long staleConversationAgeMins, // age of the oldest still-open conversation's last message; 0 if none open
+            double webhookFailureRatePct, // % of this client's webhook_events with status != 'success', last 24h
+            long handoffBacklogCount, // open conversations with needsHuman=true
+            double agentErrorRatePct, // approximation — same underlying data as webhookFailureRatePct, see above
+            boolean approximate // true when agentErrorRatePct is a stand-in, not a distinct metric — always true in v1
+    ) {}
 }

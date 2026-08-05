@@ -15,7 +15,7 @@ import com.metaagent.platform.domain.skill.entity.SkillTemplate;
 import com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository;
 import com.metaagent.platform.domain.skill.repository.SkillRepository;
 import com.metaagent.platform.domain.skill.repository.SkillTemplateRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +49,7 @@ public class SkillLibraryService {
     private final AgentSkillAttachmentRepository attachmentRepository;
     private final AgentSkillRepository agentSkillRepository;
     private final AgentRepository agentRepository;
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final SkillTemplateRepository skillTemplateRepository;
     private final MetaApiClient metaApiClient;
     private final AgentService agentService;
@@ -185,9 +185,10 @@ public class SkillLibraryService {
     }
 
     private void requireWabaAccess(Long wabaId, Long accountId) {
-        if (wabaId == null || !wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
+        if (wabaId == null) {
             throw new BusinessException("You don't have access to this WABA's Skill Library.");
         }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
     }
 
     // ---------------------------------------------------------------------

@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.annotation.PostConstruct;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -35,22 +34,18 @@ public class WebhookController {
     @Value("${meta.webhook.verify-token}")
     private String verifyToken;
 
-    @Value("${meta.webhook.app-secret:}")
-    private String appSecret; // empty = verification skipped with WARN — set real value to activate
+    // No default — missing config must crash Spring context startup, not silently
+    // disable signature verification on the platform's single most attackable
+    // entry point. See TASKS.md follow-up if this ever needs to move to a
+    // per-environment profile instead of a hard requirement.
+    @Value("${meta.webhook.app-secret}")
+    private String appSecret;
 
     @Value("${meta.webhook.exchange:platform.events}")
     private String exchange;
 
     @Value("${meta.webhook.routing-key:webhook.received}")
     private String routingKey;
-
-    @PostConstruct
-    void warnIfSignatureVerificationDisabled() {
-        if (appSecret == null || appSecret.isEmpty()) {
-            log.warn("meta.webhook.app-secret is not configured — webhook signature verification DISABLED. " +
-                     "Set this property to the Meta App Secret to activate HMAC-SHA256 verification.");
-        }
-    }
 
     /**
      * Meta Hub challenge verification endpoint (GET).
@@ -79,12 +74,12 @@ public class WebhookController {
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signatureHeader,
             @RequestBody String rawPayload
     ) {
-        // 1. Signature Verification (HMAC-SHA256 using META_APP_SECRET)
-        if (appSecret != null && !appSecret.isEmpty()) {
-            if (signatureHeader == null || !verifySignature(rawPayload, signatureHeader, appSecret)) {
-                log.warn("Webhook signature verification failed");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Signature verification failed");
-            }
+        // 1. Signature Verification (HMAC-SHA256 using META_APP_SECRET) — always
+        // enforced; appSecret has no default, so a missing config value already
+        // crashed Spring context startup before this method could ever run.
+        if (signatureHeader == null || !verifySignature(rawPayload, signatureHeader, appSecret)) {
+            log.warn("Webhook signature verification failed");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Signature verification failed");
         }
 
         // 2. Resolve tenant from payload: phone_number_id -> agent -> account

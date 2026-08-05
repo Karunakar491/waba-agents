@@ -5,11 +5,7 @@ import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
-
-function extractMessage(err: unknown): string {
-  const e = err as { response?: { data?: { error?: string } } }
-  return e.response?.data?.error ?? 'Something went wrong. Please try again.'
-}
+import { extractErrorMessage } from '../lib/errors'
 
 // Settings section of Template Studio (2026-08-04 nav split) — WABA + Karix
 // credential configuration, always reachable (unlike the old inline blocking
@@ -85,7 +81,7 @@ function AuditLogPanel({ wabaId }: { wabaId: string }) {
       </p>
 
       {logQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-      {logQuery.isError && <p className="text-xs text-destructive">{extractMessage(logQuery.error)}</p>}
+      {logQuery.isError && <p className="text-xs text-destructive">{extractErrorMessage(logQuery.error)}</p>}
       {logQuery.data && entries.length === 0 && (
         <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
       )}
@@ -191,7 +187,7 @@ function ConnectedPhonesPanel({ wabaId }: { wabaId: string }) {
       </p>
 
       {mappingsQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-      {mappingsQuery.isError && <p className="text-xs text-destructive">{extractMessage(mappingsQuery.error)}</p>}
+      {mappingsQuery.isError && <p className="text-xs text-destructive">{extractErrorMessage(mappingsQuery.error)}</p>}
       {mappingsQuery.data && mappingsQuery.data.length === 0 && !connecting && (
         <p className="text-xs text-muted-foreground">No phone numbers connected yet.</p>
       )}
@@ -242,7 +238,7 @@ function ConnectPhoneForm({ wabaId, onDone, onCancel }: { wabaId: string; onDone
       ? api.post(`/templates/${wabaId}/phone-mappings/existing-esme`, { phoneNumberId, esmeCredentialId })
       : api.post(`/templates/${wabaId}/phone-mappings/new-esme`, { phoneNumberId, esmeAddr, label, apiKey }),
     onSuccess: onDone,
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const hasExistingOptions = (esmeOptionsQuery.data?.length ?? 0) > 0

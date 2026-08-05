@@ -2,13 +2,9 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import api from '../../lib/api'
+import { extractErrorMessage } from '../../lib/errors'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import Modal from '../shared/Modal'
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
 
 /**
  * Highest-stakes modal in the platform — fires DELETE .../delete_agent
@@ -37,7 +33,7 @@ export default function DeleteFromMetaModal({
   const mutation = useMutation({
     mutationFn: () => api.delete(`/agents/${agentId}/meta-agent`),
     onSuccess: onDeleted,
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const matches = confirmValue.trim() === phoneNumberId

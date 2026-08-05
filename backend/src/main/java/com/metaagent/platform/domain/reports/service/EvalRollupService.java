@@ -55,8 +55,9 @@ public class EvalRollupService {
     }
 
     public Map<String, Object> poll(String jobId) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
         RollupJob job = jobs.get(jobId);
-        if (job == null) {
+        if (job == null || !accountId.equals(job.accountId)) {
             throw new NotFoundException("Rollup job not found");
         }
         return toResponse(jobId, job);

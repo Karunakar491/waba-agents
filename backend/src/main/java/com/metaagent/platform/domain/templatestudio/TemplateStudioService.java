@@ -8,7 +8,7 @@ import com.metaagent.platform.domain.waba.entity.PhoneEsmeMapping;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialRepository;
 import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,7 @@ import java.util.Map;
 public class TemplateStudioService {
 
     private final WabaRepository wabaRepository;
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final PhoneEsmeMappingRepository phoneEsmeMappingRepository;
     private final KarixEsmeCredentialRepository esmeCredentialRepository;
     private final SecretEncryptor secretEncryptor;
@@ -106,9 +106,7 @@ public class TemplateStudioService {
      */
     public ResolvedCredential resolveCredential(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
-            throw new NotFoundException("WABA not found");
-        }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
         Waba waba = wabaRepository.findById(wabaId)
                 .orElseThrow(() -> new NotFoundException("WABA not found"));
         PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaId(wabaId)

@@ -2,12 +2,8 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { CheckCircle2, Loader2, Play, XCircle } from 'lucide-react'
 import api from '../../lib/api'
+import { extractErrorMessage } from '../../lib/errors'
 import Modal from '../shared/Modal'
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
 
 export default function RunToolModal({
   agentId,
@@ -69,7 +65,7 @@ export default function RunToolModal({
 
         {mutation.isError && (
           <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {extractMessage(mutation.error)}
+            {extractErrorMessage(mutation.error)}
           </div>
         )}
 

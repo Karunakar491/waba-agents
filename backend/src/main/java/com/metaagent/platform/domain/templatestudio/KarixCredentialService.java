@@ -10,7 +10,7 @@ import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialRepository;
 import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class KarixCredentialService {
 
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final WabaRepository wabaRepository;
     private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
     private final PhoneEsmeMappingRepository phoneEsmeMappingRepository;
@@ -138,8 +138,6 @@ public class KarixCredentialService {
 
     private void requireAccess(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
-            throw new NotFoundException("WABA not found");
-        }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
     }
 }

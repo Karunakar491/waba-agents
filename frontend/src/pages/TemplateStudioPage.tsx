@@ -8,6 +8,7 @@ import StatusIndicator, { type StatusTone } from '../components/shared/StatusInd
 import { useSelectedWaba } from '../hooks/useSelectedWaba'
 import WabaPicker from '../components/templatestudio/WabaPicker'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
+import { extractErrorMessage } from '../lib/errors'
 
 // Templates section of Template Studio (2026-08-04, split into Iris/
 // Templates/Settings nav 2026-08-04) — structured UI first, chat interface
@@ -20,11 +21,6 @@ import { templateQueryKeys } from '../lib/templateQueryKeys'
 interface CredentialStatus {
   configured: boolean
   esmeAddr: string | null
-}
-
-function extractMessage(err: unknown): string {
-  const e = err as { response?: { data?: { error?: string } } }
-  return e.response?.data?.error ?? 'Something went wrong. Please try again.'
 }
 
 export default function TemplateStudioPage() {
@@ -273,7 +269,7 @@ function TemplateListPanel({ wabaId, configured, configuredLoading }: { wabaId: 
           <p className="text-xs text-muted-foreground">No templates to show yet — configure Karix credentials for this WABA first.</p>
         )}
         {configured && listQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-        {configured && listQuery.isError && <p className="text-xs text-destructive">Could not load templates. {extractMessage(listQuery.error)}</p>}
+        {configured && listQuery.isError && <p className="text-xs text-destructive">Could not load templates. {extractErrorMessage(listQuery.error)}</p>}
         {configured && listQuery.data && listQuery.data.ok === false && <p className="text-xs text-destructive">{listQuery.data.error}</p>}
 
         {configured && templates.length === 0 && !listQuery.isLoading && !listQuery.isError && (
@@ -498,7 +494,7 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
       setHeaderHandle(handle)
       setMediaError(null)
     },
-    onError: (err) => setMediaError(extractMessage(err)),
+    onError: (err) => setMediaError(extractErrorMessage(err)),
   })
 
   function buildComponents(): Array<Record<string, unknown>> {
@@ -561,7 +557,7 @@ function TemplateBuilderForm({ wabaId, mode, templateId, onDone }:
         setTimeout(() => onDone?.(), 1500)
       }
     },
-    onError: (err) => setResult({ ok: false, message: extractMessage(err) }),
+    onError: (err) => setResult({ ok: false, message: extractErrorMessage(err) }),
   })
 
   const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT'
@@ -854,7 +850,7 @@ function BulkImportPanel({ wabaId }: { wabaId: string }) {
       return api.post(`/templates/${wabaId}/bulk-import`, form, { headers: { 'Content-Type': undefined } })
     },
     onSuccess: (res) => setJobId(res.data?.data?.job_id ?? null),
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const statusQuery = useQuery({

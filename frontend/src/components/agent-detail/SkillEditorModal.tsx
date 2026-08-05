@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
+import { extractErrorMessage } from '../../lib/errors'
 import Modal from '../shared/Modal'
 
 interface Skill {
@@ -17,11 +18,6 @@ interface Skill {
 // enforcement of this pattern is a separate flagged gap (TASK-043) — this is
 // a UX assist, not the only line of defense.
 const TITLE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
 
 export default function SkillEditorModal({
   agentId,
@@ -66,7 +62,7 @@ export default function SkillEditorModal({
       queryClient.invalidateQueries({ queryKey: ['library-skills'] })
       onClose()
     },
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const inputCls =

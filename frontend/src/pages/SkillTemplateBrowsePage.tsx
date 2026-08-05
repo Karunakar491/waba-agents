@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Loader2 } from 'lucide-react'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 
 interface WabaEntry {
   id: string
@@ -14,11 +15,6 @@ interface SkillTemplate {
   body: string
   industry: string
   useCase: string
-}
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
 // Merged into SkillLibraryPage as a tab (2026-08-05) — was a separate route
@@ -59,7 +55,7 @@ export default function SkillTemplateBrowsePage() {
       setCopiedId(templateId)
       queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] })
     },
-    onError: (err) => setCopyError(extractMessage(err)),
+    onError: (err) => setCopyError(extractErrorMessage(err)),
   })
 
   return (

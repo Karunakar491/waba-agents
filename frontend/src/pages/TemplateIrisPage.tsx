@@ -5,11 +5,7 @@ import { Loader2, Send, Save, Check, X, ShieldAlert, AlertCircle, Plus } from 'l
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
-
-function extractMessage(err: unknown): string {
-  const e = err as { response?: { data?: { error?: string } } }
-  return e.response?.data?.error ?? 'Something went wrong. Please try again.'
-}
+import { extractErrorMessage } from '../lib/errors'
 
 // Iris — Template Studio's chat assistant (2026-08-04, real build). Locked
 // scope: create/edit/list templates, send TEST templates, discuss marketing
@@ -146,7 +142,7 @@ function AiCredentialSetup({ onSaved }: { onSaved?: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['iris-credential'] })
       onSaved?.()
     },
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   return (
@@ -286,7 +282,7 @@ function IrisWorkspace() {
       // action survived the resume.
       setPending(null)
     } catch (err) {
-      setError(extractMessage(err))
+      setError(extractErrorMessage(err))
     } finally {
       setResuming(false)
     }
@@ -310,7 +306,7 @@ function IrisWorkspace() {
       setPending(res.needsConfirmation ? { toolName: res.pendingToolName!, args: res.pendingToolArgs! } : null)
       queryClient.invalidateQueries({ queryKey: ['iris-sessions'] })
     },
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const confirmAction = useMutation({
@@ -337,7 +333,7 @@ function IrisWorkspace() {
       ])
       setPending(null)
     },
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const cancelAction = useMutation({

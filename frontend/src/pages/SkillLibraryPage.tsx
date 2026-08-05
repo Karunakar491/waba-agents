@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Zap } from 'lucide-react'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
 import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
@@ -22,11 +23,6 @@ interface LibrarySkill extends SkillRow {
   wabaId: string | null
   agentId: string | null
   agentName: string | null
-}
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
 export default function SkillLibraryPage() {
@@ -74,7 +70,7 @@ export default function SkillLibraryPage() {
     // Deleting a Library skill still attached to an agent 400s (fk_attachment_skill,
     // TASK-050) — the primary expected failure here, not an edge case, since
     // the whole point of a Library skill is to be attached to multiple agents.
-    onError: (err) => setDeleteError(extractMessage(err)),
+    onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
   function openEdit(row: SkillRow) {

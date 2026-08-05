@@ -4,16 +4,12 @@ import { Circle, ClipboardList, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
 import { useJobPoll } from '../../hooks/useJobPoll'
+import { extractErrorMessage } from '../../lib/errors'
 
 interface EvalCase {
   id: string
   scenario: string
   categories?: string[]
-}
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -78,7 +74,7 @@ export default function EvalTab({ agentId }: { agentId: string }) {
       }
       poll.start(newJobId)
     } catch (err) {
-      setRunError(extractMessage(err))
+      setRunError(extractErrorMessage(err))
     }
   }
 

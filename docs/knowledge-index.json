@@ -24,6 +24,10 @@
       "purpose": "Head of Product persona (rewritten 2026-07-22) — 20yr SaaS/ex-Salesforce visionary voice; holds conviction across full discussion, revisits unresolved threads unprompted, does not fold when user answers only the latest objection"
     },
     {
+      "path": ".claude/skills/taste-redesign-audit.md",
+      "purpose": "NEW 2026-08-05 — external design-taste checklist adapted from leonxlnx/taste-skill (MIT), scoped as a supplement to DESIGN.md/persona-ux/persona-design-evaluator, never an override. Covers typography/color/layout/interactivity/content/component-patterns/iconography/code-quality generic-AI tells. One resolved conflict: source recommends dropping Lucide icons — REJECTED, TECH-STACK.md locks Lucide, no icon-library swap without its own EM gate."
+    },
+    {
       "path": ".claude/skills/persona-ux.md",
       "purpose": "UI/UX Designer persona gate — whole-app-context review, DESIGN.md S5 checklist step 0, token single-source enforcement, P0 flow UX checklist"
     },
@@ -501,7 +505,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioService.java",
-      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: existsByWabaIdAndAccountId before touching Karix credentials (same fail-closed pattern as AgentAccessService/WabaService). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, then getAuditLog, all through the same resolveCredential() gate as create/delete/bulk-import. resolveCredential() rewritten same day for the corrected credential model — picks the FIRST PhoneEsmeMapping found for the WABA (Meta approves templates at the WABA level, not per phone, so any mapped phone's esme_addr is equally valid; pragmatic default per founder's \"try it and test\", not a designed selection rule — revisit if real Karix behavior ever shows the choice matters). Fails closed with a clear message if zero phones are mapped. resolveCredential() made PUBLIC same day (was private) so domain/templatestudio/iris's KarixMessagingClient can reuse the exact same resolution for Iris's send_test_template — never a second, duplicated implementation of this lookup."
+      "purpose": "Proxies Template Studio ops to karix-mcp — the ONLY class calling TemplateStudioClient. Tenant isolation: WabaAccessGuard.requireAccess() before touching Karix credentials (2026-08-05, Phase 7 item 42 — was a direct existsByWabaIdAndAccountId call, now routed through the shared guard). 2026-08-04: added listTemplates/getTemplate/editTemplate/uploadMedia, then getAuditLog, all through the same resolveCredential() gate as create/delete/bulk-import. resolveCredential() rewritten same day for the corrected credential model — picks the FIRST PhoneEsmeMapping found for the WABA (Meta approves templates at the WABA level, not per phone, so any mapped phone's esme_addr is equally valid; pragmatic default per founder's \"try it and test\", not a designed selection rule — revisit if real Karix behavior ever shows the choice matters). Fails closed with a clear message if zero phones are mapped. resolveCredential() made PUBLIC same day (was private) so domain/templatestudio/iris's KarixMessagingClient can reuse the exact same resolution for Iris's send_test_template — never a second, duplicated implementation of this lookup."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/KarixCredentialService.java",
@@ -653,7 +657,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/PhoneNumberAccessGuard.java",
-      "purpose": "Entity-agnostic tenant-boundary check for anything keyed by phoneNumberId — access = waba_account_access grant on the Agent's WABA (bound), or original creator (unbound draft). Rewrote 2026-07-28 for the Agent/WABA ownership decoupling; hasAccess() non-throwing variant reused by WabaService"
+      "purpose": "Entity-agnostic tenant-boundary check for anything keyed by phoneNumberId — access = waba_account_access grant on the Agent's WABA (bound), or original creator (unbound draft). Rewrote 2026-07-28 for the Agent/WABA ownership decoupling; hasAccess() non-throwing variant reused by WabaService. 2026-08-05 (Phase 7 item 42): delegates the WABA-bound branch to WabaAccessGuard.hasAccess() instead of calling WabaAccountAccessRepository directly."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaAccessGuard.java",
+      "purpose": "2026-08-05 (Phase 7 item 42, EM architecture-vision audit finding [BOUNDARY-RISK]): single place answering 'can this account touch this WABA' — replaces existsByWabaIdAndAccountId being hand-copied across 8+ files (AgentService, AgentDeployService, SkillLibraryService, TemplateStudioService, KarixCredentialService, KarixMessagingClient, WabaService, PhoneNumberAccessGuard, AgentAccessService). requireAccess() throws NotFoundException (mirrors AgentAccessService); hasAccess() non-throwing variant for callers building their own boolean logic (PhoneNumberAccessGuard, AgentAccessService). Enforcement: WabaAccessGuardEnforcementTest source-scans for any new direct repository call outside the two documented idempotent-insert exceptions (WabaService.grantAccessIfMissing, WabaAgentReconciliationService.grantAccessIfMissing)."
     },
     {
       "path": "frontend/src/components/agent-detail/SkillsTab.tsx",
@@ -685,7 +693,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentAccessService.java",
-      "purpose": "Single place answering 'can this account touch this Agent' post-decoupling — every caller (AgentService, AgentDeployService, ReportsService, AnalyticsService, EvalRollupWorker) goes through here instead of AgentRepository accountId queries. Also populates Agent.sharedAccountCount (transient) for the frontend 'Shared WABA' indicator"
+      "purpose": "Single place answering 'can this account touch this Agent' post-decoupling — every caller (AgentService, AgentDeployService, ReportsService, AnalyticsService, EvalRollupWorker) goes through here instead of AgentRepository accountId queries. Also populates Agent.sharedAccountCount (transient) for the frontend 'Shared WABA' indicator. 2026-08-05 (Phase 7 item 42): hasAccess() delegates the WABA-bound check to WabaAccessGuard.hasAccess() instead of calling WabaAccountAccessRepository directly; countByWabaId (a count, not an access check) stays a direct repository call."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/persona/entity/BusinessProfile.java",
@@ -761,7 +769,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/controller/WebhookController.java",
-      "purpose": "REST controller for /api/v1/webhook (single URL per Meta App, no accountId in path) — GET (hub challenge), POST (inbound payload). Verifies X-Hub-Signature-256 via HMAC-SHA256 + MessageDigest.isEqual (constant-time); skipped with WARN if meta.webhook.app-secret empty. Tenant resolved from payload phone_number_id -> AgentRepository.findByPhoneNumberId -> account; unattributable payloads dropped with 200. Persists to webhook_raw, publishes RabbitMQ event."
+      "purpose": "REST controller for /api/v1/webhook (single URL per Meta App, no accountId in path) — GET (hub challenge), POST (inbound payload). Verifies X-Hub-Signature-256 via HMAC-SHA256 + MessageDigest.isEqual (constant-time) — always enforced as of 2026-08-05 (Phase 7 item 43): meta.webhook.app-secret has no default, missing value crashes Spring context startup instead of silently disabling verification (EM decision: no new profile machinery, application-test.yml supplies a synthetic secret for tests, local-run scripts must export META_WEBHOOK_APP_SECRET). Tenant resolved from payload phone_number_id -> AgentRepository.findByPhoneNumberId -> account; unattributable payloads dropped with 200. Persists to webhook_raw, publishes RabbitMQ event."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/entity/WebhookRaw.java",

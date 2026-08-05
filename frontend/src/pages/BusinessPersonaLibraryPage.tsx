@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Rocket } from 'lucide-react'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 import {
   EMPTY_FORM,
   toFormValues,
-  extractMessage,
 } from '../components/agent-detail/BusinessProfileTab'
 import type { BusinessProfileResponse, BusinessProfileFormValues } from '../components/agent-detail/BusinessProfileTab'
 import { PersonaTable } from '../components/persona/PersonaTable'
@@ -49,7 +49,7 @@ export default function BusinessPersonaLibraryPage() {
       setFormError(null)
       setShowEditor(false)
     },
-    onError: (err) => setFormError(extractMessage(err)),
+    onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const deleteDraftMutation = useMutation({
@@ -71,7 +71,7 @@ export default function BusinessPersonaLibraryPage() {
       setDeployingDraftId(null)
     },
     onError: (err) => {
-      setDeployError(extractMessage(err))
+      setDeployError(extractErrorMessage(err))
       setDeployingDraftId(null)
     },
   })

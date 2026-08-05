@@ -745,8 +745,24 @@ TASK-032: webhook_raw retention job              (P1, 30-day window)
 
 ---
 
-### Follow-up (not yet built) — poll(jobId) has no tenant check
+### Follow-up — poll(jobId) has no tenant check
 - **Flagged:** 2026-08-05, during EL review of the new `GET /eval-rollup/latest` endpoint (Phase 2 roadmap item 19).
 - **Gap:** `EvalRollupService.poll(String jobId)` has no account-ownership check at all — any authenticated account that can guess/observe a rollup job UUID can read another account's eval results (agent names, scores). `getLatestCompleted()` (built same day) correctly scopes by `accountId`; `poll()` does not, and should before this surface is hardened further.
 - **Fix shape:** verify `job.accountId.equals(currentAccountId)` inside `poll()`, 404/NotFoundException otherwise — same fail-closed pattern already used elsewhere in this codebase.
+- **Status:** `[x] FIXED 2026-08-05` — closed alongside Phase 7 item 42 (`WabaAccessGuard` extraction, same audit/category of gap). Regression test: `EvalRollupServiceTest`.
+
+---
+
+### Follow-up (not yet built) — WabaService.getPhones() status-code split leaks WABA existence
+- **Flagged:** 2026-08-05, EL review of Phase 7 item 42 (`WabaAccessGuard` extraction).
+- **Gap:** `WabaService.getPhones()` throws `BusinessException` (400) when the WABA doesn't exist at all, but `NotFoundException` (404) when it exists but the caller has no access grant — the two responses are distinguishable, which leaks whether a given WABA ID exists to an account with no access to it. Every other migrated call site now returns 404 for both cases via `WabaAccessGuard`, consistent with the standard way to avoid leaking existence; this one wasn't touched because the "doesn't exist" branch predates the guard extraction.
+- **Fix shape:** collapse both branches in `getPhones()` to `NotFoundException` ("WABA not found"), matching every other `WabaAccessGuard`-gated call site.
 - **Status:** `[ ] NOT STARTED` — tracked here so it isn't silently dropped, not yet scheduled.
+
+---
+
+### Pre-deploy verification required — Phase 7 item 43, webhook app-secret now mandatory
+- **Flagged:** 2026-08-05, EM decision on the webhook signature fail-fast fix.
+- **What changed:** `meta.webhook.app-secret` no longer has an empty default — a missing value now crashes the Spring context at startup instead of silently disabling Meta webhook signature verification. This is the correct fix (closes a real forged-webhook risk), but it means the *next production restart* fails immediately unless the real Meta App Secret is already present in the production environment config.
+- **Required before this ships to production:** confirm the real secret is present in production's environment/secrets config (`systemctl cat` or equivalent — see CLAUDE.md's Production Data rule on confirming exact live config, same discipline). If it isn't, add it BEFORE this deploys, not after — this is a known, communicated consequence per EM, not a surprise outage.
+- **Status:** `[ ] NOT VERIFIED` — blocks production deploy of this change specifically, does not block local/test/further dev work.

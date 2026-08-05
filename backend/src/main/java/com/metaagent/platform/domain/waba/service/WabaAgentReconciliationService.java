@@ -23,6 +23,11 @@ import java.util.Map;
  * Never fails the caller's view: a Meta lookup failure for one phone number
  * is logged and skipped, not thrown; the WABA-view page must still render
  * even when reconciliation can't complete for some/all numbers.
+ *
+ * grantAccessIfMissing() below calls the repository directly rather than
+ * WabaAccessGuard — it's an idempotent-insert existence check deciding
+ * whether to grant access, not a gate deciding whether to allow it. See
+ * WabaAccessGuardEnforcementTest's ALLOWED_EXISTENCE_CHECK_SUFFIX note.
  */
 @Slf4j
 @Service

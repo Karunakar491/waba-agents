@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 import ConnectPhoneModal from '../components/waba/ConnectPhoneModal'
 import BusinessProfileTab from '../components/agent-detail/BusinessProfileTab'
 import SkillsTab from '../components/agent-detail/SkillsTab'
@@ -87,13 +88,6 @@ const settingsSchema = z.object({
   handoffMessage: z.string().max(1000, 'Max 1000 characters').optional(),
 })
 type SettingsValues = z.infer<typeof settingsSchema>
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
 
 interface DeployPreflightResponse {
   agentIdPresent: boolean
@@ -204,7 +198,7 @@ export default function AgentDetailPage() {
   const actionError = preflightError
     ? preflightError
     : deployMutation.error || pauseMutation.error
-      ? extractMessage(deployMutation.error ?? pauseMutation.error)
+      ? extractErrorMessage(deployMutation.error ?? pauseMutation.error)
       : null
 
   // UX nicety on top of the backend's own fail-closed guard (AgentDeployService).
@@ -224,7 +218,7 @@ export default function AgentDetailPage() {
         deployMutation.mutate()
       }
     } catch (err) {
-      setPreflightError(extractMessage(err))
+      setPreflightError(extractErrorMessage(err))
     } finally {
       setPreflightChecking(false)
     }
@@ -446,7 +440,7 @@ function ThreadControlModal({
   const releaseMutation = useMutation({
     mutationFn: () => api.post(`/agents/${agentId}/thread-control/release`),
     onSuccess: onClose,
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   return (
@@ -532,7 +526,7 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
       setShowAddForm(false)
       setAddError(null)
     },
-    onError: (err) => setAddError(extractMessage(err)),
+    onError: (err) => setAddError(extractErrorMessage(err)),
   })
 
   const deleteMutation = useMutation({
@@ -706,7 +700,7 @@ function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: b
       setUrl('')
       setAddError(null)
     },
-    onError: (err) => setAddError(extractMessage(err)),
+    onError: (err) => setAddError(extractErrorMessage(err)),
   })
 
   const deleteMutation = useMutation({
@@ -847,7 +841,7 @@ function FilesSection({ agentId, open, onToggle }: { agentId: string; open: bool
       queryClient.invalidateQueries({ queryKey: ['files', agentId] })
       setUploadError(null)
     },
-    onError: (err) => setUploadError(extractMessage(err)),
+    onError: (err) => setUploadError(extractErrorMessage(err)),
   })
 
   const deleteMutation = useMutation({
@@ -1044,7 +1038,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
       await api.post(`/agents/${agentId}/connectors`, payload)
       onCreated()
     } catch (err) {
-      setError(extractMessage(err))
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -1239,7 +1233,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
       })
       onCreated()
     } catch (err) {
-      setError(extractMessage(err))
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -1669,13 +1663,13 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     },
-    onError: (err) => setServerError(extractMessage(err)),
+    onError: (err) => setServerError(extractErrorMessage(err)),
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/agents/${agent.id}`),
     onSuccess: onDeleted,
-    onError: (err) => setDeleteError(extractMessage(err)),
+    onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
   const nameMatches = confirmName.trim() === agent.displayName.trim()
@@ -2079,7 +2073,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
   const audienceMutation = useMutation({
     mutationFn: (ai_audience: string) => api.put(`/agents/${agentId}/settings/audience`, { ai_audience }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agent-settings', agentId] }),
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const addMutation = useMutation({
@@ -2089,13 +2083,13 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
       queryClient.invalidateQueries({ queryKey: ['agent-allowlist', agentId] })
       setNewNumber('')
     },
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   const removeMutation = useMutation({
     mutationFn: (entryId: string) => api.delete(`/agents/${agentId}/allowlist/${entryId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agent-allowlist', agentId] }),
-    onError: (err) => setError(extractMessage(err)),
+    onError: (err) => setError(extractErrorMessage(err)),
   })
 
   if (!phoneNumberId) return null

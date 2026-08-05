@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Circle, FileText, Loader2, Plus, Rocket, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
+import { extractErrorMessage } from '../../lib/errors'
 import ConsequenceLine from '../shared/ConsequenceLine'
 
 export interface BusinessProfileResponse {
@@ -42,11 +43,6 @@ export const EMPTY_FORM: BusinessProfileFormValues = {
   contactEmail: '',
   contactHoursOfOperation: '',
   contactAddress: '',
-}
-
-export function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
 }
 
 export function toFormValues(p: BusinessProfileResponse): BusinessProfileFormValues {
@@ -101,7 +97,7 @@ export default function BusinessProfileTab({ phoneNumberId }: { phoneNumberId: s
       setFormError(null)
       setShowEditor(false)
     },
-    onError: (err) => setFormError(extractMessage(err)),
+    onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const deleteDraftMutation = useMutation({
@@ -118,7 +114,7 @@ export default function BusinessProfileTab({ phoneNumberId }: { phoneNumberId: s
       queryClient.invalidateQueries({ queryKey: ['business-profile-history', phoneNumberId] })
       setDeployError(null)
     },
-    onError: (err) => setDeployError(extractMessage(err)),
+    onError: (err) => setDeployError(extractErrorMessage(err)),
   })
 
   if (!phoneNumberId) {

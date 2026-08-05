@@ -46,6 +46,7 @@ public class WabaService {
 
     private final WabaRepository wabaRepository;
     private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final WabaAgentReconciliationService reconciliationService;
     private final PhoneNumberAccessGuard phoneNumberAccessGuard;
     private final AgentRepository agentRepository;
@@ -97,8 +98,8 @@ public class WabaService {
         // registered it, not just the caller (2026-07-28 decoupling: WABA
         // access is granted via waba_account_access, not exclusive creation).
         Waba waba = wabaRepository.findFirstByWabaIdOrderByIdAsc(wabaId)
-                .filter(w -> wabaAccountAccessRepository.existsByWabaIdAndAccountId(w.getId(), accountId))
                 .orElseThrow(() -> new BusinessException("WABA not found"));
+        wabaAccessGuard.requireAccess(waba.getId(), accountId);
 
         List<WabaDtos.PhoneNumber> phones = fetchPhonesFromMeta(wabaId, accountId);
         try {

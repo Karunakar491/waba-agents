@@ -3,7 +3,6 @@ package com.metaagent.platform.domain.waba.service;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +26,7 @@ import org.springframework.stereotype.Component;
 public class PhoneNumberAccessGuard {
 
     private final AgentRepository agentRepository;
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
 
     public void requireAccess(Long accountId, String phoneNumberId) {
         if (!hasAccess(accountId, phoneNumberId)) {
@@ -39,7 +38,7 @@ public class PhoneNumberAccessGuard {
         Agent agent = agentRepository.findByPhoneNumberId(phoneNumberId).orElse(null);
         return agent != null && (
                 agent.getWabaId() != null
-                        ? wabaAccountAccessRepository.existsByWabaIdAndAccountId(agent.getWabaId(), accountId)
+                        ? wabaAccessGuard.hasAccess(agent.getWabaId(), accountId)
                         : accountId.equals(agent.getAccountId())
         );
     }

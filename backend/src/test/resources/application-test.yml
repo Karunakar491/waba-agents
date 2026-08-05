@@ -28,6 +28,7 @@ meta:
     version: "1.0.0"
   webhook:
     verify-token: test-verify-token
+    app-secret: test-only-secret-never-used-in-prod
 
 claude:
   api:

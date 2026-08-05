@@ -12,7 +12,7 @@ import com.metaagent.platform.domain.agent.repository.*;
 import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
 import com.metaagent.platform.domain.conversation.repository.MessageRepository;
 import com.metaagent.platform.domain.waba.entity.Waba;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.domain.webhook.repository.WebhookRawRepository;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
@@ -40,7 +40,7 @@ public class AgentService {
     private final AgentWebsiteRepository agentWebsiteRepository;
     private final AgentWebsitePageRepository agentWebsitePageRepository;
     private final WabaRepository wabaRepository;
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final AgentAccessService agentAccessService;
     private final MetaApiClient metaApiClient;
     private final MessageRepository messageRepository;
@@ -132,8 +132,8 @@ public class AgentService {
             // it, not just the WABA's original registering account (2026-07-28
             // decoupling decision).
             Waba waba = wabaRepository.findById(wabaId)
-                    .filter(w -> wabaAccountAccessRepository.existsByWabaIdAndAccountId(w.getId(), accountId))
                     .orElseThrow(() -> new NotFoundException("WABA not found"));
+            wabaAccessGuard.requireAccess(waba.getId(), accountId);
 
             // Phone must actually belong to that WABA on Meta
             if (!phoneBelongsToWaba(waba.getWabaId(), phoneNumberId)) {
@@ -1051,9 +1051,7 @@ public class AgentService {
     }
 
     private List<Agent> requireWabaAgents(Long wabaId, Long accountId) {
-        if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
-            throw new BusinessException("You don't have access to this WABA's files.");
-        }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
         return agentRepository.findAllByWabaId(wabaId);
     }
 

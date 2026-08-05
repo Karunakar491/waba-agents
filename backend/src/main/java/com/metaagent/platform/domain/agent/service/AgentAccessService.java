@@ -4,6 +4,7 @@ import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ import java.util.List;
 public class AgentAccessService {
 
     private final AgentRepository agentRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final WabaAccountAccessRepository wabaAccountAccessRepository;
 
     public Agent getAccessible(Long agentId, Long accountId) {
@@ -45,7 +47,7 @@ public class AgentAccessService {
 
     private boolean hasAccess(Agent agent, Long accountId) {
         if (agent.getWabaId() != null) {
-            return wabaAccountAccessRepository.existsByWabaIdAndAccountId(agent.getWabaId(), accountId);
+            return wabaAccessGuard.hasAccess(agent.getWabaId(), accountId);
         }
         return accountId.equals(agent.getAccountId());
     }

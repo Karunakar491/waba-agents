@@ -1,7 +1,6 @@
 package com.metaagent.platform.domain.templatestudio.iris;
 
 import com.metaagent.platform.common.exception.BusinessException;
-import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.waba.entity.KarixEsmeCredential;
 import com.metaagent.platform.domain.waba.entity.PhoneEsmeMapping;
@@ -9,7 +8,7 @@ import com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot;
 import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialRepository;
 import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,7 +35,7 @@ import java.util.Map;
 @Component
 public class KarixMessagingClient {
 
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final PhoneEsmeMappingRepository phoneEsmeMappingRepository;
     private final KarixEsmeCredentialRepository esmeCredentialRepository;
     private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
@@ -44,14 +43,14 @@ public class KarixMessagingClient {
 
     private final RestClient restClient;
 
-    public KarixMessagingClient(WabaAccountAccessRepository wabaAccountAccessRepository,
+    public KarixMessagingClient(WabaAccessGuard wabaAccessGuard,
                                 PhoneEsmeMappingRepository phoneEsmeMappingRepository,
                                 KarixEsmeCredentialRepository esmeCredentialRepository,
                                 PhoneNumberSnapshotRepository phoneNumberSnapshotRepository,
                                 SecretEncryptor secretEncryptor,
                                 RestClient.Builder builder,
                                 @Value("${karix.send-base-url:https://rcmapi.instaalerts.zone}") String sendBaseUrl) {
-        this.wabaAccountAccessRepository = wabaAccountAccessRepository;
+        this.wabaAccessGuard = wabaAccessGuard;
         this.phoneEsmeMappingRepository = phoneEsmeMappingRepository;
         this.esmeCredentialRepository = esmeCredentialRepository;
         this.phoneNumberSnapshotRepository = phoneNumberSnapshotRepository;
@@ -66,9 +65,7 @@ public class KarixMessagingClient {
     @SuppressWarnings("unchecked")
     public Map<String, Object> sendTestTemplate(Long wabaId, String templateId, String testPhoneNumber) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
-            throw new NotFoundException("WABA not found");
-        }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
 
         PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaId(wabaId)
                 .orElseThrow(() -> new BusinessException("No phone number on this WABA has a Karix credential configured yet — set one up in Settings."));

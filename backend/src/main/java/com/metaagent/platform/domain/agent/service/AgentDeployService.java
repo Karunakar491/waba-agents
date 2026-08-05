@@ -7,7 +7,7 @@ import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
-import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
+import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import com.metaagent.platform.infrastructure.meta.MetaApiException;
 import com.metaagent.platform.infrastructure.meta.ThreadControlClient;
@@ -42,7 +42,7 @@ public class AgentDeployService {
 
     private final AgentRepository agentRepository;
     private final AgentAccessService agentAccessService;
-    private final WabaAccountAccessRepository wabaAccountAccessRepository;
+    private final WabaAccessGuard wabaAccessGuard;
     private final MetaApiClient metaApiClient;
     private final ThreadControlClient threadControlClient;
 
@@ -372,9 +372,7 @@ public class AgentDeployService {
      */
     @SuppressWarnings("unchecked")
     public List<ConnectorDtos.ConnectorRow> listConnectorsForWaba(Long wabaId, Long accountId) {
-        if (!wabaAccountAccessRepository.existsByWabaIdAndAccountId(wabaId, accountId)) {
-            throw new BusinessException("You don't have access to this WABA's connectors.");
-        }
+        wabaAccessGuard.requireAccess(wabaId, accountId);
         List<Agent> agents = agentRepository.findAllByWabaId(wabaId).stream()
                 .filter(a -> a.getPhoneNumberId() != null)
                 .toList();

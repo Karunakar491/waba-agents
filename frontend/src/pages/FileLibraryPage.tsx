@@ -2,15 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Upload } from 'lucide-react'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 import { FilesTable, WebsitesTable, type FileRow, type WebsiteRow } from '../components/files/FileWebsiteTables'
 
 interface WabaEntry { id: string; wabaId: string; label: string | null }
 interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null }
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
 
 export default function FileLibraryPage() {
   const queryClient = useQueryClient()
@@ -51,14 +47,14 @@ export default function FileLibraryPage() {
       return api.post(`/agents/${agentId}/files`, formData, { headers: { 'Content-Type': undefined } })
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] }); setFormError(null) },
-    onError: (err) => setFormError(extractMessage(err)),
+    onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const addWebsiteMutation = useMutation({
     mutationFn: ({ agentId, url }: { agentId: string; url: string }) =>
       api.post(`/agents/${agentId}/websites`, { url }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] }); setWebsiteUrl(''); setFormError(null) },
-    onError: (err) => setFormError(extractMessage(err)),
+    onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const deleteFileMutation = useMutation({

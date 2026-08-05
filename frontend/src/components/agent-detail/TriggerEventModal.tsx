@@ -5,11 +5,7 @@ import { cn } from '../../lib/utils'
 import { useJobPoll } from '../../hooks/useJobPoll'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import Modal from '../shared/Modal'
-
-function extractMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
+import { extractErrorMessage } from '../../lib/errors'
 
 const STATUS_DOT: Record<string, string> = {
   idle: 'text-muted-foreground',
@@ -67,7 +63,7 @@ export default function TriggerEventModal({
       }
       poll.start(id)
     } catch (err) {
-      setSendError(extractMessage(err))
+      setSendError(extractErrorMessage(err))
     }
   }
 

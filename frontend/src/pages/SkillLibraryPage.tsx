@@ -118,7 +118,11 @@ export default function SkillLibraryPage() {
         <SkillTemplateBrowsePage />
       ) : (
         <>
-          {deleteError && <ErrorBanner error={deleteError} />}
+          {deleteError && (
+            <div className="mt-3">
+              <ErrorBanner error={deleteError} />
+            </div>
+          )}
 
           {!isLoading && !waba ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-20 text-center">

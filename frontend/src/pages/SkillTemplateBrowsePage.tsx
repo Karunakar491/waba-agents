@@ -65,7 +65,11 @@ export default function SkillTemplateBrowsePage() {
         Karix-curated reference skills, by industry and use case. Copy one to start your own — editing your copy never changes the original.
       </p>
 
-      {copyError && <ErrorBanner error={copyError} />}
+      {copyError && (
+        <div className="mt-3">
+          <ErrorBanner error={copyError} />
+        </div>
+      )}
 
       {!isLoading && templates.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

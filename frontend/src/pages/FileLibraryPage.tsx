@@ -101,7 +101,11 @@ export default function FileLibraryPage() {
         ))}
       </div>
 
-      {formError && <ErrorBanner error={formError} />}
+      {formError && (
+        <div className="mt-3">
+          <ErrorBanner error={formError} />
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card p-4 shadow-surface-resting space-y-3">
         <label htmlFor="upload-agent-picker" className="text-xs font-medium text-muted-foreground">

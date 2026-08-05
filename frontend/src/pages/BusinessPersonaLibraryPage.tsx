@@ -143,7 +143,11 @@ export default function BusinessPersonaLibraryPage() {
         />
       )}
 
-      {deployError && <ErrorBanner error={deployError} />}
+      {deployError && (
+        <div className="mt-3">
+          <ErrorBanner error={deployError} />
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card shadow-surface-resting overflow-x-auto">
         <PersonaTable

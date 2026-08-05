@@ -202,7 +202,11 @@ function EvalRollup() {
         </button>
       </div>
 
-      {runError && <ErrorBanner error={runError} />}
+      {runError && (
+        <div className="mt-3">
+          <ErrorBanner error={runError} />
+        </div>
+      )}
 
       {poll.status === 'unknown' && (
         <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/30 px-4 py-3">

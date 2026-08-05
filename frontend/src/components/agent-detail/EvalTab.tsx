@@ -102,7 +102,11 @@ export default function EvalTab({ agentId }: { agentId: string }) {
         </div>
       </div>
 
-      {runError && <ErrorBanner error={runError} />}
+      {runError && (
+        <div className="mt-3">
+          <ErrorBanner error={runError} />
+        </div>
+      )}
 
       {summary && (
         <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5">

@@ -26,6 +26,17 @@ Thumbs.db
 
 # Claude internal
 .claude/
+.superpowers/
 
 # Postman (contains tokens)
 *.json.bak
+
+# Local secret material — never committed
+.local-keys/
+
+# JVM crash artifacts
+hs_err_pid*.log
+replay_pid*.log
+
+# Local Playwright test scaffold (audit tooling, not product code)
+/pw/

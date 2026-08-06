@@ -14,11 +14,16 @@ import {
   BarChart3,
   FileText,
   Settings as SettingsIcon,
+  Plus,
+  Search,
+  Loader2,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
+import { useIrisSidebarStore } from '../../store/irisSidebarStore'
 import { cn } from '../../lib/utils'
 import ClientCommandBar from './ClientCommandBar'
+import ErrorBoundary from '../shared/ErrorBoundary'
 
 // Sub-items under "Agents". All four now have a real account-wide aggregate
 // Library page (TASK-050 Skills, TASK-064 Connectors — live fan-out, no
@@ -73,13 +78,25 @@ export default function AppShell() {
   // content (doesn't reflow main) — like Notion/Linear/VS Code's activity bar.
   const [railHover, setRailHover] = useState(false)
   const activeNav = location.pathname.startsWith('/templates') ? TEMPLATE_STUDIO_NAV : NAV
+  // Iris's chat history/New-chat/search render INLINE inside this same navy
+  // nav (as the "Iris" item's sub-nav, same shape as Agents' AGENT_SUB_NAV)
+  // instead of a separate light sidebar next to it — one merged sidebar, per
+  // founder's explicit correction (2026-08-06, UX+PM+EM approved: "One rail,
+  // one grammar" — every row here, chat session included, is a plain NavLink
+  // treatment). Iris pins the rail permanently expanded since the whole
+  // point is showing labels/history — never writes COLLAPSE_KEY, so a
+  // manually-collapsed rail elsewhere in the app is untouched after leaving
+  // Iris.
+  const isIrisRoute = location.pathname === '/templates/iris'
+  const irisSidebar = useIrisSidebarStore()
 
   // Whether the sidebar is showing full labels right now (persisted collapse
-  // state OFF, or hovering the rail while collapsed). Mobile drawer always
-  // shows full labels regardless of desktop collapse.
-  const showExpanded = !collapsed || railHover
+  // state OFF, or hovering the rail while collapsed, or pinned open on
+  // Iris). Mobile drawer always shows full labels regardless of desktop
+  // collapse.
+  const showExpanded = isIrisRoute || !collapsed || railHover
   const iconOnly = !showExpanded && !mobileOpen
-  const floating = collapsed && railHover && !mobileOpen
+  const floating = !isIrisRoute && collapsed && railHover && !mobileOpen
 
   // Reset the drawer when crossing to desktop, and close it on Escape
   useEffect(() => {
@@ -134,7 +151,7 @@ export default function AppShell() {
         role={mobileOpen ? 'dialog' : undefined}
         aria-modal={mobileOpen || undefined}
         aria-label="Navigation"
-        onMouseEnter={() => collapsed && setRailHover(true)}
+        onMouseEnter={() => !isIrisRoute && collapsed && setRailHover(true)}
         onMouseLeave={() => setRailHover(false)}
         className={cn(
           'fixed left-0 top-11 bottom-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:transition-[width]',
@@ -239,6 +256,68 @@ export default function AppShell() {
                   })}
                 </div>
               )}
+
+              {/* Iris sub-nav — New chat + search + session history, same
+                  shape as Agents' sub-nav above ("One rail, one grammar":
+                  chat sessions are switchers, styled as plain nav rows, not
+                  a distinct light-panel sidebar). Iris is always expanded on
+                  this route, so no iconOnly guard needed here. */}
+              {to === '/templates/iris' && isIrisRoute && (
+                <div className="mt-1 space-y-1 pl-3 pr-1">
+                  <button
+                    type="button"
+                    onClick={() => irisSidebar.onNewChat?.()}
+                    className="flex w-full items-center gap-3 rounded-lg py-2 pl-8 pr-3 text-sm font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    New chat
+                  </button>
+
+                  <div className="relative pl-8">
+                    <Search className="absolute left-10 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+                    <input
+                      type="text"
+                      value={irisSidebar.searchQuery}
+                      onChange={(e) => irisSidebar.setSearchQuery(e.target.value)}
+                      placeholder="Search chats…"
+                      className="w-full rounded-lg border border-white/10 bg-white/10 py-1.5 pl-7 pr-2.5 text-sm text-white placeholder:text-white/40 outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    />
+                  </div>
+
+                  <div className="space-y-0.5">
+                    {irisSidebar.loading && (
+                      <Loader2 className="mx-auto mt-2 h-4 w-4 animate-spin text-white/40" />
+                    )}
+                    {!irisSidebar.loading && (() => {
+                      const filtered = irisSidebar.sessions.filter((s) =>
+                        (s.title ?? 'New chat').toLowerCase().includes(irisSidebar.searchQuery.toLowerCase())
+                      )
+                      if (filtered.length === 0) {
+                        return (
+                          <p className="py-2 pl-8 text-xs text-white/40">
+                            {irisSidebar.searchQuery ? `No chats match "${irisSidebar.searchQuery}".` : 'No chats yet.'}
+                          </p>
+                        )
+                      }
+                      return filtered.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => irisSidebar.onSelect?.(s.id)}
+                          className={cn(
+                            'block w-full truncate rounded-lg py-2 pl-8 pr-3 text-left text-sm transition-colors',
+                            s.id === irisSidebar.activeId
+                              ? 'bg-white/15 text-white'
+                              : 'text-white/50 hover:bg-white/10 hover:text-white/80',
+                          )}
+                        >
+                          {s.title ?? 'New chat'}
+                        </button>
+                      ))
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </nav>
@@ -288,30 +367,38 @@ export default function AppShell() {
       </aside>
 
       {/* Main — padding-left tracks the persisted collapse state (not hover),
-          so a hover-peek floats over content instead of shifting it. */}
+          so a hover-peek floats over content instead of shifting it. Iris is
+          pinned expanded (see showExpanded above), so it needs pl-60 too —
+          this line still said pl-16 for isIrisRoute from the earlier
+          icon-only-rail attempt, which is stale now that the rail actually
+          renders at full width there; that mismatch was the content-hidden-
+          under-the-sidebar bug. */}
       <div
         className={cn(
           'flex flex-1 flex-col overflow-hidden transition-[padding] duration-200',
-          collapsed ? 'md:pl-16' : 'md:pl-60',
+          collapsed && !isIrisRoute ? 'md:pl-16' : 'md:pl-60',
         )}
       >
         {/* Topbar */}
         <header className="flex h-16 items-center justify-between border-b bg-card px-4">
           <div className="flex items-center gap-3">
-            {/* Desktop: collapse rail. Mobile: open drawer. */}
-            <button
-              onClick={toggle}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              aria-expanded={!collapsed}
-              aria-controls="app-sidebar"
-              className="hidden rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:block"
-            >
-              {collapsed ? (
-                <PanelLeft className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-            </button>
+            {/* Desktop: collapse rail. Mobile: open drawer. Hidden on Iris —
+                the rail is forced icon-only there, nothing to toggle. */}
+            {!isIrisRoute && (
+              <button
+                onClick={toggle}
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-expanded={!collapsed}
+                aria-controls="app-sidebar"
+                className="hidden rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:block"
+              >
+                {collapsed ? (
+                  <PanelLeft className="h-4 w-4" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4" />
+                )}
+              </button>
+            )}
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation"
@@ -335,9 +422,12 @@ export default function AppShell() {
           </div>
         </header>
 
-        {/* Page content */}
+        {/* Page content — ErrorBoundary keyed on the route so a crashed
+            page's error state resets on navigation instead of sticking. */}
         <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
         </div>
       </div>

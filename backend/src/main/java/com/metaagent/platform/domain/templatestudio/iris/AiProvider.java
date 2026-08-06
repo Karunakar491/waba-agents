@@ -11,15 +11,17 @@ import java.util.Map;
  * frontend dropdown alone.
  *
  * Do not add a provider to this enum without a matching AiProviderAdapter
- * registered in IrisConversationService — CLAUDE and NVIDIA_LLAMA both have
- * one; OPENAI (real api.openai.com) remains a deliberate future addition,
- * not added until its own adapter exists and passes review.
+ * registered in IrisConversationService — CLAUDE, NVIDIA_LLAMA, and OPENAI
+ * all have one now.
  */
 public enum AiProvider {
     CLAUDE(List.of("claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022")),
     // Scoped to this exact model family, not "any NVIDIA-hosted model" —
     // same closed-set discipline as CLAUDE's own allowed-models list.
-    NVIDIA_LLAMA(List.of("meta/llama-3.3-70b-instruct"));
+    NVIDIA_LLAMA(List.of("meta/llama-3.3-70b-instruct")),
+    // Real api.openai.com only — not Azure OpenAI, not any other
+    // OpenAI-compatible host. Closed-set model list, same discipline.
+    OPENAI(List.of("gpt-4o", "gpt-4o-mini"));
 
     private final List<String> allowedModels;
 

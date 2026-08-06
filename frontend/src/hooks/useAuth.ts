@@ -32,6 +32,7 @@ export function useRegister() {
   return useMutation({
     mutationFn: (data: RegisterInput) =>
       api.post('/auth/register', data).then((r) => r.data),
+    onError: (err) => console.error('Registration failed:', err),
   })
 }
 

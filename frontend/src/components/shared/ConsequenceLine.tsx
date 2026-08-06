@@ -18,7 +18,7 @@ export default function ConsequenceLine({
     <p
       className={cn(
         'flex items-start gap-1.5 text-xs',
-        tone === 'warning' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground',
+        tone === 'warning' ? 'text-warning' : 'text-muted-foreground',
       )}
     >
       <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />

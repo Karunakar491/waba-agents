@@ -20,6 +20,7 @@ import ModuleSelectorPage from './pages/ModuleSelectorPage'
 import TemplateStudioPage from './pages/TemplateStudioPage'
 import TemplateIrisPage from './pages/TemplateIrisPage'
 import TemplateSettingsPage from './pages/TemplateSettingsPage'
+import NotFoundPage from './pages/NotFoundPage'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/router/ProtectedRoute'
 import { useModuleEntitlements, type ModuleName } from './hooks/useModuleEntitlements'
@@ -104,7 +105,7 @@ export default function App() {
             </Route>
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

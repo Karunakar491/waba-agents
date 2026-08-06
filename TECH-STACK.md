@@ -97,6 +97,8 @@
 | `zustand` | Client state | — |
 | `react-router-dom` | Routing | v6 |
 | `axios` | HTTP | Wrapped — never called directly |
+| `react-markdown` | Markdown → real DOM rendering | No `dangerouslySetInnerHTML`. Only ever render trusted/model text (e.g. Iris's own replies) — never user-supplied input. EM approved 2026-08-06 |
+| `remark-gfm` | GFM (tables/strikethrough/task-lists) plugin for react-markdown | EM approved 2026-08-06 |
 | `dayjs` | Date handling | Ant Design peer dep |
 | `jest` + `@testing-library/react` | Unit tests | — |
 | `playwright` | E2E tests | Critical user flows only |

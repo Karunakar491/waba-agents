@@ -1,15 +1,24 @@
 {
   "_meta": {
-    "version": "1.1.0",
-    "lastUpdated": "2026-07-22",
+    "version": "1.2.0",
+    "lastUpdated": "2026-08-07",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
-    "howToQuery": "Filter by domain or name. Navigate to path. Read only that file.",
-    "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files."
+    "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
+    "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
+    "resolvedDebt": "2026-08-07: karix-mcp/ and domain/templatestudio/iris/ split from directory-blob entries into 37 individual per-file entries (each read individually, not paraphrased from the old blob text), each tagged; the two original paths are now directory-summary stubs pointing to their real per-file entries. WabaAccessGuard.java given a usedBy list as the worked cross-reference example. Full tags/usedBy backfill across the other ~330 pre-existing entries not yet done — only new/touched entries carry these fields so far."
   },
   "index": [
     {
       "path": ".claude/skills/persona-design-evaluator.md",
-      "purpose": "Design Evaluator persona — world-class outside eye, runs cold after UX gate on new screens/DESIGN.md/token changes; BLOCKs only on generic AI-generated feel; session model"
+      "purpose": "Design Evaluator persona — world-class outside eye, runs cold after UX gate on new screens/DESIGN.md/token changes; BLOCKs only on generic AI-generated feel; model claude-fable-5 (2026-08-07)"
+    },
+    {
+      "path": ".claude/skills/QA.md",
+      "purpose": "QA agent persona (2026-08-07) — advisory gate after EL APPROVE + automated CI, every code task; correctness/completeness/edge-case/security/perf/DESIGN.md/test-quality checklist; never blocks commits, logs follow-ups; model claude-sonnet-5"
+    },
+    {
+      "path": ".claude/skills/devops-skill.md",
+      "purpose": "DevOps persona (NEW 2026-08-07) — required gate for infra/deploy/migration/security tasks, after EL, never batched with EL; enforces CLAUDE.md's Kill Switch (feature flag, rollback, backup-before-migration, canary, no manual deploy steps); model claude-sonnet-5"
     },
     {
       "path": ".claude/skills/persona-el.md",
@@ -329,7 +338,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Conversation.java",
-      "purpose": "Conversation entity — tenant/agent/customer thread with status + last message metadata; needsHuman flag (scaffold, provisional) set by HandoffClassifier NEEDS_HUMAN signal"
+      "purpose": "Conversation entity — tenant/agent/customer thread with status + last message metadata; needsHuman flag (scaffold, provisional) set by HandoffClassifier NEEDS_HUMAN signal. 2026-08-05 bug fix: @PrePersist no longer stamps lastMessageAt at row-creation time (was set before any Message existed, since findOrCreate/saveInbound run as separate @Transactional calls — a failed/skipped message insert left an orphan 'recently active, zero messages' conversation in the Inbox). lastMessageAt is now ONLY ever set by ConversationStore.saveInbound/saveOutbound at actual message-persist time; column is nullable, DESC sort pushes null-lastMessageAt rows last."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Message.java",
@@ -357,11 +366,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationService.java",
-      "purpose": "Thin coordinator — parse→persist→analytics. Routes: inbound messages→ConversationStore.saveInbound; status webhooks (delivered/read/failed)→updateMessageStatus; sent status→saveOutbound (Decision D1). markProcessing/markProcessed/markFailed are package-private @Transactional. Calls HandoffClassifier per payload: NEEDS_HUMAN→conversationStore.markNeedsHuman + stubbed notifyHandoverTarget; BIZAI_ACTIVE→log only. getConversationCountsByAgent() backs GET /conversations/counts."
+      "purpose": "Thin coordinator — parse→persist→analytics. Routes: inbound messages→ConversationStore.saveInbound; status webhooks (delivered/read/failed)→updateMessageStatus; sent status→saveOutbound (Decision D1). markProcessing/markProcessed/markFailed are package-private @Transactional. Calls HandoffClassifier per payload: NEEDS_HUMAN→conversationStore.markNeedsHuman + stubbed notifyHandoverTarget; BIZAI_ACTIVE→log only. getConversationCountsByAgent() backs GET /conversations/counts. 2026-08-05 bug fix: getConversationMessages() sorted by Sort.by(\"createdAt\") — Message entity has no such field (only receivedAt/sentAt) — threw PropertyReferenceException on every call, 500ing GET /conversations/:id/messages unconditionally; frontend silently rendered empty-array fallback ('No messages yet') even when messages existed in the DB. Fixed to sort by receivedAt (non-nullable, @PrePersist-set, monotonic)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationStore.java",
-      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content), updateMessageStatus, markNeedsHuman (scaffold, provisional)"
+      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content; 2026-08-05: now also stamps lastMessageAt in the same tx as the message insert, mirroring saveInbound — was previously relying on Conversation's now-removed @PrePersist stamp), updateMessageStatus, markNeedsHuman (scaffold, provisional)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/InboundMessageParser.java",
@@ -661,7 +670,9 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaAccessGuard.java",
-      "purpose": "2026-08-05 (Phase 7 item 42, EM architecture-vision audit finding [BOUNDARY-RISK]): single place answering 'can this account touch this WABA' — replaces existsByWabaIdAndAccountId being hand-copied across 8+ files (AgentService, AgentDeployService, SkillLibraryService, TemplateStudioService, KarixCredentialService, KarixMessagingClient, WabaService, PhoneNumberAccessGuard, AgentAccessService). requireAccess() throws NotFoundException (mirrors AgentAccessService); hasAccess() non-throwing variant for callers building their own boolean logic (PhoneNumberAccessGuard, AgentAccessService). Enforcement: WabaAccessGuardEnforcementTest source-scans for any new direct repository call outside the two documented idempotent-insert exceptions (WabaService.grantAccessIfMissing, WabaAgentReconciliationService.grantAccessIfMissing)."
+      "purpose": "2026-08-05 (Phase 7 item 42, EM architecture-vision audit finding [BOUNDARY-RISK]): single place answering 'can this account touch this WABA' — replaces existsByWabaIdAndAccountId being hand-copied across 8+ files. requireAccess() throws NotFoundException (mirrors AgentAccessService); hasAccess() non-throwing variant for callers building their own boolean logic. Enforcement: WabaAccessGuardEnforcementTest source-scans for any new direct repository call outside the two documented idempotent-insert exceptions (WabaService.grantAccessIfMissing, WabaAgentReconciliationService.grantAccessIfMissing).",
+      "tags": ["waba", "security", "tenant-isolation"],
+      "usedBy": ["AgentService.java", "AgentDeployService.java", "SkillLibraryService.java", "TemplateStudioService.java", "KarixCredentialService.java", "KarixMessagingClient.java", "WabaService.java", "PhoneNumberAccessGuard.java", "AgentAccessService.java"]
     },
     {
       "path": "frontend/src/components/agent-detail/SkillsTab.tsx",
@@ -917,7 +928,95 @@
     },
     {
       "path": "karix-mcp/",
-      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). Source imported into this monorepo 2026-08-03. Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a REST API (create/list/get/edit/delete template, media upload, bulk-import, audit-log) that domain/templatestudio (Java) proxies to. karix_client.py already had list_templates/get_template/edit_template/upload_media implemented before 2026-08-04 — that day's work was wiring rest.py + template_ops.py + app.py routes to expose them, not building new Karix integration. GET /api/audit-log (added 2026-08-04) reads the api_call_log table that karix_client.py's _retry() already writes to on every call — no new logging, just a new read path, path_prefix-filterable so a WABA's audit view can't see unrelated activity. See karix-mcp/README.md for architecture, endpoints, known Karix API quirks (e.g. the image-media-handle bug) — do not duplicate that detail here."
+      "purpose": "Separate Python/FastMCP service (own README, own tests, own deploy — NOT part of this platform's Java build). DIRECTORY SUMMARY ONLY — every file below has its own entry (split 2026-08-07, per the index's own one-entry-per-file rule). Exposes WhatsApp send/template tools over MCP (Convogent, Claude Desktop) plus a REST API that domain/templatestudio (Java) proxies to. See karix-mcp/README.md for known Karix API quirks (e.g. the image-media-handle bug)."
+    },
+    {
+      "path": "karix-mcp/karix_mcp/__init__.py",
+      "purpose": "Empty package marker for the karix_mcp module; contains no code.",
+      "tags": ["karix-mcp", "package-init"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/config.py",
+      "purpose": "Single source of env-driven constants — Karix send/template base URLs and the MCP server's listen port.",
+      "tags": ["karix-mcp", "config"],
+      "usedBy": ["karix-mcp/karix_mcp/auth.py", "karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/credentials.py",
+      "purpose": "Resolves per-request Karix credentials (api_key, waba_id, esme_addr) from JWT claims injected by AuthMiddleware, falling back to env vars for single-tenant dev; sender_id is deliberately excluded from tokens and always env-resolved since agents pick it dynamically via get_sender_details().",
+      "tags": ["karix-mcp", "auth", "credentials"],
+      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/app.py", "karix-mcp/karix_mcp/api_call_logger.py", "karix-mcp/karix_mcp/rest.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/auth.py",
+      "purpose": "OAuth 2.0 authorization server for Karix MCP: validates ESME address/API key against Karix, issues/decodes HS256 JWTs, implements PKCE S256 verification and an in-memory authorization-code store, and exposes /connect/validate, /oauth/token, /oauth/authorize, and RFC 8414 metadata route handlers.",
+      "tags": ["karix-mcp", "auth", "oauth"],
+      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/api_call_logger.py",
+      "purpose": "Logs every outbound Karix API call to the api_call_log MySQL table with allowlist-style key-name redaction of secret fields (mirroring the Java platform's ApiCallLogRedactor); never logs headers, never raises on its own failure. KNOWN GAP found live 2026-08-06 debugging a silent template-create failure: the exception branch's error field can end up empty-string (falsy), which log_call stores as NULL — masking the real failure reason behind status_code=NULL/response_body=NULL/error=NULL. Not yet fixed.",
+      "tags": ["karix-mcp", "audit-log", "db"],
+      "usedBy": ["karix-mcp/karix_mcp/karix_client.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/db.py",
+      "purpose": "Thin no-ORM MySQL access layer (one connection per call via pymysql) for template_drafts, bulk_import_jobs/rows, and api_call_log tables — tenant-scoped reads by esme_addr throughout.",
+      "tags": ["karix-mcp", "db", "mysql"],
+      "usedBy": ["karix-mcp/karix_mcp/bulk_import.py", "karix-mcp/karix_mcp/template_ops.py", "karix-mcp/karix_mcp/rest.py", "karix-mcp/karix_mcp/api_call_logger.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/karix_client.py",
+      "purpose": "Thin HTTP wrapper around the Karix RCM/template REST API (send_message, list/get/create/delete/edit_template, upload_media) with shared retry-on-5xx and centralized audit logging via api_call_logger; documents a known Karix media-upload handle bug (error_subcode 2388084) that is surfaced, not silently patched.",
+      "tags": ["karix-mcp", "http-client", "karix-api"],
+      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py", "karix-mcp/karix_mcp/bulk_import.py", "karix-mcp/karix_mcp/template_ops.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/validator.py",
+      "purpose": "Validates a Karix-shaped template payload against Meta's real rejection rules (ported from karix-superagent's templateValidator.js) before submission — category/name/body-length checks, placeholder/example requirements, button-type rules, and a detailed AUTHENTICATION-category rule set (no header/footer, fixed {{1}} body, single OTP/COPY_CODE button, code_expiration_minutes range).",
+      "tags": ["karix-mcp", "validation", "templates"],
+      "usedBy": ["karix-mcp/karix_mcp/template_ops.py", "karix-mcp/karix_mcp/bulk_import.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/template_ops.py",
+      "purpose": "Shared template create/delete/list/get/edit/upload_media logic called by both the MCP tools (server.py) and the REST layer (rest.py) so the two entry points can never diverge; create_template validates via validator.py, persists a retryable draft row, then submits to Karix.",
+      "tags": ["karix-mcp", "templates", "template-studio"],
+      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/templates.py",
+      "purpose": "Normalizes raw Karix template list responses into compact dicts, provides list/describe with search+truncation and name/id lookup, and validates that a send's param_values count matches the template's placeholder_count.",
+      "tags": ["karix-mcp", "templates", "template-studio"],
+      "usedBy": ["karix-mcp/karix_mcp/server.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/builders.py",
+      "purpose": "Pure functions that assemble Karix RCM sendMessage request bodies for each message type (text, template, media, reply-buttons, list menu, CTA URL) around a shared _base() envelope.",
+      "tags": ["karix-mcp", "messaging", "builders"],
+      "usedBy": ["karix-mcp/karix_mcp/server.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/bulk_import.py",
+      "purpose": "Parses an .xlsx sheet of fixed-format columns into template specs (no LLM normalization by design), persists the job/rows to MySQL, and processes template creation in a bounded background thread pool rate-limited under Karix's 100/hour cap, updating per-row and per-job status as it goes.",
+      "tags": ["karix-mcp", "bulk-import", "templates"],
+      "usedBy": ["karix-mcp/karix_mcp/rest.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/server.py",
+      "purpose": "Defines the FastMCP tool surface (get_sender_details, list/describe/create/delete_template, and the send_* message tools) exposed to Convogent/Claude Desktop, wiring credential resolution, builders, templates, and template_ops together with detailed tool docstrings that double as agent-facing usage guidance.",
+      "tags": ["karix-mcp", "mcp-tools", "messaging"],
+      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/rest.py",
+      "purpose": "Starlette REST endpoints for Template Studio (create/list/get/edit/delete template, upload media, bulk import + status, audit log) that call the exact same template_ops/bulk_import/db functions as the MCP tools, gated by the same AuthMiddleware/JWT as /sse and /mcp.",
+      "tags": ["karix-mcp", "rest-api", "template-studio"],
+      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+    },
+    {
+      "path": "karix-mcp/karix_mcp/app.py",
+      "purpose": "Starlette entry point wiring together the MCP SSE/streamable-HTTP transports, OAuth routes, Template Studio REST routes, and AuthMiddleware (Bearer-JWT gate on /sse, /mcp, and /api/*, live-reading JWT_SECRET each request); runs uvicorn on MCP_PORT.",
+      "tags": ["karix-mcp", "entrypoint", "auth"]
     },
     {
       "path": "docs/knowledge-index.json",
@@ -1049,19 +1148,186 @@
     },
     {
       "path": "frontend/src/pages/TemplateStudioPage.tsx",
-      "purpose": "Templates section of Template Studio. Dashboard redesign 2026-08-04 (PM+EM+UX+EL+Design-Evaluator, EL rejected once for duplicate GET /templates/{wabaId} fetching, UX rejected once for missing pagination + no counter loading state — both fixed and re-approved) after founder rejected the prior full-page 'configure credentials' block screen. WabaTemplateStudio now ALWAYS renders the dashboard shell — an unconfigured WABA shows zero counts everywhere plus a small dashed-border inline banner, never a wall. TemplateListPanel: 4 analytics counter cards (Total/Approved/Pending/Rejected, skeleton-loading via countersLoading, not a misleading '0') computed from allQuery (base unfiltered fetch, also serves the table when no filter is picked) with a separate filteredQuery only firing once a status is chosen (avoids the double-fetch EL caught) — table itself is a real `<table>` (name/category/language/quality/status/actions) with client-side pagination (PAGE_SIZE=10, Previous/Next, resets to page 0 on filter change). classifyStatus() is the single source of truth for status classification, shared by both the counter tally and the status pill (Design Evaluator caught these using two different matching rules pre-fix — regex pill vs exact-match counter — which could silently disagree on e.g. 'Submitted'). Template name / rejection-reason cells truncate with title tooltip to prevent row-height blowout. TemplateBuilderForm/HeaderEditor/BodyEditor/FooterEditor/ButtonsEditor/TemplateMetaFields unchanged from prior pass — edit mode still seeds via seedFromComponents() before allowing submit (Karix's edit API replaces components entirely). Design Evaluator PASS notes (advisory, not actioned): counter-card row is the most-cloned Tailwind admin-dashboard pattern (stock-Shadcn-dashboard feel), worth a future pass to differentiate (e.g. segmented total bar instead of 4 twin cards, or drop decorative icon chips). 2026-08-05 (roadmap item 26, AUTHENTICATION/OTP MVP=COPY_CODE only, ONE_TAP/ZERO_TAP deferred — need the client's Android package name+signing hash): TemplateBuilderForm now branches on isAuthentication — switching category to AUTHENTICATION resets header/footer/body to the Meta-generated shape and renders AuthenticationEditor (code_expiration_minutes 1-90 input + OTP_COPY_CODE example-code input) instead of Header/Body/Footer/ButtonsEditor. buildComponents() for AUTHENTICATION always emits exactly `[{BODY,text:'{{1}}'},{BUTTONS,buttons:[{type:'OTP',otp_type:'COPY_CODE',example}]}]`; submit payload adds top-level code_expiration_minutes. Mirrors karix-mcp/karix_mcp/validator.py's AUTHENTICATION rules — keep both in sync if Meta's structural rules change. Iris (TemplateIrisPage.tsx) calls the SAME /api/v1/templates/** endpoints via TemplateStudioService, never a separate implementation. 2026-08-05: status pill now renders via shared StatusIndicator (TEMPLATE_STATUS_TONE derived from the existing classifyStatus() — no new classification logic) instead of a tinted pill. Phase 2 same-day: manual create-mode TemplateBuilderForm now gated behind a '+ New template' button (was permanently expanded under the table on every visit); counts/pagedTemplates memoized; added an 'Edit with Iris' row action (MessageSquare icon) that navigates to /templates/iris with a prefillMessage via router state. EL round-1 REJECT caught TemplateBuilderForm's onDone firing in the same commit as setResult, meaning the success/failure message was never painted before the form unmounted (true for edit already, newly extended to create by this change) — fixed with a 1500ms setTimeout delay before onDone fires."
+      "purpose": "Templates Structure B + A− pass 2026-08-06. Shell: CrossWabaHealthStrip (Pending/Rejected/Low quality across max 5 Karix-mapped WABAs, fail-soft) + WABA dropdown + list/create/edit/bulk. List freshness via TemplateListPanel staleTime:0 refetchOnMount/focus. Meta ConsequenceLines. PM+EM+UX+DesignEvaluator+EL approved."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateListPanel.tsx",
+      "purpose": "Templates list UI (2026-08-06). Pink Create (outline when unconfigured) + Bulk; search; status filter; table; Meta edit gate; ?edit= from allQuery; live refresh staleTime 0 + refetchOnMount always + refetchOnWindowFocus; Refresh button on-demand."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx",
+      "purpose": "A− fleet signal 2026-08-06 — StatusIndicator totals Pending/Rejected/Low quality across up to 5 configured WABAs via existing credential+list APIs; Focus hottest WABA; overflow +N note; fail-soft."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateBuilderForm.tsx",
+      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/useTemplateBuilder.ts",
+      "purpose": "Template create/edit state, seedFromComponents, media upload, buildComponents, submit to /templates or /edit (2026-08-06)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/templateModel.ts",
+      "purpose": "Shared Template Studio types/helpers: classifyStatus, canEditStatus, extractTemplates, seedFromComponents, Meta NAME_RE/BODY_MAX/AUTH_BODY_TEXT (2026-08-06)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/WhatsAppTemplatePreview.tsx",
+      "purpose": "WhatsApp bubble preview using whatsapp-* tokens only — used by TemplateBuilderForm create/edit (2026-08-06)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/BulkImportPanel.tsx",
+      "purpose": "Templates bulk .xlsx import panel with Meta ConsequenceLine (extracted 2026-08-06 Structure B)."
     },
     {
       "path": "frontend/src/pages/TemplateSettingsPage.tsx",
-      "purpose": "Settings section of Template Studio (2026-08-04) — always reachable (rotate a credential, connect a phone) unlike the old inline blocking screen it replaced. ConnectedPhonesPanel (rewritten 2026-08-04 for the corrected credential model) lists phone->esme_addr mappings for the WABA; ConnectPhoneForm has two modes — reuse an existing esme_addr (account-wide dropdown, prevents accidentally creating duplicate esme_addr rows with the same api_key) or add a brand-new one — defaults to \"new\" mode when the account has zero existing esme_addr options (EL round-1 non-blocking note, fixed same day). Phone-number dropdown sources only unmapped phones. Also has AuditLogPanel (added 2026-08-04) — auto-loads on mount (EL round-1 caught an enabled:false that made it never auto-load, only fixed to load-on-mount + manual Refresh button), expandable rows showing method/path/status/request+response body for every karix-mcp call under /api/templates for this WABA. Bodies are pre-redacted server-side (api_call_logger.py) before they're ever stored — safe to render raw."
+      "purpose": "Template Studio Settings full-page redesign (2026-08-06) — nav untouched. Multi-WABA accordion (one-time auto-expand via useRef; collapse sticks); Fetch phones via GET /waba/{metaWabaId}/phones; phone table Phone|Health(StatusIndicator Quality: High/Medium/Low/Unknown)|Karix API Key(masked when mapped)|Karix ESME; Save mappings via existing new-esme/existing-esme; Add WABA reuses POST /waba/validate + POST /waba; LLM tabs OpenAI/Claude/NVIDIA all LIVE (2026-08-06 follow-up — OpenAI enabled once OpenAiAdapter shipped; ProviderTabButton simplified, disabled/comingSoon props removed, no longer needed with all three providers live); Advanced audit collapsed with client-side redactSecrets. Mobile card-stack for credentials. PM+EM+UX+DesignEvaluator+EL approved (initial); PM+EM+EL approved (OpenAI enablement follow-up, EL rejected round 1 for leftover dead disabled/comingSoon code, approved round 2)."
     },
     {
       "path": "frontend/src/pages/TemplateIrisPage.tsx",
-      "purpose": "Iris section of Template Studio. SECOND redesign 2026-08-04 (PM+EM+UX+EL x3+Design-Evaluator x2 — one real BLOCK, not a rubber stamp) — founder explicitly wanted Iris to feel like Claude.ai's own UI (calm, text-first, generous whitespace), after being shown a fake scripted HTML mockup and liking its structural ideas (hero state, live split-pane preview) but NOT its invented color palette or its dropped-in-2026-07-20 Campaigns nav concept. Superseded the FIRST redesign's avatar-chip treatment (EM-confirmed acceptable reversal: founder's later, more specific instruction overrides the prior UX recommendation). Current shape: (1) hero/empty state — headline + pill input + 3 plain underlined-text suggestions (NOT icon chips — Design Evaluator's first pass BLOCKed a gradient-sparkle avatar icon + icon-per-chip pattern as generic-AI-wrapper styling, e.g. every Copilot/GPT-wrapper SaaS; removed entirely across two fix rounds, including the credential-setup card's icon chip and the connected-state pill badge, which is now a single plain text line 'Using {provider}/{model} · Change'); (2) IrisChat messages: Iris's own replies render as plain prose (NO avatar, NO bubble/border) while the user's messages keep a navy filled bubble, right-aligned — the asymmetry itself is the 'text-first' signal; (3) PendingActionPreview: split-pane layout (grid-template-columns 1fr 360px, desktop-only by design, documented in a code comment — no responsive breakpoint since this is an internal operator tool) replaces the old JSON-dump confirm panel with a REAL WhatsApp-style bubble render (fieldsForCreateOrEdit() reads pendingToolArgs.components — same Meta component shape TemplateStudioPage.tsx's seedFromComponents() consumes) for create_template/edit_template specifically; other tool types (send_test_template) still fall back to raw JSON. WhatsApp chrome uses the sanctioned whatsapp-header/canvas/bubble/ink Tailwind tokens (EL caught raw hex bypassing these on first pass, fixed). AiCredentialSetup: BYOK provider/model closed-set dropdowns from GET /templates/iris/credential/options (CLAUDE + NVIDIA_LLAMA, OPENAI deferred P1). IrisChat: session-per-WABA, POST /templates/iris/sessions/{id}/messages, needsConfirmation/pendingToolName/pendingToolArgs contract unchanged — zero backend changes across either redesign round. No frontend/DESIGN.md exists yet — flagged three times now (both UX gates + both Design Evaluator gates) as worth authoring before the next chat-surface screen. Phase 2 (2026-08-05): ChatEntry gained an optional `link` field — after a confirmed create_template/edit_template, the 'Confirmed and submitted.' entry now carries a 'View in Templates →' link (previously zero path forward after a confirmed submission). IrisWorkspace also reads `location.state?.prefillMessage` on mount (from Studio's new 'Edit with Iris' row action) to prefill the input — never auto-sends. EL round-1 REJECT caught the prefill-clear using raw window.history.replaceState, which doesn't update react-router's own location object; fixed with navigate(location.pathname, {replace:true, state:null})."
+      "purpose": "Iris A- pass 2026-08-06: thin IrisWorkspace + IrisChatPane + docked IrisConfirmPanel (WhatsAppTemplatePreview + ConsequenceLine; DESIGN.md section 6 co-located, not Modal). CTA Submit to Meta / Send test; View in Templates deep-link; TEMPLATE_STUDIO_WABA_KEY. PM+EM+UX+DesignEvaluator+EL approved."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/IrisConfirmPanel.tsx",
+      "purpose": "Docked Iris confirm pane (2026-08-06 A-): WhatsAppTemplatePreview + ConsequenceLine; Submit to Meta / Send test; plain-language non-template summary."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/IrisChatPane.tsx",
+      "purpose": "Iris chat transcript + hero + composer (extracted 2026-08-06 for EL 200-line cap)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/",
-      "purpose": "Iris backend (2026-08-04) — locked scope: create/edit/list templates, send TEST templates, marketing conversation. Fixed tool allowlist enforced in IrisConversationService, never trusted to system-prompt instruction alone. Key files: AiProvider (closed-set provider+model enum — CLAUDE, plus NVIDIA_LLAMA added same day as the 2nd real opt-in BYOK provider (meta/llama-3.3-70b-instruct); never add a provider here without a matching adapter), AiProviderCredential/AiCredentialService (BYOK, account-scoped — one ACTIVE provider per account at a time, upsert() deletes any other-provider row when switching; EL-caught bug same day: getStatus()/resolveForConversation() hardcoded AiProvider.CLAUDE.name(), so a non-Claude credential was silently invisible — fixed to pick firstCredentialForAccount() via a new findAllByAccountId repo method, not assume which provider), AiMessage/AiToolSpec/AiTurnResult/AiProviderAdapter (neutral tool-calling representation — one small adapter per provider, tool implementations never change per provider; IrisConversationService needs ZERO changes to add a provider, confirmed true for NVIDIA_LLAMA), ClaudeAdapter (calls Anthropic's Messages API directly with `tools` — deliberately NOT built on ClaudeApiClient, which is wizard-only/platform-key/no-tool-support per its own contract), NvidiaLlamaAdapter (OpenAI-compatible chat completions; tool_calls[].function.arguments is a JSON STRING here, unlike Claude's already-object `input` — parsed via objectMapper.readValue, wrapped in BusinessException on malformed JSON; has a package-private test-only constructor accepting a pre-built RestClient so MockRestServiceServer tests don't get clobbered by the real constructor's own requestFactory-setting logic — the real constructor needs @Autowired since 2+ constructors exist, EL-caught the SAME \"stray @RequiredArgsConstructor fighting a manual constructor\" bug class here that hit KarixMessagingClient), IrisSession/IrisMessage (chat persistence; session's pending_tool_name/pending_tool_args_json hold a mutating tool call's exact args awaiting confirmation — confirm() always replays these persisted args, never a fresh model message, which is what \"confirm-before-submit\" actually means at the data layer), IrisConversationService (the loop: list_templates executes inline since it's read-only; create_template/edit_template/send_test_template pause-persist-return-preview instead of executing, per the locked confirm-before-submit requirement), KarixMessagingClient (send_test_template's in-house direct-to-Karix client — founder's explicit call to bypass karix-mcp for this, since Karix's send API only needs the plain api_key as a Bearer header, no OAuth exchange, and karix-mcp has no REST endpoint for sending anyway; reuses TemplateStudioService.resolveCredential, now public for this reuse; 2026-08-05 roadmap item 26: sendTestTemplate gained an overload taking List<String> parameterValues, built into Karix's positional `{"0": v0, "1": v1, ...}` parameterValues map — previously always sent an empty map, so ANY templated placeholder, including an AUTHENTICATION template's {{1}} OTP code, silently failed to fill on send; send_test_template's tool schema in IrisConversationService now accepts an optional parameterValues array. NEEDS LIVE VALIDATION — no test WABA with an approved AUTHENTICATION template exists yet to confirm Karix's OTP button is filled from the same positional value as the body placeholder rather than a separate button-level parameter). No-WABA-picker change (2026-08-04, PM+EM+UX+EL approved): a session no longer binds to one wabaId upfront (CreateSessionRequest.wabaId was already nullable, IrisSession.wabaId column already nullable — no migration needed). executeTool() ALWAYS read wabaId from the model's own tool-call arguments, never from session.getWabaId(), which was pure unused metadata — so nothing needed to change there. What changed: SYSTEM_PROMPT_BASE is now a %s-templated string, formatted per-turn in sendMessage() with describeWabas(wabaService.listForAccount(session.getAccountId())) — Iris is told every WABA the account can see (label + wabaId) and is instructed to ask which one if 2+, use the only one silently if 1, and always name the resolved WABA back to the operator before proposing any action (PM-mandated safety net against silent misresolution). Tenant isolation: executeTool() now takes the already-fetched List<Waba> accountWabas (passed from sendMessage/confirmPendingAction, no duplicate listForAccount() call) and hard-rejects any model-supplied wabaId not in that list BEFORE dispatching to TemplateStudioService/KarixMessagingClient — this is on top of, not instead of, those services' own existing wabaAccountAccessRepository checks; it's the one chokepoint ALL Iris tool dispatch passes through. Frontend (TemplateIrisPage.tsx): WabaPicker/useSelectedWaba removed entirely; UX gate caught two real gaps on first pass — a missing zero-WABA guard (NoWabaState component, dashed border + Link to /wabas, takes priority over both credential-setup and chat) and no expectation-setting for the ask-which-WABA behavior (one-line hint shown only when wabaCount > 1). Chat-history sidebar + cross-page sync (2026-08-04, PM+EM+EL x2+UX+Design-Evaluator approved) — V36 migration adds iris_session.title (varchar 120, nullable, set once from a truncated first-user-message via truncateForTitle(), never reset). New IrisSessionSummaryProjection (id/title/updatedAt only — sidebar list never hydrates the pending_tool_args_json TEXT column). New conversationHistory() private helper is the SINGLE shared USER/ASSISTANT-filtered read path for both sendMessage()'s model-history-building and the new getMessages() endpoint — deliberately factored out so the two can't drift on what counts as displayable conversation vs internal tool bookkeeping (EM's explicit requirement). New endpoints: GET /sessions (listSessions, accountId-scoped via SecurityContextHelper, same tenant pattern as everywhere else), GET /sessions/{id}/messages (getMessages, behind requireOwnedSession). Known v1 gap (EL+UX reviewed, judged acceptable — not silently broken): resuming a session that had a pending confirmation shows no visual indicator of that state; the backend's existing pendingToolName guard in sendMessage() independently prevents any double-execution regardless, so the worst case is a confusing-but-safe error on next send, not a security/correctness bug. Frontend: TemplateIrisPage.tsx's IrisChat became IrisWorkspace (220px SessionSidebar + chat, fixed width, no responsive breakpoint — same desktop-only reasoning as the split-pane preview). Design Evaluator caught one real generic-AI-clone tell on first pass (a MessageSquare icon on every session row — the one element that would look identical in any AI chat clone) and one improvement (add a small uppercase 'Recent' label matching PendingActionPreview's existing typographic pattern) — both fixed. New shared frontend/src/lib/templateQueryKeys.ts (templateQueryKeys.list(wabaId)) used by BOTH TemplateStudioPage.tsx (its query keys) and TemplateIrisPage.tsx (invalidates after Iris confirms create_template/edit_template, using the resolved wabaId from pending.args.wabaId, since Iris no longer knows a fixed wabaId client-side) — prevents the two pages' independently hand-typed ['templates', wabaId, ...] arrays from silently drifting apart. Self-caught TSID precision bug (2026-08-04, same day, EL re-reviewed): SessionSummary.id and TurnResponse.sessionId were Long, serializing TSIDs (18-digit values, well past JS Number.MAX_SAFE_INTEGER) as raw JSON numbers instead of strings — same class of bug the project already solved once for WabaResponse (see WabaDtos.java's 'TSID as string' comment). Fixed: IrisSession.id got @JsonSerialize(using=ToStringSerializer.class) (fixes createSession's raw-entity response too), SessionSummary/TurnResponse fields changed to String, all construction sites use String.valueOf(...). Caught by re-checking against the established WabaResponse convention after noticing a real 18-digit WABA id earlier in the same session — not caught by the first EL pass, a reminder that 'compiles clean' isn't the same as 'no data-corruption bug.'"
+      "purpose": "Iris backend (2026-08-04) — locked scope: create/edit/list templates, send TEST templates, marketing conversation. DIRECTORY SUMMARY ONLY — every file below has its own entry (split 2026-08-07, per the index's own one-entry-per-file rule). Cross-cutting decisions that don't belong to one file: fixed tool allowlist enforced in IrisConversationService, never trusted to system-prompt instruction alone; a session no longer binds to one wabaId upfront (2026-08-04, PM+EM+UX+EL approved) — wabaId is always read from the model's own tool-call args and hard-rejected if not in the account's real WABA list; chat-history sidebar (2026-08-04) added GET /sessions + GET /sessions/{id}/messages, V36 migration adds iris_session.title."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProvider.java",
+      "purpose": "Closed-set enum of BYOK providers (CLAUDE, NVIDIA_LLAMA, OPENAI) each with a closed-set allowed-models list, validated server-side on every credential write; a provider must have a matching AiProviderAdapter registered before being added here. OPENAI (gpt-4o/gpt-4o-mini) added 2026-08-06 as the 3rd BYOK provider, PM+EM+EL approved (EL rejected round 1 on a stale frontend 'coming soon' cleanup, approved round 2).",
+      "tags": ["iris", "enum", "credentials", "llm-adapter"],
+      "usedBy": ["AiCredentialService.java", "AiProviderCredential.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredential.java",
+      "purpose": "JPA entity for BYOK AI-provider credential — account-scoped (one account-wide key, not per-WABA), stores provider/model/encryptedApiKey (via SecretEncryptor) with TSID id and created/updated timestamps.",
+      "tags": ["iris", "entity", "persistence", "credentials"],
+      "usedBy": ["AiCredentialService.java", "AiProviderCredentialRepository.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredentialRepository.java",
+      "purpose": "Spring Data repository for AiProviderCredential — findByAccountIdAndProvider, findAllByAccountId (one ACTIVE provider per account in practice), existsByAccountId.",
+      "tags": ["iris", "repository", "credentials"],
+      "usedBy": ["AiCredentialService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiCredentialService.java",
+      "purpose": "BYOK credential CRUD — getStatus/listOptions/upsert (enforces one active provider per account, validates provider/model against AiProvider enum, encrypts key) and resolveForConversation (package-private, decrypted key, never returned via GET). EL-caught bug (2026-08-06): getStatus()/resolveForConversation() once hardcoded AiProvider.CLAUDE.name(), silently hiding a non-Claude credential — fixed to pick firstCredentialForAccount() via a new findAllByAccountId repo method instead of assuming the provider.",
+      "tags": ["iris", "service", "credentials", "security"],
+      "usedBy": ["IrisController.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiMessage.java",
+      "purpose": "Neutral role/content message record used internally by the conversation loop and adapters — never a provider's own wire format.",
+      "tags": ["iris", "llm-adapter", "dto"],
+      "usedBy": ["AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiToolSpec.java",
+      "purpose": "One entry in Iris's fixed tool allowlist (name/description/inputSchema/requiresConfirmation) — this Map IS the allowlist enforced in IrisConversationService before any tool executes. Two real schema bugs found+fixed 2026-08-06: (1) create_template/edit_template had no codeExpirationMinutes property, so a structurally-correct AUTHENTICATION/OTP template silently omitted a field Meta requires (found via mocked-adapter chat-scenario testing, IrisTemplateCreationScenariosTest.java); (2) components property was bare Map.of(\"type\",\"array\") with zero shape guidance, so a real live model (direct OpenAI call, no key ever touched this codebase) reliably invented Meta's message-SENDING-time shapes instead of template-CREATION-time shapes — fixed via a new COMPONENTS_SCHEMA_DESCRIPTION constant spelling out the 4 real component types (BODY/HEADER/FOOTER/BUTTONS, one BUTTONS component wrapping all buttons), live-reverified against the same real model after the fix.",
+      "tags": ["iris", "llm-adapter", "tooling"],
+      "usedBy": ["IrisConversationService.java", "AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiTurnResult.java",
+      "purpose": "Neutral result record (TEXT or TOOL_CALL) returned by every AiProviderAdapter, with text() and toolCall() factory helpers.",
+      "tags": ["iris", "llm-adapter", "dto"],
+      "usedBy": ["AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderAdapter.java",
+      "purpose": "Interface each BYOK provider adapter implements — provider() identity plus converse() translating Iris's neutral message/tool representation into that provider's wire format and back. IrisConversationService needs ZERO changes to add a new provider — confirmed true when NVIDIA_LLAMA and OPENAI were both added.",
+      "tags": ["iris", "llm-adapter", "interface"],
+      "usedBy": ["ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/ClaudeAdapter.java",
+      "purpose": "AiProviderAdapter for Claude — calls Anthropic Messages API directly with a per-call BYOK api key and `tools` param, parsing tool_use/text blocks into AiTurnResult; deliberately NOT built on ClaudeApiClient, which is wizard-only/platform-key/no-tool-support per its own contract.",
+      "tags": ["iris", "llm-adapter", "claude"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/NvidiaLlamaAdapter.java",
+      "purpose": "AiProviderAdapter for NVIDIA NIM (meta/llama-3.3-70b-instruct) — OpenAI-compatible wire format with 60s read timeout for the shared endpoint's cold-start latency; parses tool_calls[].function.arguments as a JSON string (unlike Claude's already-object input), wrapped in BusinessException on malformed JSON. Has a package-private test-only constructor accepting a pre-built RestClient so MockRestServiceServer tests aren't clobbered by the real constructor's requestFactory logic.",
+      "tags": ["iris", "llm-adapter", "nvidia"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/OpenAiAdapter.java",
+      "purpose": "AiProviderAdapter for real api.openai.com (gpt-4o/gpt-4o-mini only) — same OpenAI-compatible wire format as NvidiaLlamaAdapter, explicitly checks tool_calls for null/empty before parsing to avoid an NPE on plain-text replies.",
+      "tags": ["iris", "llm-adapter", "openai"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSession.java",
+      "purpose": "JPA entity for one Iris conversation — accountId/nullable wabaId scoping, auto-derived title (set once from a truncated first-user-message, never reset), and pendingToolName/pendingToolArgsJson holding a mutating tool call's exact args awaiting confirmation (confirm() always replays these persisted args, never a fresh model message — that's what \"confirm-before-submit\" means at the data layer). id serialized via ToStringSerializer (TSID precision fix, 2026-08-04 — 18-digit values exceed JS Number.MAX_SAFE_INTEGER, same class of bug already solved once for WabaResponse).",
+      "tags": ["iris", "entity", "persistence", "chat"],
+      "usedBy": ["IrisSessionRepository.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionRepository.java",
+      "purpose": "Spring Data repository for IrisSession — existsByIdAndAccountId for ownership checks, findByAccountIdOrderByUpdatedAtDesc via a lightweight summary projection for the sidebar list.",
+      "tags": ["iris", "repository", "persistence"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionSummaryProjection.java",
+      "purpose": "Spring Data interface projection (id/title/updatedAt only) so the sidebar session list never hydrates the pending_tool_args_json TEXT column.",
+      "tags": ["iris", "projection", "persistence"],
+      "usedBy": ["IrisSessionRepository.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessage.java",
+      "purpose": "JPA entity for one Iris chat-history message (USER/ASSISTANT/TOOL role) with content, optional toolName/toolArgsJson, and createdAt timestamp.",
+      "tags": ["iris", "entity", "persistence", "chat"],
+      "usedBy": ["IrisMessageRepository.java", "IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessageRepository.java",
+      "purpose": "Spring Data repository for IrisMessage — findAllBySessionIdOrderByCreatedAtAsc loads a session's chronological transcript.",
+      "tags": ["iris", "repository", "persistence"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/CreateSessionRequest.java",
+      "purpose": "Request body record for POST /sessions — carries the (nullable) wabaId a new Iris session is scoped to.",
+      "tags": ["iris", "dto", "controller"],
+      "usedBy": ["IrisController.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/SendMessageRequest.java",
+      "purpose": "Validated request body record for POST /sessions/{id}/messages — requires non-blank text.",
+      "tags": ["iris", "dto", "controller"],
+      "usedBy": ["IrisController.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/UpsertAiCredentialRequest.java",
+      "purpose": "Validated request body record for PUT /credential — requires non-blank provider, model, and apiKey.",
+      "tags": ["iris", "dto", "controller", "credentials"],
+      "usedBy": ["IrisController.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisController.java",
+      "purpose": "REST controller for Iris under /api/v1/templates/iris — session create/list, message get/send, confirm/cancel pending tool action, and credential status/options/upsert endpoints.",
+      "tags": ["iris", "controller", "rest"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/KarixMessagingClient.java",
+      "purpose": "Calls Karix's real sendMessage API directly (bypassing karix-mcp, which has no send endpoint) for Iris's send_test_template tool — founder's explicit call to bypass karix-mcp since Karix's send API only needs a plain api_key Bearer header, no OAuth exchange. Reuses TemplateStudioService.resolveCredential (made public for this reuse). 2026-08-05 roadmap item 26: gained parameterValues support, built into Karix's positional {\"0\": v0, \"1\": v1, ...} map — previously always sent an empty map, so ANY templated placeholder, including an AUTHENTICATION template's {{1}} OTP code, silently failed to fill on send. NEEDS LIVE VALIDATION — no test WABA with an approved AUTHENTICATION template existed yet to confirm the OTP button fills from the same positional value as the body placeholder.",
+      "tags": ["iris", "tooling", "karix", "messaging"],
+      "usedBy": ["IrisConversationService.java"]
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisConversationService.java",
+      "purpose": "Iris's core tool-calling loop — builds system prompt with every WABA the account can see (2026-08-04: asks which one if 2+, uses the only one silently if 1, always names the resolved WABA back to the operator), dispatches to the account's configured AiProviderAdapter, enforces the fixed create/edit/list/send_test tool allowlist with confirm-before-submit for mutating tools (pending args persisted on IrisSession, replayed verbatim on confirm). Tenant isolation: hard-rejects any model-supplied wabaId not in the account's own WABA list BEFORE dispatching to TemplateStudioService/KarixMessagingClient — on top of, not instead of, those services' own access checks; the one chokepoint all Iris tool dispatch passes through. conversationHistory() is the single shared USER/ASSISTANT-filtered read path for both sendMessage()'s model-history-building and the getMessages() endpoint, deliberately factored out so the two can't drift on what counts as displayable conversation vs internal tool bookkeeping.",
+      "tags": ["iris", "service", "tooling", "orchestration"],
+      "usedBy": ["IrisController.java"]
     },
     {
       "path": "frontend/src/hooks/useSelectedWaba.ts",
@@ -1077,7 +1343,7 @@
     },
     {
       "path": "frontend/src/components/layout/AppShell.tsx",
-      "purpose": "App shell — collapsible brand-navy sidebar (localStorage sidebar-collapsed), off-canvas mobile drawer (dialog ARIA, Escape, backdrop, matchMedia reset), topbar breadcrumb + toggles with aria-controls. Nav is module-aware (2026-08-04 fix — was hardcoded to Business Agents even on /templates): activeNav = TEMPLATE_STUDIO_NAV when path starts with /templates, else NAV. Business Agents nav: Dashboard, Agents (grouped sub-nav: Knowledge Base/Connectors — deep-link to sessionStorage last-agent:{tab} or /agents?pickFor={tab} picker mode; Skills — static route to /library/skills, TASK-051; Business Persona — static route to /library/persona, TASK-058 — both route to a standalone Library page instead of a deep-link, since both have account-wide drafts not yet attached to any agent; hidden in collapsed rail), WABAs, Inbox, Human Handover (soon), Profile. Template Studio nav (2026-08-04, Campaigns tab dropped same day — see TemplateIrisPage.tsx): Iris, Templates (end:true, so it doesn't stay highlighted on its sibling routes), Settings — all literal /templates/* siblings, not nested pages of Templates. Iris reuses the MessageSquare icon also used by Business Agents' Inbox item — safe since the two nav arrays are never rendered together. Breadcrumb resolves exact-path match first, then prefix match, then activeNav[0] as fallback (two-pass, order-independent — fixed 2026-08-04 from a single combined condition that was order-dependent). 2026-08-05 roadmap item 41: root layout div `h-screen`→`h-dvh` — fixes a mobile viewport-jump when the on-screen keyboard/URL bar resizes the viewport."
+      "purpose": "App shell — collapsible brand-navy sidebar (localStorage sidebar-collapsed), off-canvas mobile drawer (dialog ARIA, Escape, backdrop, matchMedia reset), topbar breadcrumb + toggles with aria-controls. Nav is module-aware (2026-08-04 fix — was hardcoded to Business Agents even on /templates): activeNav = TEMPLATE_STUDIO_NAV when path starts with /templates, else NAV. Business Agents nav: Dashboard, Agents (grouped sub-nav: Knowledge Base/Connectors — deep-link to sessionStorage last-agent:{tab} or /agents?pickFor={tab} picker mode; Skills — static route to /library/skills, TASK-051; Business Persona — static route to /library/persona, TASK-058 — both route to a standalone Library page instead of a deep-link, since both have account-wide drafts not yet attached to any agent; hidden in collapsed rail), WABAs, Inbox, Human Handover (soon), Profile. Template Studio nav (2026-08-04, Campaigns tab dropped same day — see TemplateIrisPage.tsx): Iris, Templates (end:true, so it doesn't stay highlighted on its sibling routes), Settings — all literal /templates/* siblings, not nested pages of Templates. Iris reuses the MessageSquare icon also used by Business Agents' Inbox item — safe since the two nav arrays are never rendered together. Breadcrumb resolves exact-path match first, then prefix match, then activeNav[0] as fallback (two-pass, order-independent — fixed 2026-08-04 from a single combined condition that was order-dependent). 2026-08-05 roadmap item 41: root layout div `h-screen`→`h-dvh` — fixes a mobile viewport-jump when the on-screen keyboard/URL bar resizes the viewport. 2026-08-06 SECOND pass, SUPERSEDES the first same-day attempt (UX+PM+EM+Design-Evaluator+EL approved): founder rejected the icon-only-rail+separate-light-sidebar version — wanted Iris's session list literally merged INTO the navy sidebar, one panel. isIrisRoute now PINS the rail permanently expanded (`showExpanded = isIrisRoute || !collapsed || railHover`, inverted from the first pass) instead of forcing icon-only. A new sub-nav block renders under the 'Iris' NavLink item (same shape as AGENT_SUB_NAV one section up — New chat button, search input, filtered session list), reading from the new `store/irisSidebarStore.ts` (zustand) which TemplateIrisPage.tsx populates — the store exists because AppShell and the page are siblings under the same Outlet, not parent/child, so a store avoids a Context provider wrapping the route tree. TemplateIrisPage.tsx's own separate `SessionSidebar`/`w-[260px] border-r bg-card` panel is deleted entirely — no second sidebar ships. Templates/Settings were already top-level TEMPLATE_STUDIO_NAV items, unchanged. Never writes COLLAPSE_KEY from the isIrisRoute branch. Every other route (including /templates, /templates/settings) unaffected — isIrisRoute is exact-match, not startsWith."
     },
     {
       "path": "frontend/src/components/router/ProtectedRoute.tsx",
@@ -1153,7 +1419,7 @@
     },
     {
       "path": "frontend/src/pages/InboxPage.tsx",
-      "purpose": "Conversation Audit Log — 2-panel read-only viewer. Left: conversation list (GET /conversations?accountId=). Right: message thread (GET /conversations/:id/messages). conversationId in URL param. accountId from auth store. 2026-08-05 triage fix: conversations sort open-before-closed (stable sort, relies on API already returning recency order within a status group); ConversationRow renders status via shared StatusIndicator (open→positive, closed→neutral) instead of plain capitalized text; added an All/Open/Closed filter chip row and an 'Open (N)' count in the header — previously every row was visually identical regardless of urgency. 2026-08-05 roadmap item 41: ConversationEmptyState (no-conversations-yet state) got a 'Go to Agents' CTA (navigate('/agents')) — it named the fix in its own copy but had no button; icon dropped too since it was a bare centered icon, not paired with the tinted-square anti-pattern."
+      "purpose": "Conversation Audit Log — 2-panel read-only viewer. Left: conversation list (GET /conversations?accountId=). Right: message thread (GET /conversations/:id/messages). conversationId in URL param. accountId from auth store. 2026-08-05 triage fix: conversations sort open-before-closed (stable sort, relies on API already returning recency order within a status group); ConversationRow renders status via shared StatusIndicator (open→positive, closed→neutral) instead of plain capitalized text; added an All/Open/Closed filter chip row and an 'Open (N)' count in the header — previously every row was visually identical regardless of urgency. 2026-08-05 roadmap item 41: ConversationEmptyState (no-conversations-yet state) got a 'Go to Agents' CTA (navigate('/agents')) — it named the fix in its own copy but had no button; icon dropped too since it was a bare centered icon, not paired with the tinted-square anti-pattern. 2026-08-05: Conversation.lastMessageAt type widened to string | null (backend can now genuinely return null, not just for legacy rows); ConversationRow renders '—' when null instead of new Date(null) producing Invalid Date. 2026-08-05: Message interface's createdAt renamed to receivedAt to match the actual backend field (was always wrong — masked by the sort-field 500, see ConversationService.java note)."
     },
     {
       "path": "frontend/src/pages/LoginPage.tsx",
@@ -1170,6 +1436,10 @@
     {
       "path": "frontend/src/store/authStore.ts",
       "purpose": "Zustand persist store — user, isAuthenticated, setUser, clearAuth. Persisted to localStorage key 'auth'."
+    },
+    {
+      "path": "frontend/src/store/irisSidebarStore.ts",
+      "purpose": "Zustand store, no persistence (2026-08-06) — sessions/loading/activeId/searchQuery/onNewChat/onSelect. Bridges TemplateIrisPage.tsx (owns the session data) and AppShell.tsx (renders it inline in the navy nav's Iris sub-nav row) since the two are siblings under the same Outlet, not parent/child — avoids a Context provider wrapping the route tree for this one case."
     },
     {
       "path": "frontend/tailwind.config.js",

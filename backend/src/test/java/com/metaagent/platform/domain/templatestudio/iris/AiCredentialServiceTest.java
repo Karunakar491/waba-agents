@@ -69,7 +69,7 @@ class AiCredentialServiceTest extends IntegrationTestBase {
 
     @Test
     void should_reject_unsupported_provider() {
-        assertThatThrownBy(() -> credentialService.upsert("OPENAI", "gpt-4o", "sk-key"))
+        assertThatThrownBy(() -> credentialService.upsert("GEMINI", "gemini-1.5-pro", "sk-key"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Unsupported provider");
     }

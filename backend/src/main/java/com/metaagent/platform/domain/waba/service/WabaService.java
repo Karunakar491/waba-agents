@@ -23,12 +23,15 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -56,12 +59,29 @@ public class WabaService {
     @Qualifier("metaSyncExecutor")
     private final ThreadPoolTaskExecutor metaSyncExecutor;
 
+    /** validate() cache entry — short-TTL so Back-then-Continue on the same
+     * WABA ID doesn't re-hit Meta twice per click (EM-approved fix, this task). */
+    private record ValidateCacheEntry(WabaDtos.ValidateResponse response, Instant expiresAt) {}
+
+    private static final Duration VALIDATE_CACHE_TTL = Duration.ofSeconds(30);
+    private final Map<String, ValidateCacheEntry> validateCache = new ConcurrentHashMap<>();
+
     /**
      * Validates a WABA ID against Meta and returns its phone numbers with agent mappings.
      * Error mapping per spec 5.4 — each Meta failure mode gets a distinct message.
+     *
+     * Cached per (accountId, wabaId) for VALIDATE_CACHE_TTL: resubmitting the
+     * same WABA ID (e.g. Back then Continue in ConnectPhoneModal) previously
+     * re-hit Meta with two sequential uncached calls every time.
      */
     public WabaDtos.ValidateResponse validate(String wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
+
+        String cacheKey = accountId + ":" + wabaId;
+        ValidateCacheEntry cached = validateCache.get(cacheKey);
+        if (cached != null && Instant.now().isBefore(cached.expiresAt())) {
+            return cached.response();
+        }
 
         Map<?, ?> waba;
         try {
@@ -82,7 +102,9 @@ public class WabaService {
         String wabaName = waba != null && waba.get("name") != null ? waba.get("name").toString() : "";
         List<WabaDtos.PhoneNumber> phones = fetchPhonesFromMeta(wabaId, accountId);
 
-        return new WabaDtos.ValidateResponse(wabaId, wabaName, phones);
+        WabaDtos.ValidateResponse response = new WabaDtos.ValidateResponse(wabaId, wabaName, phones);
+        validateCache.put(cacheKey, new ValidateCacheEntry(response, Instant.now().plus(VALIDATE_CACHE_TTL)));
+        return response;
     }
 
     /**

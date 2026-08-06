@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { useLogin, useRegister } from '../hooks/useAuth'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import ConsequenceLine from '../components/shared/ConsequenceLine'
 
 const loginSchema = z.object({
   email:    z.string().email('Enter a valid email'),
@@ -66,10 +67,12 @@ export default function LoginPage() {
 
         {/* Tab toggle — active state has no shadow by design: a chip, per
             DESIGN.md §2's shadow floor (buttons/chips/inputs never get one). */}
-        <div className="flex rounded-lg bg-muted p-1">
+        <div role="tablist" className="flex rounded-lg bg-muted p-1">
           {(['login', 'register'] as const).map((t) => (
             <button
               key={t}
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => setTab(t)}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
                 tab === t
@@ -87,7 +90,7 @@ export default function LoginPage() {
 
         {/* Registration success */}
         {registerSuccess && tab === 'login' && (
-          <div role="status" className="rounded-lg border border-green-600/30 bg-green-600/5 px-4 py-3 text-sm text-green-700">
+          <div role="status" className="rounded-lg border border-brand-green/30 bg-brand-green/5 px-4 py-3 text-sm text-brand-green">
             Account created. Sign in with your new credentials.
           </div>
         )}
@@ -146,6 +149,9 @@ export default function LoginPage() {
               error={registerForm.formState.errors.password?.message}
               {...registerForm.register('password')}
             />
+            <ConsequenceLine>
+              This creates a new business account with you as the owner — you can invite teammates afterward.
+            </ConsequenceLine>
             <SubmitButton loading={isPending} label="Create account" />
           </form>
         )}

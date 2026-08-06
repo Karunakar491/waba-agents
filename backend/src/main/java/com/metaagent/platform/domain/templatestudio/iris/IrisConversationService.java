@@ -53,7 +53,28 @@ public class IrisConversationService {
             If there is only one, use it without asking. If there are several, ask which one they mean before \
             doing anything — never guess. Once you know which WABA, say its name back in your reply before \
             proposing any action (e.g. "Using WABA \\"Acme Retail\\" — here's the template I'll create") so the \
-            operator always sees which WABA an action applies to.""";
+            operator always sees which WABA an action applies to.
+
+            Meta requires exact values on every template: category must be exactly MARKETING, UTILITY, or \
+            AUTHENTICATION (uppercase, no other categories exist) — never a lowercase guess. language must be a \
+            Meta locale code like en_US, never a bare language name like "English".""";
+
+    /**
+     * A bare {"type":"array"} schema gave the model zero shape guidance —
+     * live-tested (2026-08-06) against a real model with that bare schema,
+     * it reliably invented Meta's message-SENDING-time component shapes
+     * (flat {"type":"image","image":{"link":...}}, one component per
+     * button) instead of the correct template-CREATION-time shapes below.
+     * Kept terse by design (EM condition) — component essentials only, not
+     * a full API reference.
+     */
+    private static final String COMPONENTS_SCHEMA_DESCRIPTION =
+            "Each entry is one Meta template component (creation-time shape, NOT the message-sending shape). " +
+            "BODY {type,text} — required, exactly one. " +
+            "HEADER {type,format} where format is TEXT/IMAGE/VIDEO/DOCUMENT/LOCATION — optional; no media link needed at creation time. " +
+            "FOOTER {type,text} — optional. " +
+            "BUTTONS {type,buttons:[...]} — at most ONE such component wrapping ALL buttons in one nested array, " +
+            "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP.";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;
@@ -65,20 +86,24 @@ public class IrisConversationService {
     private final ObjectMapper objectMapper;
 
     private static final List<AiToolSpec> TOOLS = List.of(
-            new AiToolSpec("create_template", "Create a new WhatsApp template. Requires user confirmation before it is actually submitted.",
+            new AiToolSpec("create_template", "Create a new WhatsApp template. Requires user confirmation before it is actually submitted. " +
+                    "For category AUTHENTICATION specifically, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
                             "templateName", Map.of("type", "string"),
                             "language", Map.of("type", "string"),
                             "category", Map.of("type", "string"),
-                            "components", Map.of("type", "array")),
+                            "components", Map.of("type", "array", "description", COMPONENTS_SCHEMA_DESCRIPTION),
+                            "codeExpirationMinutes", Map.of("type", "integer")),
                             "required", List.of("wabaId", "templateName", "language", "category", "components")),
                     true),
-            new AiToolSpec("edit_template", "Edit an existing WhatsApp template's components. Requires user confirmation.",
+            new AiToolSpec("edit_template", "Edit an existing WhatsApp template's components. Requires user confirmation. " +
+                    "For an AUTHENTICATION template, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
                             "templateId", Map.of("type", "string"),
-                            "components", Map.of("type", "array")),
+                            "components", Map.of("type", "array", "description", COMPONENTS_SCHEMA_DESCRIPTION),
+                            "codeExpirationMinutes", Map.of("type", "integer")),
                             "required", List.of("wabaId", "templateId", "components")),
                     true),
             new AiToolSpec("list_templates", "List existing templates for a WABA, optionally filtered by status. Read-only, runs immediately.",
@@ -222,13 +247,24 @@ public class IrisConversationService {
             throw new BusinessException("That WABA isn't available on this account.");
         }
         return switch (toolName) {
-            case "create_template" -> templateStudioService.createTemplate(wabaId, Map.of(
-                    "template_name", args.get("templateName"),
-                    "language", args.get("language"),
-                    "category", args.get("category"),
-                    "components", args.get("components")));
-            case "edit_template" -> templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")),
-                    Map.of("components", args.get("components")));
+            case "create_template" -> {
+                Map<String, Object> payload = new java.util.HashMap<>(Map.of(
+                        "template_name", args.get("templateName"),
+                        "language", args.get("language"),
+                        "category", args.get("category"),
+                        "components", args.get("components")));
+                if (args.get("codeExpirationMinutes") != null) {
+                    payload.put("code_expiration_minutes", args.get("codeExpirationMinutes"));
+                }
+                yield templateStudioService.createTemplate(wabaId, payload);
+            }
+            case "edit_template" -> {
+                Map<String, Object> payload = new java.util.HashMap<>(Map.of("components", args.get("components")));
+                if (args.get("codeExpirationMinutes") != null) {
+                    payload.put("code_expiration_minutes", args.get("codeExpirationMinutes"));
+                }
+                yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), payload);
+            }
             case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
             case "send_test_template" -> {
                 @SuppressWarnings("unchecked")

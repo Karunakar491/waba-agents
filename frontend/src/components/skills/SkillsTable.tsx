@@ -1,4 +1,4 @@
-import { FileText, Loader2, Trash2 } from 'lucide-react'
+import { FileText, Loader2, Trash2, Pencil } from 'lucide-react'
 import StatusIndicator from '../shared/StatusIndicator'
 
 export interface Deployment {
@@ -55,14 +55,23 @@ function SkillTableRow({
       <td className="px-4 py-3 max-w-xs truncate text-muted-foreground">{deployedOn(row)}</td>
       <td className="px-4 py-3 text-muted-foreground">{new Date(row.updatedAt).toLocaleString()}</td>
       <td className="px-4 py-3 text-right">
-        <button
-          onClick={() => onDelete(row)}
-          disabled={deletingId === row.id}
-          aria-label={`Delete skill ${row.title}`}
-          className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-        >
-          {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => onEdit(row)}
+            aria-label={`Edit skill ${row.title}`}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onDelete(row)}
+            disabled={deletingId === row.id}
+            aria-label={`Delete skill ${row.title}`}
+            className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+          >
+            {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+        </div>
       </td>
     </tr>
   )

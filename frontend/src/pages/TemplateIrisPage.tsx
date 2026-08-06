@@ -1,30 +1,19 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Check, X, ShieldAlert, Plus, Settings } from 'lucide-react'
-import api from '../lib/api'
 import { cn } from '../lib/utils'
+import api from '../lib/api'
 import { templateQueryKeys } from '../lib/templateQueryKeys'
 import { extractErrorMessage } from '../lib/errors'
-import ErrorBanner from '../components/shared/ErrorBanner'
+import { useIrisSidebarStore } from '../store/irisSidebarStore'
+import { TEMPLATE_STUDIO_WABA_KEY } from '../hooks/useSelectedWaba'
+import IrisConfirmPanel from '../components/templatestudio/IrisConfirmPanel'
+import IrisChatPane, { type IrisChatEntry } from '../components/templatestudio/IrisChatPane'
 
-// Iris — Template Studio's chat assistant (2026-08-04, real build; UI
-// redesigned 2026-08-06 to read as a clean Claude/ChatGPT-style chat surface
-// — no config forms in the chat). Locked scope: create/edit/list templates,
-// send TEST templates, discuss marketing strategy. Nothing else — see
-// project_iris_scope_and_byok memory. Every mutating tool call pauses for
-// explicit confirmation (ConfirmPanel) before anything is submitted — Iris
-// never submits invisibly from a chat reply.
-//
-// No WABA picker, no credential form (2026-08-04 charter, enforced properly
-// 2026-08-06 — both had drifted into this page despite being named
-// human-only/Settings-only from the start). Iris is told the account's full
-// WABA list in its system prompt (backend) and resolves which one the
-// operator means from conversation, supplying wabaId on every tool call
-// itself — see IrisConversationService. If there are zero WABAs or no AI
-// credential, the backend's system prompt already tells the model to say so
-// plainly in conversation — this page only adds a deterministic (not
-// text-sniffed) inline nudge toward Settings, per the same two facts.
+// Iris — Template Studio chat (A− pass 2026-08-06). Sessions in AppShell
+// navy rail. Mutating tools pause for docked IrisConfirmPanel beside Iris's
+// reply (DESIGN.md §6). No credential forms — Settings only.
+
 interface WabaEntry { id: string; label: string | null }
 
 export default function TemplateIrisPage() {
@@ -51,35 +40,41 @@ interface TurnResponse {
   pendingToolArgs: Record<string, unknown> | null
 }
 
-interface ChatEntry { who: 'user' | 'iris'; text: string; link?: { label: string; to: string } }
 interface SessionSummary { id: string; title: string | null; updatedAt: string }
 interface MessageDto { role: string; content: string; createdAt: string }
 
-const SUGGESTIONS = [
-  'Create a shipping-update template',
-  'Help me plan a marketing message',
-  'Send a test of an approved template',
-]
+function newEntryId() {
+  return crypto.randomUUID()
+}
 
-// Sidebar + chat together — lifted here (rather than inside the chat panel
-// alone) since "new chat" / "resume a past one" controls the same session
-// state the chat reads and writes.
+function templatesDeepLink(args: Record<string, unknown> | undefined): string {
+  if (!args) return '/templates'
+  const editId = args.templateId ?? args.template_id ?? args.id ?? args.karix_template_id
+  if (editId != null && String(editId)) {
+    return `/templates?edit=${encodeURIComponent(String(editId))}`
+  }
+  return '/templates'
+}
+
+function rememberWabaFromArgs(args: Record<string, unknown> | undefined) {
+  if (args?.wabaId == null) return
+  localStorage.setItem(TEMPLATE_STUDIO_WABA_KEY, String(args.wabaId))
+}
+
 function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
+  const setIrisSidebar = useIrisSidebarStore((s) => s.setIrisSidebar)
+  const clearIrisSidebar = useIrisSidebarStore((s) => s.clearIrisSidebar)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [entries, setEntries] = useState<ChatEntry[]>([])
+  const [entries, setEntries] = useState<IrisChatEntry[]>([])
   const [input, setInput] = useState('')
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [resuming, setResuming] = useState(false)
 
-  // "Edit with Iris" from Studio's table (2026-08-05) — prefills the input
-  // so the operator can review/adjust before sending, never auto-sends on
-  // their behalf. Clears via react-router's own navigate/replace (not raw
-  // window.history) so react-router's in-memory location is what actually
-  // changes — a bare `window.history.replaceState` doesn't update what
-  // `useLocation()` returns, so a later remount without a real navigation
-  // (e.g. a parent conditional flipping) would re-fire this effect and
-  // stomp whatever the operator had typed (EL round-1 REJECT, 2026-08-05).
   useEffect(() => {
     const prefill = (location.state as { prefillMessage?: string } | null)?.prefillMessage
     if (prefill) {
@@ -88,16 +83,22 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [resuming, setResuming] = useState(false)
 
   const sessionsQuery = useQuery<SessionSummary[]>({
     queryKey: ['iris-sessions'],
     queryFn: () => api.get('/templates/iris/sessions').then((r) => r.data.data),
   })
 
+  function isBusy() {
+    return sendMessage.isPending || confirmAction.isPending || cancelAction.isPending
+  }
+
   function startNewChat() {
+    if (isBusy()) return
+    if (pending) {
+      setError('Confirm or cancel the pending action before starting a new chat.')
+      return
+    }
     setSessionId(null)
     setEntries([])
     setPending(null)
@@ -106,16 +107,23 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   }
 
   async function resumeSession(id: string) {
+    if (id === sessionId) return
+    if (isBusy()) return
+    if (pending) {
+      setError('Confirm or cancel the pending action before switching chats.')
+      return
+    }
     setResuming(true)
     setError(null)
     try {
       const messages = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as MessageDto[])
       setSessionId(id)
-      setEntries(messages.map((m) => ({ who: m.role === 'USER' ? 'user' : 'iris', text: m.content })))
-      // A session with a pending confirmation still awaiting action re-opens
-      // as plain history — the operator can just ask again. Known v1
-      // limitation, not silently broken: nothing here claims a pending
-      // action survived the resume.
+      setEntries(messages.map((m) => ({
+        id: newEntryId(),
+        who: m.role === 'USER' ? 'user' as const : 'iris' as const,
+        text: m.content,
+        status: 'sent' as const,
+      })))
       setPending(null)
     } catch (err) {
       setError(extractErrorMessage(err))
@@ -124,47 +132,67 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     }
   }
 
-  // No wabaId here — Iris asks which WABA in conversation and resolves it
-  // itself (see IrisConversationService's dynamic system prompt).
+  useEffect(() => {
+    setIrisSidebar({
+      sessions: sessionsQuery.data ?? [],
+      loading: sessionsQuery.isLoading,
+      activeId: sessionId,
+      onNewChat: startNewChat,
+      onSelect: resumeSession,
+    })
+  }, [sessionsQuery.data, sessionsQuery.isLoading, sessionId])
+  useEffect(() => clearIrisSidebar, [])
+
   const startSession = useMutation({
     mutationFn: () => api.post('/templates/iris/sessions', {}).then((r) => r.data.data.id as string),
   })
 
   const sendMessage = useMutation({
-    mutationFn: async (text: string) => {
+    mutationFn: async ({ text }: { text: string; entryId: string }) => {
       let sid = sessionId
       if (!sid) sid = await startSession.mutateAsync()
       setSessionId(sid)
       return api.post(`/templates/iris/sessions/${sid}/messages`, { text }).then((r) => r.data.data as TurnResponse)
     },
-    onSuccess: (res) => {
-      setEntries((prev) => [...prev, { who: 'iris', text: res.reply }])
-      setPending(res.needsConfirmation ? { toolName: res.pendingToolName!, args: res.pendingToolArgs! } : null)
+    onSuccess: (res, vars) => {
+      setEntries((prev) => [
+        ...prev.map((e) => (e.id === vars.entryId ? { ...e, status: 'sent' as const } : e)),
+        { id: newEntryId(), who: 'iris', text: res.reply, status: 'sent' as const },
+      ])
+      if (res.needsConfirmation && res.pendingToolName && res.pendingToolArgs) {
+        setPending({ toolName: res.pendingToolName, args: res.pendingToolArgs })
+      } else {
+        setPending(null)
+      }
       queryClient.invalidateQueries({ queryKey: ['iris-sessions'] })
     },
-    onError: (err) => setError(extractErrorMessage(err)),
+    onError: (err, vars) => {
+      const message = extractErrorMessage(err)
+      setEntries((prev) => prev.map((e) => (e.id === vars.entryId ? { ...e, status: 'error' as const, errorMessage: message } : e)))
+    },
   })
 
   const confirmAction = useMutation({
     mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
-    onSuccess: () => {
-      // Iris resolves wabaId itself — it's on the pending tool's own args,
-      // never known to this component ahead of time. Refresh the Templates
-      // table for that WABA so a newly created/edited template shows up
-      // there without a manual page refresh.
+    onSuccess: (result) => {
       const isTemplateAction = pending?.toolName === 'create_template' || pending?.toolName === 'edit_template'
-      if (isTemplateAction && pending.args.wabaId != null) {
+      if (isTemplateAction && pending?.args.wabaId != null) {
         queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(String(pending.args.wabaId)) })
+        rememberWabaFromArgs(pending.args)
       }
-      // Cross-link back to Studio (2026-08-05) — previously a confirmed
-      // template submission had zero path forward; the operator had to
-      // manually navigate to Templates and trust it worked.
+      const resultArgs = {
+        ...(pending?.args ?? {}),
+        ...(typeof result === 'object' && result ? result as Record<string, unknown> : {}),
+      }
+      const linkTo = isTemplateAction ? templatesDeepLink(resultArgs) : undefined
       setEntries((prev) => [
         ...prev,
         {
+          id: newEntryId(),
           who: 'iris',
           text: 'Confirmed and submitted.',
-          link: isTemplateAction ? { label: 'View in Templates →', to: '/templates' } : undefined,
+          status: 'sent',
+          link: linkTo ? { label: 'View in Templates →', to: linkTo } : undefined,
         },
       ])
       setPending(null)
@@ -175,359 +203,69 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   const cancelAction = useMutation({
     mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/cancel`),
     onSuccess: () => {
-      setEntries((prev) => [...prev, { who: 'iris', text: 'Cancelled — nothing was submitted.' }])
+      setEntries((prev) => [...prev, { id: newEntryId(), who: 'iris', text: 'Cancelled — nothing was submitted.', status: 'sent' }])
       setPending(null)
     },
+    onError: (err) => setError(extractErrorMessage(err)),
   })
+
+  function sendEntry(entryId: string, text: string) {
+    sendMessage.mutate({ text, entryId })
+  }
 
   function submit(text?: string) {
     const value = (text ?? input).trim()
-    if (!value || pending) return
+    if (!value || pending || sendMessage.isPending) return
     setError(null)
-    setEntries((prev) => [...prev, { who: 'user', text: value }])
+    const entryId = newEntryId()
+    setEntries((prev) => [...prev, { id: entryId, who: 'user', text: value, status: 'sending' }])
     setInput('')
-    sendMessage.mutate(value)
+    sendEntry(entryId, value)
   }
 
-  const started = entries.length > 0
+  function retry(entry: IrisChatEntry) {
+    setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'sending' as const, errorMessage: undefined } : e)))
+    sendEntry(entry.id, entry.text)
+  }
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [entries, sendMessage.isPending])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-6">
-      {/* Minimal header — Claude/ChatGPT-style: wordmark + one always-visible
-          settings entry point, no description block, no config surfaced
-          here at all (2026-08-06 redesign). */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">Iris</h1>
-        <Link
-          to="/templates/settings"
-          aria-label="Iris settings"
-          title="AI provider & WABA settings"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Settings className="h-4 w-4" />
-        </Link>
-      </div>
-
-      <div className="grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
-        <SessionSidebar
-          sessions={sessionsQuery.data ?? []}
-          loading={sessionsQuery.isLoading}
-          activeId={sessionId}
-          onNewChat={startNewChat}
-          onSelect={resumeSession}
-        />
-        {/* Fixed-width preview pane (360px), no responsive breakpoint —
-            deliberate: this is a desktop-only internal operator tool, not a
-            public mobile surface (UX gate 2026-08-04 confirmed this reading). */}
-        <div className="grid gap-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden" style={{ height: 560, gridTemplateColumns: pending ? '1fr 360px' : '1fr' }}>
-      <div className="flex min-w-0 flex-col">
-        {resuming && (
-          <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
+    <div className="flex h-full gap-0 -m-6 overflow-hidden">
+      <div
+        className={cn(
+          'grid min-w-0 flex-1',
+          pending ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]' : 'grid-cols-1',
         )}
-        {!resuming && started && (
-          <div className="flex items-center gap-1.5 border-b px-5 py-2 text-xs text-muted-foreground">
-            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            Nothing is submitted to Meta until you review and confirm the exact result.
-          </div>
-        )}
-
-        {!resuming && !started ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
-            <div className="space-y-1.5">
-              <h2 className="text-lg font-semibold text-foreground">What do you want to send today?</h2>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Describe a template in plain language — Iris drafts it with you and shows you the exact result
-                before anything goes out.
-              </p>
-            </div>
-            <div className="w-full max-w-md space-y-2">
-              {needsSetup && <SetupBanner />}
-              {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
-              <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-                  placeholder="Ask Iris to create a template…"
-                  className="flex-1 bg-transparent py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none"
-                />
-                <button
-                  type="button"
-                  disabled={!input.trim() || sendMessage.isPending}
-                  onClick={() => submit()}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-pink text-white disabled:opacity-40"
-                  aria-label="Send"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              {SUGGESTIONS.map((text) => (
-                <button
-                  key={text}
-                  type="button"
-                  onClick={() => submit(text)}
-                  className="text-sm text-muted-foreground underline decoration-border underline-offset-4 transition hover:text-foreground hover:decoration-foreground"
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : !resuming ? (
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-            {entries.map((e, i) =>
-              e.who === 'user' ? (
-                <div key={i} className="flex justify-end">
-                  <div className="max-w-[80%] rounded-2xl bg-brand-navy px-3.5 py-2 text-sm text-white">{e.text}</div>
-                </div>
-              ) : (
-                <div key={i} className="max-w-[85%] space-y-1">
-                  <p className="text-[15px] leading-relaxed text-foreground">{e.text}</p>
-                  {e.link && (
-                    <Link to={e.link.to} className="inline-block text-sm font-medium text-primary hover:underline">
-                      {e.link.label}
-                    </Link>
-                  )}
-                </div>
-              )
-            )}
-            {(sendMessage.isPending || startSession.isPending) && (
-              <p className="animate-pulse text-sm italic text-muted-foreground">Iris is thinking…</p>
-            )}
-            {error && <ErrorBanner error={error} />}
-          </div>
-        ) : null}
-
-        {!resuming && started && (
-          <div className="space-y-2 border-t p-3">
-            {needsSetup && <SetupBanner />}
-            {/* No shadow by design — an input, per DESIGN.md §2's shadow floor. */}
-            <div className="flex items-center gap-2 rounded-full border bg-background px-4 py-1 transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-                disabled={!!pending}
-                placeholder={pending ? 'Confirm or cancel the pending action →' : 'Reply to Iris…'}
-                className="flex-1 bg-transparent py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-50"
-              />
-              <button
-                type="button"
-                disabled={!input.trim() || !!pending || sendMessage.isPending}
-                onClick={() => submit()}
-                className={cn(
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40',
-                  pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
-                )}
-                aria-label="Send"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {pending && (
-        <PendingActionPreview
-          toolName={pending.toolName}
-          args={pending.args}
-          onConfirm={() => confirmAction.mutate()}
-          onCancel={() => cancelAction.mutate()}
-          confirming={confirmAction.isPending}
-          cancelling={cancelAction.isPending}
-        />
-      )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Deterministic (client-side known facts — zero WABAs or no AI credential
-// configured), never text-sniffed from Iris's own reply. No shadow: inline,
-// not a separate surface, same rule as ErrorBanner.
-function SetupBanner() {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <span>No WABA or AI provider connected yet — Iris can chat, but can't create or send templates until then.</span>
-      <Link
-        to="/templates/settings"
-        className="flex shrink-0 items-center gap-1 font-medium text-foreground hover:underline"
       >
-        <Settings className="h-3 w-3" />
-        Settings
-      </Link>
-    </div>
-  )
-}
-
-function SessionSidebar({ sessions, loading, activeId, onNewChat, onSelect }: {
-  sessions: SessionSummary[]
-  loading: boolean
-  activeId: string | null
-  onNewChat: () => void
-  onSelect: (id: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-2" style={{ height: 560 }}>
-      <button
-        type="button"
-        onClick={onNewChat}
-        className="flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        New chat
-      </button>
-      {sessions.length > 0 && (
-        <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Recent</p>
-      )}
-      <div className="flex-1 space-y-0.5 overflow-y-auto">
-        {loading && <Loader2 className="mx-auto mt-4 h-4 w-4 animate-spin text-muted-foreground" />}
-        {!loading && sessions.length === 0 && (
-          <p className="px-2 py-4 text-center text-xs text-muted-foreground">No chats yet.</p>
-        )}
-        {sessions.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onSelect(s.id)}
-            className={cn(
-              'block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm transition',
-              s.id === activeId ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            )}
-          >
-            {s.title ?? 'New chat'}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// Meta/Karix template component shape — same shape TemplateStudioPage.tsx
-// seeds its edit form from. Read-only here: renders the pending action as
-// an actual WhatsApp message bubble instead of a raw JSON dump, so the
-// operator confirms what the customer will see, not what the API expects.
-interface PreviewComponent {
-  type: string
-  format?: string
-  text?: string
-  buttons?: Array<{ type: string; text?: string }>
-}
-
-function fieldsForCreateOrEdit(args: Record<string, unknown>) {
-  const components = (args.components as PreviewComponent[] | undefined) ?? []
-  const header = components.find((c) => c.type === 'HEADER')
-  const body = components.find((c) => c.type === 'BODY')
-  const footer = components.find((c) => c.type === 'FOOTER')
-  const buttons = components.find((c) => c.type === 'BUTTONS')?.buttons ?? []
-  return { header, body, footer, buttons }
-}
-
-function PendingActionPreview({ toolName, args, onConfirm, onCancel, confirming, cancelling }: {
-  toolName: string
-  args: Record<string, unknown>
-  onConfirm: () => void
-  onCancel: () => void
-  confirming: boolean
-  cancelling: boolean
-}) {
-  const isTemplateAction = toolName === 'create_template' || toolName === 'edit_template'
-  const { header, body, footer, buttons } = isTemplateAction ? fieldsForCreateOrEdit(args) : { header: undefined, body: undefined, footer: undefined, buttons: [] }
-
-  return (
-    <div className="flex flex-col border-l bg-muted/20">
-      <div className="border-b px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {isTemplateAction ? 'Live preview' : 'Review before submitting'}
-        </p>
-        <h3 className="mt-0.5 text-sm font-semibold text-foreground">
-          {isTemplateAction ? 'How this template will look' : toolName}
-        </h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Exactly what gets submitted — nothing here is inferred silently.</p>
-      </div>
-
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {isTemplateAction ? (
-          <>
-            <div className="space-y-2 text-xs">
-              {typeof args.templateName === 'string' && (
-                <PreviewField label="Name" value={args.templateName} />
-              )}
-              {typeof args.category === 'string' && <PreviewField label="Category" value={args.category} />}
-              {typeof args.language === 'string' && <PreviewField label="Language" value={args.language} />}
-            </div>
-            <div className="overflow-hidden rounded-xl border bg-white shadow-surface-resting">
-              <div className="flex items-center gap-2 bg-whatsapp-header px-3 py-2 text-xs font-semibold text-white">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
-                WhatsApp preview
-              </div>
-              <div className="bg-whatsapp-canvas p-4">
-                <div className="max-w-[88%] rounded-lg rounded-tl-sm bg-whatsapp-bubble px-3 py-2 text-[13px] leading-relaxed text-whatsapp-ink shadow-sm">
-                  {header?.format === 'TEXT' && header.text && <p className="mb-1 font-semibold">{header.text}</p>}
-                  {header && header.format && header.format !== 'TEXT' && header.format !== 'NONE' && (
-                    <p className="mb-1 text-xs italic text-whatsapp-ink/60">[{header.format.toLowerCase()} header]</p>
-                  )}
-                  <p>{body?.text || <span className="italic text-whatsapp-ink/40">Body text will appear here…</span>}</p>
-                  {footer?.text && <p className="mt-1 text-xs text-whatsapp-ink/50">{footer.text}</p>}
-                  {buttons.length > 0 && (
-                    <div className="mt-1.5 flex flex-col gap-px border-t border-whatsapp-ink/10 pt-1">
-                      {buttons.map((b, i) => (
-                        <span key={i} className="py-1.5 text-center text-xs font-semibold text-whatsapp-header">{b.text}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <pre className="overflow-x-auto rounded-lg border bg-foreground/5 p-2 text-xs text-foreground">{JSON.stringify(args, null, 2)}</pre>
+        <IrisChatPane
+          needsSetup={needsSetup}
+          resuming={resuming}
+          started={entries.length > 0}
+          entries={entries}
+          input={input}
+          setInput={setInput}
+          pending={!!pending}
+          thinking={sendMessage.isPending || startSession.isPending}
+          error={error}
+          bottomRef={bottomRef}
+          onSubmit={submit}
+          onRetry={retry}
+          onSuggestion={submit}
+        />
+        {pending && (
+          <IrisConfirmPanel
+            toolName={pending.toolName}
+            args={pending.args}
+            onConfirm={() => confirmAction.mutate()}
+            onCancel={() => cancelAction.mutate()}
+            confirming={confirmAction.isPending}
+            cancelling={cancelAction.isPending}
+          />
         )}
       </div>
-
-      <div className="space-y-2 border-t p-4">
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Submitting sends this exact content to Meta — this cannot be undone from here.
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={confirming}
-            onClick={onConfirm}
-            className="flex items-center gap-1 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {confirming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-            Confirm
-          </button>
-          <button
-            type="button"
-            disabled={cancelling}
-            onClick={onCancel}
-            className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PreviewField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-background px-3 py-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-foreground">{value}</p>
     </div>
   )
 }

@@ -244,8 +244,11 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
             )}
 
             {preflightWarning && (
-              <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
-                <p>{describePreflightWarning(preflightWarning)}</p>
+              <div className="space-y-2">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-warning shrink-0" />
+                  <span className="text-sm text-muted-foreground">{describePreflightWarning(preflightWarning)}</span>
+                </span>
                 <div className="flex gap-2">
                   <button
                     type="button"

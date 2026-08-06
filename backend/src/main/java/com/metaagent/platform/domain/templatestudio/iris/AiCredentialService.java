@@ -6,6 +6,7 @@ import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 
@@ -35,6 +36,14 @@ public class AiCredentialService {
         return Map.of("providers", AiProvider.allOptions());
     }
 
+    /**
+     * EL-caught bug (2026-08-07 audit): the delete-old-provider-rows +
+     * save-new-row sequence used to be two unguarded steps — a crash between
+     * them left the account with zero credentials, contradicting Iris's own
+     * "no key configured" vs "key configured" status. Wrapped in one
+     * transaction so it's all-or-nothing.
+     */
+    @Transactional
     public void upsert(String provider, String model, String apiKey) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         AiProvider providerEnum = parseProvider(provider);

@@ -1,29 +1,30 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { MessageSquare, Bot, User } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
+import ErrorBanner from '../components/shared/ErrorBanner'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
 interface Conversation {
-  id: number
+  id: string
   agentId: number
   externalId: string
   status: 'open' | 'closed'
-  lastMessageAt: string
+  lastMessageAt: string | null
   channel: string
 }
 
 interface Message {
-  id: number
+  id: string
   direction: 'inbound' | 'outbound'
   contentType: string
-  textBody: string | null
+  content: string | null
   contentJson: string | null
-  createdAt: string
+  receivedAt: string
 }
 
 export default function InboxPage() {
@@ -32,15 +33,28 @@ export default function InboxPage() {
   const selectedId = searchParams.get('conversationId')
   const [filter, setFilter] = useState<ConversationFilter>('ALL')
 
-  const { data: conversations = [], isLoading: convsLoading } = useQuery<Conversation[]>({
+  const {
+    data: conversations = [],
+    isLoading: convsLoading,
+    isError: convsError,
+    error: convsErrorObj,
+    refetch: refetchConversations,
+  } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
     queryFn: () => api.get('/conversations').then((r) => r.data.data),
   })
 
-  const { data: messages = [], isLoading: msgsLoading } = useQuery<Message[]>({
+  const {
+    data: messages = [],
+    isLoading: msgsLoading,
+    isError: msgsError,
+    error: msgsErrorObj,
+    refetch: refetchMessages,
+  } = useQuery<Message[]>({
     queryKey: ['messages', selectedId],
     queryFn: () => api.get(`/conversations/${selectedId}/messages`).then((r) => r.data.data),
     enabled: !!selectedId,
+    placeholderData: keepPreviousData,
   })
 
   const openCount = useMemo(() => conversations.filter((c) => c.status === 'open').length, [conversations])
@@ -61,7 +75,7 @@ export default function InboxPage() {
 
   const selectedConv = conversations.find((c) => String(c.id) === selectedId) ?? null
 
-  function selectConversation(id: number) {
+  function selectConversation(id: string) {
     setSearchParams({ conversationId: String(id) })
   }
 
@@ -96,6 +110,10 @@ export default function InboxPage() {
         <div className="flex-1 overflow-y-auto">
           {convsLoading ? (
             <ConversationListSkeleton />
+          ) : convsError ? (
+            <div className="px-4 py-8">
+              <ErrorBanner error={convsErrorObj} onRetry={() => refetchConversations()} />
+            </div>
           ) : conversations.length === 0 ? (
             <ConversationEmptyState onGoToAgentsClick={() => navigate('/agents')} />
           ) : visibleConversations.length === 0 ? (
@@ -138,6 +156,10 @@ export default function InboxPage() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {msgsLoading ? (
                 <MessagesSkeleton />
+              ) : msgsError ? (
+                <div className="py-10">
+                  <ErrorBanner error={msgsErrorObj} onRetry={() => refetchMessages()} />
+                </div>
               ) : messages.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-10">No messages yet.</p>
               ) : (
@@ -162,9 +184,9 @@ function ConversationRow({
   isSelected: boolean
   onClick: () => void
 }) {
-  const time = new Date(conv.lastMessageAt).toLocaleTimeString('en', {
-    hour: '2-digit', minute: '2-digit',
-  })
+  const time = conv.lastMessageAt
+    ? new Date(conv.lastMessageAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+    : '—'
 
   return (
     <button
@@ -193,11 +215,11 @@ function ConversationRow({
 
 function MessageBubble({ msg }: { msg: Message }) {
   const isOutbound = msg.direction === 'outbound'
-  const time = new Date(msg.createdAt).toLocaleTimeString('en', {
+  const time = new Date(msg.receivedAt).toLocaleTimeString('en', {
     hour: '2-digit', minute: '2-digit',
   })
 
-  const content = msg.textBody ?? (msg.contentJson ? `[${msg.contentType}]` : '—')
+  const content = msg.content ?? (msg.contentJson ? `[${msg.contentType}]` : '—')
 
   return (
     <div className={cn('flex items-end gap-2', isOutbound ? 'flex-row-reverse' : 'flex-row')}>

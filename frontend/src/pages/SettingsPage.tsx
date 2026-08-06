@@ -1,8 +1,43 @@
+import { useEffect, useState } from 'react'
 import { User, CreditCard, ExternalLink, Lock, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import ConsequenceLine from '../components/shared/ConsequenceLine'
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user)
+  const [hasHydrated, setHasHydrated] = useState(useAuthStore.persist.hasHydrated())
+
+  useEffect(() => {
+    if (hasHydrated) return
+    return useAuthStore.persist.onFinishHydration(() => setHasHydrated(true))
+  }, [hasHydrated])
+
+  if (!hasHydrated) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your account</p>
+        </div>
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Account
+          </h2>
+          <div className="rounded-xl border bg-card shadow-surface-resting divide-y">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
+                <div className="h-9 w-9 rounded-lg bg-muted shrink-0" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="h-3 w-16 rounded bg-muted" />
+                  <div className="h-4 w-40 rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -40,7 +75,8 @@ export default function SettingsPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-xs text-muted-foreground">Email</p>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
                   Cannot be changed
                 </span>
               </div>
@@ -59,7 +95,8 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">Current plan</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-sm font-medium text-foreground">Starter</p>
-                <span className="rounded-full bg-brand-green/10 px-2 py-0.5 text-[10px] font-semibold text-brand-green">
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-brand-green">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-green" />
                   Active
                 </span>
               </div>
@@ -92,6 +129,12 @@ export default function SettingsPage() {
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Permanently delete your account and all associated agents and data.
               </p>
+              <div className="mt-2">
+                <ConsequenceLine tone="warning">
+                  This removes every agent, connected WABA number, and conversation history
+                  tied to this account. It cannot be undone.
+                </ConsequenceLine>
+              </div>
               <button
                 disabled
                 title="Account deletion is not available yet. Contact support."

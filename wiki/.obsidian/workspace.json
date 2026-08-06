@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "deployment/INDEX.md",
+                "file": "frontend/brand.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "INDEX"
+              "title": "brand"
             }
           }
         ]
@@ -185,8 +185,8 @@
   },
   "active": "left",
   "lastOpenFiles": [
-    "deployment/lessons.md",
     "deployment/INDEX.md",
+    "deployment/lessons.md",
     "INDEX.md",
     "frontend/brand.md",
     "architecture/messaging-stack.md",

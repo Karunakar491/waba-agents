@@ -1,5 +1,7 @@
 package com.metaagent.platform.domain.conversation.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.metaagent.platform.common.id.TsidGenerator;
 import jakarta.persistence.*;
 import lombok.*;
@@ -20,12 +22,14 @@ public class Message {
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Column(name = "account_id", nullable = false)
     private Long accountId;
 
     @Column(name = "conversation_id", nullable = false)
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long conversationId;
 
     @Column(name = "agent_id", nullable = false)

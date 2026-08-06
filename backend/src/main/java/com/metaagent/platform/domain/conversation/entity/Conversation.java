@@ -1,5 +1,7 @@
 package com.metaagent.platform.domain.conversation.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.metaagent.platform.common.id.TsidGenerator;
 import jakarta.persistence.*;
 import lombok.*;
@@ -18,6 +20,7 @@ public class Conversation {
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Column(name = "account_id", nullable = false)
@@ -54,7 +57,6 @@ public class Conversation {
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
-        lastMessageAt = LocalDateTime.now();
         if (status == null) {
             status = Status.open;
         }

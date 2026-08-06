@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
+import ConsequenceLine from '../components/shared/ConsequenceLine'
 import { useClientScope } from '../hooks/useClientScope'
 
 interface AgentRow {
@@ -64,10 +65,10 @@ interface AttentionItem {
   reason: AttentionReason
 }
 
-const REASON_CONFIG: Record<AttentionReason, { label: string; icon: typeof FileEdit }> = {
-  draft: { label: 'Never deployed — still in draft', icon: FileEdit },
-  paused: { label: 'Paused — not replying to customers', icon: AlertTriangle },
-  disconnected: { label: 'Active with no phone number connected', icon: PhoneOff },
+const REASON_CONFIG: Record<AttentionReason, { label: string; icon: typeof FileEdit; iconClassName: string }> = {
+  draft: { label: 'Never deployed — still in draft', icon: FileEdit, iconClassName: 'text-muted-foreground' },
+  paused: { label: 'Paused — not replying to customers', icon: AlertTriangle, iconClassName: 'text-warning' },
+  disconnected: { label: 'Active with no phone number connected', icon: PhoneOff, iconClassName: 'text-destructive' },
 }
 
 // Client-side heuristic — no dedicated "attention" signal exists on the backend yet.
@@ -148,19 +149,19 @@ export default function DashboardPage() {
 
       {summaryLoading ? (
         <MetricsSkeleton />
-      ) : summaryError ? (
+      ) : summaryError || !summary ? (
         <MetricsErrorState />
       ) : (
-        <MetricsRow summary={{ ...summary!, phoneNumbers: scopedPhones ?? summary!.phoneNumbers }} />
+        <MetricsRow summary={{ ...summary, phoneNumbers: scopedPhones ?? summary.phoneNumbers }} />
       )}
 
       {summaryLoading ? (
         <SkeletonList />
-      ) : summaryError ? null : (
+      ) : summaryError || !summary ? null : (
         <PhoneNumbersTable
-          phones={scopedPhones ?? summary!.phoneNumbers}
-          unavailableWabaLabels={summary!.unavailableWabaLabels}
-          syncedAt={summary!.phoneNumbersSyncedAt}
+          phones={scopedPhones ?? summary.phoneNumbers}
+          unavailableWabaLabels={summary.unavailableWabaLabels}
+          syncedAt={summary.phoneNumbersSyncedAt}
           onOpenAgent={(id) => navigate(`/agents/${id}`)}
         />
       )}
@@ -234,7 +235,7 @@ function QualityBadge({ qualityRating }: { qualityRating: string | null }) {
   if (!qualityRating) return null
   const cfg = QUALITY_CONFIG[qualityRating] ?? { label: `Quality: ${qualityRating}`, tone: 'neutral' as const }
   return (
-    <span title="Meta's quality rating for this number — a drop here can precede messaging restrictions" className="shrink-0">
+    <span className="shrink-0">
       <StatusIndicator label={cfg.label} tone={cfg.tone} />
     </span>
   )
@@ -266,7 +267,7 @@ function PhoneNumbersTable({
         </p>
       </div>
       {unavailableWabaLabels.length > 0 && (
-        <div className="flex items-center gap-2 border-b bg-yellow-50 px-4 py-2.5 text-xs text-yellow-700">
+        <div className="flex items-center gap-2 border-b bg-warning/10 px-4 py-2.5 text-xs text-warning">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>
             Couldn't load {unavailableWabaLabels.join(', ')} — showing every other number.
@@ -342,6 +343,13 @@ function PhoneNumbersTable({
           </table>
         </div>
       )}
+      {phones.some((phone) => phone.qualityRating === 'YELLOW' || phone.qualityRating === 'RED') && (
+        <div className="border-t px-4 py-2.5">
+          <ConsequenceLine tone="warning">
+            Meta's quality rating for a number — a drop here can precede messaging restrictions.
+          </ConsequenceLine>
+        </div>
+      )}
     </div>
   )
 }
@@ -397,7 +405,7 @@ function AttentionList({
               onClick={() => onOpenAgent(agent.id)}
               className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/30"
             >
-              <Icon className="h-4 w-4 shrink-0 text-yellow-600" />
+              <Icon className={`h-4 w-4 shrink-0 ${cfg.iconClassName}`} />
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-foreground truncate">{agent.displayName}</p>
                 <p className="text-xs text-muted-foreground truncate">{cfg.label}</p>

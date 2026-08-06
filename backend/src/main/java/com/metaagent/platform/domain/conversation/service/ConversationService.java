@@ -178,7 +178,7 @@ public class ConversationService {
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
         return messageRepository.findAllByConversationId(
                 conversationId,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "receivedAt")));
     }
 
     private Message.ContentType resolveContentType(String metaType) {

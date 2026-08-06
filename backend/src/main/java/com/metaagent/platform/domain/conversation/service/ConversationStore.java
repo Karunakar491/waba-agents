@@ -67,6 +67,10 @@ public class ConversationStore {
     @Transactional
     public Message saveOutbound(Long accountId, Long conversationId, Long agentId,
                                 String metaMessageId, String replyText) {
+        conversationRepository.findById(conversationId).ifPresent(c -> {
+            c.setLastMessageAt(LocalDateTime.now());
+            conversationRepository.save(c);
+        });
         return messageRepository.save(
                 Message.builder()
                         .accountId(accountId)

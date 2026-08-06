@@ -237,6 +237,7 @@ public class AgentDeployService {
         if (agent.getStatus() != Agent.Status.active) {
             throw new BusinessException("Deploy your agent first to test it.");
         }
+        requirePhoneNumberId(agent);
 
         String path = "/" + agent.getPhoneNumberId() + "/agent_test";
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
@@ -249,12 +250,15 @@ public class AgentDeployService {
         try {
             raw = metaApiClient.post(path, payload, Map.class);
         } catch (Exception e) {
+            log.error("Agent test call failed: agentId={} phoneNumberId={} error={}", agentId, agent.getPhoneNumberId(), e.getMessage());
             throw new BusinessException("Meta test API failed: " + e.getMessage());
         }
 
         if (raw == null) {
             throw new BusinessException("Empty response from Meta test API.");
         }
+
+        log.info("Agent test call succeeded: agentId={} phoneNumberId={} conversationId={}", agentId, agent.getPhoneNumberId(), raw.get("conversation_id"));
 
         List<String> quickReplies = raw.get("quick_replies") instanceof List<?> list
                 ? list.stream().map(Object::toString).toList()

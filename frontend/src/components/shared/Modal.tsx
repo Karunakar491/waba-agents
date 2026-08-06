@@ -93,7 +93,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={() => { if (!preventClose) onClose() }}
     >
       <div
@@ -103,7 +103,7 @@ export default function Modal({
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'w-full rounded-2xl border bg-card p-6 shadow-surface-lifted max-h-[90vh] overflow-y-auto',
+          'w-full rounded-xl border bg-card p-6 shadow-surface-lifted max-h-[90vh] overflow-y-auto',
           maxWidthClassName,
         )}
       >

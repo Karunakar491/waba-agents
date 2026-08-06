@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -66,37 +67,48 @@ public class SecurityService {
     @Transactional
     public void register(RegisterRequest request) {
         if (userRepository.findByEmail(request.email()).isPresent()) {
+            log.warn("Registration rejected — email '{}' already registered", request.email());
             throw new BusinessException("Email already registered");
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
 
-        // Create Business Account
-        BusinessAccount account = BusinessAccount.builder()
-                .name(request.companyName())
-                .email(request.email())
-                .passwordHash(encodedPassword)
-                .build();
-        businessAccountRepository.save(account);
+        try {
+            // Create Business Account
+            BusinessAccount account = BusinessAccount.builder()
+                    .name(request.companyName())
+                    .email(request.email())
+                    .passwordHash(encodedPassword)
+                    .build();
+            businessAccountRepository.save(account);
 
-        // New accounts get the base product by default — module gating is
-        // opt-in for FUTURE modules (e.g. AI Campaigns/Templates), not a
-        // barrier to the product being registered for right now.
-        accountModuleRepository.save(AccountModule.builder()
-                .accountId(account.getId())
-                .module(AccountModule.Module.BUSINESS_AGENTS)
-                .enabled(true)
-                .build());
+            // New accounts get the base product by default — module gating is
+            // opt-in for FUTURE modules (e.g. AI Campaigns/Templates), not a
+            // barrier to the product being registered for right now.
+            accountModuleRepository.save(AccountModule.builder()
+                    .accountId(account.getId())
+                    .module(AccountModule.Module.BUSINESS_AGENTS)
+                    .enabled(true)
+                    .build());
 
-        // Create User (Owner of account)
-        User user = User.builder()
-                .accountId(account.getId())
-                .email(request.email())
-                .passwordHash(encodedPassword)
-                .role(User.Role.owner)
-                .status(User.Status.active)
-                .build();
-        userRepository.save(user);
+            // Create User (Owner of account)
+            User user = User.builder()
+                    .accountId(account.getId())
+                    .email(request.email())
+                    .passwordHash(encodedPassword)
+                    .role(User.Role.owner)
+                    .status(User.Status.active)
+                    .build();
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent register calls for the same email can both pass the
+            // findByEmail check above and race to save() — the DB unique
+            // constraint on users.email/business_accounts.email is the real
+            // guard. Translate that into the same friendly error the
+            // pre-check gives, instead of letting it fall through as a
+            // generic 500.
+            throw new BusinessException("Email already registered");
+        }
 
         log.info("Registered company '{}' with owner '{}'", request.companyName(), request.email());
     }

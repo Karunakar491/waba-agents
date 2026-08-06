@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import ConsequenceLine from '../components/shared/ConsequenceLine'
 
 /* ------------------------------------------------------------------ */
 /* Types + wizard store (spec section 4 — 5-step Create Agent wizard) */
@@ -60,6 +61,7 @@ export default function CreateAgentPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [hydrating, setHydrating] = useState(() => !!sessionStorage.getItem('create-agent-draft'))
   const [error, setError] = useState<string | null>(null)
   const [state, setState] = useState<WizardState>({
     agentId: null,
@@ -74,6 +76,42 @@ export default function CreateAgentPage() {
 
   const set = <K extends keyof WizardState>(key: K, value: WizardState[K]) =>
     setState((s) => ({ ...s, [key]: value }))
+
+  // Resume a draft if the browser closed/crashed mid-wizard. Only agentId +
+  // step are persisted (the actual field values already live server-side
+  // via saveAndGo's autosave) — hydrated once on mount, confirming the
+  // draft agent still exists before trusting the persisted step.
+  const hydratedDraft = useRef(false)
+  useEffect(() => {
+    if (hydratedDraft.current) return
+    hydratedDraft.current = true
+    const raw = sessionStorage.getItem('create-agent-draft')
+    if (!raw) return
+    try {
+      const draft = JSON.parse(raw) as { agentId: string | null; step: number }
+      if (!draft.agentId) {
+        setHydrating(false)
+        return
+      }
+      api.get(`/agents/${draft.agentId}`).then(() => {
+        set('agentId', draft.agentId)
+        setStep(draft.step)
+      }).catch(() => {
+        sessionStorage.removeItem('create-agent-draft')
+      }).finally(() => {
+        setHydrating(false)
+      })
+    } catch {
+      sessionStorage.removeItem('create-agent-draft')
+      setHydrating(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!state.agentId) return
+    sessionStorage.setItem('create-agent-draft', JSON.stringify({ agentId: state.agentId, step }))
+  }, [state.agentId, step])
 
   const agentPayload = () => ({
     displayName: state.displayName.trim(),
@@ -112,6 +150,7 @@ export default function CreateAgentPage() {
       if (activate) {
         await api.post(`/agents/${state.agentId}/deploy`)
       }
+      sessionStorage.removeItem('create-agent-draft')
       navigate(`/agents/${state.agentId}`)
     } catch (err) {
       setError(extractError(err))
@@ -125,6 +164,23 @@ export default function CreateAgentPage() {
     state.displayName.length <= 40 &&
     state.businessDescription.trim().length >= 20 &&
     state.businessDescription.length <= 200
+
+  if (hydrating) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-4 h-4 w-16 rounded bg-muted/40 animate-pulse" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr_320px]">
+          <div className="space-y-1">
+            {STEPS.map((s) => (
+              <div key={s.n} className="h-14 rounded-lg bg-muted/40 animate-pulse" />
+            ))}
+          </div>
+          <div className="h-96 rounded-xl border bg-muted/40 animate-pulse" />
+          <div className="h-96 rounded-xl border bg-muted/40 animate-pulse" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -305,7 +361,7 @@ function StepIdentity({
           className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
         />
         <div className="flex items-start justify-between">
-          <p className="text-xs text-destructive">{descError}</p>
+          <p role="alert" className="text-xs text-destructive">{descError}</p>
           <p className="ml-4 shrink-0 text-xs text-muted-foreground">
             {state.businessDescription.length}/200
           </p>
@@ -539,7 +595,7 @@ function StepKnowledge({
     if (!question.trim() || !answer.trim()) return
     set('faqs', [
       ...state.faqs,
-      { id: `local-${Date.now()}`, question: question.trim(), answer: answer.trim() },
+      { id: `local-${crypto.randomUUID()}`, question: question.trim(), answer: answer.trim() },
     ])
     setQuestion('')
     setAnswer('')
@@ -559,15 +615,18 @@ function StepKnowledge({
     onError(null)
     const faqs = state.faqs.map((f) => ({ ...f }))
     try {
-      for (const f of faqs) {
-        if (/^\d+$/.test(f.id)) continue
-        const r = await api.post(`/agents/${state.agentId}/faq`, {
-          question: f.question,
-          answer: f.answer,
-        })
-        f.id = String(r.data.data.id)
-        set('faqs', faqs.map((x) => ({ ...x })))
-      }
+      await Promise.all(
+        faqs
+          .filter((f) => !/^\d+$/.test(f.id))
+          .map(async (f) => {
+            const r = await api.post(`/agents/${state.agentId}/faq`, {
+              question: f.question,
+              answer: f.answer,
+            })
+            f.id = String(r.data.data.id)
+            set('faqs', faqs.map((x) => ({ ...x })))
+          }),
+      )
       onNext()
     } catch (err) {
       onError(extractError(err))
@@ -701,6 +760,8 @@ function StepGoLive({
     queryKey: ['agent', state.agentId, 'phone-check'],
     queryFn: () => api.get(`/agents/${state.agentId}`).then((r) => r.data.data as { phoneNumberId: string | null }),
     enabled: !!state.agentId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
   const canPublish = !!agentDetail?.phoneNumberId
 
@@ -731,6 +792,11 @@ function StepGoLive({
           </div>
         ))}
       </dl>
+
+      <ConsequenceLine>
+        Publish &amp; Test makes this agent live on {state.channel} — it starts replying to real
+        customer messages on the connected number immediately.
+      </ConsequenceLine>
 
       {!checkingPhone && !canPublish && (
         <p className="text-sm text-muted-foreground">
@@ -816,7 +882,7 @@ function Field({
         className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
       />
       <div className="flex items-start justify-between">
-        <p className="text-xs text-destructive">{error}</p>
+        <p role="alert" className="text-xs text-destructive">{error}</p>
         <p className="ml-4 shrink-0 text-xs text-muted-foreground">
           {value.length}/{max}
         </p>

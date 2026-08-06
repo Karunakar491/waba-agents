@@ -51,7 +51,7 @@ export default function ConfirmDeleteModal({
         <button
           onClick={onConfirm}
           disabled={isPending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-2.5
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
             text-sm font-semibold text-white transition-opacity hover:opacity-90
             disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -61,7 +61,7 @@ export default function ConfirmDeleteModal({
         <button
           onClick={onClose}
           disabled={isPending}
-          className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold
+          className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
             text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Cancel

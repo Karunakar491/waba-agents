@@ -9,7 +9,8 @@ export interface WabaEntry {
   status: string
 }
 
-const STORAGE_KEY = 'template-studio-waba'
+export const TEMPLATE_STUDIO_WABA_KEY = 'template-studio-waba'
+const STORAGE_KEY = TEMPLATE_STUDIO_WABA_KEY
 
 // Shared across all Template Studio sections (Iris/Templates/Settings)
 // so picking a WABA on one page keeps it selected when switching sections —

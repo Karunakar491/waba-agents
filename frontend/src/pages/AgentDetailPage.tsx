@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId, lazy, Suspense } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -33,14 +33,21 @@ import { cn } from '../lib/utils'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import ConnectPhoneModal from '../components/waba/ConnectPhoneModal'
-import BusinessProfileTab from '../components/agent-detail/BusinessProfileTab'
-import SkillsTab from '../components/agent-detail/SkillsTab'
 import RunToolModal from '../components/agent-detail/RunToolModal'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
-import EvalTab from '../components/agent-detail/EvalTab'
 import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
+
+// Lazy-loaded — each is a real, separate chunk not bundled into this page's
+// initial load; only one tab is ever mounted at a time (see the activeTab
+// conditional below), so a single Suspense boundary around that region
+// suffices. KnowledgeTab/ConnectorsTab/SettingsTab stay inline (defined
+// further down in this file) — they're not yet extracted to their own
+// modules, so they can't be lazy-imported without that extraction first.
+const BusinessProfileTab = lazy(() => import('../components/agent-detail/BusinessProfileTab'))
+const SkillsTab = lazy(() => import('../components/agent-detail/SkillsTab'))
+const EvalTab = lazy(() => import('../components/agent-detail/EvalTab'))
 import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
 import Modal from '../components/shared/Modal'
 
@@ -247,7 +254,7 @@ export default function AgentDetailPage() {
             Back to Agents
           </button>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
                 <Bot className="h-6 w-6 text-primary" />
@@ -269,12 +276,8 @@ export default function AgentDetailPage() {
                   )}
                   <StatusIndicator label={cfg.label} tone={cfg.tone} pulse={cfg.pulse} />
                   {(agent.sharedAccountCount ?? 0) > 1 && (
-                    <span
-                      title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}
-                      className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
-                    >
-                      <Users className="h-3 w-3" />
-                      Shared WABA
+                    <span title={`Shared WABA — visible and editable by ${agent.sharedAccountCount} accounts`}>
+                      <StatusIndicator label="Shared WABA" tone="warning" />
                     </span>
                   )}
                 </div>
@@ -286,7 +289,7 @@ export default function AgentDetailPage() {
             </div>
 
             {/* Right actions */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
               {agent.status === 'active' && agent.handoffEnabled && (
                 <button
                   onClick={() => setThreadControlOpen(true)}
@@ -342,6 +345,14 @@ export default function AgentDetailPage() {
             </div>
           </div>
 
+          {(agent.status === 'draft' || agent.status === 'paused') && !preflightWarning && (
+            <div className="mt-3">
+              <ConsequenceLine>
+                Publish & Test goes live immediately — the agent starts responding to real customers on this number.
+              </ConsequenceLine>
+            </div>
+          )}
+
           {actionError && (
             <div className="mt-3">
               <ErrorBanner error={actionError} />
@@ -393,10 +404,12 @@ export default function AgentDetailPage() {
           {/* Right content area */}
           <div className="min-w-0">
             {activeTab === 'knowledge' && <KnowledgeTab agentId={agent.id} />}
-            {activeTab === 'skills' && <SkillsTab agentId={agent.id} />}
+            <Suspense fallback={<div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}>
+              {activeTab === 'skills' && <SkillsTab agentId={agent.id} />}
+              {activeTab === 'profile' && <BusinessProfileTab phoneNumberId={agent.phoneNumberId} />}
+              {activeTab === 'eval' && <EvalTab agentId={agent.id} />}
+            </Suspense>
             {activeTab === 'connectors' && <ConnectorsTab agent={agent} />}
-            {activeTab === 'profile' && <BusinessProfileTab phoneNumberId={agent.phoneNumberId} />}
-            {activeTab === 'eval' && <EvalTab agentId={agent.id} />}
             {activeTab === 'settings' && (
               <SettingsTab agent={agent} onDeleted={() => navigate('/agents')} />
             )}
@@ -2043,57 +2056,59 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
+      {/* Delete confirmation modal — routed through the shared Modal primitive
+          (EL-caught regression, 2026-08-07 audit: this was a 10th hand-rolled
+          `fixed inset-0` overlay despite the 2026-08-05 fix covering 9 others). */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-surface-lifted">
-            <h2 className="text-base font-semibold text-foreground">
-              Delete &quot;{agent.displayName}&quot;?
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              This action is permanent and cannot be undone. Type{' '}
-              <strong className="font-semibold text-foreground">{agent.displayName}</strong> to
-              confirm.
-            </p>
+        <Modal
+          title={`Delete "${agent.displayName}"?`}
+          onClose={() => setShowDeleteModal(false)}
+          preventClose={deleteMutation.isPending}
+          maxWidthClassName="max-w-md"
+        >
+          <ConsequenceLine tone="warning">
+            This action is permanent and cannot be undone. Type{' '}
+            <strong className="font-semibold text-foreground">{agent.displayName}</strong> to
+            confirm.
+          </ConsequenceLine>
 
-            {deleteError && (
-              <div className="mt-3">
-                <ErrorBanner error={deleteError} />
-              </div>
-            )}
-
-            <input
-              type="text"
-              value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
-              placeholder={agent.displayName}
-              autoFocus
-              className="mt-4 w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:border-destructive transition"
-            />
-
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => deleteMutation.mutate()}
-                disabled={!nameMatches || deleteMutation.isPending}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
-                  text-sm font-semibold text-white transition-opacity hover:opacity-90
-                  disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Delete permanently
-              </button>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleteMutation.isPending}
-                className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                  text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
+          {deleteError && (
+            <div className="mt-3">
+              <ErrorBanner error={deleteError} />
             </div>
+          )}
+
+          <input
+            type="text"
+            value={confirmName}
+            onChange={(e) => setConfirmName(e.target.value)}
+            placeholder={agent.displayName}
+            autoFocus
+            className="mt-4 w-full rounded-lg border bg-background px-3 py-2.5 text-sm
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:border-destructive transition"
+          />
+
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={() => deleteMutation.mutate()}
+              disabled={!nameMatches || deleteMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
+                text-sm font-semibold text-white transition-opacity hover:opacity-90
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete permanently
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleteMutation.isPending}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
+                text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {showConnectModal && (
@@ -2286,6 +2301,9 @@ interface ChatMessage {
   text: string
 }
 
+const TEST_DRAWER_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 function TestDrawer({
   agentId,
   agentStatus,
@@ -2300,10 +2318,57 @@ function TestDrawer({
   const [input, setInput] = useState('')
   const [testLoading, setTestLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerElementRef = useRef<Element | null>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, testLoading])
+
+  // Dialog behavior per DESIGN.md §5: Escape-to-close, focus trap, initial
+  // focus, restore focus to the trigger on close. Mirrors Modal.tsx's
+  // pattern — mount/unmount only; onClose read via ref so it doesn't
+  // re-run trigger-capture/initial-focus/restore on every re-render.
+  useEffect(() => {
+    triggerElementRef.current = document.activeElement
+    const panel = panelRef.current
+    const focusable = panel?.querySelectorAll<HTMLElement>(TEST_DRAWER_FOCUSABLE_SELECTOR)
+    focusable?.[0]?.focus()
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return
+      const nodes = panelRef.current.querySelectorAll<HTMLElement>(TEST_DRAWER_FOCUSABLE_SELECTOR)
+      if (nodes.length === 0) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      if (triggerElementRef.current instanceof HTMLElement) {
+        triggerElementRef.current.focus()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleSend() {
     const text = input.trim()
@@ -2324,18 +2389,26 @@ function TestDrawer({
           ? `(no response: ${d.noResponseReason})`
           : '(no response)'
       setMessages((m) => [...m, { role: 'agent', text: d.agentResponse || fallback }])
-    } catch {
-      setMessages((m) => [...m, { role: 'agent', text: 'Test failed. Please try again.' }])
+    } catch (err) {
+      const message = extractErrorMessage(err)
+      console.error('Agent test message failed', err)
+      setMessages((m) => [...m, { role: 'agent', text: `Test failed: ${message}` }])
     } finally {
       setTestLoading(false)
     }
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-96 bg-card shadow-2xl z-50 flex flex-col border-l">
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed right-0 top-0 h-full w-full sm:w-96 bg-card shadow-2xl z-50 flex flex-col border-l"
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-        <p className="text-sm font-semibold text-foreground">Test Agent</p>
+        <p id={titleId} className="text-sm font-semibold text-foreground">Test Agent</p>
         <button
           onClick={onClose}
           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -2371,7 +2444,7 @@ function TestDrawer({
                   className={cn(
                     'max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm',
                     msg.role === 'user'
-                      ? 'bg-brand-navy text-white rounded-tr-sm'
+                      ? 'bg-brand-pink text-white rounded-tr-sm'
                       : 'bg-muted text-foreground rounded-tl-sm',
                   )}
                 >

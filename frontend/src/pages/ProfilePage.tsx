@@ -23,7 +23,7 @@ export default function ProfilePage() {
     isError: agentsError,
   } = useQuery<AgentRow[]>({
     queryKey: ['agents'],
-    queryFn: () => api.get('/agents').then((r) => r.data.data),
+    queryFn: () => api.get('/agents').then((r) => r.data.data ?? []),
   })
 
   const {
@@ -32,7 +32,7 @@ export default function ProfilePage() {
     isError: wabasError,
   } = useQuery<WabaRow[]>({
     queryKey: ['wabas'],
-    queryFn: () => api.get('/waba').then((r) => r.data.data),
+    queryFn: () => api.get('/waba').then((r) => r.data.data ?? []),
   })
 
   const hasWaba = wabas.length > 0
@@ -177,9 +177,10 @@ export default function ProfilePage() {
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
                 Plan
               </p>
-              <span className="mt-1 inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-green" />
                 Starter Plan
-              </span>
+              </p>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">Business info editing coming soon.</p>

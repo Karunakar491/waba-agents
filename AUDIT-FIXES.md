@@ -274,6 +274,16 @@ Founder used the actual product and found real gaps the automated audit missed:
 
 **Still open from this round:** systematic "every record type should have Edit, not just Copy/Delete" audit across Connectors and Files libraries (confirmed missing entirely, not just weak) — Skills and Business Persona already have edit. Needs a design decision on what "editing a connector" means given `ConnectorLibraryPage` is a cross-agent rollup view, not the source of truth (the actual connector lives on a specific agent).
 
+## Founder-driven UI audit round 2 (2026-08-07)
+
+1. **Connectors/Files edit was completely absent** (not weak — actually missing, confirmed by code). Both pages are cross-agent rollups, not the source of truth, so Edit deep-links to the owning agent's tab rather than duplicating edit UI on the rollup page.
+2. **"Imported agent (id) (id)"** — doubled id was a real rendering bug (3 different tables all unconditionally appended the phone id even when the name already contained it). Fixed at the source too: new agent imports now use the phone's `displayPhoneNumber` (unique per-phone) instead of the placeholder text, avoiding the exact WABA-name-collapse problem that made a prior team (TASK-063/066) reject `verified_name` for this.
+3. **Dead button found while fixing #2**: the "retry resolving this agent's real name" button called `POST /agents/{id}/refresh-name`, which never existed on the backend — implemented it.
+4. **API Calls log** — added copy buttons to request/response boxes, replaced awkward horizontal-scroll-only JSON display with wrapped text + taller vertical scroll.
+5. **Skills table edit** existed but was an unlabeled icon — added an explicit label, source-aware (View for shared library skills, Edit for the agent's own).
+
+**Still open, needs real design work, not another quick fix:** founder flagged the Skills/Browse-Templates page's filter-chip row and overall layout as not world-class, asked for a UX redesign pass — same category of work as the Iris chat redesign (Direction 1, not yet built). Both are real design efforts, not bugs.
+
 ## Consolidated P0 (see AUDIT-TASKS.md Phase 4 roadmap table for full EM feasibility notes)
 1. F1 — no embedded WABA signup (BLOCKED on Meta Tech Provider status — external dependency, not pure eng)
 2. FIX-001/U1 — retired navy hex still live as --primary system-wide

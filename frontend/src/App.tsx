@@ -53,7 +53,7 @@ function RootRedirect() {
   const { data: entitlements, isLoading } = useModuleEntitlements()
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="flex h-dvh w-screen items-center justify-center bg-background">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     )

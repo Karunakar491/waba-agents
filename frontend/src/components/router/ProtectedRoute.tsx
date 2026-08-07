@@ -15,7 +15,7 @@ export default function ProtectedRoute() {
   // broken page for however long the entitlement fetch takes (2026-08-05 audit).
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="flex h-dvh w-screen items-center justify-center bg-background">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     )
@@ -43,7 +43,7 @@ export default function ProtectedRoute() {
 
 function EntitlementsErrorScreen({ onRetry, isRetrying }: { onRetry: () => void; isRetrying: boolean }) {
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-background px-6 text-center">
+    <div className="flex h-dvh w-screen items-center justify-center bg-background px-6 text-center">
       <div className="max-w-md space-y-4">
         <h1 className="text-lg font-semibold text-foreground">Couldn't check your account access</h1>
         <p className="text-sm text-muted-foreground">
@@ -67,7 +67,7 @@ function EntitlementsErrorScreen({ onRetry, isRetrying }: { onRetry: () => void;
 
 function ModuleLockedScreen() {
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-background px-6 text-center">
+    <div className="flex h-dvh w-screen items-center justify-center bg-background px-6 text-center">
       <div className="max-w-md space-y-2">
         <h1 className="text-lg font-semibold text-foreground">No features are enabled for this account</h1>
         <p className="text-sm text-muted-foreground">

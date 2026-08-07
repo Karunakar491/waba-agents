@@ -46,7 +46,7 @@ export default function LoginPage() {
   const serverError = login.error || register.error
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
         {/* Wordmark per DESIGN.md §0 anti-patterns — no Lucide-icon-in-a-square
             "logo". Card sits on bg-background (light), not brand-navy, so the

@@ -360,7 +360,7 @@ export default function AgentDetailPage() {
           )}
 
           {preflightWarning && (
-            <div className="mt-3 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
+            <div className="mt-3 rounded-lg bg-warning/10 px-4 py-3 text-sm text-warning space-y-2">
               <p>{describePreflightWarning(preflightWarning)}</p>
               <div className="flex gap-2">
                 <button
@@ -972,12 +972,18 @@ interface ConnectorTool {
 
 type AuthType = 'NONE' | 'API_KEY' | 'OAUTH2_CLIENT_CREDENTIALS'
 
+// EL-caught gap (2026-08-07 audit, FIX-009): raw Tailwind palette colors
+// bypassing the token layer, with no dark-mode variants (illegible on dark
+// surfaces). No existing DESIGN.md token maps 1:1 to 5 distinct HTTP
+// methods, so this maps to the closest existing semantic tokens instead of
+// inventing new ones tonight — GET/PATCH share a neutral "read" treatment,
+// POST maps to success (brand-green), PUT to warning, DELETE unchanged.
 const METHOD_BADGE: Record<string, string> = {
-  GET:    'bg-blue-50 text-blue-700',
-  POST:   'bg-green-50 text-green-700',
-  PUT:    'bg-yellow-50 text-yellow-700',
+  GET:    'bg-muted text-muted-foreground',
+  POST:   'bg-brand-green/10 text-brand-green',
+  PUT:    'bg-warning/10 text-warning',
   DELETE: 'bg-destructive/10 text-destructive',
-  PATCH:  'bg-orange-50 text-orange-700',
+  PATCH:  'bg-muted text-muted-foreground',
 }
 
 function connectorStatusTone(status: string): StatusTone {

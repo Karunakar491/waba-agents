@@ -16,12 +16,22 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
-        // Karix brand colors
+        // Karix brand colors — must match DESIGN.md §1 exactly (single source
+        // of truth). EL-caught gap (2026-08-07 audit): this config still had
+        // the RETIRED navy (#160E7A, replaced by #11225F 2026-08-05) and the
+        // wrong pink (#E73590 instead of #D6468F Karix Cranberry), and
+        // brand-purple didn't exist as a Tailwind class at all despite
+        // DESIGN.md documenting it and code already trying to reference it
+        // (`ring-brand-purple/40`, `text-brand-purple`) — those classes were
+        // silently no-ops. This is why the "retired navy" problem wasn't
+        // just a stale --primary CSS variable; the underlying color itself
+        // was never corrected.
         brand: {
-          navy:  '#160E7A',
-          pink:  '#E73590',
-          green: '#1EBA5D',
-          dark:  '#1F1F1F',
+          navy:   '#11225F',
+          pink:   '#D6468F',
+          purple: '#6B4EE6',
+          green:  '#1EBA5D',
+          dark:   '#1F1F1F',
         },
         // WhatsApp UI constants — used ONLY to mimic real WhatsApp chrome in previews
         whatsapp: {

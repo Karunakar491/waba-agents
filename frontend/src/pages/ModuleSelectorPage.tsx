@@ -40,7 +40,7 @@ export default function ModuleSelectorPage() {
   const { data: entitlements, isLoading } = useModuleEntitlements()
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-3xl space-y-8">
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-semibold text-foreground">Choose a feature</h1>

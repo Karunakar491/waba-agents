@@ -12,7 +12,16 @@
     --card-foreground: 222 13% 13%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 13% 13%;
-    --primary: 244 80% 27%;           /* #160E7A navy */
+    /* EL-caught gap (2026-08-07 audit, FIX-001/U1): this held the RETIRED
+       navy hex (#160E7A, replaced by #11225F in DESIGN.md's 2026-08-05
+       rewrite) and was used throughout content areas (icon accents, active
+       states, focus rings) as the default brand-emphasis color — exactly the
+       "brand-navy on a card/table row = REJECT" anti-pattern, on nearly
+       every screen. brand-navy is chrome-only per DESIGN.md §1; what this
+       variable is actually USED for (secondary emphasis, active states)
+       matches brand-purple's defined role instead, so it now points there —
+       a single-token fix instead of an N-file find/replace. */
+    --primary: 251 75% 60%;           /* #6B4EE6 brand-purple */
     --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -43,8 +52,8 @@
     --popover: 240 8% 9%;
     --popover-foreground: 0 0% 98%;
     --warning: 38 92% 60%;             /* lighter amber for AA contrast on dark surfaces */
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 251 75% 60%;           /* #6B4EE6 brand-purple — accent colors stay unchanged in dark mode per DESIGN.md */
+    --primary-foreground: 0 0% 98%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 240 3.7% 15.9%;
@@ -79,7 +88,7 @@
      every native interactive element at once; components that need a custom
      ring color/offset can still override with their own focus-visible: class. */
   button, a, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]) {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
   /* Elevation per DESIGN.md §2 2026-08-05 — two tiers, named by role, never raw

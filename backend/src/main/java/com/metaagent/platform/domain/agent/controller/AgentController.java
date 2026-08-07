@@ -11,6 +11,7 @@ import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.GenerateDefaultsRequest;
 import com.metaagent.platform.domain.agent.dto.GenerateDefaultsResponse;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
+import com.metaagent.platform.domain.agent.dto.UiSkillRequest;
 import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.*;
 import com.metaagent.platform.domain.agent.service.AgentDefaultsService;
@@ -177,6 +178,34 @@ public class AgentController {
     @DeleteMapping("/{id}/skills/{skillId}")
     public ApiResponse<Void> deleteSkill(@PathVariable Long id, @PathVariable Long skillId) {
         agentService.deleteSkill(id, skillId);
+        return ApiResponse.ok();
+    }
+
+    // --- UI Skills (F22) — rich-message component skills, distinct from plain text-instruction skills above ---
+
+    @GetMapping("/{id}/ui-skills")
+    public ApiResponse<List<AgentUiSkill>> getUiSkills(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.getUiSkills(id));
+    }
+
+    @PostMapping("/{id}/ui-skills")
+    public ApiResponse<AgentUiSkill> addUiSkill(@PathVariable Long id, @Valid @RequestBody UiSkillRequest request) {
+        return ApiResponse.ok(agentService.addUiSkill(id, request));
+    }
+
+    @GetMapping("/{id}/ui-skills/{uiSkillId}")
+    public ApiResponse<AgentUiSkill> getUiSkill(@PathVariable Long id, @PathVariable Long uiSkillId) {
+        return ApiResponse.ok(agentService.getUiSkill(id, uiSkillId));
+    }
+
+    @PutMapping("/{id}/ui-skills/{uiSkillId}")
+    public ApiResponse<AgentUiSkill> updateUiSkill(@PathVariable Long id, @PathVariable Long uiSkillId, @Valid @RequestBody UiSkillRequest request) {
+        return ApiResponse.ok(agentService.updateUiSkill(id, uiSkillId, request));
+    }
+
+    @DeleteMapping("/{id}/ui-skills/{uiSkillId}")
+    public ApiResponse<Void> deleteUiSkill(@PathVariable Long id, @PathVariable Long uiSkillId) {
+        agentService.deleteUiSkill(id, uiSkillId);
         return ApiResponse.ok();
     }
 

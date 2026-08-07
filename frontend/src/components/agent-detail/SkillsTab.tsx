@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Library, Loader2, Plus, RefreshCw, Search, Trash2, Zap } from 'lucide-react'
 import api from '../../lib/api'
 import SkillEditorModal from './SkillEditorModal'
+import UiSkillsPanel from './UiSkillsPanel'
 
 interface AgentSkillView {
   id: string
@@ -234,6 +235,8 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
           onClose={() => setShowEditor(false)}
         />
       )}
+
+      <UiSkillsPanel agentId={agentId} />
     </div>
   )
 }

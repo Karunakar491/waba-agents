@@ -6,6 +6,7 @@ import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.dto.AgentRequest;
 import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
+import com.metaagent.platform.domain.agent.dto.UiSkillRequest;
 import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.*;
 import com.metaagent.platform.domain.agent.repository.*;
@@ -37,6 +38,7 @@ public class AgentService {
 
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
+    private final AgentUiSkillRepository agentUiSkillRepository;
     private final AgentFaqRepository agentFaqRepository;
     private final AgentFileRepository agentFileRepository;
     private final AgentWebsiteRepository agentWebsiteRepository;
@@ -345,6 +347,7 @@ public class AgentService {
         agentWebsiteRepository.deleteAllByAgentId(id);
         agentFaqRepository.deleteAllByAgentId(id);
         agentSkillRepository.deleteAllByAgentId(id);
+        agentUiSkillRepository.deleteAllByAgentId(id);
         agentFileRepository.deleteAllByAgentId(id);
         messageRepository.deleteAllByAgentId(id);
         conversationRepository.deleteAllByAgentId(id);
@@ -440,6 +443,103 @@ public class AgentService {
         skill.setDescription(request.description());
         skill.setBody(request.body());
         return agentSkillRepository.save(skill);
+    }
+
+    // --- UI Skills Management (F22) ---
+    // Distinct Meta surface from agent_config/skills above -- a UI skill
+    // tells the agent WHEN/HOW to send a rich-message component (carousel,
+    // CTA button, interactive list, location request); it does not carry the
+    // component's own content, Meta's schema for it is just a routing/
+    // trigger definition. `flow` component_type is intentionally excluded
+    // (Flows out of scope, see F9). Base path is api.facebook.com (the
+    // default restClient), not the Graph API -- confirmed against
+    // docs/meta-api/ui-skills.md, no live call made yet as of this write.
+
+    private static String uiSkillPath(Agent agent) {
+        return "/" + agent.getPhoneNumberId() + "/agent-ui-skills";
+    }
+
+    @Transactional
+    public AgentUiSkill addUiSkill(Long agentId, UiSkillRequest request) {
+        Agent agent = getAgent(agentId);
+        if (agent.getPhoneNumberId() == null) {
+            throw new BusinessException("Connect a phone number before adding a UI skill.");
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", request.title());
+        payload.put("component_type", request.componentType().name());
+        payload.put("status", request.status().name());
+        payload.put("instruction", request.instruction());
+
+        String metaUiSkillId;
+        try {
+            Map<?, ?> response = metaApiClient.post(uiSkillPath(agent), payload, Map.class);
+            metaUiSkillId = response != null ? (String) response.get("id") : null;
+        } catch (Exception e) {
+            throw new BusinessException("Failed to create UI skill on Meta: " + e.getMessage());
+        }
+
+        AgentUiSkill skill = AgentUiSkill.builder()
+                .accountId(SecurityContextHelper.getRequiredAccountId())
+                .agentId(agentId)
+                .metaUiSkillId(metaUiSkillId)
+                .title(request.title())
+                .componentType(request.componentType())
+                .status(request.status())
+                .instruction(request.instruction())
+                .build();
+        return agentUiSkillRepository.save(skill);
+    }
+
+    /** Reads from our local mirror -- no reconciler backfill yet (genuinely new capability, nothing live on Meta predates this). */
+    public List<AgentUiSkill> getUiSkills(Long agentId) {
+        getAgent(agentId);
+        return agentUiSkillRepository.findAllByAgentId(agentId);
+    }
+
+    public AgentUiSkill getUiSkill(Long agentId, Long uiSkillId) {
+        getAgent(agentId);
+        return agentUiSkillRepository.findByIdAndAgentId(uiSkillId, agentId)
+                .orElseThrow(() -> new NotFoundException("UI skill not found"));
+    }
+
+    @Transactional
+    public AgentUiSkill updateUiSkill(Long agentId, Long uiSkillId, UiSkillRequest request) {
+        Agent agent = getAgent(agentId);
+        AgentUiSkill skill = agentUiSkillRepository.findByIdAndAgentId(uiSkillId, agentId)
+                .orElseThrow(() -> new NotFoundException("UI skill not found"));
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", request.title());
+        payload.put("component_type", request.componentType().name());
+        payload.put("status", request.status().name());
+        payload.put("instruction", request.instruction());
+        try {
+            metaApiClient.put(uiSkillPath(agent) + "/" + skill.getMetaUiSkillId(), payload, Map.class);
+        } catch (Exception e) {
+            throw new BusinessException("Failed to update UI skill on Meta: " + e.getMessage());
+        }
+
+        skill.setTitle(request.title());
+        skill.setComponentType(request.componentType());
+        skill.setStatus(request.status());
+        skill.setInstruction(request.instruction());
+        return agentUiSkillRepository.save(skill);
+    }
+
+    @Transactional
+    public void deleteUiSkill(Long agentId, Long uiSkillId) {
+        Agent agent = getAgent(agentId);
+        AgentUiSkill skill = agentUiSkillRepository.findByIdAndAgentId(uiSkillId, agentId)
+                .orElseThrow(() -> new NotFoundException("UI skill not found"));
+
+        try {
+            metaApiClient.delete(uiSkillPath(agent) + "/" + skill.getMetaUiSkillId());
+        } catch (Exception e) {
+            throw new BusinessException("Failed to delete UI skill on Meta: " + e.getMessage());
+        }
+        agentUiSkillRepository.delete(skill);
     }
 
     // --- FAQ Management ---

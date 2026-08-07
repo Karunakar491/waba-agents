@@ -15,7 +15,7 @@ interface PreviewComponent {
   buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string }>
 }
 
-function previewPropsFromArgs(args: Record<string, unknown>) {
+export function previewPropsFromArgs(args: Record<string, unknown>) {
   const components = (args.components as PreviewComponent[] | undefined) ?? []
   const header = components.find((c) => c.type === 'HEADER')
   const body = components.find((c) => c.type === 'BODY')

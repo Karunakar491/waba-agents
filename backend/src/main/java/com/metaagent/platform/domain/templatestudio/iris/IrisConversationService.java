@@ -144,7 +144,16 @@ public class IrisConversationService {
     // same convention as WabaResponse (see WabaDtos.java).
     public record TurnResponse(String sessionId, String reply, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
     public record SessionSummary(String id, String title, java.time.LocalDateTime updatedAt) {}
-    public record MessageDto(String role, String content, java.time.LocalDateTime createdAt) {}
+    /**
+     * toolName/toolArgs are non-null only for an ASSISTANT message that
+     * proposed a create_template/edit_template draft (2026-08-07, Iris
+     * redesign phase 2) -- IrisMessage already persisted these columns for
+     * every such turn (see sendMessage's pending-confirmation save below),
+     * they just weren't surfaced through this DTO. Lets the frontend render
+     * an inline WhatsApp-preview snapshot per turn instead of plain text,
+     * without any new column or endpoint.
+     */
+    public record MessageDto(String role, String content, java.time.LocalDateTime createdAt, String toolName, Map<String, Object> toolArgs) {}
     /**
      * PM-caught gap (2026-08-07 audit, finding C1): resuming a session used
      * to only return its messages, silently dropping any pending
@@ -175,7 +184,8 @@ public class IrisConversationService {
     public SessionResumeResponse getMessages(Long sessionId) {
         IrisSession session = requireOwnedSession(sessionId);
         List<MessageDto> messages = conversationHistory(sessionId).stream()
-                .map(m -> new MessageDto(m.getRole().name(), m.getContent(), m.getCreatedAt()))
+                .map(m -> new MessageDto(m.getRole().name(), m.getContent(), m.getCreatedAt(),
+                        m.getToolName(), m.getToolArgsJson() != null ? readJson(m.getToolArgsJson()) : null))
                 .toList();
         boolean needsConfirmation = session.getPendingToolName() != null;
         Map<String, Object> pendingArgs = needsConfirmation ? readJson(session.getPendingToolArgsJson()) : null;

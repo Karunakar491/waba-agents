@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { cn } from '../../lib/utils'
 import ErrorBanner from '../shared/ErrorBanner'
 import StatusIndicator from '../shared/StatusIndicator'
+import IrisDraftSnapshotCard from './IrisDraftSnapshotCard'
 
 export interface IrisChatEntry {
   id: string
@@ -13,6 +14,9 @@ export interface IrisChatEntry {
   link?: { label: string; to: string }
   status?: 'sending' | 'sent' | 'error'
   errorMessage?: string
+  toolName?: string | null
+  templateArgs?: Record<string, unknown> | null
+  previousTemplateArgs?: Record<string, unknown> | null
 }
 
 const SUGGESTIONS = [
@@ -127,10 +131,13 @@ export default function IrisChatPane({
                 )}
               </div>
             ) : (
-              <div key={e.id} className="max-w-[85%] space-y-1">
+              <div key={e.id} className="max-w-[85%] space-y-2">
                 <div className="prose prose-sm max-w-none text-base leading-relaxed text-foreground [&_p]:my-0 [&_pre]:rounded-lg [&_pre]:border [&_pre]:bg-foreground/5 [&_pre]:p-3 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-sm [&_code]:font-mono [&_a]:text-primary [&_a]:hover:underline">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{e.text}</ReactMarkdown>
                 </div>
+                {(e.toolName === 'create_template' || e.toolName === 'edit_template') && e.templateArgs && (
+                  <IrisDraftSnapshotCard args={e.templateArgs} previousArgs={e.previousTemplateArgs ?? null} />
+                )}
                 {e.link && (
                   <Link to={e.link.to} className="inline-block text-sm font-medium text-primary hover:underline">
                     {e.link.label}

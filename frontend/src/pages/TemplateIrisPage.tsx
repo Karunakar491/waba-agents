@@ -41,7 +41,13 @@ interface TurnResponse {
 }
 
 interface SessionSummary { id: string; title: string | null; updatedAt: string }
-interface MessageDto { role: string; content: string; createdAt: string }
+interface MessageDto {
+  role: string
+  content: string
+  createdAt: string
+  toolName: string | null
+  toolArgs: Record<string, unknown> | null
+}
 interface SessionResumeResponse {
   messages: MessageDto[]
   needsConfirmation: boolean
@@ -99,6 +105,13 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     return sendMessage.isPending || confirmAction.isPending || cancelAction.isPending
   }
 
+  // Draft Snapshot cards diff against the PREVIOUS turn's template args to
+  // decide what to highlight (IrisDraftSnapshotCard) — tracked as a ref, not
+  // state, since it's write-only bookkeeping that never itself drives a
+  // render. Reset whenever the session changes so a new chat's first
+  // snapshot never diffs against a leftover value from the last one.
+  const lastTemplateArgsRef = useRef<Record<string, unknown> | null>(null)
+
   function startNewChat() {
     if (isBusy()) return
     if (pending) {
@@ -110,6 +123,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     setPending(null)
     setError(null)
     setInput('')
+    lastTemplateArgsRef.current = null
   }
 
   async function resumeSession(id: string) {
@@ -124,12 +138,20 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     try {
       const resume = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as SessionResumeResponse)
       setSessionId(id)
-      setEntries(resume.messages.map((m) => ({
-        id: newEntryId(),
-        who: m.role === 'USER' ? 'user' as const : 'iris' as const,
-        text: m.content,
-        status: 'sent' as const,
-      })))
+      lastTemplateArgsRef.current = null
+      setEntries(resume.messages.map((m) => {
+        const previousTemplateArgs = lastTemplateArgsRef.current
+        if (m.toolArgs) lastTemplateArgsRef.current = m.toolArgs
+        return {
+          id: newEntryId(),
+          who: m.role === 'USER' ? 'user' as const : 'iris' as const,
+          text: m.content,
+          status: 'sent' as const,
+          toolName: m.toolName,
+          templateArgs: m.toolArgs,
+          previousTemplateArgs,
+        }
+      }))
       // PM-caught gap (2026-08-07 audit, C1): a session left with an
       // unresolved confirmation used to silently lose that state on resume —
       // the confirm panel never came back and the next message hard-failed.
@@ -177,9 +199,20 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
         .then((r) => r.data.data as TurnResponse)
     },
     onSuccess: (res, vars) => {
+      const isTemplateAction = res.pendingToolName === 'create_template' || res.pendingToolName === 'edit_template'
+      const previousTemplateArgs = lastTemplateArgsRef.current
+      if (isTemplateAction && res.pendingToolArgs) lastTemplateArgsRef.current = res.pendingToolArgs
       setEntries((prev) => [
         ...prev.map((e) => (e.id === vars.entryId ? { ...e, status: 'sent' as const } : e)),
-        { id: newEntryId(), who: 'iris', text: res.reply, status: 'sent' as const },
+        {
+          id: newEntryId(),
+          who: 'iris',
+          text: res.reply,
+          status: 'sent' as const,
+          toolName: isTemplateAction ? res.pendingToolName : null,
+          templateArgs: isTemplateAction ? res.pendingToolArgs : null,
+          previousTemplateArgs: isTemplateAction ? previousTemplateArgs : null,
+        },
       ])
       if (res.needsConfirmation && res.pendingToolName && res.pendingToolArgs) {
         setPending({ toolName: res.pendingToolName, args: res.pendingToolArgs })

@@ -78,7 +78,11 @@ export default function BusinessPersonaLibraryPage() {
   })
 
   function startEdit(profile?: BusinessProfileResponse) {
-    setEditingDraftId(profile?.id ?? null)
+    // A DEPLOYED/ARCHIVED row can't be PUT directly (the backend's
+    // loadOwnedDraft() rejects it — live data is never mutated in place).
+    // Pre-fill the editor from it, but save as a new DRAFT for redeploy.
+    const editable = profile?.status === 'DRAFT'
+    setEditingDraftId(editable ? profile.id : null)
     setForm(profile ? toFormValues(profile) : EMPTY_FORM)
     setFormError(null)
     setShowEditor(true)

@@ -53,14 +53,15 @@ function PersonaTableRow({
         {row.lastTouched ? new Date(row.lastTouched).toLocaleString() : '—'}
       </td>
       <td className="px-4 py-3">
-        {row.profile.status === 'DRAFT' && (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={() => onEdit(row.profile)}
-              className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            >
-              Edit
-            </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => onEdit(row.profile)}
+            className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+          >
+            {row.profile.status === 'DRAFT' ? 'Edit' : 'Edit as new draft'}
+          </button>
+          {row.profile.status === 'DRAFT' && (
+            <>
             {phones.length > 0 && (
               <>
                 <label htmlFor={`deploy-target-${row.profile.id}`} className="sr-only">
@@ -97,8 +98,9 @@ function PersonaTableRow({
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </td>
     </tr>
   )

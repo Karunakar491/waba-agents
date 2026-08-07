@@ -23,6 +23,12 @@ public class TemplateStudioController {
     private final TemplateStudioService templateStudioService;
     private final KarixCredentialService credentialService;
 
+    /** EM-caught gap (2026-08-07 audit): karix-mcp had no health visibility from this platform at all. */
+    @GetMapping("/karix-mcp-health")
+    public ApiResponse<Map<String, Object>> karixMcpHealth() {
+        return ApiResponse.ok(Map.of("healthy", templateStudioService.isKarixMcpHealthy()));
+    }
+
     @PostMapping("/{wabaId}")
     public ApiResponse<Map<String, Object>> createTemplate(@PathVariable Long wabaId, @Valid @RequestBody TemplateRequest request) {
         return ApiResponse.ok(templateStudioService.createTemplate(wabaId, request.toKarixPayload()));

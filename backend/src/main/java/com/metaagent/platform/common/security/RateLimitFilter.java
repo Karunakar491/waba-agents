@@ -59,6 +59,27 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${ratelimit.generate-defaults.window-seconds:3600}")
     private long generateDefaultsWindow;
 
+    // EM-caught gap (2026-08-07 audit): zero rate limiting existed on Iris or
+    // Template Studio endpoints despite both costing real money per call
+    // (AI provider tokens, Karix/Meta API calls) -- confirmed exploitable
+    // tonight when a burst of ~8 template-creation attempts in one minute
+    // happened by accident during live debugging. Limits are generous
+    // enough for real usage, tight enough to bound a runaway loop or script.
+    @Value("${ratelimit.iris-message.limit:30}")
+    private int irisMessageLimit;
+    @Value("${ratelimit.iris-message.window-seconds:300}")
+    private long irisMessageWindow;
+
+    @Value("${ratelimit.template-create.limit:20}")
+    private int templateCreateLimit;
+    @Value("${ratelimit.template-create.window-seconds:300}")
+    private long templateCreateWindow;
+
+    private static final java.util.regex.Pattern IRIS_MESSAGE_PATH =
+            java.util.regex.Pattern.compile("^/api/v1/templates/iris/sessions/[^/]+/messages$");
+    private static final java.util.regex.Pattern TEMPLATE_CREATE_PATH =
+            java.util.regex.Pattern.compile("^/api/v1/templates/\\d+$");
+
     public RateLimitFilter(@Qualifier("cacheRedisTemplate") StringRedisTemplate redis, ObjectMapper objectMapper) {
         this.redis = redis;
         this.objectMapper = objectMapper;
@@ -139,6 +160,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     // Per-IP: this filter runs before authentication, and Claude cost
                     // abuse from one origin is what we are bounding.
                     return new Rule("rl:generate-defaults:ip:" + clientIp(request), generateDefaultsLimit, generateDefaultsWindow);
+                }
+                if (IRIS_MESSAGE_PATH.matcher(path).matches()) {
+                    return new Rule("rl:iris-message:ip:" + clientIp(request), irisMessageLimit, irisMessageWindow);
+                }
+                if (TEMPLATE_CREATE_PATH.matcher(path).matches()) {
+                    return new Rule("rl:template-create:ip:" + clientIp(request), templateCreateLimit, templateCreateWindow);
                 }
                 return null;
         }

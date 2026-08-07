@@ -37,6 +37,16 @@ public class TemplateStudioService {
     private final SecretEncryptor secretEncryptor;
     private final TemplateStudioClient templateStudioClient;
 
+    /**
+     * EM-caught gap (2026-08-07 audit): no health check existed for karix-mcp
+     * despite it being a critical-path dependency for both Iris and Template
+     * Studio. No tenant/WABA scoping needed — karix-mcp's /health is
+     * unauthenticated and account-agnostic.
+     */
+    public boolean isKarixMcpHealthy() {
+        return templateStudioClient.isHealthy();
+    }
+
     public Map<String, Object> createTemplate(Long wabaId, Map<String, Object> payload) {
         ResolvedCredential cred = resolveCredential(wabaId);
         return templateStudioClient.createTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), payload);

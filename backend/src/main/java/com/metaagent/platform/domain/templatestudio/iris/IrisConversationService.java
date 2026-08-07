@@ -113,14 +113,16 @@ public class IrisConversationService {
                             "required", List.of("wabaId")),
                     false),
             new AiToolSpec("send_test_template", "Send an approved template to a single test phone number. Requires user confirmation. " +
+                    "templateName MUST be the template's name field (e.g. from list_templates), NEVER its numeric fb_template_id — " +
+                    "Karix's real send API rejects a numeric id with \"HSM ID does not exist\" (confirmed 2026-08-07 live send test). " +
                     "parameterValues fills the template's positional placeholders in order — for an AUTHENTICATION/OTP template " +
                     "this is the one-time code value that goes into {{1}} and the OTP button.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
-                            "templateId", Map.of("type", "string"),
+                            "templateName", Map.of("type", "string"),
                             "testPhoneNumber", Map.of("type", "string"),
                             "parameterValues", Map.of("type", "array", "items", Map.of("type", "string"))),
-                            "required", List.of("wabaId", "templateId", "testPhoneNumber")),
+                            "required", List.of("wabaId", "templateName", "testPhoneNumber")),
                     true)
     );
 
@@ -271,7 +273,7 @@ public class IrisConversationService {
                 List<String> parameterValues = args.get("parameterValues") == null
                         ? List.of()
                         : ((List<Object>) args.get("parameterValues")).stream().map(String::valueOf).toList();
-                yield karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateId")), String.valueOf(args.get("testPhoneNumber")), parameterValues);
+                yield karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateName")), String.valueOf(args.get("testPhoneNumber")), parameterValues);
             }
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };

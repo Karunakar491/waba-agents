@@ -65,11 +65,17 @@ public class KarixMessagingClient {
     }
 
     @SuppressWarnings("unchecked")
-    public Map<String, Object> sendTestTemplate(Long wabaId, String templateId, String testPhoneNumber) {
-        return sendTestTemplate(wabaId, templateId, testPhoneNumber, List.of());
+    public Map<String, Object> sendTestTemplate(Long wabaId, String templateName, String testPhoneNumber) {
+        return sendTestTemplate(wabaId, templateName, testPhoneNumber, List.of());
     }
 
     /**
+     * templateName MUST be the template's name (e.g. "order_confirmation"),
+     * NEVER Meta's numeric fb_template_id — confirmed live 2026-08-07: Karix's
+     * real sendMessage API rejects a numeric id with "HSM ID does not exist"
+     * and only accepts the template name in the same "templateId" JSON field
+     * (Karix's own API naming, kept as-is below to match their contract).
+     *
      * parameterValues fills the template's positional body/button placeholders
      * in order (Karix's own convention — see karix-mcp's build_template, which
      * keys them "0","1",... by index). For an AUTHENTICATION/OTP_COPY_CODE
@@ -80,7 +86,7 @@ public class KarixMessagingClient {
      * AUTHENTICATION template exists yet to confirm this against a real send).
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> sendTestTemplate(Long wabaId, String templateId, String testPhoneNumber, List<String> parameterValues) {
+    public Map<String, Object> sendTestTemplate(Long wabaId, String templateName, String testPhoneNumber, List<String> parameterValues) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         wabaAccessGuard.requireAccess(wabaId, accountId);
 
@@ -107,7 +113,7 @@ public class KarixMessagingClient {
         Map<String, Object> body = Map.of(
                 "message", Map.of(
                         "channel", "WABA",
-                        "content", Map.of("type", "TEMPLATE", "template", Map.of("templateId", templateId, "parameterValues", parameterValuesMap)),
+                        "content", Map.of("type", "TEMPLATE", "template", Map.of("templateId", templateName, "parameterValues", parameterValuesMap)),
                         "recipient", Map.of("to", testPhoneNumber, "recipient_type", "individual"),
                         "sender", Map.of("from", sender)),
                 "metaData", Map.of("version", "v1.0.9"));

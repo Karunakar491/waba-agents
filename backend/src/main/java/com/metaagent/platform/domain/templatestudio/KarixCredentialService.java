@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -106,6 +107,15 @@ public class KarixCredentialService {
         saveMapping(wabaId, phoneNumberId, credential.getId());
     }
 
+    /**
+     * EL-caught gap (2026-08-07 audit, FIX-035): live-reproduced — a call for
+     * an already-mapped phone still persisted the new credential row before
+     * failing on the mapping's unique-constraint conflict, leaving an
+     * orphaned-but-valid credential that then blocked a retry with "esme_addr
+     * already configured" despite having zero mappings. Wrapped so a failed
+     * mapping rolls back the credential too.
+     */
+    @Transactional
     public void mapToNewEsme(Long wabaId, String phoneNumberId, String esmeAddr, String label, String apiKey) {
         requireAccess(wabaId);
         Long accountId = SecurityContextHelper.getRequiredAccountId();
@@ -121,6 +131,27 @@ public class KarixCredentialService {
             throw new BusinessException("This esme_addr is already configured — use the dropdown to reuse it instead.");
         }
         saveMapping(wabaId, phoneNumberId, credential.getId());
+    }
+
+    /**
+     * PM/EL-caught gap (2026-08-07 audit, FIX-034): no path existed to fix a
+     * phone mapped to the wrong esme credential once mapped — mapToNewEsme/
+     * mapToExistingEsme both hard-fail with "already mapped" and there was no
+     * unmap/update route, which forced a raw, founder-authorized SQL
+     * correction during tonight's live debugging. This closes that gap.
+     */
+    public void remapToExistingEsme(Long wabaId, String phoneNumberId, Long esmeCredentialId) {
+        requireAccess(wabaId);
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        KarixEsmeCredential credential = esmeCredentialRepository.findById(esmeCredentialId)
+                .orElseThrow(() -> new NotFoundException("esme_addr credential not found"));
+        if (!credential.getAccountId().equals(accountId)) {
+            throw new NotFoundException("esme_addr credential not found");
+        }
+        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findByWabaIdAndPhoneNumberId(wabaId, phoneNumberId)
+                .orElseThrow(() -> new NotFoundException("This phone number isn't mapped to a credential yet — use the \"add\" flow instead."));
+        mapping.setEsmeCredentialId(credential.getId());
+        phoneEsmeMappingRepository.save(mapping);
     }
 
     private void saveMapping(Long wabaId, String phoneNumberId, Long esmeCredentialId) {

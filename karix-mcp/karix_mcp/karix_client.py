@@ -171,6 +171,10 @@ class KarixClient:
         it via the tool's error path is honest; silently "fixing" it without a
         confirmed working alternative would just hide the failure differently.
         """
+        # EL-caught gap (2026-08-07 audit): case-sensitive check rejected the
+        # caller's "IMAGE" (matching Meta's own uppercase HEADER format enum
+        # convention) with a correct-but-easy-to-miss error. Normalize first.
+        category = category.lower() if category else category
         if category not in ("image", "video", "document"):
             raise ValueError(f"Invalid category \"{category}\" — must be image, video, or document")
         url = f"{self.template_base}/api/v1.0/template/{self.waba_id}/media"

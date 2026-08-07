@@ -100,4 +100,14 @@ public class TemplateStudioController {
         credentialService.mapToNewEsme(wabaId, request.phoneNumberId(), request.esmeAddr(), request.label(), request.apiKey());
         return ApiResponse.ok();
     }
+
+    /**
+     * FIX-034 (2026-08-07 audit): a phone mapped to the wrong esme credential
+     * previously had no fix path short of a raw DB update — this closes it.
+     */
+    @PutMapping("/{wabaId}/phone-mappings/existing-esme")
+    public ApiResponse<Void> remapToExistingEsme(@PathVariable Long wabaId, @Valid @RequestBody MapExistingEsmeRequest request) {
+        credentialService.remapToExistingEsme(wabaId, request.phoneNumberId(), request.esmeCredentialId());
+        return ApiResponse.ok();
+    }
 }

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, Eye } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import Modal from '../components/shared/Modal'
 
 interface WabaEntry {
   id: string
@@ -29,6 +30,7 @@ export default function SkillTemplateBrowsePage() {
   const [useCase, setUseCase] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
+  const [viewingTemplate, setViewingTemplate] = useState<SkillTemplate | null>(null)
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -87,7 +89,7 @@ export default function SkillTemplateBrowsePage() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-40 rounded-xl border bg-muted/40 animate-pulse" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-64 rounded-xl border bg-muted/40 animate-pulse" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-16 text-center">
@@ -98,33 +100,76 @@ export default function SkillTemplateBrowsePage() {
           {filtered.map((template) => (
             <div
               key={template.id}
-              className="flex flex-col rounded-xl border bg-card p-4 shadow-surface-resting transition-all
+              className="flex flex-col rounded-xl border bg-card p-5 shadow-surface-resting transition-all
                 hover:shadow-surface-lifted hover:border-primary/30"
             >
               <p className="text-sm font-semibold text-foreground">{template.title}</p>
-              <p className="mt-1.5 flex-1 text-sm text-muted-foreground line-clamp-3">{template.description}</p>
+              <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-6">{template.description}</p>
               <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{template.industry}</span>
-                <span>·</span>
-                <span>{template.useCase}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5">{template.industry}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5">{template.useCase}</span>
               </div>
-              <button
-                onClick={() => copyMutation.mutate(template.id)}
-                disabled={!waba || copyMutation.isPending}
-                title={!waba ? 'Connect a WABA first' : undefined}
-                className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
-                  text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {copyMutation.isPending && copyMutation.variables === template.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : copiedId === template.id ? (
-                  <Check className="h-3.5 w-3.5 text-brand-green" />
-                ) : null}
-                {copiedId === template.id ? 'Copied' : 'Copy to my Skills'}
-              </button>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  onClick={() => setViewingTemplate(template)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs
+                    font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View
+                </button>
+                <button
+                  onClick={() => copyMutation.mutate(template.id)}
+                  disabled={!waba || copyMutation.isPending}
+                  title={!waba ? 'Connect a WABA first' : undefined}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+                    text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {copyMutation.isPending && copyMutation.variables === template.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : copiedId === template.id ? (
+                    <Check className="h-3.5 w-3.5 text-brand-green" />
+                  ) : null}
+                  {copiedId === template.id ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {viewingTemplate && (
+        <Modal
+          title={viewingTemplate.title}
+          onClose={() => setViewingTemplate(null)}
+          maxWidthClassName="max-w-lg"
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full bg-muted px-2 py-0.5">{viewingTemplate.industry}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5">{viewingTemplate.useCase}</span>
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">{viewingTemplate.description}</p>
+          <div className="mt-4 space-y-1.5">
+            <label className="block text-xs font-medium text-foreground">Skill instructions</label>
+            <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs text-foreground">
+              {viewingTemplate.body}
+            </pre>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={() => {
+                copyMutation.mutate(viewingTemplate.id)
+                setViewingTemplate(null)
+              }}
+              disabled={!waba || copyMutation.isPending}
+              title={!waba ? 'Connect a WABA first' : undefined}
+              className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3.5 py-2 text-sm font-semibold
+                text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Copy to my Skills
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

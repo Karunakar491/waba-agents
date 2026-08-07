@@ -28,6 +28,7 @@ import {
   FileText,
   ClipboardList,
   RefreshCw,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
@@ -1000,19 +1001,28 @@ function connectorPlugColor(status: string): string {
   return 'text-muted-foreground'
 }
 
-// ── Add Connector Modal ───────────────────────────────────────────────────────
+// ── Add/Edit Connector Modal ──────────────────────────────────────────────────
+// Founder-caught gap (2026-08-07): a connector had no edit path at all once
+// created — only delete-and-recreate. PUT /agents/{id}/connectors/{connectorId}
+// already existed backend-side; this modal now does double duty for
+// create and edit. Secret fields (API key value, client secret) are left
+// blank on edit and only sent if the user actually types a replacement —
+// Meta doesn't return secrets on GET, so a blank field means "keep existing",
+// never "clear it".
 
 interface AddConnectorModalProps {
   agentId: string
   onClose: () => void
   onCreated: () => void
+  editingConnector?: Connector | null
 }
 
-function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalProps) {
-  const [name, setName]           = useState('')
-  const [description, setDesc]    = useState('')
-  const [baseUrl, setBaseUrl]     = useState('')
-  const [authType, setAuthType]   = useState<AuthType>('NONE')
+function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: AddConnectorModalProps) {
+  const isEditing = !!editingConnector
+  const [name, setName]           = useState(editingConnector?.name ?? '')
+  const [description, setDesc]    = useState(editingConnector?.description ?? '')
+  const [baseUrl, setBaseUrl]     = useState(editingConnector?.base_url ?? '')
+  const [authType, setAuthType]   = useState<AuthType>((editingConnector?.auth_type as AuthType) ?? 'NONE')
   const [headerName, setHdrName]  = useState('')
   const [apiKeyValue, setApiKey]  = useState('')
   const [tokenUrl, setTokenUrl]   = useState('')
@@ -1033,7 +1043,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
         base_url: baseUrl.trim(),
         auth_type: authType,
       }
-      if (authType === 'API_KEY') {
+      if (authType === 'API_KEY' && (!isEditing || (headerName.trim() && apiKeyValue))) {
         // Meta requires auth_config nested one level deeper under the
         // type-named key — confirmed live via a real Meta 400 ("auth_config.api_key
         // is required for API_KEY auth type") that the previous flat shape produced.
@@ -1041,7 +1051,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
           api_key: { headers: [{ field_name: headerName.trim(), value: apiKeyValue }] },
         }
       }
-      if (authType === 'OAUTH2_CLIENT_CREDENTIALS') {
+      if (authType === 'OAUTH2_CLIENT_CREDENTIALS' && (!isEditing || (tokenUrl.trim() && clientId.trim() && clientSecret))) {
         // Same type-named-wrapper pattern as API_KEY above, applied by symmetry —
         // NOT independently confirmed live (no OAuth connector tested this session).
         // See TASKS.md follow-up: verify against a real OAuth2 connector before
@@ -1055,7 +1065,11 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
           },
         }
       }
-      await api.post(`/agents/${agentId}/connectors`, payload)
+      if (isEditing) {
+        await api.put(`/agents/${agentId}/connectors/${editingConnector.id}`, payload)
+      } else {
+        await api.post(`/agents/${agentId}/connectors`, payload)
+      }
       onCreated()
     } catch (err) {
       setError(extractErrorMessage(err))
@@ -1070,7 +1084,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
 
   return (
     <Modal
-      title="Add Connector"
+      title={isEditing ? `Edit connector "${editingConnector.name}"` : 'Add Connector'}
       onClose={onClose}
       preventClose={saving}
       maxWidthClassName="max-w-md"
@@ -1140,7 +1154,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 <label className="block text-xs font-medium text-foreground">Header name</label>
                 <input
                   type="text"
-                  required
+                  required={!isEditing}
                   value={headerName}
                   onChange={(e) => setHdrName(e.target.value)}
                   placeholder="X-API-Key"
@@ -1151,10 +1165,10 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 <label className="block text-xs font-medium text-foreground">API key value</label>
                 <input
                   type="password"
-                  required
+                  required={!isEditing}
                   value={apiKeyValue}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-…"
+                  placeholder={isEditing ? 'Leave blank to keep existing key' : 'sk-…'}
                   className={inputCls}
                 />
               </div>
@@ -1167,10 +1181,10 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 <label className="block text-xs font-medium text-foreground">Token URL</label>
                 <input
                   type="text"
-                  required
+                  required={!isEditing}
                   value={tokenUrl}
                   onChange={(e) => setTokenUrl(e.target.value)}
-                  placeholder="https://auth.example.com/token"
+                  placeholder={isEditing ? 'Leave blank to keep existing' : 'https://auth.example.com/token'}
                   className={inputCls}
                 />
               </div>
@@ -1178,9 +1192,10 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 <label className="block text-xs font-medium text-foreground">Client ID</label>
                 <input
                   type="text"
-                  required
+                  required={!isEditing}
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
+                  placeholder={isEditing ? 'Leave blank to keep existing' : undefined}
                   className={inputCls}
                 />
               </div>
@@ -1188,9 +1203,10 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 <label className="block text-xs font-medium text-foreground">Client Secret</label>
                 <input
                   type="password"
-                  required
+                  required={!isEditing}
                   value={clientSecret}
                   onChange={(e) => setSecret(e.target.value)}
+                  placeholder={isEditing ? 'Leave blank to keep existing' : undefined}
                   className={inputCls}
                 />
               </div>
@@ -1206,7 +1222,7 @@ function AddConnectorModal({ agentId, onClose, onCreated }: AddConnectorModalPro
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Add
+              {isEditing ? 'Save changes' : 'Add'}
             </button>
             <button
               type="button"
@@ -1537,6 +1553,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const queryClient = useQueryClient()
   const [expandedConnectorId, setExpandedConnectorId] = useState<string | null>(null)
   const [showAddConnector, setShowAddConnector] = useState(false)
+  const [editingConnector, setEditingConnector] = useState<Connector | null>(null)
   const [deletingConnector, setDeletingConnector] = useState<Connector | null>(null)
   // keyed by connectorId — tracks refetch signal per connector's tools
   const [toolRefetch] = useState<Record<string, number>>({})
@@ -1640,6 +1657,13 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     )}
                   </button>
                   <button
+                    onClick={() => setEditingConnector(connector)}
+                    aria-label={`Edit connector ${connector.name}`}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => setDeletingConnector(connector)}
                     aria-label={`Delete connector ${connector.name}`}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
@@ -1669,6 +1693,18 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
           onCreated={() => {
             queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
             setShowAddConnector(false)
+          }}
+        />
+      )}
+
+      {editingConnector && (
+        <AddConnectorModal
+          agentId={agent.id}
+          editingConnector={editingConnector}
+          onClose={() => setEditingConnector(null)}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
+            setEditingConnector(null)
           }}
         />
       )}

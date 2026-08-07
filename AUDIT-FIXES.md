@@ -237,3 +237,18 @@ Every violation of CLAUDE.md found during the full audit (see AUDIT-TASKS.md) is
 - One new draft test agent was created on demo@karix.online during wizard testing (normal app usage, not a DB write) — all 15 pre-existing agents and other accounts untouched
 
 ## ALL 6 PHASES OF THE GENERAL AUDIT COMPLETE (F1-F30) + separate Iris/Template deep-dive (see AUDIT-IRIS-CONSOLIDATED.md)
+
+## Overnight autonomous fix run (2026-08-07, founder asleep, full authorization given)
+**Baseline note:** repo had ~2 days of uncommitted prior work (last commit before tonight was 2026-08-05); consolidated into commit `707b23f` (tag `baseline-pre-audit-2026-08-07`) before any audit fix landed, so rollback stays clean going forward. `.local-keys/` (real JWT/crypto secrets) was found NOT gitignored — fixed in `0d393ea` before any broad `git add`.
+
+**Fixed (bundled into `707b23f` since it landed before the isolation lesson below):**
+- QA CRITICAL (Iris session cross-talk / stranded pending confirmation) — `TemplateIrisPage.tsx`: `startNewChat`/`resumeSession` now block while `sendMessage`/`confirmAction`/`cancelAction` is pending, and block (with a clear error) while a confirmation is pending, instead of allowing a switch that could misroute a reply or strand a confirmation. **Note:** the deeper fix from PM's C1 (backend returning `pendingToolName`/`pendingToolArgs` from `getMessages` so a resumed session can rehydrate a genuinely pending confirmation) is NOT done — this fix prevents the corruption/stranding but a session left with a pending confirmation before this fix shipped may still need manual cleanup. Flagged for backend work in a later batch.
+- EL H2 (AiCredentialService.upsert non-transactional) — `@Transactional` added.
+- FIX-020 (401 interceptor never cleared auth store) — `api.ts` now calls `useAuthStore.getState().clearAuth()` before redirect.
+- FIX-013 (AgentDetailPage hand-rolled delete overlay) — now routed through shared `Modal`, preserving the typed-name confirmation.
+- FIX-014 (Modal/ConfirmDeleteModal radius drift) — `Modal.tsx` → `rounded-xl`, `ConfirmDeleteModal.tsx` buttons → `rounded-lg`.
+- FIX-016 (Modal backdrop-blur / glassmorphism) — `backdrop-blur-sm` removed from `Modal.tsx`, per founder's standing rejection of glass/blur for this product.
+- Partial FIX-015 (raw Tailwind colors bypassing tokens) — `ConsequenceLine.tsx`'s hardcoded `amber-700/400` replaced with the `warning` token. Remaining instances (AgentDetailPage HTTP-method map, TemplateBuilderForm, EvalTab, TriggerEventModal, SkillsTab) NOT yet done — queued for the design-token batch.
+
+**Both frontend (`tsc -b --force`) and backend (`mvn -o compile`) verified clean before every commit tonight.**
+

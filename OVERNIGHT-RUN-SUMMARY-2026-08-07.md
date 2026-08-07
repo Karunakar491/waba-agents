@@ -46,6 +46,7 @@ Also: `h-screen`→`h-dvh` across 4 files, HTTP-method badge colors and prefligh
 ### Batch 8 (partial)
 - Iris session sidebar was rendering every session ever created — capped to 50 most recent server-side.
 - `api.ts` had zero client-side timeout — a hung connection left "thinking..." forever. Set to 60s.
+- **F29 (wizard refresh data loss)**: `CreateAgentPage`'s draft-resume logic fetched the agent just to confirm it exists, then discarded the response — refreshing mid-wizard kept the step indicator but silently reset every field to blank, falsely signaling progress was preserved. Now repopulates displayName/channel/businessDescription/tone/language/behaviorRules from the response (`faqs` intentionally excluded — they're client-side-only until a later step persists them, so there's genuinely nothing to recover for them before that point).
 
 ---
 
@@ -53,7 +54,7 @@ Also: `h-screen`→`h-dvh` across 4 files, HTTP-method badge colors and prefligh
 
 - **Batch 6 — shared Button/Input primitives**: CLAUDE.md's own Plan-First rule requires a written plan before touching >3 files, and this genuinely spans the whole frontend (115 hand-rolled buttons, 32 hand-rolled inputs across 17+ files). Rushing this at 5am risks exactly the kind of half-finished, inconsistent extraction the bible warns against. Needs a dedicated session.
 - **Batch 7 — karix-mcp resilience (circuit breaker, retry, health check, rate limiting)**: real infrastructure work (new dependency, config, possibly a new monitoring integration). Doing this properly needs EM design input on the right approach, not a rushed implementation.
-- **Remaining Batch 8 items** (mobile table fallback, message-list virtualization, composer cancel/abort, `CreateAgentPage` wizard-refresh data loss): each is a genuine multi-file UI change. Attempting all of them at the tail end of a long session risks shipping shallow, undertested fixes to user-facing surfaces.
+- **Remaining Batch 8 items** (mobile table fallback, message-list virtualization, composer cancel/abort): each is a genuine multi-file UI change. Attempting all of them at the tail end of a long session risks shipping shallow, undertested fixes to user-facing surfaces.
 - **Batch 10 — Iris chat surface creative redesign**: Design Evaluator's BLOCK verdict was specifically about the surface lacking real creative ideation, not a mechanical bug — the fix *is* a genuine design process (multiple directions, a signature move, evaluator re-review), which cannot be done well by rushing it. This is the single biggest remaining item and deserves your input on direction before I run with it alone.
 
 ## Visual verification gap

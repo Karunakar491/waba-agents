@@ -77,10 +77,18 @@ export default function CreateAgentPage() {
   const set = <K extends keyof WizardState>(key: K, value: WizardState[K]) =>
     setState((s) => ({ ...s, [key]: value }))
 
-  // Resume a draft if the browser closed/crashed mid-wizard. Only agentId +
-  // step are persisted (the actual field values already live server-side
-  // via saveAndGo's autosave) — hydrated once on mount, confirming the
-  // draft agent still exists before trusting the persisted step.
+  // Resume a draft if the browser closed/crashed mid-wizard. agentId + step
+  // are persisted locally; the actual field values live server-side via
+  // saveAndGo's autosave — hydrated once on mount, confirming the draft
+  // agent still exists before trusting the persisted step.
+  //
+  // QA-caught gap (2026-08-07 audit, F29): this used to fetch the agent just
+  // to confirm it exists, then discard the response entirely — step
+  // position was restored but every field reset to blank, while the wizard
+  // visually signaled progress was preserved. Now repopulates state from
+  // the response. faqs are intentionally NOT restored here — they're held
+  // client-side only until a later step persists them, so a mid-wizard
+  // refresh before that point genuinely has nothing to recover for them.
   const hydratedDraft = useRef(false)
   useEffect(() => {
     if (hydratedDraft.current) return
@@ -93,8 +101,18 @@ export default function CreateAgentPage() {
         setHydrating(false)
         return
       }
-      api.get(`/agents/${draft.agentId}`).then(() => {
-        set('agentId', draft.agentId)
+      api.get(`/agents/${draft.agentId}`).then((r) => {
+        const agent = r.data.data
+        setState((s) => ({
+          ...s,
+          agentId: draft.agentId,
+          displayName: agent.displayName ?? s.displayName,
+          businessDescription: agent.systemPrompt ?? s.businessDescription,
+          channel: agent.channel ?? s.channel,
+          tone: agent.tone ?? s.tone,
+          language: agent.language ?? s.language,
+          behaviorRules: agent.behaviorRules ?? s.behaviorRules,
+        }))
         setStep(draft.step)
       }).catch(() => {
         sessionStorage.removeItem('create-agent-draft')

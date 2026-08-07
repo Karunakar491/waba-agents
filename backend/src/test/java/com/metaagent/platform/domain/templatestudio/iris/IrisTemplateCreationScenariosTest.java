@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioService;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.service.WabaService;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,7 @@ class IrisTemplateCreationScenariosTest {
         service = new IrisConversationService(
                 sessionRepository, messageRepository, aiCredentialService,
                 templateStudioService, karixMessagingClient, wabaService,
+                Validation.buildDefaultValidatorFactory().getValidator(),
                 List.of(adapter), new ObjectMapper());
 
         when(adapter.provider()).thenReturn(AiProvider.CLAUDE);

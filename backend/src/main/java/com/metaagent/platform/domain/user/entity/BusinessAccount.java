@@ -1,6 +1,8 @@
 package com.metaagent.platform.domain.user.entity;
 
 import com.metaagent.platform.common.id.TsidGenerator;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
@@ -18,6 +20,7 @@ public class BusinessAccount {
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long id;
 
     @Column(nullable = false)

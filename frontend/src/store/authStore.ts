@@ -2,10 +2,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface User {
-  id: number
+  // TSIDs overflow JS Number.MAX_SAFE_INTEGER — backend serializes these as
+  // strings (ToStringSerializer); keep as string end-to-end, never coerce to number.
+  id: string
   email: string
   name: string
-  accountId: number
+  accountId: string
 }
 
 interface AuthState {

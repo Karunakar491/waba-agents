@@ -6,12 +6,13 @@ import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
 import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
+import { UiSkillsLibraryTable, type UiSkillRow } from '../components/skills/UiSkillsLibraryTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 
-type SkillTab = 'mine' | 'browse'
+type SkillTab = 'mine' | 'ui-skills' | 'browse'
 
 interface WabaEntry {
   id: string
@@ -29,7 +30,8 @@ interface LibrarySkill extends SkillRow {
 
 export default function SkillLibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab: SkillTab = searchParams.get('tab') === 'browse' ? 'browse' : 'mine'
+  const tabParam = searchParams.get('tab')
+  const activeTab: SkillTab = tabParam === 'browse' ? 'browse' : tabParam === 'ui-skills' ? 'ui-skills' : 'mine'
   const queryClient = useQueryClient()
   const [editingSkill, setEditingSkill] = useState<LibrarySkill | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -52,6 +54,12 @@ export default function SkillLibraryPage() {
     queryKey: ['library-skills', waba?.id],
     queryFn: () => api.get('/skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba,
+  })
+
+  const { data: uiSkills = [], isLoading: uiSkillsLoading } = useQuery<UiSkillRow[]>({
+    queryKey: ['library-ui-skills', waba?.id],
+    queryFn: () => api.get('/ui-skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
+    enabled: !!waba && activeTab === 'ui-skills',
   })
 
   const filteredRows = useMemo(() => {
@@ -98,10 +106,10 @@ export default function SkillLibraryPage() {
           separate routes with a back-link between them; now one page, one
           mental context. */}
       <div className="flex gap-4 border-b">
-        {(['mine', 'browse'] as const).map((tab) => (
+        {(['mine', 'ui-skills', 'browse'] as const).map((tab) => (
           <button
             key={tab}
-            onClick={() => setSearchParams(tab === 'mine' ? {} : { tab: 'browse' })}
+            onClick={() => setSearchParams(tab === 'mine' ? {} : { tab })}
             className={cn(
               'pb-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === tab
@@ -109,13 +117,35 @@ export default function SkillLibraryPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            {tab === 'mine' ? 'My Skills' : 'Browse Templates'}
+            {tab === 'mine' ? 'My Skills' : tab === 'ui-skills' ? 'UI Skills' : 'Browse Templates'}
           </button>
         ))}
       </div>
 
       {activeTab === 'browse' ? (
         <SkillTemplateBrowsePage />
+      ) : activeTab === 'ui-skills' ? (
+        <>
+          {!waba ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-20 text-center">
+              <Zap className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="font-semibold text-foreground">No WABA connected yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                Connect a WABA to see your agents' UI skills here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Every rich-message skill (carousel, CTA, interactive list, location) across every agent on{' '}
+                {waba.label ?? waba.wabaId}. Edit on the owning agent's Skills tab.
+              </p>
+              <div className="mt-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
+                <UiSkillsLibraryTable isLoading={uiSkillsLoading} rows={uiSkills} />
+              </div>
+            </>
+          )}
+        </>
       ) : (
         <>
           {deleteError && (

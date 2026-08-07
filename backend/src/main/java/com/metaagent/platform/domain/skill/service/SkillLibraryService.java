@@ -5,8 +5,10 @@ import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.entity.AgentSkill;
+import com.metaagent.platform.domain.agent.entity.AgentUiSkill;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.agent.repository.AgentSkillRepository;
+import com.metaagent.platform.domain.agent.repository.AgentUiSkillRepository;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.skill.dto.SkillDtos;
 import com.metaagent.platform.domain.skill.entity.AgentSkillAttachment;
@@ -48,6 +50,7 @@ public class SkillLibraryService {
     private final SkillRepository skillRepository;
     private final AgentSkillAttachmentRepository attachmentRepository;
     private final AgentSkillRepository agentSkillRepository;
+    private final AgentUiSkillRepository agentUiSkillRepository;
     private final AgentRepository agentRepository;
     private final WabaAccessGuard wabaAccessGuard;
     private final SkillTemplateRepository skillTemplateRepository;
@@ -141,6 +144,41 @@ public class SkillLibraryService {
             }
         }
         return result;
+    }
+
+    /**
+     * F22 (2026-08-07) — cross-agent UI Skills rollup, same shape as listSkills'
+     * agent lookup but simpler: no attachments/Draft/deployed concept, UI
+     * skills always live directly on their owning agent's phone number.
+     */
+    public List<SkillDtos.UiSkillView> listUiSkills(String wabaIdRaw) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        Long wabaId = parseId(wabaIdRaw);
+        requireWabaAccess(wabaId, accountId);
+
+        List<Agent> agents = agentRepository.findAllByWabaId(wabaId);
+        List<Long> agentIds = agents.stream().map(Agent::getId).toList();
+        if (agentIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Agent> agentsById = agents.stream()
+                .collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
+
+        return agentUiSkillRepository.findAllByAgentIdIn(agentIds).stream()
+                .map(s -> {
+                    Agent agent = agentsById.get(s.getAgentId());
+                    return new SkillDtos.UiSkillView(
+                            String.valueOf(s.getId()),
+                            s.getTitle(),
+                            s.getComponentType().name(),
+                            s.getStatus().name(),
+                            s.getInstruction(),
+                            String.valueOf(s.getAgentId()),
+                            agent != null ? agent.getDisplayName() : null,
+                            agent != null ? agent.getPhoneNumberId() : null
+                    );
+                })
+                .toList();
     }
 
     public SkillDtos.SkillResponse updateSkill(Long skillId, SkillDtos.UpdateRequest request) {

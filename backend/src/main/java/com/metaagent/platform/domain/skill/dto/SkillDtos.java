@@ -107,4 +107,21 @@ public final class SkillDtos {
             @NotNull(message = "wabaId is required")
             String wabaId
     ) {}
+
+    /** F22 (2026-08-07) — cross-agent UI Skills rollup for the Skill Library.
+     * No Library/attachment concept exists for UI skills (each is tied directly
+     * to one phone number on Meta's side, unlike plain Skills) — this is a
+     * read-only aggregate over every agent on the WABA, same "rollup, not
+     * source of truth" convention as ConnectorsTable/FileWebsiteTables. Edit
+     * happens on the owning agent's Skills tab, never here. */
+    public record UiSkillView(
+            String id,
+            String title,
+            String componentType,
+            String status,
+            String instruction,
+            String agentId,
+            String agentName,
+            String phoneNumberId
+    ) {}
 }

@@ -53,6 +53,11 @@ public class SkillLibraryController {
         return ApiResponse.ok(skillLibraryService.syncSkills(agentId));
     }
 
+    @GetMapping("/api/v1/ui-skills")
+    public ApiResponse<List<SkillDtos.UiSkillView>> listUiSkills(@RequestParam("wabaId") String wabaId) {
+        return ApiResponse.ok(skillLibraryService.listUiSkills(wabaId));
+    }
+
     @GetMapping("/api/v1/skill-templates")
     public ApiResponse<List<SkillDtos.SkillTemplateResponse>> listTemplates(
             @RequestParam(value = "industry", required = false) String industry,

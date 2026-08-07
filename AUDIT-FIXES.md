@@ -263,6 +263,17 @@ Founder shared Meta's Resumable Upload API flow (`/<APP_ID>/uploads` → upload 
 - Mobile table fallback (Dashboard/Agents/WabaDetail) — each table needs its full row-rendering logic (health badges, actions, conditional columns) duplicated into a card layout; genuine multi-hour work per table, too risky to rush in core pages.
 - Iris message-list virtualization — needs a new library decision (no virtualization dependency exists in `package.json`), same category of decision as the resilience4j question.
 
+## Founder-driven UI audit round (2026-08-07, live testing by founder found more real gaps)
+
+Founder used the actual product and found real gaps the automated audit missed:
+1. **Evals invisible during agent creation** — investigated: backend works correctly (verified live), gap was pure discoverability. Added a 6th "Evaluate" wizard step reusing the existing EvalTab.
+2. **Another live TSID gap** — found while testing #1: `GET /agents` returned `"accountId":867344590959546368` as a raw unquoted number. Swept the entire domain model and found the identical gap on 23 entities (all had `@Id` annotated correctly from earlier tonight's fix, but their `account_id` FK column was never covered — that fix was explicitly scoped to primary keys only). Fixed all 23, plus `Agent.updatedBy` and `WebhookRaw.agentId` found in the same sweep. Verified live post-deploy: correctly quoted now.
+3. **No copy-to-clipboard anywhere** — added shared `CopyButton`, wired into Inbox message bubbles first (highest-traffic candidate); broader rollout (API responses elsewhere) still pending.
+4. **No way to view logged webhooks** — added a Webhooks tab in Inbox, new account-scoped `GET /api/v1/webhooks/raw` (capped at 100 most recent), each entry shows payload/signature/status with copy-to-clipboard.
+5. **Bonus catch while in InboxPage**: outbound message bubble used `bg-brand-navy` as content fill — banned per DESIGN.md (chrome-only). Fixed to `bg-brand-pink`.
+
+**Still open from this round:** systematic "every record type should have Edit, not just Copy/Delete" audit across Connectors and Files libraries (confirmed missing entirely, not just weak) — Skills and Business Persona already have edit. Needs a design decision on what "editing a connector" means given `ConnectorLibraryPage` is a cross-agent rollup view, not the source of truth (the actual connector lives on a specific agent).
+
 ## Consolidated P0 (see AUDIT-TASKS.md Phase 4 roadmap table for full EM feasibility notes)
 1. F1 — no embedded WABA signup (BLOCKED on Meta Tech Provider status — external dependency, not pure eng)
 2. FIX-001/U1 — retired navy hex still live as --primary system-wide

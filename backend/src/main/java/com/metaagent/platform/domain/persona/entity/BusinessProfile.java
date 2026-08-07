@@ -27,6 +27,7 @@ public class BusinessProfile {
     private Long id;
 
     @Column(name = "account_id")
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long accountId; // null only for ARCHIVED rows discovered live on Meta with no local owner ("unmanaged")
 
     @Column(name = "phone_number_id")

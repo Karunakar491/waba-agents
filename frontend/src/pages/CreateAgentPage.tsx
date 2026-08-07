@@ -15,6 +15,7 @@ import {
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
+import EvalTab from '../components/agent-detail/EvalTab'
 
 /* ------------------------------------------------------------------ */
 /* Types + wizard store (spec section 4 — 5-step Create Agent wizard) */
@@ -44,7 +45,11 @@ const STEPS = [
   { n: 2, title: 'Personality', desc: 'Tone and behavior' },
   { n: 3, title: 'Knowledge', desc: 'FAQs (optional)' },
   { n: 4, title: 'Connect', desc: 'Link your WhatsApp number' },
-  { n: 5, title: 'Go live', desc: 'Review and publish' },
+  // Founder-caught gap (2026-08-07): Evals existed only as a post-creation
+  // AgentDetailPage tab, invisible during the wizard entirely. Added here
+  // rather than left to be discovered later, reusing the same EvalTab.
+  { n: 5, title: 'Evaluate', desc: 'Meta-configured test scenarios (optional)' },
+  { n: 6, title: 'Go live', desc: 'Review and publish' },
 ] as const
 
 const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
@@ -291,10 +296,13 @@ export default function CreateAgentPage() {
             <StepConnections onBack={() => setStep(3)} onNext={() => setStep(5)} />
           )}
           {step === 5 && (
+            <StepEvaluate agentId={state.agentId} onBack={() => setStep(4)} onNext={() => setStep(6)} />
+          )}
+          {step === 6 && (
             <StepGoLive
               state={state}
               saving={saving}
-              onBack={() => setStep(4)}
+              onBack={() => setStep(5)}
               onFinish={finish}
               onGoToConnect={() => setStep(4)}
             />
@@ -755,7 +763,32 @@ function StepConnections({ onBack, onNext }: { onBack: () => void; onNext: () =>
 }
 
 /* ------------------------------------------------------------------ */
-/* Step 5 — Go live                                                    */
+/* Step 5 — Evaluate                                                   */
+/* ------------------------------------------------------------------ */
+
+function StepEvaluate({ agentId, onBack, onNext }: { agentId: string | null; onBack: () => void; onNext: () => void }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Evaluate</h2>
+        <p className="text-sm text-muted-foreground">
+          Meta-configured test scenarios for this number, if any exist. Optional — most agents have none yet.
+        </p>
+      </div>
+      {agentId ? (
+        <EvalTab agentId={agentId} />
+      ) : (
+        <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-4 text-sm text-muted-foreground">
+          Save step 1 first to see this agent's eval status.
+        </div>
+      )}
+      <WizardNav onBack={onBack} onNext={onNext} />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Step 6 — Go live                                                    */
 /* ------------------------------------------------------------------ */
 
 function StepGoLive({

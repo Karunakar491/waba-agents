@@ -31,6 +31,7 @@ public class Skill {
     private Long id;
 
     @Column(name = "account_id", nullable = false)
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long accountId;
 
     /** NULL = not yet shared with any WABA. Set = visible/attachable to every agent on that WABA. */

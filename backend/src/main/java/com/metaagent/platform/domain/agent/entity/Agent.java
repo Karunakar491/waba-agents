@@ -34,11 +34,20 @@ public class Agent {
      * this agent is bound to a WABA. Retained (not dropped) for one release
      * as a safety net per the 2026-07-28 decoupling decision.
      */
+    // EL-caught gap (2026-08-07 audit): confirmed live -- GET /agents returns
+    // this entity directly, and accountId/updatedBy were the only two Long
+    // fields on it missing @JsonSerialize, reaching the client as raw JSON
+    // numbers ("accountId":867344590959546368) exceeding
+    // Number.MAX_SAFE_INTEGER while id/wabaId right below were correctly
+    // annotated -- an inconsistent application of the same fix, same class
+    // of bug as F17.
     @Column(name = "account_id", nullable = false)
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long accountId;
 
     /** Last account to edit this agent — audit stamp, not an ownership field. */
     @Column(name = "updated_by")
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long updatedBy;
 
     /** Null until a phone is bound via the WABA connection flow. Unique when set. */

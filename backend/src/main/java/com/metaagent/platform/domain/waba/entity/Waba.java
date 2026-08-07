@@ -26,6 +26,7 @@ public class Waba {
     private Long id;
 
     @Column(name = "account_id", nullable = false)
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long accountId;
 
     /** Meta's numeric WABA ID as entered by the user. */

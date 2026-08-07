@@ -1,6 +1,7 @@
 package com.metaagent.platform.common.exception;
 
 import com.metaagent.platform.common.response.ApiResponse;
+import com.metaagent.platform.domain.templatestudio.TemplateStudioException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(NotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TemplateStudioException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTemplateStudio(TemplateStudioException ex) {
+        // Logged in full here — the response body is deliberately never
+        // returned to the client (karix-mcp's internal error shape must not
+        // leak), but that meant it was going completely undiagnosed on
+        // every failure. This is the ONLY place it should ever be logged.
+        log.warn("TemplateStudioException: status={} body={}", ex.getStatusCode(), ex.getResponseBody());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(BusinessException.class)

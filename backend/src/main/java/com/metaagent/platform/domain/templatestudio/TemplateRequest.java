@@ -14,7 +14,7 @@ public record TemplateRequest(
     @NotNull(message = "components is required") @NotEmpty(message = "components must not be empty") List<Map<String, Object>> components,
     Integer codeExpirationMinutes
 ) {
-    Map<String, Object> toKarixPayload() {
+    public Map<String, Object> toKarixPayload() {
         Map<String, Object> payload = new java.util.HashMap<>();
         payload.put("template_name", templateName);
         payload.put("language", language);

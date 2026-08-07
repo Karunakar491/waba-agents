@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.templatestudio.EditTemplateRequest;
+import com.metaagent.platform.domain.templatestudio.TemplateRequest;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioService;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.service.WabaService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Service;
@@ -74,7 +78,10 @@ public class IrisConversationService {
             "HEADER {type,format} where format is TEXT/IMAGE/VIDEO/DOCUMENT/LOCATION — optional; no media link needed at creation time. " +
             "FOOTER {type,text} — optional. " +
             "BUTTONS {type,buttons:[...]} — at most ONE such component wrapping ALL buttons in one nested array, " +
-            "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP.";
+            "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP. " +
+            "For category AUTHENTICATION specifically, the BUTTONS component's single button MUST be " +
+            "{\"type\":\"OTP\",\"otp_type\":\"COPY_CODE\",\"example\":\"<sample one-time code, e.g. 123456>\"} — " +
+            "Meta rejects an AUTHENTICATION template missing otp_type or example on the OTP button (PM-caught gap, 2026-08-07 audit).";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;
@@ -82,6 +89,7 @@ public class IrisConversationService {
     private final TemplateStudioService templateStudioService;
     private final KarixMessagingClient karixMessagingClient;
     private final WabaService wabaService;
+    private final Validator validator;
     private final List<AiProviderAdapter> adapters;
     private final ObjectMapper objectMapper;
 
@@ -131,6 +139,17 @@ public class IrisConversationService {
     public record TurnResponse(String sessionId, String reply, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
     public record SessionSummary(String id, String title, java.time.LocalDateTime updatedAt) {}
     public record MessageDto(String role, String content, java.time.LocalDateTime createdAt) {}
+    /**
+     * PM-caught gap (2026-08-07 audit, finding C1): resuming a session used
+     * to only return its messages, silently dropping any pending
+     * confirmation — a user who navigated away mid-confirmation and came
+     * back had no way to see or act on it, and the next message they sent
+     * hard-failed on the "pending action awaiting confirmation" guard with
+     * no visible reason why. Now resuming restores the exact same
+     * needsConfirmation/pendingToolName/pendingToolArgs shape sendMessage
+     * returns, so the frontend can rehydrate the confirm panel.
+     */
+    public record SessionResumeResponse(List<MessageDto> messages, boolean needsConfirmation, String pendingToolName, Map<String, Object> pendingToolArgs) {}
 
     private static final int TITLE_MAX_LENGTH = 120;
 
@@ -147,11 +166,14 @@ public class IrisConversationService {
                 .toList();
     }
 
-    public List<MessageDto> getMessages(Long sessionId) {
-        requireOwnedSession(sessionId);
-        return conversationHistory(sessionId).stream()
+    public SessionResumeResponse getMessages(Long sessionId) {
+        IrisSession session = requireOwnedSession(sessionId);
+        List<MessageDto> messages = conversationHistory(sessionId).stream()
                 .map(m -> new MessageDto(m.getRole().name(), m.getContent(), m.getCreatedAt()))
                 .toList();
+        boolean needsConfirmation = session.getPendingToolName() != null;
+        Map<String, Object> pendingArgs = needsConfirmation ? readJson(session.getPendingToolArgsJson()) : null;
+        return new SessionResumeResponse(messages, needsConfirmation, session.getPendingToolName(), pendingArgs);
     }
 
     public TurnResponse sendMessage(Long sessionId, String userText) {
@@ -249,23 +271,29 @@ public class IrisConversationService {
             throw new BusinessException("That WABA isn't available on this account.");
         }
         return switch (toolName) {
+            // EL-caught gap (2026-08-07 audit): this used to build the raw
+            // Karix payload by hand from model output, bypassing the exact
+            // @Valid TemplateRequest/EditTemplateRequest validation the
+            // human UI path enforces — a model-drafted template could reach
+            // Karix with no schema check at all beyond system-prompt prose.
+            // Now runs through the SAME validated DTO the controller uses.
             case "create_template" -> {
-                Map<String, Object> payload = new java.util.HashMap<>(Map.of(
-                        "template_name", args.get("templateName"),
-                        "language", args.get("language"),
-                        "category", args.get("category"),
-                        "components", args.get("components")));
-                if (args.get("codeExpirationMinutes") != null) {
-                    payload.put("code_expiration_minutes", args.get("codeExpirationMinutes"));
-                }
-                yield templateStudioService.createTemplate(wabaId, payload);
+                TemplateRequest request = new TemplateRequest(
+                        String.valueOf(args.get("templateName")),
+                        String.valueOf(args.get("language")),
+                        String.valueOf(args.get("category")),
+                        castComponents(args.get("components")),
+                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
+                validateOrThrow(request);
+                yield templateStudioService.createTemplate(wabaId, request.toKarixPayload());
             }
             case "edit_template" -> {
-                Map<String, Object> payload = new java.util.HashMap<>(Map.of("components", args.get("components")));
-                if (args.get("codeExpirationMinutes") != null) {
-                    payload.put("code_expiration_minutes", args.get("codeExpirationMinutes"));
-                }
-                yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), payload);
+                EditTemplateRequest request = new EditTemplateRequest(
+                        castComponents(args.get("components")),
+                        null, null, null,
+                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
+                validateOrThrow(request);
+                yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), request.toKarixPayload());
             }
             case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
             case "send_test_template" -> {
@@ -277,6 +305,25 @@ public class IrisConversationService {
             }
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> castComponents(Object rawComponents) {
+        if (!(rawComponents instanceof List<?> list)) {
+            throw new BusinessException("components must be a list.");
+        }
+        return (List<Map<String, Object>>) list;
+    }
+
+    private <T> void validateOrThrow(T request) {
+        Set<ConstraintViolation<T>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            String message = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .findFirst()
+                    .orElse("Validation failed");
+            throw new BusinessException(message);
+        }
     }
 
     private String describeWabas(List<Waba> wabas) {

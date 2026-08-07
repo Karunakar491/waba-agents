@@ -42,6 +42,12 @@ interface TurnResponse {
 
 interface SessionSummary { id: string; title: string | null; updatedAt: string }
 interface MessageDto { role: string; content: string; createdAt: string }
+interface SessionResumeResponse {
+  messages: MessageDto[]
+  needsConfirmation: boolean
+  pendingToolName: string | null
+  pendingToolArgs: Record<string, unknown> | null
+}
 
 function newEntryId() {
   return crypto.randomUUID()
@@ -116,15 +122,20 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     setResuming(true)
     setError(null)
     try {
-      const messages = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as MessageDto[])
+      const resume = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as SessionResumeResponse)
       setSessionId(id)
-      setEntries(messages.map((m) => ({
+      setEntries(resume.messages.map((m) => ({
         id: newEntryId(),
         who: m.role === 'USER' ? 'user' as const : 'iris' as const,
         text: m.content,
         status: 'sent' as const,
       })))
-      setPending(null)
+      // PM-caught gap (2026-08-07 audit, C1): a session left with an
+      // unresolved confirmation used to silently lose that state on resume —
+      // the confirm panel never came back and the next message hard-failed.
+      setPending(resume.needsConfirmation && resume.pendingToolName && resume.pendingToolArgs
+        ? { toolName: resume.pendingToolName, args: resume.pendingToolArgs }
+        : null)
     } catch (err) {
       setError(extractErrorMessage(err))
     } finally {

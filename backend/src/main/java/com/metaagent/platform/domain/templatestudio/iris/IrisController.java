@@ -30,7 +30,7 @@ public class IrisController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
-    public ApiResponse<java.util.List<IrisConversationService.MessageDto>> getMessages(@PathVariable Long sessionId) {
+    public ApiResponse<IrisConversationService.SessionResumeResponse> getMessages(@PathVariable Long sessionId) {
         return ApiResponse.ok(conversationService.getMessages(sessionId));
     }
 

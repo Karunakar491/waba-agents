@@ -13,7 +13,7 @@ public record EditTemplateRequest(
     Boolean allowCategoryChange,
     Integer codeExpirationMinutes
 ) {
-    Map<String, Object> toKarixPayload() {
+    public Map<String, Object> toKarixPayload() {
         Map<String, Object> payload = new java.util.HashMap<>();
         payload.put("components", components);
         if (altTempBody != null) payload.put("alt_temp_body", altTempBody);

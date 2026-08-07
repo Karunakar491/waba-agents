@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Loader2, Eye } from 'lucide-react'
+import { Check, Loader2, Eye, Search, BookOpen } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import ErrorBanner from '../components/shared/ErrorBanner'
@@ -19,13 +19,15 @@ interface SkillTemplate {
   useCase: string
 }
 
-// Merged into SkillLibraryPage as a tab (2026-08-05) — was a separate route
-// with its own back-button/page-heading; now a self-contained tab body. Row
-// list converted to a card grid: this is a browse-and-pick catalog job, not
-// a comparison table, and a cramped single-line row undersold the "read the
-// pitch, then act" job a template gallery needs (per the earlier UX audit).
+// Founder-caught gap (2026-08-07): the chip-row filter read as a generic
+// tag cloud, not a real library — no search, no result count, cards too
+// cramped to read. Replaced with a proper filter bar (search + two
+// dropdowns, matching the select pattern "My Skills" already uses) and a
+// visible result count, same "library, not a chip soup" brief as the rest
+// of tonight's audit round.
 export default function SkillTemplateBrowsePage() {
   const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
   const [industry, setIndustry] = useState('')
   const [useCase, setUseCase] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -46,9 +48,13 @@ export default function SkillTemplateBrowsePage() {
   const industries = useMemo(() => Array.from(new Set(templates.map((t) => t.industry))).sort(), [templates])
   const useCases = useMemo(() => Array.from(new Set(templates.map((t) => t.useCase))).sort(), [templates])
 
-  const filtered = templates.filter(
-    (t) => (!industry || t.industry === industry) && (!useCase || t.useCase === useCase),
-  )
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return templates
+      .filter((t) => !industry || t.industry === industry)
+      .filter((t) => !useCase || t.useCase === useCase)
+      .filter((t) => !q || t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+  }, [templates, search, industry, useCase])
 
   const copyMutation = useMutation({
     mutationFn: (templateId: string) =>
@@ -62,7 +68,7 @@ export default function SkillTemplateBrowsePage() {
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         Karix-curated reference skills, by industry and use case. Copy one to start your own — editing your copy never changes the original.
       </p>
@@ -74,16 +80,46 @@ export default function SkillTemplateBrowsePage() {
       )}
 
       {!isLoading && templates.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterChip label="All industries" active={!industry} onClick={() => setIndustry('')} />
-          {industries.map((i) => (
-            <FilterChip key={i} label={i} active={industry === i} onClick={() => setIndustry(i)} />
-          ))}
-          <span className="mx-1 h-4 w-px bg-border" />
-          <FilterChip label="All use cases" active={!useCase} onClick={() => setUseCase('')} />
-          {useCases.map((u) => (
-            <FilterChip key={u} label={u} active={useCase === u} onClick={() => setUseCase(u)} />
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search skills by title or description…"
+              className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+            />
+          </div>
+          <label htmlFor="template-industry-filter" className="sr-only">Filter by industry</label>
+          <select
+            id="template-industry-filter"
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            className="rounded-lg border bg-background px-3 py-2.5 text-sm"
+          >
+            <option value="">All industries</option>
+            {industries.map((i) => (
+              <option key={i} value={i}>{i}</option>
+            ))}
+          </select>
+          <label htmlFor="template-usecase-filter" className="sr-only">Filter by use case</label>
+          <select
+            id="template-usecase-filter"
+            value={useCase}
+            onChange={(e) => setUseCase(e.target.value)}
+            className="rounded-lg border bg-background px-3 py-2.5 text-sm"
+          >
+            <option value="">All use cases</option>
+            {useCases.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground shrink-0">
+            {filtered.length} of {templates.length} skill{templates.length === 1 ? '' : 's'}
+          </p>
         </div>
       )}
 
@@ -93,6 +129,7 @@ export default function SkillTemplateBrowsePage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 py-16 text-center">
+          <BookOpen className="h-8 w-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No templates match this filter.</p>
         </div>
       ) : (
@@ -103,13 +140,20 @@ export default function SkillTemplateBrowsePage() {
               className="flex flex-col rounded-xl border bg-card p-5 shadow-surface-resting transition-all
                 hover:shadow-surface-lifted hover:border-primary/30"
             >
-              <p className="text-sm font-semibold text-foreground">{template.title}</p>
-              <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-6">{template.description}</p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full bg-muted px-2 py-0.5">{template.industry}</span>
-                <span className="rounded-full bg-muted px-2 py-0.5">{template.useCase}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                </div>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {template.useCase}
+                </span>
               </div>
-              <div className="mt-4 flex items-center gap-2">
+              <p className="mt-3 text-sm font-semibold text-foreground">{template.title}</p>
+              <p className="mt-1.5 flex-1 text-sm text-muted-foreground line-clamp-5">{template.description}</p>
+              <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                {template.industry}
+              </div>
+              <div className="mt-3 flex items-center gap-2">
                 <button
                   onClick={() => setViewingTemplate(template)}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs
@@ -172,18 +216,5 @@ export default function SkillTemplateBrowsePage() {
         </Modal>
       )}
     </div>
-  )
-}
-
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-        active ? 'border border-primary bg-primary/10 text-primary' : 'border border-transparent bg-muted text-muted-foreground hover:bg-muted/70'
-      }`}
-    >
-      {label}
-    </button>
   )
 }

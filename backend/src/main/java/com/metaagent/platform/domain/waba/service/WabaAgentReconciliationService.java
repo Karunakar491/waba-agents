@@ -3,6 +3,7 @@ package com.metaagent.platform.domain.waba.service;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.waba.entity.WabaAccountAccess;
+import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
 import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import com.metaagent.platform.infrastructure.meta.MetaApiException;
@@ -37,6 +38,7 @@ public class WabaAgentReconciliationService {
     private final AgentRepository agentRepository;
     private final WabaAccountAccessRepository wabaAccountAccessRepository;
     private final MetaApiClient metaApiClient;
+    private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
 
     public void reconcile(Long wabaId, Long accountId, List<String> phoneNumberIds) {
         grantAccessIfMissing(wabaId, accountId);
@@ -109,14 +111,18 @@ public class WabaAgentReconciliationService {
                 .wabaId(wabaId)
                 .phoneNumberId(phoneNumberId)
                 .metaAgentId(String.valueOf(entry.get("agent_id")))
-                // TASK-063/066 reverted (2026-07-30): Meta's verified_name is the
-                // WABA's registered business name, NOT the per-client identity —
-                // multiple distinct client agents on a shared Karix-owned WABA all
-                // share the same verified_name, so resolving it here silently
-                // collapsed unrelated businesses into one indistinguishable label.
-                // The phoneNumberId-based placeholder is honestly unique; a human
-                // renames it via the agent's Settings tab once they know who it is.
-                .displayName("Imported agent (" + phoneNumberId + ")")
+                // Founder-caught gap (2026-08-07): "Imported agent (id)" leaked
+                // as a literal, permanent-looking label across every screen
+                // that shows this agent, reading as a bug rather than a
+                // placeholder. TASK-063/066 (2026-07-30) rightly rejected
+                // Meta's verified_name here — it's the WABA's shared business
+                // name, not per-client, so it collapsed distinct agents into
+                // one label. displayPhoneNumber doesn't have that problem: a
+                // WABA's phone numbers are inherently unique, so this stays a
+                // real, honest, per-agent identifier instead of a fake name —
+                // falls back to the old placeholder only if no snapshot has
+                // synced yet.
+                .displayName(resolveImportedDisplayName(accountId, phoneNumberId))
                 .channel(Agent.Channel.whatsapp)
                 .status(rolloutEnabled ? Agent.Status.active : Agent.Status.paused)
                 .enabled(rolloutEnabled)
@@ -129,5 +135,13 @@ public class WabaAgentReconciliationService {
         } catch (DataIntegrityViolationException e) {
             // Another concurrent view already imported this number — fine, unique index wins.
         }
+    }
+
+    /** See the displayName() call site above for why displayPhoneNumber, not verified_name. */
+    private String resolveImportedDisplayName(Long accountId, String phoneNumberId) {
+        return phoneNumberSnapshotRepository.findByAccountIdAndPhoneNumberId(accountId, phoneNumberId)
+                .map(snapshot -> snapshot.getDisplayPhoneNumber())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse("Imported agent (" + phoneNumberId + ")");
     }
 }

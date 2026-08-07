@@ -11,8 +11,10 @@ import com.metaagent.platform.domain.agent.entity.*;
 import com.metaagent.platform.domain.agent.repository.*;
 import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
 import com.metaagent.platform.domain.conversation.repository.MessageRepository;
+import com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
+import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.domain.webhook.repository.WebhookRawRepository;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
@@ -47,6 +49,7 @@ public class AgentService {
     private final ConversationRepository conversationRepository;
     private final WebhookRawRepository webhookRawRepository;
     private final MetaMirrorReconciler metaMirrorReconciler;
+    private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -246,6 +249,29 @@ public class AgentService {
     public Agent getAgent(Long id) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         return agentAccessService.getAccessible(id, accountId);
+    }
+
+    /**
+     * Founder-caught gap (2026-08-07): the frontend's "retry resolving this
+     * agent's real name from Meta" button called this exact endpoint, which
+     * never existed on the backend at all — a dead 404 button. Also fixes
+     * the source: WabaAgentReconciliationService now tries displayPhoneNumber
+     * first on creation, so this is really only needed for agents imported
+     * before that fix, or where no phone snapshot had synced yet at
+     * import time.
+     */
+    @Transactional
+    public Agent refreshName(Long id) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        Agent agent = agentAccessService.getAccessible(id, accountId);
+        if (agent.getPhoneNumberId() == null || !agent.getDisplayName().startsWith("Imported agent (")) {
+            return agent;
+        }
+        phoneNumberSnapshotRepository.findByAccountIdAndPhoneNumberId(accountId, agent.getPhoneNumberId())
+                .map(PhoneNumberSnapshot::getDisplayPhoneNumber)
+                .filter(name -> name != null && !name.isBlank())
+                .ifPresent(agent::setDisplayName);
+        return agentRepository.save(agent);
     }
 
     /**

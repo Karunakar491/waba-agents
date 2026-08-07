@@ -1,4 +1,5 @@
-import { FileText, Globe, Loader2, Trash2 } from 'lucide-react'
+import { FileText, Globe, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import StatusIndicator from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
 import TableEmptyState from '../shared/TableEmptyState'
@@ -30,8 +31,14 @@ function syncBadge(metaSynced: boolean) {
   return <StatusIndicator label="Not synced" tone="warning" />
 }
 
+// Founder-caught gap (2026-08-07): the legacy "Imported agent (id)" name
+// already contains the phone number id, so unconditionally appending it
+// again rendered "Imported agent (123) (123)". Only append when it isn't
+// already present in the name.
 function deployedOn(agentName: string | null, phoneNumberId: string | null) {
-  return `${agentName ?? 'Unknown agent'}${phoneNumberId ? ` (${phoneNumberId})` : ''}`
+  const name = agentName ?? 'Unknown agent'
+  const alreadyShown = phoneNumberId != null && name.includes(phoneNumberId)
+  return `${name}${phoneNumberId && !alreadyShown ? ` (${phoneNumberId})` : ''}`
 }
 
 export function FilesTable({
@@ -63,15 +70,28 @@ export function FilesTable({
             <td className="px-4 py-3">{syncBadge(row.metaSynced)}</td>
             <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
             <td className="px-4 py-3 text-muted-foreground">{new Date(row.lastEdited).toLocaleString()}</td>
+            {/* Founder-caught gap (2026-08-07): no edit action existed, only
+                delete. This page is a cross-agent rollup; the file's real
+                management UI (replace/re-upload) lives on its owning agent's
+                Knowledge tab. */}
             <td className="px-4 py-3 text-right">
-              <button
-                onClick={() => onDelete(row)}
-                disabled={deletingId === row.id}
-                aria-label={`Delete file ${row.filename}`}
-                className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-              >
-                {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </button>
+              <div className="flex items-center justify-end gap-1">
+                <Link
+                  to={`/agents/${row.agentId}?tab=knowledge`}
+                  aria-label={`Edit file ${row.filename}`}
+                  className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
+                <button
+                  onClick={() => onDelete(row)}
+                  disabled={deletingId === row.id}
+                  aria-label={`Delete file ${row.filename}`}
+                  className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                >
+                  {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </button>
+              </div>
             </td>
           </tr>
         ))}
@@ -110,14 +130,23 @@ export function WebsitesTable({
             <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
             <td className="px-4 py-3 text-muted-foreground">{new Date(row.lastEdited).toLocaleString()}</td>
             <td className="px-4 py-3 text-right">
-              <button
-                onClick={() => onDelete(row)}
-                disabled={deletingId === row.id}
-                aria-label={`Delete website ${row.url}`}
-                className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-              >
-                {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </button>
+              <div className="flex items-center justify-end gap-1">
+                <Link
+                  to={`/agents/${row.agentId}?tab=knowledge`}
+                  aria-label={`Edit website ${row.url}`}
+                  className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
+                <button
+                  onClick={() => onDelete(row)}
+                  disabled={deletingId === row.id}
+                  aria-label={`Delete website ${row.url}`}
+                  className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                >
+                  {deletingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </button>
+              </div>
             </td>
           </tr>
         ))}

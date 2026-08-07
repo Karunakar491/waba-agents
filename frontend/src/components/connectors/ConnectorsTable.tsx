@@ -1,4 +1,5 @@
-import { Cable } from 'lucide-react'
+import { Cable, Pencil } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import StatusIndicator, { type StatusTone } from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
 import TableEmptyState from '../shared/TableEmptyState'
@@ -45,6 +46,7 @@ export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows:
           <th className="px-4 py-3">Name</th>
           <th className="px-4 py-3">Status</th>
           <th className="px-4 py-3">Deployed on</th>
+          <th className="px-4 py-3 text-right">Actions</th>
         </tr>
       </thead>
       <tbody className="divide-y">
@@ -55,7 +57,24 @@ export function ConnectorsTable({ isLoading, rows }: { isLoading: boolean; rows:
               <StatusIndicator label={statusLabel(row.status)} tone={statusTone(row.status)} />
             </td>
             <td className="px-4 py-3 text-muted-foreground">
-              {row.agentName ?? 'Unknown agent'}{row.phoneNumberId ? ` (${row.phoneNumberId})` : ''}
+              {/* Founder-caught gap (2026-08-07): legacy "Imported agent (id)"
+                  names already contain the phone id, so appending it again
+                  rendered it twice. */}
+              {row.agentName ?? 'Unknown agent'}
+              {row.phoneNumberId && !(row.agentName ?? '').includes(row.phoneNumberId) ? ` (${row.phoneNumberId})` : ''}
+            </td>
+            {/* Founder-caught gap (2026-08-07): no edit action existed at all.
+                This page is a cross-agent rollup, not the source of truth —
+                the connector's real config lives on its owning agent, so Edit
+                deep-links there rather than duplicating the edit UI here. */}
+            <td className="px-4 py-3 text-right">
+              <Link
+                to={`/agents/${row.agentId}?tab=connectors`}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Link>
             </td>
           </tr>
         ))}

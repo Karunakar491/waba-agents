@@ -7,6 +7,7 @@ import api from '../lib/api'
 import { useJobPoll } from '../hooks/useJobPoll'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator from '../components/shared/StatusIndicator'
+import CopyButton from '../components/shared/CopyButton'
 
 type ReportTab = 'conversations' | 'eval' | 'api-calls'
 
@@ -346,18 +347,28 @@ function ApiCallsLog() {
   )
 }
 
+// Founder-caught gap (2026-08-07): request/response boxes had no copy
+// button and relied on awkward horizontal drag-scroll to read long JSON --
+// wrapping long lines (whitespace-pre-wrap break-all) plus a taller vertical
+// scroller reads far better than forcing horizontal scroll for JSON.
 function ApiCallDetail({ call }: { call: ApiCallLogRow }) {
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Request</p>
-        <pre className="max-h-48 overflow-auto rounded-lg bg-background border p-2 text-xs text-foreground">
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Request</p>
+          {call.requestBody && <CopyButton value={call.requestBody} />}
+        </div>
+        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-background border p-3 text-xs text-foreground">
           {call.requestBody ?? '(no body)'}
         </pre>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Response</p>
-        <pre className="max-h-48 overflow-auto rounded-lg bg-background border p-2 text-xs text-foreground">
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Response</p>
+          {call.responseBody && <CopyButton value={call.responseBody} />}
+        </div>
+        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-background border p-3 text-xs text-foreground">
           {call.responseBody ?? '(no body)'}
         </pre>
       </div>

@@ -73,6 +73,12 @@ public class AgentController {
         return ApiResponse.ok(agent);
     }
 
+    /** Founder-caught gap (2026-08-07): frontend already called this exact path, it never existed. */
+    @PostMapping("/{id}/refresh-name")
+    public ApiResponse<Agent> refreshName(@PathVariable Long id) {
+        return ApiResponse.ok(agentService.refreshName(id));
+    }
+
     @PostMapping("/{id}/deploy")
     public ApiResponse<Agent> deployAgent(@PathVariable Long id) {
         Agent agent = agentDeployService.deploy(id);

@@ -138,7 +138,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
-      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind. PUT /{id}/settings/audience (2026-08-04) makes ai_audience operator-settable for the first time (previously read-and-preserved only); GET/POST /{id}/allowlist + DELETE /{id}/allowlist/{entryId} — real use case: QA against test numbers, client-controlled phased rollouts."
+      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind. PUT /{id}/settings/audience (2026-08-04) makes ai_audience operator-settable for the first time (previously read-and-preserved only); GET/POST /{id}/allowlist + DELETE /{id}/allowlist/{entryId} — real use case: QA against test numbers, client-controlled phased rollouts. F22 (2026-08-07): GET/POST /{id}/ui-skills, GET/PUT/DELETE /{id}/ui-skills/{uiSkillId} — rich-message component skills, distinct Meta surface from plain skills."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentRequest.java",
@@ -197,6 +197,18 @@
       "purpose": "AgentSkill entity — TSID PK, agentId, accountId, skill instructions"
     },
     {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentUiSkill.java",
+      "purpose": "F22 (2026-08-07) — UI Skills entity, distinct from AgentSkill (plain text); componentType enum excludes flow (out of scope); meta_ui_skill_id VARCHAR(255) after V38 widened it (Meta IDs exceed 64 chars)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentUiSkillRepository.java",
+      "purpose": "F22 (2026-08-07) — findAllByAgentId/findByIdAndAgentId/deleteAllByAgentId for AgentUiSkill"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/UiSkillRequest.java",
+      "purpose": "F22 (2026-08-07) — title/componentType/status/instruction request DTO for UI Skills CRUD"
+    },
+    {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentWebsite.java",
       "purpose": "AgentWebsite entity — TSID PK, agentId, accountId, url. Meta crawls natively. TASK-062: metaSynced (false = reconciliation found this website missing from Meta's live list), verified live via a real drift repro (corrupted a local metaWebsiteId to a nonexistent value, confirmed reconciliation flipped it to false, restored)."
     },
@@ -238,7 +250,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
-      "purpose": "Agent domain service - CRUD via AgentAccessService (waba_account_access, not accountId) post-decoupling, updateAgent/bindPhone use per-agentId lock + stamp updatedBy, bindPhone checks waba_account_access instead of Waba.accountId, skills/faq/files/websites (2026-07-28: get/getSingle/update added for skills+faq+websites, get/getSingle for files — all read from local mirror tables, not live Meta proxy, per EM convention; addSkill's Meta field name fixed from 'body' to 'skill'); deleteAgent does full FK-safe cascade delete (pages->websites->faqs->skills->files->messages->conversations->webhook_raw) inside one @Transactional before deleting the agent row. Legacy AgentSkill rows still write through to Meta immediately (untouched by TASK-050) unless explicitly Promoted to the Skill Library — see domain/skill package. getSkills() now calls ensureSkillsBackfilled() first (TASK-054, 2026-07-30) — reactive, best-effort GET-then-local-INSERT for agents imported/reconciled from Meta whose skills were never locally mirrored; never fails the primary read, never writes to Meta. Only wired into the single-agent read path, NOT the TASK-053 aggregate Skills page (stays batched-only). getFaqs() now calls reconcileFaqs() first (TASK-059, 2026-07-30) — reactive, TTL-gated (Agent.faqReconciledAt, 10 min) GET agent_config/faq compared against local AgentFaq.metaFaqId rows, flips metaSynced to surface drift instead of silently trusting a WARN log; skips rows where metaSyncAttempted=false (draft-agent FAQs never pushed yet). KNOWN LIMITATION: Meta's GET agent_config/faq returns a genuine 500 for phone number 1550000250a22 specifically (confirmed bad/synthetic test data, not a platform bug — other real test numbers like 1103393549522539 work fine); reconciliation fails safe either way (never throws, getFaqs still returns 200). getFiles()/getWebsites() now call reconcileFiles()/reconcileWebsites() first (TASK-062, 2026-07-30) — same shape, TTL-gated via Agent.fileReconciledAt/websiteReconciledAt, but simpler than FAQ's version: no metaSyncAttempted concept needed since addFile/addWebsite already throw hard on a failed Meta write (no local-only save path exists). Drift-detection verified live end-to-end for websites (corrupted a local metaWebsiteId, confirmed the flag flipped, restored)."
+      "purpose": "Agent domain service - CRUD via AgentAccessService (waba_account_access, not accountId) post-decoupling, updateAgent/bindPhone use per-agentId lock + stamp updatedBy, bindPhone checks waba_account_access instead of Waba.accountId, skills/faq/files/websites (2026-07-28: get/getSingle/update added for skills+faq+websites, get/getSingle for files — all read from local mirror tables, not live Meta proxy, per EM convention; addSkill's Meta field name fixed from 'body' to 'skill'); deleteAgent does full FK-safe cascade delete (pages->websites->faqs->skills->files->messages->conversations->webhook_raw) inside one @Transactional before deleting the agent row. Legacy AgentSkill rows still write through to Meta immediately (untouched by TASK-050) unless explicitly Promoted to the Skill Library — see domain/skill package. getSkills() now calls ensureSkillsBackfilled() first (TASK-054, 2026-07-30) — reactive, best-effort GET-then-local-INSERT for agents imported/reconciled from Meta whose skills were never locally mirrored; never fails the primary read, never writes to Meta. Only wired into the single-agent read path, NOT the TASK-053 aggregate Skills page (stays batched-only). getFaqs() now calls reconcileFaqs() first (TASK-059, 2026-07-30) — reactive, TTL-gated (Agent.faqReconciledAt, 10 min) GET agent_config/faq compared against local AgentFaq.metaFaqId rows, flips metaSynced to surface drift instead of silently trusting a WARN log; skips rows where metaSyncAttempted=false (draft-agent FAQs never pushed yet). KNOWN LIMITATION: Meta's GET agent_config/faq returns a genuine 500 for phone number 1550000250a22 specifically (confirmed bad/synthetic test data, not a platform bug — other real test numbers like 1103393549522539 work fine); reconciliation fails safe either way (never throws, getFaqs still returns 200). getFiles()/getWebsites() now call reconcileFiles()/reconcileWebsites() first (TASK-062, 2026-07-30) — same shape, TTL-gated via Agent.fileReconciledAt/websiteReconciledAt, but simpler than FAQ's version: no metaSyncAttempted concept needed since addFile/addWebsite already throw hard on a failed Meta write (no local-only save path exists). Drift-detection verified live end-to-end for websites (corrupted a local metaWebsiteId, confirmed the flag flipped, restored). F22 (2026-08-07): addUiSkill/getUiSkills/getUiSkill/updateUiSkill/deleteUiSkill — same Meta-first-then-mirror pattern as legacy addSkill, base path api.facebook.com/{phoneNumberId}/agent-ui-skills (docs/meta-api/ui-skills.md), no agent_id scoping (not documented as needed, unlike agent_config/skills)."
     },
     {
       "path": "backend/src/main/resources/db/migration/V20__create_skill_library.sql",
@@ -676,7 +688,15 @@
     },
     {
       "path": "frontend/src/components/agent-detail/SkillsTab.tsx",
-      "purpose": "Skills tab — reads unified GET /agents/{id}/skills-view (union of legacy agent-scoped skills + Library-attached skills, TASK-050). Each row shows a Live/Out-of-sync badge; AGENT-source rows get a Promote-to-Library action + delete; a 'Sync skills' header button pushes stale Library-attached skills to Meta and shows per-item results inline."
+      "purpose": "Skills tab — reads unified GET /agents/{id}/skills-view (union of legacy agent-scoped skills + Library-attached skills, TASK-050). Each row shows a Live/Out-of-sync badge; AGENT-source rows get a Promote-to-Library action + delete; a 'Sync skills' header button pushes stale Library-attached skills to Meta and shows per-item results inline. Renders UiSkillsPanel below the plain-skills list (F22, 2026-08-07)."
+    },
+    {
+      "path": "frontend/src/components/agent-detail/UiSkillsPanel.tsx",
+      "purpose": "F22 (2026-08-07) — UI Skills list within the Skills tab (messaging section, founder-requested placement, not a separate page); GET/DELETE /agents/{id}/ui-skills[/{id}]"
+    },
+    {
+      "path": "frontend/src/components/agent-detail/UiSkillEditorModal.tsx",
+      "purpose": "F22 (2026-08-07) — create/edit form for UI Skills (title/componentType select excluding flow/status/instruction); POST/PUT /agents/{id}/ui-skills[/{id}]"
     },
     {
       "path": "frontend/src/components/agent-detail/SkillEditorModal.tsx",

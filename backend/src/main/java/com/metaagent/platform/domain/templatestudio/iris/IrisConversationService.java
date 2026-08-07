@@ -167,7 +167,7 @@ public class IrisConversationService {
 
     public List<SessionSummary> listSessions() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        return sessionRepository.findByAccountIdOrderByUpdatedAtDesc(accountId).stream()
+        return sessionRepository.findTop50ByAccountIdOrderByUpdatedAtDesc(accountId).stream()
                 .map(s -> new SessionSummary(String.valueOf(s.getId()), s.getTitle(), s.getUpdatedAt()))
                 .toList();
     }

@@ -30,6 +30,7 @@ public class WebhookRaw {
     private Long accountId;
 
     @Column(name = "agent_id")
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long agentId;
 
     @JdbcTypeCode(SqlTypes.JSON)

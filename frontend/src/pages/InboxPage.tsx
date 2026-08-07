@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { MessageSquare, Bot, User } from 'lucide-react'
+import { MessageSquare, Bot, User, Webhook } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import CopyButton from '../components/shared/CopyButton'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
@@ -27,11 +28,25 @@ interface Message {
   receivedAt: string
 }
 
+interface WebhookRawEntry {
+  id: string
+  agentId: string | null
+  payload: string
+  signature: string
+  status: 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED'
+  errorMessage: string | null
+  receivedAt: string
+  processedAt: string | null
+}
+
 export default function InboxPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('conversationId')
   const [filter, setFilter] = useState<ConversationFilter>('ALL')
+  // Founder-caught gap (2026-08-07): no provision existed to view logged
+  // webhooks or copy them at all.
+  const [view, setView] = useState<'conversations' | 'webhooks'>('conversations')
 
   const {
     data: conversations = [],
@@ -80,7 +95,34 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex h-full gap-0 -m-6 overflow-hidden">
+    <div className="flex h-full flex-col -m-6 overflow-hidden">
+      <div className="flex shrink-0 gap-1 border-b bg-white px-4 pt-3">
+        <button
+          onClick={() => setView('conversations')}
+          className={cn(
+            'flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium border-b-2 transition-colors',
+            view === 'conversations' ? 'border-brand-pink text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          Conversations
+        </button>
+        <button
+          onClick={() => setView('webhooks')}
+          className={cn(
+            'flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium border-b-2 transition-colors',
+            view === 'webhooks' ? 'border-brand-pink text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Webhook className="h-3.5 w-3.5" />
+          Webhooks
+        </button>
+      </div>
+
+      {view === 'webhooks' ? (
+        <WebhookLogPanel />
+      ) : (
+    <div className="flex flex-1 gap-0 overflow-hidden">
       {/* Left panel — conversation list */}
       <div className="flex w-80 shrink-0 flex-col border-r bg-white overflow-hidden">
         <div className="border-b px-4 py-3">
@@ -172,6 +214,8 @@ export default function InboxPage() {
         )}
       </div>
     </div>
+      )}
+    </div>
   )
 }
 
@@ -220,9 +264,10 @@ function MessageBubble({ msg }: { msg: Message }) {
   })
 
   const content = msg.content ?? (msg.contentJson ? `[${msg.contentType}]` : '—')
+  const copyValue = msg.content ?? msg.contentJson ?? ''
 
   return (
-    <div className={cn('flex items-end gap-2', isOutbound ? 'flex-row-reverse' : 'flex-row')}>
+    <div className={cn('group flex items-end gap-2', isOutbound ? 'flex-row-reverse' : 'flex-row')}>
       <div className={cn(
         'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
         isOutbound ? 'bg-brand-pink/10' : 'bg-muted'
@@ -232,10 +277,12 @@ function MessageBubble({ msg }: { msg: Message }) {
           : <User className="h-3.5 w-3.5 text-muted-foreground" />
         }
       </div>
+      {/* EL-caught gap (2026-08-07 audit, U5): brand-navy was used as this
+          bubble's fill -- banned in content per DESIGN.md, chrome only. */}
       <div className={cn(
         'max-w-[70%] rounded-2xl px-3.5 py-2.5',
         isOutbound
-          ? 'rounded-br-sm bg-brand-navy text-white'
+          ? 'rounded-br-sm bg-brand-pink text-white'
           : 'rounded-bl-sm bg-white border text-foreground'
       )}>
         <p className="text-sm leading-relaxed">{content}</p>
@@ -246,6 +293,65 @@ function MessageBubble({ msg }: { msg: Message }) {
           {time}
         </p>
       </div>
+      {/* Founder-caught gap (2026-08-07): no copy affordance existed on message content. */}
+      <CopyButton
+        value={copyValue}
+        size="icon"
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      />
+    </div>
+  )
+}
+
+const WEBHOOK_STATUS_TONE: Record<WebhookRawEntry['status'], 'positive' | 'negative' | 'neutral'> = {
+  PROCESSED: 'positive',
+  FAILED: 'negative',
+  PENDING: 'neutral',
+  PROCESSING: 'neutral',
+}
+
+function WebhookLogPanel() {
+  const { data: webhooks = [], isLoading, isError, error, refetch } = useQuery<WebhookRawEntry[]>({
+    queryKey: ['webhooks-raw'],
+    queryFn: () => api.get('/webhooks/raw').then((r) => r.data.data),
+  })
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-muted/20 p-4">
+      <p className="mb-3 text-xs text-muted-foreground">
+        Most recent 100 webhooks received for this account — raw payload, signature, and processing status.
+      </p>
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />)}
+        </div>
+      ) : isError ? (
+        <ErrorBanner error={error} onRetry={() => refetch()} />
+      ) : webhooks.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">No webhooks logged yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {webhooks.map((w) => (
+            <div key={w.id} className="rounded-lg border bg-card p-3 shadow-surface-resting">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <StatusIndicator label={w.status} tone={WEBHOOK_STATUS_TONE[w.status]} />
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(w.receivedAt).toLocaleString('en')}
+                  </span>
+                </div>
+                <CopyButton value={w.payload} label="Copy payload" />
+              </div>
+              {w.errorMessage && (
+                <p className="mt-1.5 text-xs text-destructive">{w.errorMessage}</p>
+              )}
+              <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted/50 p-2 text-xs text-foreground">
+                {w.payload}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

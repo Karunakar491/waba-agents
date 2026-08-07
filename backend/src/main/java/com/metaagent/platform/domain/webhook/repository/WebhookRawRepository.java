@@ -8,9 +8,17 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Repository
 public interface WebhookRawRepository extends JpaRepository<WebhookRaw, Long> {
+
+    /**
+     * Founder-caught gap (2026-08-07): no way existed to view logged webhooks
+     * at all from the UI. Capped at 100 most recent -- this is a debug/audit
+     * view, not a paginated log browser.
+     */
+    List<WebhookRaw> findTop100ByAccountIdOrderByReceivedAtDesc(Long accountId);
 
     /**
      * Atomic CAS claim — only one consumer wins when status is PENDING.

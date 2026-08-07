@@ -74,7 +74,13 @@ public class IrisConversationService {
      */
     private static final String COMPONENTS_SCHEMA_DESCRIPTION =
             "Each entry is one Meta template component (creation-time shape, NOT the message-sending shape). " +
-            "BODY {type,text} — required, exactly one. " +
+            "BODY {type,text} — required, exactly one. If text contains any {{n}} variable placeholder, you MUST also " +
+            "include \"example\":{\"body_text\":[[\"<sample value for {{1}}>\",\"<sample for {{2}}>\",...]]} with one " +
+            "sample string per placeholder, in order — Karix rejects a template with placeholders and no example block " +
+            "(confirmed live 2026-08-07: \"BODY text has placeholders (1) but no example block\"). " +
+            "Also: {{n}} must never be the very first or very last thing in the body text — Meta rejects leading/trailing " +
+            "variables (confirmed live 2026-08-07: \"Leading or trailing params not allowed\"); always put real words " +
+            "before and after every placeholder. " +
             "HEADER {type,format} where format is TEXT/IMAGE/VIDEO/DOCUMENT/LOCATION — optional; no media link needed at creation time. " +
             "FOOTER {type,text} — optional. " +
             "BUTTONS {type,buttons:[...]} — at most ONE such component wrapping ALL buttons in one nested array, " +

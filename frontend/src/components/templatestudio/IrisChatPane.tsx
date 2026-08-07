@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Loader2, Send, ShieldAlert, Settings, RotateCcw } from 'lucide-react'
+import { Loader2, Send, ShieldAlert, Settings, RotateCcw, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../../lib/utils'
@@ -34,6 +34,7 @@ export default function IrisChatPane({
   onSubmit,
   onRetry,
   onSuggestion,
+  onAbort,
 }: {
   needsSetup: boolean
   resuming: boolean
@@ -48,6 +49,7 @@ export default function IrisChatPane({
   onSubmit: (text?: string) => void
   onRetry: (entry: IrisChatEntry) => void
   onSuggestion: (text: string) => void
+  onAbort: () => void
 }) {
   if (resuming) {
     return (
@@ -77,7 +79,7 @@ export default function IrisChatPane({
           </div>
           <div className="w-full max-w-3xl space-y-2">
             {needsSetup && <SetupBanner />}
-            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} />
+            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} />
           </div>
           <div className="flex flex-col items-center gap-1.5">
             {SUGGESTIONS.map((text) => (
@@ -147,7 +149,7 @@ export default function IrisChatPane({
       {started && (
         <div className="space-y-2 border-t bg-background px-6 py-4">
           {needsSetup && <SetupBanner />}
-          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} />
+          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} />
         </div>
       )}
     </div>
@@ -155,13 +157,15 @@ export default function IrisChatPane({
 }
 
 function Composer({
-  input, setInput, onSubmit, disabled, pending,
+  input, setInput, onSubmit, disabled, pending, thinking, onAbort,
 }: {
   input: string
   setInput: (v: string) => void
   onSubmit: () => void
   disabled: boolean
   pending: boolean
+  thinking: boolean
+  onAbort: () => void
 }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-full border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-purple/40">
@@ -174,18 +178,31 @@ function Composer({
         placeholder={pending ? 'Confirm or cancel the pending action…' : 'Ask Iris to create a template…'}
         className="flex-1 bg-transparent text-base placeholder:text-muted-foreground outline-none focus-visible:outline-none disabled:opacity-50"
       />
-      <button
-        type="button"
-        disabled={!input.trim() || pending || disabled}
-        onClick={onSubmit}
-        className={cn(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40',
-          pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
-        )}
-        aria-label="Send"
-      >
-        <Send className="h-4 w-4" />
-      </button>
+      {thinking ? (
+        // UX-caught gap (2026-08-07 audit): there used to be no way to abort
+        // a pending send at all -- the composer just locked until it resolved.
+        <button
+          type="button"
+          onClick={onAbort}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted-foreground/40 text-white"
+          aria-label="Stop"
+        >
+          <Square className="h-3.5 w-3.5 fill-current" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={!input.trim() || pending || disabled}
+          onClick={onSubmit}
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40',
+            pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
+          )}
+          aria-label="Send"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

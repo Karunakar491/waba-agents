@@ -158,12 +158,23 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     mutationFn: () => api.post('/templates/iris/sessions', {}).then((r) => r.data.data.id as string),
   })
 
+  // UX-caught gap (2026-08-07 audit): no way to abort a pending send at all —
+  // the composer just locked until the request resolved. This only aborts
+  // the client-side wait (the backend call to the AI provider isn't
+  // cancellable mid-flight and its result is simply discarded) but that's
+  // still real relief for a user stuck watching "Iris is thinking..." on a
+  // slow/hung request.
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   const sendMessage = useMutation({
     mutationFn: async ({ text }: { text: string; entryId: string }) => {
       let sid = sessionId
       if (!sid) sid = await startSession.mutateAsync()
       setSessionId(sid)
-      return api.post(`/templates/iris/sessions/${sid}/messages`, { text }).then((r) => r.data.data as TurnResponse)
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+      return api.post(`/templates/iris/sessions/${sid}/messages`, { text }, { signal: controller.signal })
+        .then((r) => r.data.data as TurnResponse)
     },
     onSuccess: (res, vars) => {
       setEntries((prev) => [
@@ -178,10 +189,15 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
       queryClient.invalidateQueries({ queryKey: ['iris-sessions'] })
     },
     onError: (err, vars) => {
-      const message = extractErrorMessage(err)
+      const aborted = (err as { code?: string; name?: string })?.code === 'ERR_CANCELED' || (err as { name?: string })?.name === 'CanceledError'
+      const message = aborted ? 'Cancelled — Iris\'s reply (if any) was discarded.' : extractErrorMessage(err)
       setEntries((prev) => prev.map((e) => (e.id === vars.entryId ? { ...e, status: 'error' as const, errorMessage: message } : e)))
     },
   })
+
+  function abortSend() {
+    abortControllerRef.current?.abort()
+  }
 
   const confirmAction = useMutation({
     mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
@@ -265,6 +281,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
           onSubmit={submit}
           onRetry={retry}
           onSuggestion={submit}
+          onAbort={abortSend}
         />
         {pending && (
           <IrisConfirmPanel

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../../lib/utils'
 import ErrorBanner from '../shared/ErrorBanner'
+import StatusIndicator from '../shared/StatusIndicator'
 
 export interface IrisChatEntry {
   id: string
@@ -139,7 +140,7 @@ export default function IrisChatPane({
             ),
           )}
           {thinking && (
-            <p className="animate-pulse text-sm italic text-muted-foreground">Iris is thinking…</p>
+            <StatusIndicator label="Iris is thinking…" tone="positive" pulse />
           )}
           {error && <ErrorBanner error={error} />}
           <div ref={bottomRef} />
@@ -168,7 +169,12 @@ function Composer({
   onAbort: () => void
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-full border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-purple/40">
+    // Flattened per Design Evaluator review (2026-08-07 Iris redesign, Direction
+    // 3 salvage): rounded-full pill + circular send button was a DESIGN.md
+    // violation (rounded-full reserved for avatars/icon-only controls) and part
+    // of the generic-ChatGPT-clone tell. rounded-lg bar with a square icon
+    // button keeps the same 44px+ touch target without the pill silhouette.
+    <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-lg border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-purple/40">
       <input
         type="text"
         value={input}
@@ -184,7 +190,7 @@ function Composer({
         <button
           type="button"
           onClick={onAbort}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted-foreground/40 text-white"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted-foreground/40 text-white"
           aria-label="Stop"
         >
           <Square className="h-3.5 w-3.5 fill-current" />
@@ -195,7 +201,7 @@ function Composer({
           disabled={!input.trim() || pending || disabled}
           onClick={onSubmit}
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40',
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white disabled:opacity-40',
             pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
           )}
           aria-label="Send"

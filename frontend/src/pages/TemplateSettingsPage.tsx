@@ -8,6 +8,7 @@ import { extractErrorMessage } from '../lib/errors'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
+import { formatDateTimeIST } from '../lib/dateFormat'
 
 /**
  * Template Studio Settings — full page (2026-08-06 redesign).
@@ -865,7 +866,7 @@ function AdvancedAuditPanel({ wabaInternalId }: { wabaInternalId: string }) {
                     <span className="truncate text-muted-foreground">{entry.path}</span>
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {new Date(entry.called_at).toLocaleString()}
+                    {formatDateTimeIST(entry.called_at)}
                   </span>
                 </button>
                 {expandedId === entry.id && (

@@ -1,5 +1,6 @@
 import { FileText, Loader2, Trash2, Pencil } from 'lucide-react'
 import StatusIndicator from '../shared/StatusIndicator'
+import { formatDateTimeIST } from '../../lib/dateFormat'
 
 export interface Deployment {
   agentId: string
@@ -60,7 +61,7 @@ function SkillTableRow({
       </td>
       <td className="px-4 py-3">{statusBadge(row)}</td>
       <td className="px-4 py-3 max-w-xs truncate text-muted-foreground">{deployedOn(row)}</td>
-      <td className="px-4 py-3 text-muted-foreground">{new Date(row.updatedAt).toLocaleString()}</td>
+      <td className="px-4 py-3 text-muted-foreground">{formatDateTimeIST(row.updatedAt)}</td>
       <td className="px-4 py-3 text-right">
         {/* Founder-caught gap (2026-08-07): edit affordance existed but was
             an unlabeled icon, easy to miss. Explicit label + source-aware

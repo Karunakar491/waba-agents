@@ -6,6 +6,7 @@ import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import ErrorBanner from '../shared/ErrorBanner'
+import { formatDateTimeIST } from '../../lib/dateFormat'
 
 export interface BusinessProfileResponse {
   id: string
@@ -175,7 +176,7 @@ function LiveStatusCard({ live }: { live: BusinessProfileResponse | null }) {
             Published
           </span>
           <p className="text-sm text-muted-foreground">
-            Live since {live.deployedAt ? new Date(live.deployedAt).toLocaleString() : 'unknown'}
+            Live since {live.deployedAt ? formatDateTimeIST(live.deployedAt) : 'unknown'}
           </p>
         </div>
       ) : (
@@ -378,7 +379,7 @@ function HistoryCard({ history }: { history: BusinessProfileResponse[] }) {
               Saved
             </span>
             <p className="text-xs text-muted-foreground">
-              {h.archivedAt ? new Date(h.archivedAt).toLocaleString() : 'unknown time'}
+              {h.archivedAt ? formatDateTimeIST(h.archivedAt) : 'unknown time'}
             </p>
           </li>
         ))}

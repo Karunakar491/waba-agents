@@ -1,6 +1,7 @@
 import { FileText, Loader2, Rocket, Trash2 } from 'lucide-react'
 import type { BusinessProfileResponse } from '../agent-detail/BusinessProfileTab'
 import StatusIndicator from '../shared/StatusIndicator'
+import { formatDateTimeIST } from '../../lib/dateFormat'
 
 // One row per profile, across every phone number this account can see —
 // PM+EM gate (2026-07-30): drop the "Agent" column from the original ask,
@@ -50,7 +51,7 @@ function PersonaTableRow({
       <td className="px-4 py-3">{statusBadge(row.profile.status)}</td>
       <td className="px-4 py-3 text-muted-foreground">{row.displayPhoneNumber ?? '—'}</td>
       <td className="px-4 py-3 text-muted-foreground">
-        {row.lastTouched ? new Date(row.lastTouched).toLocaleString() : '—'}
+        {row.lastTouched ? formatDateTimeIST(row.lastTouched) : '—'}
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-2">

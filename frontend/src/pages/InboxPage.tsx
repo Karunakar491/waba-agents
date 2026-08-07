@@ -7,6 +7,7 @@ import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
+import { formatTimeIST, formatDateTimeIST } from '../lib/dateFormat'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
@@ -228,9 +229,7 @@ function ConversationRow({
   isSelected: boolean
   onClick: () => void
 }) {
-  const time = conv.lastMessageAt
-    ? new Date(conv.lastMessageAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
-    : '—'
+  const time = conv.lastMessageAt ? formatTimeIST(conv.lastMessageAt) : '—'
 
   return (
     <button
@@ -259,9 +258,7 @@ function ConversationRow({
 
 function MessageBubble({ msg }: { msg: Message }) {
   const isOutbound = msg.direction === 'outbound'
-  const time = new Date(msg.receivedAt).toLocaleTimeString('en', {
-    hour: '2-digit', minute: '2-digit',
-  })
+  const time = formatTimeIST(msg.receivedAt)
 
   const content = msg.content ?? (msg.contentJson ? `[${msg.contentType}]` : '—')
   const copyValue = msg.content ?? msg.contentJson ?? ''
@@ -337,7 +334,7 @@ function WebhookLogPanel() {
                 <div className="flex items-center gap-2">
                   <StatusIndicator label={w.status} tone={WEBHOOK_STATUS_TONE[w.status]} />
                   <span className="text-xs text-muted-foreground">
-                    {new Date(w.receivedAt).toLocaleString('en')}
+                    {formatDateTimeIST(w.receivedAt)}
                   </span>
                 </div>
                 <CopyButton value={w.payload} label="Copy payload" />

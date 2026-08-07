@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import StatusIndicator from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
 import TableEmptyState from '../shared/TableEmptyState'
+import { formatDateTimeIST } from '../../lib/dateFormat'
 
 export interface FileRow {
   id: string
@@ -69,7 +70,7 @@ export function FilesTable({
             <td className="px-4 py-3 text-sm font-medium text-foreground max-w-xs truncate">{row.filename}</td>
             <td className="px-4 py-3">{syncBadge(row.metaSynced)}</td>
             <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{new Date(row.lastEdited).toLocaleString()}</td>
+            <td className="px-4 py-3 text-muted-foreground">{formatDateTimeIST(row.lastEdited)}</td>
             {/* Founder-caught gap (2026-08-07): no edit action existed, only
                 delete. This page is a cross-agent rollup; the file's real
                 management UI (replace/re-upload) lives on its owning agent's
@@ -128,7 +129,7 @@ export function WebsitesTable({
             <td className="px-4 py-3 text-sm font-medium text-foreground max-w-xs truncate">{row.url}</td>
             <td className="px-4 py-3">{syncBadge(row.metaSynced)}</td>
             <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{new Date(row.lastEdited).toLocaleString()}</td>
+            <td className="px-4 py-3 text-muted-foreground">{formatDateTimeIST(row.lastEdited)}</td>
             <td className="px-4 py-3 text-right">
               <div className="flex items-center justify-end gap-1">
                 <Link

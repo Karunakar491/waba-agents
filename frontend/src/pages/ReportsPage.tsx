@@ -8,6 +8,7 @@ import { useJobPoll } from '../hooks/useJobPoll'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import CopyButton from '../components/shared/CopyButton'
+import { formatTimeIST } from '../lib/dateFormat'
 
 type ReportTab = 'conversations' | 'eval' | 'api-calls'
 
@@ -328,7 +329,7 @@ function ApiCallsLog() {
                 <span className="shrink-0 text-xs text-muted-foreground">{call.statusCode ?? '—'}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">{call.durationMs ?? '—'}ms</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(call.calledAt).toLocaleTimeString()}
+                  {formatTimeIST(call.calledAt)}
                 </span>
               </button>
               {isExpanded && (

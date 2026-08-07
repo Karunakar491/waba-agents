@@ -1,4 +1,5 @@
-import { Check, Loader2, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
+import Button from '../shared/Button'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import WhatsAppTemplatePreview from '../templatestudio/WhatsAppTemplatePreview'
 import {
@@ -149,24 +150,14 @@ export default function IrisConfirmPanel({
           Submitting sends this exact content to Meta / Karix — this cannot be undone from here.
         </ConsequenceLine>
         <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onConfirm}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-pink px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          <Button variant="primary" size="sm" fullWidth disabled={busy} loading={confirming} onClick={onConfirm}>
+            {!confirming && <Check className="h-4 w-4" />}
             {confirmLabel(toolName)}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onCancel}
-            className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onCancel}>
             <X className="h-4 w-4" />
             Cancel
-          </button>
+          </Button>
         </div>
       </div>
     </div>

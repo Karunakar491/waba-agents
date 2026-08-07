@@ -1,4 +1,5 @@
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
+import Button from './Button'
 import ConsequenceLine from './ConsequenceLine'
 import ErrorBanner from './ErrorBanner'
 import Modal from './Modal'
@@ -48,24 +49,12 @@ export default function ConfirmDeleteModal({
       )}
 
       <div className="mt-4 flex gap-3">
-        <button
-          onClick={onConfirm}
-          disabled={isPending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
-            text-sm font-semibold text-white transition-opacity hover:opacity-90
-            disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+        <Button variant="destructive" className="flex-1" disabled={isPending} loading={isPending} onClick={onConfirm}>
           {confirmLabel}
-        </button>
-        <button
-          onClick={onClose}
-          disabled={isPending}
-          className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-            text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
+        </Button>
+        <Button variant="secondary" className="flex-1" disabled={isPending} onClick={onClose}>
           Cancel
-        </button>
+        </Button>
       </div>
     </Modal>
   )

@@ -164,7 +164,7 @@ function Composer({
   pending: boolean
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-full border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-pink/30">
+    <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-full border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-purple/40">
       <input
         type="text"
         value={input}

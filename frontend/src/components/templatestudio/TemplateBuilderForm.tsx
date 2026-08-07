@@ -115,9 +115,9 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
             onChange={(e) => setTemplateName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
             placeholder="order_shipped"
             maxLength={512}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
-          {nameHint && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{nameHint}</p>}
+          {nameHint && <p className="mt-1 text-xs text-warning">{nameHint}</p>}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">Language</label>
@@ -126,7 +126,7 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
             placeholder="en"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
           />
         </div>
       </div>
@@ -135,7 +135,7 @@ function TemplateMetaFields({ templateName, setTemplateName, language, setLangua
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
         >
           <option value="UTILITY">Utility</option>
           <option value="MARKETING">Marketing</option>
@@ -162,7 +162,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
       <select
         value={headerFormat}
         onChange={(e) => { setHeaderFormat(e.target.value as HeaderFormat); setMediaError(null) }}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2"
       >
         <option value="NONE">None</option>
         <option value="TEXT">Text</option>
@@ -176,7 +176,7 @@ function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText
           value={headerText}
           onChange={(e) => setHeaderText(e.target.value)}
           placeholder="Header text"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2"
         />
       )}
       {(headerFormat === 'IMAGE' || headerFormat === 'VIDEO' || headerFormat === 'DOCUMENT') && (
@@ -226,10 +226,10 @@ function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
         value={bodyText}
         onChange={(e) => setBodyText(e.target.value)}
         placeholder="Hi {{1}}, your order has shipped."
-        className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+        className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
       />
       {(startsWithVar || endsWithVar) && (
-        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+        <p className="mt-1 text-xs text-warning">
           Meta rejects bodies that start or end with a variable — add real text before and after.
         </p>
       )}
@@ -241,7 +241,7 @@ function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
             value={bodyExamples[v] || ''}
             onChange={(e) => setBodyExamples((prev) => ({ ...prev, [v]: e.target.value }))}
             placeholder="Example value (required by Meta)"
-            className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2"
           />
         </div>
       ))}
@@ -269,7 +269,7 @@ function AuthenticationEditor({ codeExpirationMinutes, setCodeExpirationMinutes,
           max={90}
           value={codeExpirationMinutes}
           onChange={(e) => setCodeExpirationMinutes(Number(e.target.value))}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
         />
       </div>
       <div>
@@ -279,7 +279,7 @@ function AuthenticationEditor({ codeExpirationMinutes, setCodeExpirationMinutes,
           value={otpExampleCode}
           onChange={(e) => setOtpExampleCode(e.target.value)}
           placeholder="123456"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:border-primary transition"
         />
       </div>
     </div>
@@ -295,7 +295,7 @@ function FooterEditor({ footerText, setFooterText }: { footerText: string; setFo
         value={footerText}
         onChange={(e) => setFooterText(e.target.value)}
         placeholder="Footer text"
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2"
       />
     </div>
   )

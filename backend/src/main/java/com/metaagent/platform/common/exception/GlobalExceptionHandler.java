@@ -20,6 +20,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
+        // EL-caught gap (2026-08-07 audit): this used to return the client
+        // message with zero server-side logging — a downstream failure (e.g.
+        // TemplateStudioException wrapping a karix-mcp/Meta rejection) was
+        // invisible in app.log entirely, undiagnosable after the fact.
+        log.warn("BusinessException: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
     }
 

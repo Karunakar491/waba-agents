@@ -65,8 +65,10 @@ Build on server: `cd /opt/metaagent && mvn clean package -DskipTests`
 ## 11. Check this wiki BEFORE touching SSH (2026-08-04)
 Lost most of a session rediscovering the bastion IP, user, and key location that were already written down in this exact file. **Read `wiki/deployment/runbook.md` first, every time** — before trying any key, before guessing at server IPs from memory alone. Memory files can drift; this wiki is the checked-in source of truth once it exists.
 
-## 12. The stray `platform.jar` trap (2026-08-04)
+## 12. The stray `platform.jar` trap (2026-08-04, RECURRED 2026-08-07)
 `/opt/metaagent/platform.jar` exists on the server but is **NOT what the systemd service runs** — it's leftover from an earlier deploy convention. The real, live jar `metaagent.service` executes is `/opt/metaagent/target/platform-0.1.0-SNAPSHOT.jar` (confirm via `sudo systemctl cat metaagent.service`, check `ExecStart`). Copying a new build to `platform.jar` and restarting the service silently does nothing — the restart succeeds, logs look fine, but it's still running the old code. **Always confirm the exact `ExecStart` path from the unit file before deploying a new jar — don't assume the "obvious" filename.**
+
+**This happened again on 2026-08-07** during a long overnight session — despite being documented right here. Deployed a backend change to `/opt/metaagent/platform.jar`, restarted, health check returned 200, treated it as shipped. Only caught it ~40 minutes later because a live API regression test against the specific feature that changed returned data proving the old code was still running (a field that should have been populated was silently null). **The health check passing is not evidence the new code is live** — an old jar restarts just as cleanly as a new one. The only real proof is testing the specific behavior you just changed, live, after every backend deploy. Read this file before every deploy session, not just the first time.
 
 ## 13. Fast deploy alternative: build locally, swap the jar (no on-server Maven build)
 The documented method (rsync source → `mvn clean package` on the server) works but is slow and needs the server's own toolchain to stay in sync. A faster, verified-working alternative when the server already has the right JDK/deps cached:

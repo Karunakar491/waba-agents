@@ -248,6 +248,21 @@ Founder shared Meta's Resumable Upload API flow (`/<APP_ID>/uploads` → upload 
 
 **Batch 5 root-cause fix (bigger than originally scoped):** the "retired navy" problem (U1/FIX-001) wasn't just a stale `--primary` CSS variable — `tailwind.config.js` itself had `brand.navy: '#160E7A'` (the exact retired hex), `brand.pink: '#E73590'` (should be DESIGN.md's `#D6468F`), and `brand-purple` didn't exist as a Tailwind class at all despite DESIGN.md documenting it and code already referencing it (`ring-brand-purple/40` was a silent no-op everywhere). Fixed the actual Tailwind config to match DESIGN.md exactly, repointed `--primary` at brand-purple (matches its actual usage as secondary-emphasis/focus-ring, never chrome), and aligned the global focus-ring rule to DESIGN.md's literal mandated spec. This is expected to have cascaded fixes to most of the "missing/wrong focus ring" findings from the UX and Design Evaluator audits without per-file edits, since the ring was either wrong-colored or referencing a non-existent class, not literally absent — **not yet re-verified visually, flag for a visual pass once there's browser access again.**
 
+## Batches 6-8 deployed and verified live (2026-08-07, continued with founder present)
+
+**Batch 6 — F11 (shared components):** extracted `Button` (primary/secondary/destructive/ghost, loading state) and migrated the Iris confirm/cancel buttons plus `ConfirmDeleteModal`. Also normalized ~10 focus rings in `TemplateBuilderForm` and the Iris composer to the correct `ring-brand-purple/40` token (now that Batch 5 made `brand-purple` a real class), and fixed 2 more hardcoded amber colors. **Deliberately scoped to the Iris surface** — `AgentDetailPage.tsx` alone has 10+ more button instances across several inline modals and needs its own dedicated pass given the file's size.
+
+**Batch 7 — EM/PM disagreement, surfaced and resolved with founder:** the 2026-08-04 EM decision to skip a circuit breaker for karix-mcp was scoped to bulk-import (async/polled, no retry-storm risk); tonight's audit found karix-mcp's role has since grown to cover synchronous Iris chat calls, a different risk profile. Founder confirmed a lightweight, dependency-free approach over resilience4j (not in TECH-STACK.md). Shipped: in-memory circuit-breaker-lite (opens after 5 consecutive failures, 30s cooldown, wraps every `TemplateStudioClient` call), a `GET /api/v1/templates/karix-mcp-health` passthrough (zero monitoring existed before), and rate limiting on Iris message-send (30/5min) and template-creation (20/5min) — both cost real money per call and had zero limiting, confirmed exploitable the same night when a burst of ~8 template-creation attempts happened by accident.
+
+**Batch 8 (partial) — UX C3:** added Iris composer cancel/abort via `AbortController` — previously no way existed to stop a pending send, compounding a known open provider-hang issue. Aborting only stops the client-side wait (the backend call isn't cancellable mid-flight), but that's real relief for a stuck user.
+
+**Verified live after deploy:** login, WABA list, `karix-mcp-health` returns `healthy:true`, template creation still succeeds through the new circuit-breaker wrapper (no regression), frontend serving, clean startup logs.
+
+**Still deferred, with reasons:**
+- Input component extraction + full `AgentDetailPage` button migration — same file-size risk as Batch 6's scoping decision.
+- Mobile table fallback (Dashboard/Agents/WabaDetail) — each table needs its full row-rendering logic (health badges, actions, conditional columns) duplicated into a card layout; genuine multi-hour work per table, too risky to rush in core pages.
+- Iris message-list virtualization — needs a new library decision (no virtualization dependency exists in `package.json`), same category of decision as the resilience4j question.
+
 ## Consolidated P0 (see AUDIT-TASKS.md Phase 4 roadmap table for full EM feasibility notes)
 1. F1 — no embedded WABA signup (BLOCKED on Meta Tech Provider status — external dependency, not pure eng)
 2. FIX-001/U1 — retired navy hex still live as --primary system-wide

@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { cn } from '../lib/utils'
+import { useAuthStore } from '../store/authStore'
 import { useModuleEntitlements } from '../hooks/useModuleEntitlements'
 import { MODULES } from '../lib/modules'
+import ModuleCard from '../components/shared/ModuleCard'
 
 // Netflix-profile-style feature picker (2026-08-04) — one card per module,
 // gated by the same account-level entitlements ProtectedRoute already
@@ -10,70 +11,69 @@ import { MODULES } from '../lib/modules'
 // skips straight to it. Not wrapped in AppShell: this is account-level
 // chrome, not feature navigation.
 //
-// Module metadata now lives in lib/modules.ts (shared with the command
-// bar's module-switcher pill, V2 nav rebrand slice 1) — visual restyle to
-// DESIGN.md V2 tokens is slice 2, not done here.
+// 2026-08-11 (V2 rebrand slice 2, Figma node 2:2): restyled to DESIGN.md V2
+// tokens, cards now use the shared ModuleCard (live-preview snippet + teal
+// IconChip) also used by ProtectedRoute's zero-access screen. Greeting bar
+// added per the Figma spec's "who am I signed in as" orientation line.
 
 export default function ModuleSelectorPage() {
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
   const { data: entitlements, isLoading } = useModuleEntitlements()
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-6 py-12">
-      <div className="w-full max-w-3xl space-y-8">
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">Choose a feature</h1>
-          <p className="text-sm text-muted-foreground">Only features enabled for your account are available.</p>
+    <div className="flex min-h-dvh flex-col bg-background">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-8">
+        <span className="text-sm font-semibold text-ink">karix</span>
+        <span className="text-xs text-muted-foreground">
+          {user?.name}{user?.email ? ` · ${user.email}` : ''}
+        </span>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-12">
+        <div className="space-y-2 text-center">
+          <h1 className="text-[28px] font-semibold text-foreground">
+            {greeting()}{user?.name ? `, ${user.name}` : ''}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Pick up where you left off, or open a different workspace.
+          </p>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex gap-5">
             {MODULES.map((mod) => (
-              <div key={mod.key} className="flex flex-col items-start gap-3 rounded-xl border bg-card p-6">
-                <div className="h-12 w-12 rounded-2xl bg-muted animate-pulse" />
-                <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                <div className="h-3 w-full rounded bg-muted animate-pulse" />
+              <div key={mod.key} className="flex w-[340px] flex-col items-start gap-4 rounded-[18px] border bg-card p-6">
+                <div className="h-24 w-full animate-pulse rounded-xl bg-muted" />
+                <div className="h-10 w-10 animate-pulse rounded-xl bg-muted" />
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-8 w-full animate-pulse rounded bg-muted" />
               </div>
             ))}
           </div>
         ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {MODULES.map((mod) => {
-            const enabled = !!entitlements?.[mod.key]
-            const Icon = mod.icon
-            return (
-              <button
-                key={mod.key}
-                type="button"
-                disabled={!enabled}
-                onClick={() => enabled && navigate(mod.homeRoute)}
-                aria-describedby={!enabled ? `${mod.key}-disabled-reason` : undefined}
-                className={cn(
-                  'flex flex-col items-start gap-3 rounded-xl border bg-card p-6 text-left shadow-surface-resting transition',
-                  'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                  enabled
-                    ? 'hover:border-primary hover:shadow-surface-lifted cursor-pointer'
-                    : 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                  <Icon className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">{mod.label}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{mod.description}</p>
-                </div>
-                {!enabled && (
-                  <span id={`${mod.key}-disabled-reason`} className="text-xs font-medium text-muted-foreground">
-                    Not enabled for this account
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
+          <div className="flex flex-wrap justify-center gap-5">
+            {MODULES.map((mod) => {
+              const enabled = !!entitlements?.[mod.key]
+              return (
+                <ModuleCard
+                  key={mod.key}
+                  module={mod}
+                  enabled={enabled}
+                  onOpen={() => navigate(mod.homeRoute)}
+                />
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
   )
+}
+
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
 }

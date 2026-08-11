@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-11",
+    "lastUpdated": "2026-08-11 (slice 2)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1359,11 +1359,19 @@
     },
     {
       "path": "frontend/src/pages/ModuleSelectorPage.tsx",
-      "purpose": "Netflix-profile-style feature picker (2026-08-04) — one card per Module (Business Agents, Template Studio), greyed + \"Not enabled for this account\" when disabled per useModuleEntitlements. Only reached when 2+ modules enabled (see App.tsx RootRedirect). Not wrapped in AppShell. 2026-08-05 fix: renders a skeleton while entitlements are loading instead of showing every card as disabled — loading and genuinely-not-entitled were previously indistinguishable; also added focus-visible ring and aria-describedby linking each disabled card to its reason. 2026-08-11 (V2 rebrand slice 1): MODULES array extracted to lib/modules.ts (now shared with ModuleSwitcherPill.tsx) — dedup only, visual restyle to DESIGN.md V2 tokens deferred to slice 2."
+      "purpose": "Netflix-profile-style feature picker (2026-08-04) — one card per Module (Business Agents, Template Studio), greyed + \"Not enabled for this account\" when disabled per useModuleEntitlements. Only reached when 2+ modules enabled (see App.tsx RootRedirect). Not wrapped in AppShell. 2026-08-05 fix: renders a skeleton while entitlements are loading instead of showing every card as disabled — loading and genuinely-not-entitled were previously indistinguishable; also added focus-visible ring and aria-describedby linking each disabled card to its reason. 2026-08-11 (V2 rebrand slice 1): MODULES array extracted to lib/modules.ts. 2026-08-11 slice 2 (Figma node 2:2): restyled to DESIGN.md V2 — cards now render via shared ModuleCard.tsx; added a minimal top bar (karix wordmark + signed-in-as line) and a real-Date daypart greeting() heading. All type sizes verified against DESIGN.md §4's table after EL rejected two rounds of arbitrary text-[Npx] drift (text-[15px] wordmark, text-[17px] card title) — fixed to text-sm/text-xl."
     },
     {
       "path": "frontend/src/lib/modules.ts",
       "purpose": "NEW 2026-08-11 (V2 rebrand slice 1) — single source of truth for module metadata (key/label/description/icon/homeRoute), extracted from ModuleSelectorPage so ModuleSwitcherPill.tsx can render the same list. activeModuleFor(pathname) resolves which module a route belongs to."
+    },
+    {
+      "path": "frontend/src/components/shared/ModuleCard.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 2, Figma nodes 2:2/4:24) — module tile shared by ModuleSelectorPage (enabled, clickable) and ProtectedRoute's ModuleLockedScreen (locked preview row, enabled=false, no onOpen). Renders a decorative but real-shaped mini live-preview per module (chat bubbles for Business Agents, a template card for Template Studio, per DESIGN.md §6's Live-preview-snippet rule) plus a teal/muted IconChip, title, description, and an Open→/Locked meta row. No fabricated data (no fake last-opened timestamp — no backend field exists for it yet, deliberately omitted rather than invented)."
+    },
+    {
+      "path": "frontend/src/components/shared/IconChip.tsx",
+      "purpose": "Flat tinted-square icon container, DESIGN.md §6 — never for empty states, never as a logo. Was built but had zero call sites anywhere in the app until 2026-08-11 (V2 rebrand slice 2), first real usage in ModuleCard.tsx. Gained an additive 'teal' tone (bg-accent-teal/15 text-accent-teal-solid) alongside the pre-existing primary/pink/green/warning/muted tones, none of which were touched."
     },
     {
       "path": "frontend/src/components/layout/ModuleSwitcherPill.tsx",
@@ -1375,7 +1383,7 @@
     },
     {
       "path": "frontend/src/components/router/ProtectedRoute.tsx",
-      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login. Module-gated (2026-08-03): also fails closed (locked screen, not Outlet) when useModuleEntitlements is loading→ok, but errors OR literally zero modules enabled (2026-08-04: changed from hardcoded BUSINESS_AGENTS check to Object.values(...).some(Boolean) — a Template-Studio-only account must not be wrongly locked out). 2026-08-05 fix: isLoading/isError/zero-modules are now three distinct rendered states — a spinner (was a blank null render), a retry screen with a Try again button wired to refetch() (was the same locked screen as zero-entitlements, which sent a real user down a support ticket for a transient network blip during the 2026-08-04 production incident), and the locked screen only for genuine zero-entitlement accounts. No frontend test infra exists yet to cover this path (flagged as a follow-up, not silently dropped)."
+      "purpose": "Auth guard — reads isAuthenticated from Zustand, renders Outlet or Navigate to /login. Module-gated (2026-08-03): also fails closed (locked screen, not Outlet) when useModuleEntitlements is loading→ok, but errors OR literally zero modules enabled (2026-08-04: changed from hardcoded BUSINESS_AGENTS check to Object.values(...).some(Boolean) — a Template-Studio-only account must not be wrongly locked out). 2026-08-05 fix: isLoading/isError/zero-modules are now three distinct rendered states — a spinner (was a blank null render), a retry screen with a Try again button wired to refetch() (was the same locked screen as zero-entitlements, which sent a real user down a support ticket for a transient network blip during the 2026-08-04 production incident), and the locked screen only for genuine zero-entitlement accounts. No frontend test infra exists yet to cover this path (flagged as a follow-up, not silently dropped). 2026-08-11 (V2 rebrand slice 2, Figma node 4:24): EntitlementsErrorScreen's retry button bg-brand-pink → bg-accent-teal-solid. ModuleLockedScreen fully rebuilt — was a bare centered heading (an anti-pattern instance), now the asymmetric empty-state pattern (left accent bar, left-aligned copy, mailto CTA, locked ModuleCard preview row reusing the same component ModuleSelectorPage uses) per DESIGN.md §6."
     },
     {
       "path": "frontend/src/components/waba/ConnectPhoneModal.tsx",

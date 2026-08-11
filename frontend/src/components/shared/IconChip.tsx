@@ -14,19 +14,22 @@ export default function IconChip({
   size = 'default',
 }: {
   icon: ReactNode
-  tone?: 'primary' | 'pink' | 'green' | 'warning' | 'muted'
+  tone?: 'primary' | 'pink' | 'green' | 'warning' | 'muted' | 'teal'
   size?: 'sm' | 'default'
 }) {
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-lg',
+        'flex shrink-0 items-center justify-center rounded-xl',
         size === 'sm' ? 'h-8 w-8' : 'h-10 w-10',
         tone === 'primary' && 'bg-primary/10 text-primary',
         tone === 'pink' && 'bg-brand-pink/10 text-brand-pink',
         tone === 'green' && 'bg-brand-green/10 text-brand-green',
         tone === 'warning' && 'bg-warning/10 text-warning',
         tone === 'muted' && 'bg-muted text-muted-foreground',
+        // DESIGN.md V2 accent (2026-08-11) — accent-teal is non-text-only,
+        // safe here since it's a background tint, not text.
+        tone === 'teal' && 'bg-accent-teal/15 text-accent-teal-solid',
       )}
     >
       {icon}

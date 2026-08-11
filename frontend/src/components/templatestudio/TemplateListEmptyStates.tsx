@@ -10,7 +10,7 @@ import { Plus, Settings as SettingsIcon } from 'lucide-react'
 
 export function UnconfiguredEmpty() {
   return (
-    <div className="flex items-start gap-4 rounded-xl border bg-card px-8 py-10">
+    <div className="flex items-start gap-4 py-6">
       <div className="h-[72px] w-[3px] shrink-0 bg-warning" />
       <div className="space-y-2">
         <h3 className="text-xl font-semibold text-foreground">Karix isn't connected for this WABA yet</h3>
@@ -51,7 +51,7 @@ export function LibraryEmpty({
   }
 
   return (
-    <div className="flex items-start gap-4 rounded-xl border bg-card px-8 py-10">
+    <div className="flex items-start gap-4 py-6">
       <div className="h-[72px] w-[3px] shrink-0 bg-accent-teal" />
       <div className="space-y-2">
         <h3 className="text-xl font-semibold text-foreground">No templates yet for this account</h3>

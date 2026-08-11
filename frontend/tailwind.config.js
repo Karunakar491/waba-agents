@@ -33,6 +33,14 @@ export default {
           green:  '#1EBA5D',
           dark:   '#1F1F1F',
         },
+        // DESIGN.md V2 "Modern Minimal" tokens (2026-08-11 nav rebrand,
+        // slice 1) — added ADDITIVELY alongside `brand.*` above, which stays
+        // live until every one of its ~25 remaining call sites migrates
+        // (tracked: grep for `brand-navy\|brand-pink` must hit zero before
+        // those keys are ever removed). See DESIGN.md §2.
+        ink: '#0A0A0A',
+        'accent-teal': '#0D9488',
+        'accent-teal-solid': '#0F766E',
         // WhatsApp UI constants — used ONLY to mimic real WhatsApp chrome in previews
         whatsapp: {
           header: '#075E54',

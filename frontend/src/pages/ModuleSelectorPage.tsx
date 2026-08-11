@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { Bot, FileText } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { useModuleEntitlements, type ModuleName } from '../hooks/useModuleEntitlements'
+import { useModuleEntitlements } from '../hooks/useModuleEntitlements'
+import { MODULES } from '../lib/modules'
 
 // Netflix-profile-style feature picker (2026-08-04) — one card per module,
 // gated by the same account-level entitlements ProtectedRoute already
@@ -9,31 +9,10 @@ import { useModuleEntitlements, type ModuleName } from '../hooks/useModuleEntitl
 // App.tsx's "/" redirect logic) — with exactly one enabled, the operator
 // skips straight to it. Not wrapped in AppShell: this is account-level
 // chrome, not feature navigation.
-
-interface ModuleDef {
-  key: ModuleName
-  label: string
-  description: string
-  icon: typeof Bot
-  homeRoute: string
-}
-
-const MODULES: ModuleDef[] = [
-  {
-    key: 'BUSINESS_AGENTS',
-    label: 'Business Agents',
-    description: 'AI agents on WhatsApp, Messenger, and Instagram — skills, knowledge base, connectors.',
-    icon: Bot,
-    homeRoute: '/dashboard',
-  },
-  {
-    key: 'TEMPLATE_STUDIO',
-    label: 'Template Studio',
-    description: 'Create and bulk-import WhatsApp message templates.',
-    icon: FileText,
-    homeRoute: '/templates',
-  },
-]
+//
+// Module metadata now lives in lib/modules.ts (shared with the command
+// bar's module-switcher pill, V2 nav rebrand slice 1) — visual restyle to
+// DESIGN.md V2 tokens is slice 2, not done here.
 
 export default function ModuleSelectorPage() {
   const navigate = useNavigate()

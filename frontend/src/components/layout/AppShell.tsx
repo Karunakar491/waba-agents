@@ -154,7 +154,7 @@ export default function AppShell() {
         onMouseEnter={() => !isIrisRoute && collapsed && setRailHover(true)}
         onMouseLeave={() => setRailHover(false)}
         className={cn(
-          'fixed left-0 top-11 bottom-0 z-40 flex flex-col bg-brand-navy transition-transform duration-200 md:transition-[width]',
+          'fixed left-0 top-11 bottom-0 z-40 flex flex-col bg-gradient-to-b from-ink to-black transition-transform duration-200 md:transition-[width]',
           showExpanded ? 'md:w-60' : 'md:w-16',
           floating && 'md:shadow-2xl',
           'w-60',
@@ -179,7 +179,7 @@ export default function AppShell() {
             iconOnly ? 'justify-center px-0' : 'px-6',
           )}
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-pink transition-transform duration-150 ease-out group-hover:scale-110">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-teal-solid transition-transform duration-150 ease-out group-hover:scale-110">
             <Bot className="h-4 w-4 text-white" />
           </div>
           {!iconOnly && (
@@ -331,7 +331,7 @@ export default function AppShell() {
             )}
           >
             <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-pink text-xs font-semibold text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-teal-solid text-xs font-semibold text-white"
               title={iconOnly ? `${user?.name ?? ''} — sign out below` : undefined}
             >
               {user?.name?.[0]?.toUpperCase() ?? 'U'}

@@ -4,6 +4,7 @@ import { useFleetRisk, type FleetRiskRow } from '../../hooks/useFleetRisk'
 import { useClientScope } from '../../hooks/useClientScope'
 import StatusIndicator, { type StatusTone } from '../shared/StatusIndicator'
 import Modal from '../shared/Modal'
+import ModuleSwitcherPill from './ModuleSwitcherPill'
 import { cn } from '../../lib/utils'
 
 /**
@@ -13,6 +14,11 @@ import { cn } from '../../lib/utils'
  * opening anything, same philosophy as move 1 (agent always visible) one
  * layer up. No pink here — pink stays reserved for the one primary CTA
  * elsewhere on screen (§0 move 5).
+ *
+ * Module switcher pill (2026-08-11, Figma node 5:53, see ModuleSwitcherPill)
+ * lives in this same bar, divided from the client switcher by a 1px
+ * hairline, per DESIGN.md §5's "one mental model for every cross-cutting
+ * scope switch" rule.
  */
 export default function ClientCommandBar() {
   const { clientId, setClientId } = useClientScope()
@@ -38,7 +44,11 @@ export default function ClientCommandBar() {
 
   return (
     <>
-      <div className="relative z-50 flex h-11 shrink-0 items-center gap-3 bg-brand-navy px-4 text-white md:pl-6">
+      <div className="relative z-50 flex h-11 shrink-0 items-center gap-3 bg-ink px-4 text-white md:pl-6">
+        <ModuleSwitcherPill />
+
+        <div className="hidden h-5 w-px shrink-0 bg-white/20 md:block" />
+
         {/* Mobile (<768px): current scope + a single tap target, never the rail. */}
         <button
           type="button"

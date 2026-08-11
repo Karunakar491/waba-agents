@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-11 (slice 2)",
+    "lastUpdated": "2026-08-11 (slice 3)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1168,11 +1168,27 @@
     },
     {
       "path": "frontend/src/pages/TemplateStudioPage.tsx",
-      "purpose": "Templates Structure B + A− pass 2026-08-06. Shell: CrossWabaHealthStrip (Pending/Rejected/Low quality across max 5 Karix-mapped WABAs, fail-soft) + WABA dropdown + list/create/edit/bulk. List freshness via TemplateListPanel staleTime:0 refetchOnMount/focus. Meta ConsequenceLines. PM+EM+UX+DesignEvaluator+EL approved."
+      "purpose": "Templates Structure B + A− pass 2026-08-06. Shell: CrossWabaHealthStrip (Pending/Rejected/Low quality across max 5 Karix-mapped WABAs, fail-soft) + WABA dropdown + list/create/edit/bulk. List freshness via TemplateListPanel staleTime:0 refetchOnMount/focus. Meta ConsequenceLines. PM+EM+UX+DesignEvaluator+EL approved. 2026-08-11 (V2 rebrand slice 3): page title font-bold → font-semibold (DESIGN.md §4 Page Title tier is Semi Bold)."
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateListPanel.tsx",
-      "purpose": "Templates list UI (2026-08-06). Pink Create (outline when unconfigured) + Bulk; search; status filter; table; Meta edit gate; ?edit= from allQuery; live refresh staleTime 0 + refetchOnMount always + refetchOnWindowFocus; Refresh button on-demand."
+      "purpose": "Templates list UI (2026-08-06), orchestration only as of 2026-08-11 (V2 rebrand slice 3, Figma node 23:3) — filters state (category/language/status object, was a single statusFilter string) + queries live here; toolbar/table/empty-states extracted to TemplateListToolbar.tsx/TemplateTable.tsx/TemplateListEmptyStates.tsx to stay under the 200-line component ceiling (was 389-440 lines mid-slice). ?edit= from allQuery; live refresh staleTime 0 + refetchOnMount always + refetchOnWindowFocus; Refresh button on-demand."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateListToolbar.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3, Figma nodes 23:13/23:22). Two distinct real creation CTAs: \"Create manually\" (secondary, existing TemplateBuilderForm flow via onCreate) and \"New template\" (primary, bg-accent-teal-solid, navigates to /templates/iris) — not a relabel of one handler. Search box + Filters trigger (count badge, opens TemplateFiltersPanel) + Refresh. Click-outside AND Escape close the filters panel (EL required Escape parity with Slice 1's ModuleSwitcherPill precedent); every button carries focus-visible (EL rejected round 1 for a systemic gap across ~12 controls, fixed round 2)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateFiltersPanel.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3, Figma node 35:9) — DESIGN.md §6 Filters pattern: one panel, grouped sections. Category/Status are Meta's real fixed enums (pill rows). Language is genuinely open-ended so it's a search + dynamic checklist derived from the actual template list's language field + real counts (DESIGN.md's \"no hardcoded lists for open-ended data\" anti-pattern) — not a hardcoded language list. Scoped to templatestudio/ rather than components/shared/ since exactly one consumer exists today; promote if a second screen needs the same pattern."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateTable.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3) — extracted from TemplateListPanel.tsx. Added hover:bg-muted row state (DESIGN.md §6 tables require hover, was resting-only before)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateListEmptyStates.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3) — UnconfiguredEmpty/LibraryEmpty extracted as-is from TemplateListPanel.tsx, NOT redesigned to DESIGN.md's asymmetric empty-state pattern (that belongs to a future slice covering Figma's separate \"3.2 — Templates: Empty State\" screen, deliberately out of this slice's scope; these remain centered dashed-border boxes)."
     },
     {
       "path": "frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx",
@@ -1180,7 +1196,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateBuilderForm.tsx",
-      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings."
+      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings. 2026-08-11 (V2 rebrand slice 3): submit button bg-brand-pink → bg-accent-teal-solid."
     },
     {
       "path": "frontend/src/components/templatestudio/useTemplateBuilder.ts",
@@ -1212,7 +1228,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/IrisChatPane.tsx",
-      "purpose": "Iris chat transcript + hero + composer (extracted 2026-08-06 for EL 200-line cap)."
+      "purpose": "Iris chat transcript + hero + composer (extracted 2026-08-06 for EL 200-line cap). 2026-08-11 (V2 rebrand slice 3): pending-message dot bg-brand-pink → bg-accent-teal-solid."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/",

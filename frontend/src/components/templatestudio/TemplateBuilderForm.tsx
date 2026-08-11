@@ -71,7 +71,7 @@ export default function TemplateBuilderForm({
           type="button"
           disabled={!b.canSubmit}
           onClick={() => { b.setResult(null); b.submitMutation.mutate() }}
-          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {b.submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           {b.isEdit ? 'Save changes' : 'Submit for approval'}

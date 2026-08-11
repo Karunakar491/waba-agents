@@ -40,7 +40,7 @@ export default function TemplateStudioPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Templates</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Create and manage WhatsApp message templates for a WABA. Meta reviews every create and edit.
         </p>

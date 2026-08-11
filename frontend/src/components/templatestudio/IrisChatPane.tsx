@@ -209,7 +209,7 @@ function Composer({
           onClick={onSubmit}
           className={cn(
             'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white disabled:opacity-40',
-            pending ? 'bg-muted-foreground/40' : 'bg-brand-pink',
+            pending ? 'bg-muted-foreground/40' : 'bg-accent-teal-solid',
           )}
           aria-label="Send"
         >

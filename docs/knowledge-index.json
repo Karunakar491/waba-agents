@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-11 (slice 4)",
+    "lastUpdated": "2026-08-11 (slice 4b)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1212,7 +1212,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/BulkImportPanel.tsx",
-      "purpose": "Templates bulk .xlsx import panel with Meta ConsequenceLine (extracted 2026-08-06 Structure B)."
+      "purpose": "Templates bulk .xlsx import panel with Meta ConsequenceLine (extracted 2026-08-06 Structure B). 2026-08-11 (V2 rebrand slice 4b, Figma node 96:2): restyled dropzone with real drag-and-drop (onDragOver/onDragLeave/onDrop, not decorative copy), accent-teal progress bar. Deliberately did NOT build Figma's \"Map Columns\" step or a succeeded/failed completed-state breakdown — bulk-import's job status is a raw passthrough of whatever karix-mcp returns; only status/processed_rows/total_rows are confirmed read anywhere in this codebase. Building UI for unconfirmed fields would be fabricated surface area; EL explicitly endorsed omitting rather than speculative-defensive-rendering. Follow-up: build Map Columns + succeeded/failed once the real karix-mcp response shape is confirmed."
     },
     {
       "path": "frontend/src/pages/TemplateSettingsPage.tsx",

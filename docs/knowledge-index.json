@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-11 (slice 3)",
+    "lastUpdated": "2026-08-11 (slice 4)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1184,11 +1184,11 @@
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateTable.tsx",
-      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3) — extracted from TemplateListPanel.tsx. Added hover:bg-muted row state (DESIGN.md §6 tables require hover, was resting-only before)."
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3) — extracted from TemplateListPanel.tsx. Added hover:bg-muted row state (DESIGN.md §6 tables require hover, was resting-only before). 2026-08-11 slice 4 (Figma node 39:298): added and exports TemplateTableSkeleton — column-width-matched loading skeleton mirroring this table's real 6 columns, scoped here (not promoted to components/shared/TableSkeleton.tsx, which is generic uniform bars with other, unrelated consumers)."
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateListEmptyStates.tsx",
-      "purpose": "NEW 2026-08-11 (V2 rebrand slice 3) — UnconfiguredEmpty/LibraryEmpty extracted as-is from TemplateListPanel.tsx, NOT redesigned to DESIGN.md's asymmetric empty-state pattern (that belongs to a future slice covering Figma's separate \"3.2 — Templates: Empty State\" screen, deliberately out of this slice's scope; these remain centered dashed-border boxes)."
+      "purpose": "UnconfiguredEmpty/LibraryEmpty, extracted from TemplateListPanel.tsx in slice 3. 2026-08-11 slice 4 (Figma node 39:421): rewritten to DESIGN.md's asymmetric empty-state pattern (left accent bar, left-aligned copy, real CTA) for UnconfiguredEmpty and LibraryEmpty's true-zero-templates case; LibraryEmpty's filtered-zero-results case (hasFilter=true) deliberately kept the simpler centered treatment (narrowed-to-nothing ≠ never-had-anything). UnconfiguredEmpty's accent bar uses bg-warning, not bg-accent-teal — EL flagged as a non-blocking judgment call: DESIGN.md §2 defines warning as \"Pending status, dot only, non-text\" and this is neither pending nor a dot; no better-fitting token exists today, follow-up is to either add an action-required token or document the exception in DESIGN.md. This is the 2nd hand-built occurrence of the left-accent-bar+heading+copy+CTA shape (1st: ProtectedRoute's ModuleLockedScreen, slice 2) — per 3-strikes/YAGNI, stays inline; extract to a shared primitive on the 3rd occurrence."
     },
     {
       "path": "frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx",

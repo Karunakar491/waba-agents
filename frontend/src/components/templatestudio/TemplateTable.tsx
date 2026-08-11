@@ -10,6 +10,35 @@ import {
   type TemplateSummary,
 } from './templateModel'
 
+// DESIGN.md §6 Skeleton loading — bars matching this table's real column
+// widths, not a generic spinner. Scoped here (not components/shared/) since
+// TableSkeleton.tsx's uniform-bar version has no other column-shaped
+// consumer today; slice 4, V2 rebrand, Figma node 39:298.
+export function TemplateTableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div>
+      <div className="flex items-center gap-4 border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="flex-1">Name</span>
+        <span className="w-[100px]">Category</span>
+        <span className="w-[100px]">Language</span>
+        <span className="w-[90px]">Quality</span>
+        <span className="w-[90px]">Status</span>
+        <span className="w-[40px] text-right">Edit</span>
+      </div>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-4 border-b py-3">
+          <div className="h-3.5 w-[180px] flex-1 max-w-[180px] animate-pulse rounded bg-muted" />
+          <div className="h-3.5 w-[70px] animate-pulse rounded bg-muted" />
+          <div className="h-3.5 w-[60px] animate-pulse rounded bg-muted" />
+          <div className="h-3.5 w-[80px] animate-pulse rounded bg-muted" />
+          <div className="h-3.5 w-[70px] animate-pulse rounded bg-muted" />
+          <div className="ml-auto h-3.5 w-[30px] animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Extracted from TemplateListPanel.tsx (V2 rebrand slice 3) to keep that
 // file under the 200-line component ceiling.
 export default function TemplateTable({

@@ -6,7 +6,7 @@ import ErrorBanner from '../shared/ErrorBanner'
 import { templateQueryKeys } from '../../lib/templateQueryKeys'
 import { extractErrorMessage } from '../../lib/errors'
 import TemplateListToolbar from './TemplateListToolbar'
-import TemplateTable from './TemplateTable'
+import TemplateTable, { TemplateTableSkeleton } from './TemplateTable'
 import { UnconfiguredEmpty, LibraryEmpty } from './TemplateListEmptyStates'
 import { activeFilterCount, type TemplateFilters } from './TemplateFiltersPanel'
 import {
@@ -120,7 +120,7 @@ export default function TemplateListPanel({
           />
         )}
         {!configured && !configuredLoading && !configuredError && <UnconfiguredEmpty />}
-        {configured && listQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {configured && listQuery.isLoading && <TemplateTableSkeleton />}
         {configured && listQuery.isError && (
           <ErrorBanner
             error={`Could not load templates. ${extractErrorMessage(listQuery.error)}`}

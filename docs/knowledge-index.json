@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-12 (slice 5)",
+    "lastUpdated": "2026-08-12 (slice 6)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1232,7 +1232,35 @@
     },
     {
       "path": "frontend/src/pages/TemplateSettingsPage.tsx",
-      "purpose": "Template Studio Settings full-page redesign (2026-08-06) — nav untouched. Multi-WABA accordion (one-time auto-expand via useRef; collapse sticks); Fetch phones via GET /waba/{metaWabaId}/phones; phone table Phone|Health(StatusIndicator Quality: High/Medium/Low/Unknown)|Karix API Key(masked when mapped)|Karix ESME; Save mappings via existing new-esme/existing-esme; Add WABA reuses POST /waba/validate + POST /waba; LLM tabs OpenAI/Claude/NVIDIA all LIVE (2026-08-06 follow-up — OpenAI enabled once OpenAiAdapter shipped; ProviderTabButton simplified, disabled/comingSoon props removed, no longer needed with all three providers live); Advanced audit collapsed with client-side redactSecrets. Mobile card-stack for credentials. PM+EM+UX+DesignEvaluator+EL approved (initial); PM+EM+EL approved (OpenAI enablement follow-up, EL rejected round 1 for leftover dead disabled/comingSoon code, approved round 2). 2026-08-12 (V2 rebrand slice 4f): its private redactSecrets/redactValue functions extracted to components/templatestudio/auditRedaction.ts (now shared with the new TemplateDebugPage) — pure extraction, no behavior change, this file's own full restyle stays deferred."
+      "purpose": "Template Studio Settings (2026-08-06 redesign; 2026-08-12 V2 rebrand slice 6, Figma node 83:2, EM-approved decomposition: was 870 lines, now a 54-line orchestrator). Composes WabaSettingsSection (components/templatestudio/settings/) + AiProviderPanel (components/templatestudio/). The old collapsed \"Advanced — API activity log\" panel (AdvancedAuditPanel, incl. its private redactSecrets/redactValue extracted in slice 4f) is DELETED, not migrated — not in the Figma spec, and functionally superseded by the dedicated /templates/debug page (slice 4f); a plain \"Open Debug\" link replaces it. PM+EM+UX+DesignEvaluator+EL approved (2026-08-06 initial); PM+EM+EL approved (OpenAI enablement, 2026-08-06 follow-up); EM approved decomposition plan + EL approved code (2026-08-12, rejected round 1 for SegmentedControl's ARIA roles, approved round 2)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/settings/WabaSettingsSection.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 84:2) — \"Connected WABAs\" card: header, Add WABA button, accordion list of WabaBlock, renders AddWabaPanel. Extracted from the old 870-line TemplateSettingsPage.tsx."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/settings/WabaBlock.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 84:9) — one WABA's accordion: fetch-phones mutation, phone-mappings query, save-mappings mutation. Table/card rendering + Save action delegated to PhoneMappingTable.tsx to stay under the 200-line ceiling (was 244 lines before that split)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/settings/PhoneMappingTable.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6) — extracted from WabaBlock.tsx: desktop table + mobile card stack (via PhoneMappingRow.tsx) + the Save mappings button, all driven by props from WabaBlock's state."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/settings/PhoneMappingRow.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6) — PhoneTableRow (desktop) + PhoneCard (mobile), same phone/mapping/draft data, plus the qualityIndicator() helper (moved from the old page). bg-brand-pink removed."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/settings/AddWabaPanel.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 85:9) — validate WABA ID → preview → confirm-and-register flow, extracted as-is (logic unchanged) from the old page. bg-brand-pink removed."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/AiProviderPanel.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 86:2) — Iris BYOK LLM key management, extracted and rebuilt from the old page's inline function. Provider switcher rebuilt on the new shared SegmentedControl (was a hand-rolled role=\"tablist\" — DESIGN.md §6 names this exact OpenAI/Claude/NVIDIA case as the canonical Segmented Control example)."
+    },
+    {
+      "path": "frontend/src/components/shared/SegmentedControl.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6) — generic Segmented Control (DESIGN.md §6: pill track, raised selected segment), first real consumer AiProviderPanel. Uses radiogroup/radio ARIA semantics with roving tabindex + ArrowLeft/ArrowRight roaming — NOT tablist/tab (EL rejected round 1 for exactly this: the component's own doc comment says Segmented Control is never interchangeable with Tabs, and the first draft used Tabs' ARIA pattern anyway)."
     },
     {
       "path": "frontend/src/pages/TemplateIrisPage.tsx",

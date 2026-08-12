@@ -10,7 +10,6 @@ import WabaPicker from '../components/templatestudio/WabaPicker'
 import TemplateListPanel from '../components/templatestudio/TemplateListPanel'
 import TemplateBuilderForm from '../components/templatestudio/TemplateBuilderForm'
 import BulkImportPanel from '../components/templatestudio/BulkImportPanel'
-import CrossWabaHealthStrip from '../components/templatestudio/CrossWabaHealthStrip'
 import {
   TEMPLATE_STATUS_TONE,
   classifyStatus,
@@ -40,20 +39,12 @@ export default function TemplateStudioPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Templates</h1>
+        <p className="text-xs text-muted-foreground">Template Studio &nbsp;›&nbsp; Templates</p>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">Templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create and manage WhatsApp message templates for a WABA. Meta reviews every create and edit.
+          All templates across your WhatsApp Business Accounts.
         </p>
-        <div className="mt-2">
-          <ConsequenceLine>
-            Templates are the only messages you can send outside a customer service window.
-            Meta enforces name, category, body, and edit-rate rules — we surface them before submit.
-            Status refreshes when you open this page (and on Refresh).
-          </ConsequenceLine>
-        </div>
       </div>
-
-      <CrossWabaHealthStrip wabas={wabas} onSelectWaba={setSelectedWabaId} />
 
       <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
 

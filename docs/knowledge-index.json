@@ -1168,7 +1168,7 @@
     },
     {
       "path": "frontend/src/pages/TemplateStudioPage.tsx",
-      "purpose": "Templates Structure B + A− pass 2026-08-06. Shell: CrossWabaHealthStrip (Pending/Rejected/Low quality across max 5 Karix-mapped WABAs, fail-soft) + WABA dropdown + list/create/edit/bulk. List freshness via TemplateListPanel staleTime:0 refetchOnMount/focus. Meta ConsequenceLines. PM+EM+UX+DesignEvaluator+EL approved. 2026-08-11 (V2 rebrand slice 3): page title font-bold → font-semibold (DESIGN.md §4 Page Title tier is Semi Bold)."
+      "purpose": "Templates Structure B + A− pass 2026-08-06. Shell: WABA dropdown + list/create/edit/bulk. List freshness via TemplateListPanel staleTime:0 refetchOnMount/focus. Meta ConsequenceLines (still used further down, in the create/edit TemplateEditorPage section of this same file). PM+EM+UX+DesignEvaluator+EL approved. 2026-08-11 (V2 rebrand slice 3): page title font-bold → font-semibold. 2026-08-12 (post-rebrand fix, founder-caught + explicit sign-off): slice 3 never actually restyled this page's own header/WABA-picker area, only the toolbar/table below it — heading copy and breadcrumb rebuilt to match Figma node 23:9 exactly (\"All templates across your WhatsApp Business Accounts.\", was different copy + a ConsequenceLine block). CrossWabaHealthStrip REMOVED from this page's render (not deleted — component file kept, just unused here) since the real Figma spec for this screen doesn't include it; EL initially blocked this specific removal pending explicit founder confirmation (feature removal ≠ pure restyle), founder confirmed \"Remove it, match Figma exactly\" before this shipped."
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateListPanel.tsx",
@@ -1192,7 +1192,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx",
-      "purpose": "A− fleet signal 2026-08-06 — StatusIndicator totals Pending/Rejected/Low quality across up to 5 configured WABAs via existing credential+list APIs; Focus hottest WABA; overflow +N note; fail-soft."
+      "purpose": "A− fleet signal 2026-08-06 — StatusIndicator totals Pending/Rejected/Low quality across up to 5 configured WABAs via existing credential+list APIs; Focus hottest WABA; overflow +N note; fail-soft. 2026-08-12: UNUSED as of this date — no longer rendered on TemplateStudioPage.tsx (founder-confirmed removal, not in the real Figma spec for that screen). File kept, not deleted, in case this signal gets a home elsewhere later."
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateBuilderForm.tsx",
@@ -1451,7 +1451,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/WabaPicker.tsx",
-      "purpose": "Shared WABA-select dropdown (2026-08-04), used by all Template Studio sections via useSelectedWaba — extracted so the picker UI can't drift between Iris/Templates/Settings."
+      "purpose": "Shared WABA-select dropdown (2026-08-04), used by all Template Studio sections via useSelectedWaba — extracted so the picker UI can't drift between Iris/Templates/Settings. 2026-08-12 (post-rebrand fix, Figma node 34:2): rebuilt from a bare label+native-select to a labeled card (building icon, custom-styled select, \"Templates below are scoped to this account.\" caption) — never actually restyled during the original V2 rebrand slice 3."
     },
     {
       "path": "frontend/src/pages/ModuleSelectorPage.tsx",

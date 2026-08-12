@@ -7,6 +7,11 @@ export interface TemplateSummary {
   template_name?: string
   name?: string
   status?: string
+  // Karix's real list-templates field names (confirmed live 2026-08-12 via
+  // backend diagnostic logging) — status/rejected_reason above were a
+  // guess that never matched, which is why every template showed "Unknown".
+  template_create_status?: string
+  template_status_reason?: string
   rejected_reason?: string
   reject_reason?: string
   category?: string
@@ -92,8 +97,19 @@ export function extractTemplates(data: unknown): TemplateSummary[] {
   const container = (response && typeof response === 'object' && !Array.isArray(response))
     ? response as { templates?: TemplateSummary[]; data?: TemplateSummary[] }
     : result
-  if (Array.isArray(container)) return container as TemplateSummary[]
-  return container.templates ?? container.data ?? []
+  const list = Array.isArray(container) ? container as TemplateSummary[] : (container.templates ?? container.data ?? [])
+  return list.map(normalizeTemplate)
+}
+
+// Backfills status/rejected_reason from Karix's real field names
+// (template_create_status/template_status_reason) so every other call site
+// that already reads t.status/t.rejected_reason keeps working unchanged.
+function normalizeTemplate(t: TemplateSummary): TemplateSummary {
+  return {
+    ...t,
+    status: t.status ?? t.template_create_status,
+    rejected_reason: t.rejected_reason ?? t.template_status_reason,
+  }
 }
 
 export function extractVariables(text: string): string[] {

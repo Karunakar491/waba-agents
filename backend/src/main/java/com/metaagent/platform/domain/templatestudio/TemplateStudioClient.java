@@ -247,53 +247,22 @@ public class TemplateStudioClient {
                                 "Could not fetch templates.", resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
-            log.info("karix-mcp listTemplates response: karixWabaId={} statusFilter={} keys={} resultCount={} resultShape={}",
-                    wabaId, status, body != null ? body.keySet() : null, countTemplates(body), describeResultShape(body));
+            log.info("karix-mcp listTemplates response: karixWabaId={} statusFilter={} resultCount={}",
+                    wabaId, status, countTemplates(body));
             return body;
         });
     }
 
+    // Real shape confirmed live 2026-08-12 (see templateModel.ts's matching
+    // frontend unwrap): {ok, result: {response: {templates: [...],
+    // APPROVED: [...], PENDING: [...], REJECTED: [...], PAUSED: [...]}}} —
+    // "templates" is the full list; the status-keyed arrays are Karix's own
+    // redundant slices of the same data, not additional templates.
     private static Integer countTemplates(Map<String, Object> body) {
         if (body == null) return null;
-        Object result = body.get("result");
-        if (result instanceof java.util.List<?> list) return list.size();
-        if (result instanceof Map<?, ?> map) {
-            Object data = map.get("data");
-            if (data instanceof java.util.List<?> list) return list.size();
-            Object templates = map.get("templates");
-            if (templates instanceof java.util.List<?> list) return list.size();
-        }
-        return null;
-    }
-
-    // Temporary diagnostic (2026-08-12): countTemplates() only recognized
-    // result / result.data / result.templates as the list shape, and a real
-    // WABA with known-existing templates still logged resultCount=null —
-    // this surfaces the ACTUAL top-level keys under "result" so the real
-    // shape Karix returns can be identified from one log line, without
-    // dumping the full (business-content-bearing) body.
-    private static Object describeResultShape(Map<String, Object> body) {
-        if (body == null) return null;
-        Object result = body.get("result");
-        if (!(result instanceof Map<?, ?> resultMap)) {
-            if (result instanceof java.util.List<?> list) return "list(size=" + list.size() + ")";
-            return result == null ? null : result.getClass().getSimpleName();
-        }
-        Object inner = resultMap.get("response");
-        if (!(inner instanceof Map<?, ?> innerMap)) {
-            String innerDescr = inner == null ? "null"
-                    : inner instanceof java.util.List<?> l ? "list(size=" + l.size() + ")"
-                    : inner.getClass().getSimpleName();
-            return "result.keys=" + resultMap.keySet() + " result.response=" + innerDescr;
-        }
-        Object templatesList = innerMap.get("templates");
-        Object firstItemKeys = null;
-        if (templatesList instanceof java.util.List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?, ?> firstItem) {
-            firstItemKeys = firstItem.keySet();
-        }
-        return "response.keys=" + innerMap.keySet()
-                + " templatesCount=" + (templatesList instanceof java.util.List<?> l2 ? l2.size() : "n/a")
-                + " firstItemKeys=" + firstItemKeys;
+        if (!(body.get("result") instanceof Map<?, ?> result)) return null;
+        if (!(result.get("response") instanceof Map<?, ?> response)) return null;
+        return response.get("templates") instanceof java.util.List<?> list ? list.size() : null;
     }
 
     // karix-mcp always returns a JSON object at this endpoint — Map.class is

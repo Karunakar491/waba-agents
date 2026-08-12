@@ -1,313 +1,384 @@
-Product Design System
-A design system is a shared language. It lets every decision-maker move fast without moving alone.
-This document exists so that anyone — designer, engineer, PM, founder — can look at a screen and know whether it belongs here.
-For AI agents: how to use this document
-You are generating UI for this product. Before writing any component:
-Read §0 — The Philosophy. Hold the mood. The user is a business owner who is not technical. They are trying to make their business work better. Every pixel should feel like help, not homework.
-Use tokens from §1–2. If you need a color, a font, a radius — it lives there. If the token doesn't exist, propose one. Do not hardcode.
-Match a pattern from §6. Same problem, same solution. Consistency is generosity — it reduces cognitive load.
-Run the Screen Intelligence check (§7). Every screen must answer: what does the user want to accomplish here? What might they be feeling? What can we offer? What can we remove?
-When in doubt, choose warmth over coolness, clarity over cleverness, and restraint over decoration.
-0. Philosophy — The Feel
-The product is a conversation. The core interaction is a business talking to its customers. The UI is the frame around that conversation. The frame should be invisible until it needs to be helpful.
-Our Point of View
-The conversation is the product. The live chat preview — the business speaking as a real message thread — is the product's identity element. Wherever a conversation exists, it lives. Where one does not yet exist, we show the next step, never a blank void.
-Karix is the connective tissue. Karix's brand DNA — dots and lines, pink-purple-green, creativity and connectivity — is not slapped on as decoration. It is expressed through motion (dots connecting), through color (purposeful, never noisy), and through language (conversational, never corporate).
-The interface whispers, the content speaks. App chrome (nav, headers, toolbars) stays quiet — small type, muted color, no shadows. Content — forms, previews, status — is where color, weight, and attention live.
-One reassurance per decision. Every screen where the user makes a consequential choice carries one plain-language sentence: what will happen, what won't happen, what they can undo. This is not a tooltip. It is a layout element.
-Status is a sentence, not a badge. Active / paused / draft always render the same way: a colored dot (pulse for active) + a plain sentence. No background pills. No color roulette.
-Motion is information. Every animation answers a question: "Where did this come from?" "Where did that go?" "What changed?" If an animation doesn't answer a question, it doesn't ship.
-What We Are Not
-Table
-We are	We are not
-A calm, warm workspace	A cold admin dashboard
-Conversational and human	Jargony and corporate
-Generous with whitespace, precise with density	Dense and cluttered, or wasteful and sparse
-Subtle depth through borders and surface tints	Heavy shadows, glassmorphism, gradients as decoration
-Motion that orients	Motion that entertains
-One confident action per view	Competing CTAs
-Plain words that explain consequences	Hype, exclamation marks, "supercharge"
-Reference Bar
-Vercel: Density without clutter. Every element earns its place. Subtle borders create depth without shadow.
-Stripe: Clarity as a product feature. Forms that feel like conversations. Error states that teach.
-Linear: Restraint as confidence. No decoration. No noise. Every pixel has a job.
-WhatsApp: Familiarity. The user already knows how chat works. We don't reinvent it.
-0.1 Responsive Breakpoints
-Table
-Breakpoint	Width	Behavior
-Mobile (baseline)	375px+	Single column. Sidebar = off-canvas drawer. Every screen MUST work here
-md	768px+	Sidebar becomes static rail (collapsible 240px ↔ 64px). Multi-panel layouts allowed
-lg	1024px+	Multi-panel layouts fully visible
-2xl cap	1400px	Container max — content never full-bleed beyond this
-Design mobile-first. The 375px layout is the design; wider screens are the enhancement.
-Container max-width: max-w-6xl (1152px) for content pages. The 1400px 2xl value is a viewport cap for the Tailwind container utility, not a content-width override.
-1. Tokens — Change Once, Change Everywhere
-Table
-What	The ONE place
-Colors (brand + semantic)	frontend/tailwind.config.js (theme.extend.colors) + frontend/src/index.css (CSS variables for shadcn semantic tokens)
-Font family	frontend/tailwind.config.js (fontFamily.sans) + the font import in frontend/index.html
-Radius scale	frontend/tailwind.config.js (borderRadius) / --radius in index.css
-Dark mode	index.css .dark block (CSS variables only)
-Hard rule: Components NEVER hardcode hex colors, font names, or px radii. Use token classes (bg-brand-pink, text-muted-foreground, rounded-xl).
-Only exception: third-party UI mimicry constants, and those must still be named tokens (see whatsapp.* group in tailwind.config.js).
-2. Brand Tokens (Karix DNA, Elevated)
-Karix's identity is built on three ideas: dots (nodes, people, messages), lines (connections, flows, conversations), and three colors (pink for action, purple for depth, green for life). We honor this DNA but elevate it for 2026.
-Brand Colors
-Table
-Token	Value	Use
-brand-ink	#0A0F1E	Primary text, headers, the deep frame. Not black — it has a whisper of navy warmth
-brand-navy	#11225F	Karix Blue Zodiac. The frame: sidebar, topbar, Command Bar. One continuous surface. Never content
-brand-pink	#D6468F	Karix Cranberry. THE action color. Primary CTA only. One per viewport
-brand-purple	#6B4EE6	Derived from Karix's purple heritage. Secondary emphasis, active nav states, subtle highlights
-brand-green	#1EBA5D	Success, active status, positive confirmation
-brand-periwinkle	#95A5CF	Karix Polo Blue. Tertiary accent for info states, subtle borders, hover tints
-Semantic Colors
-Table
-Token	Light Mode	Dark Mode	Use
-background	#FAFBFC	#0D1117	Page canvas. Not pure white — a breath of warmth
-foreground	#0A0F1E	#F0F2F5	Primary text
-card	#FFFFFF	#161B22	Elevated surfaces
-card-foreground	#0A0F1E	#F0F2F5	Text on cards
-muted	#F3F4F6	#21262D	Subtle backgrounds, hover states
-muted-foreground	#6B7280	#8B949E	Secondary text, hints
-border	#E5E7EB	#30363D	Dividers, card borders
-border-subtle	#F3F4F6	#21262D	Hairline borders, separators
-destructive	#DC2626	#F85149	Errors, destructive actions
-destructive-foreground	#FFFFFF	#FFFFFF	Text on destructive
-warning	#B45309	#F0883E	Warning states, amber dot
-Typography
-Table
-Role	Classes
-Page title	text-3xl font-semibold text-foreground tracking-tight
-Section title	text-lg font-semibold text-foreground
-Body	text-sm text-foreground leading-relaxed
-Secondary/help	text-sm text-muted-foreground leading-relaxed
-Micro (hints, counters)	text-xs text-muted-foreground
-Label	text-xs font-medium text-muted-foreground uppercase tracking-wide
-Font: Inter 400/500/600/700. Everything. No other family.
-Radius
-Table
-Token	Value	Use
-rounded-md	6px	Small chips, tags, inline badges
-rounded-lg	10px	Buttons, inputs, dropdowns
-rounded-xl	14px	Cards, panels, modals
-rounded-2xl	18px	Large cards, feature panels
-rounded-full	9999px	Avatars, icon-only circular controls only
-Softer than sharp, never fully pill-shaped except avatars.
-Shadow — Surface Separation, Never Decoration
-Table
-Token	Value	Use
-shadow-resting	0 1px 2px rgba(10, 15, 30, 0.04), 0 1px 3px rgba(10, 15, 30, 0.02)	Cards, panels, dropdowns resting on the page. Always paired with border
-shadow-lifted	0 4px 12px rgba(10, 15, 30, 0.08), 0 2px 4px rgba(10, 15, 30, 0.04)	Modals, popovers, floating surfaces
-shadow-none	—	Buttons, chips, inputs, badges, nav items. Flat is the floor
-Dark mode: elevation reads via lighter surface tints (--card lighter than --background), not shadow darkening. Shadow opacity drops to near-zero in dark mode by design.
-Focus Ring
-plain
-focus-visible:ring-2 focus-visible:ring-brand-purple/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background
-On every interactive element. Not optional. Purple-tinted, not blue.
-3. Spacing & Layout
-Page container: max-w-2xl to max-w-6xl centered. Never full-bleed text beyond 1152px.
-Vertical rhythm:
-space-y-4 between related items
-space-y-6 between form groups
-space-y-8 between page sections
-space-y-10 between major page areas
-Cards: rounded-xl border bg-card p-6 shadow-resting
-Buttons: rounded-lg — no shadow
-Inputs: rounded-lg border bg-background px-3 py-2.5 text-sm + focus ring
-Modals: max 640px wide on desktop, rounded-xl, shadow-lifted, focus trap + role="dialog" + aria-modal="true" + Escape-to-close + backdrop-click-dismiss
-4. Interaction Baseline
-Every screen should pass these checks. They are guardrails, not gates.
-[ ] Loading state for any operation > 300ms. Skeleton preferred over spinner for layout shifts. Never a blank render during auth/entitlement checks.
-[ ] Empty state with a clear next action. Never bare "No data."
-[ ] Error state inline, next to where it went wrong. Toast as supplement, never replacement.
-[ ] Disabled controls explained via inline validation. Never silently dead.
-[ ] Primary action obvious in < 2s. Exactly one brand-pink CTA per section.
-[ ] Button labels are verb + noun: "Create item", not "Submit."
-[ ] Works at 375px width, or has an explicit desktop-only justification.
-[ ] Motion ≤ 250ms ease-out for feedback; subtle entrance animations (fade + 8px translate, 200ms) for orientation. No ambient/looping motion.
-[ ] One saturated accent (brand-pink) per viewport. brand-navy only in global chrome. brand-purple for secondary emphasis only.
-[ ] Consequence line present on any screen with consequences (see §6 ConsequenceLine).
-[ ] Keyboard: Escape closes modals, Enter submits, visible focus states.
-[ ] ARIA: dialogs get role="dialog" aria-modal, toggles get aria-pressed, errors get role="alert".
-[ ] Destructive actions require confirmation.
-[ ] Navigation state visible (active nav item highlighted; sidebar collapsible, state persisted).
-[ ] No user-entered text transformed. No capitalize/uppercase on names or user content.
-5. Component Patterns
-Same pattern = same component. Before building UI, check frontend/src/components/ and existing pages.
-Nav Shell: AppShell
-Collapsible sidebar (localStorage sidebar-collapsed), brand-navy, topbar with breadcrumb
-Sidebar and Command Bar are ONE continuous frame system — same visual weight, same restraint, no gap implying unrelated elements
-h-dvh not h-screen (mobile viewport stability)
-Modals: Shared Modal Primitive
-Every dialog renders through one component
-Built-in focus trap, role="dialog", aria-modal, Escape-to-close, backdrop-dismiss
-Max 640px wide on desktop, rounded-xl, shadow-lifted
-No screen builds its own fixed inset-0 overlay from scratch
-Wizards: Multi-Step Form Pattern
-Steps rail | form | live preview (3-panel at lg+)
-The preview is not a preview — it is the product. The live output lives there.
-Mobile: accordion or tabbed steps
-StatusIndicator
-The ONLY way status renders anywhere:
-HTML
-<span class="inline-flex items-center gap-1.5">
-  <span class="h-2 w-2 rounded-full bg-{state}" />
-  <span class="text-sm text-muted-foreground">{plain label}</span>
-</span>
-brand-green dot (pulse animation for active only) + plain sentence
-Never a tinted-background pill (bg-x/10 text-x rounded-full)
-ConsequenceLine
-One per screen with consequences:
-HTML
-<p class="text-sm text-muted-foreground">
-  Nothing goes live until you confirm.
-</p>
-Placed directly under the page title or beside the primary CTA. Plain language. States what will/won't happen.
-ErrorBanner
-Every inline error render:
-HTML
-<div role="alert" class="text-sm text-destructive">
-  <!-- optional retry action slot -->
-</div>
-No shadow. Inline, not a separate surface.
-Wraps extractErrorMessage from lib/errors.ts
-IconChip
-Contained icon in a flat tinted square:
-Scope: Dashboard feature-highlight tiles, avatar-style icons only
-Never for empty states (those render live-preview/next-action)
-Never as a logo/identity mark (wordmark only)
-Two sizes: h-8 w-8 / h-10 w-10
-Flat bg-{color}/10 tint, no gradient, no shadow
-Inline Review Panel
-A deliberate second confirmation pattern (not a Modal violation):
-Renders as a border-l panel docked beside the main content
-Confirmation needs to stay visible alongside the context that produced it
-Scope: in-context review steps beside a persistent content pane only. Any other confirm/cancel dialog goes through the shared Modal
-Bento Panel — Scoped, Not Universal
-For overview/at-a-glance screens only (confirmed scope: Dashboard, Module overview):
-Grid of varying-size cards (grid grid-cols-1 md:grid-cols-3 gap-4)
-Cards spanning 1-2 columns by content weight
-Not for: tables, forms, chat, wizards, comparable records that need scanning/sorting/filtering
-Same radius/shadow/border tokens as every other card
-Card content renders through existing identity primitives (StatusIndicator, live-preview snippet, ConsequenceLine)
-Define overflow: single-card state must not look broken; narrative cards need line-clamp
-6. Voice & Copy
-Audience: a business owner who is not technical. They are setting up something they don't fully understand. They need to feel like someone competent is walking them through it.
-Plain words. "Connect your number," never "Provision integration."
-Explain consequences. "Nothing goes live until you confirm."
-Errors say what to do next, not what failed internally.
-No jargon, no API terminology in user-facing copy.
-No exclamation marks. Confidence is quiet.
-Use "you" and "your." The product is talking to a person.
-7. Screen Intelligence — The Thinking Layer
-Every screen must think before it renders. This is not an afterthought. It is the first thing you write when designing a screen.
-The Four Questions
-Before building any screen, answer these four questions in a comment block at the top of the page component:
-tsx
+# WABA Agents — Design System
+### V2 — Modern Minimal
+
+---
+
+## 0. Philosophy — The Feel
+
+Not Apple's HIG. Apple designs consumer OS apps (Mail, Photos) — this is a
+multi-tenant B2B tool with account switching, dense tables, and credential
+management. Wrong category, wrong bar.
+
+The actual benchmark, one company per dimension:
+
+- **Vercel** — density without clutter
+- **Stripe** — clarity
+- **Linear** — restraint as confidence
+- **WhatsApp** — chat familiarity; don't reinvent what people already know
+- **Claude / ChatGPT** — specifically for Iris's navigation pattern (session
+  history, new-chat, search)
+
+One saturated accent color, used sparingly, doing double duty as the
+positive-status color. Neutral everywhere else. If a screen needs a second
+loud color to feel finished, the first one isn't being used with enough
+restraint.
+
+### 0.1 Responsive Breakpoints
+
+Deprioritized by explicit decision — users are laptop-based. Build for
+desktop; don't spend budget on mobile layouts unless told otherwise.
+
+---
+
+## 1. Tokens — Change Once, Change Everywhere
+
+Every color, spacing value, and font size a screen uses should trace back to
+a named token, not a typed-in number. If a value doesn't have a name, it's a
+guess, not a decision.
+
+---
+
+## 2. Color Tokens
+
+**One accent hue only.** Not two, not three. The previous version of this
+system used navy + pink + purple simultaneously — three saturated colors
+competing for attention, and a navy/pink pairing that read as tonally
+confused (navy signals enterprise-serious, pink signals consumer-playful).
+Replaced entirely.
+
+| Token | Hex | Contrast (vs white) | Role |
+|---|---|---|---|
+| `ink` | `#0A0A0A` | — | Nav rail / dark chrome only. Never body text. |
+| `foreground` | `#18181B` | 17.7:1 | Primary text. |
+| `background` | `#FAFAFA` | — | Page background. |
+| `card` | `#FFFFFF` | — | Surfaces, table backgrounds. |
+| `muted` | `#F4F4F5` | — | Subtle fills — inputs, segmented-control track. |
+| `muted-fg` | `#71717A` | 4.83:1 | Secondary/caption text. |
+| `border` | `#E4E4E7` | — | Dividers, default borders. |
+| `accent-teal` | `#0D9488` | 3.74:1 | Icons, dots, low-opacity tints. **Non-text only.** |
+| `accent-teal-solid` | `#0F766E` | 5.47:1 | Text, links, buttons, badges. AA-safe. |
+| `destructive` | `#DC2626` | 4.83:1 | Errors, Rejected status. |
+| `warning` | `#D97706` | 3.19:1 | Pending status. **Dot only, non-text.** |
+
+**Why teal:** a deliberate, subtle nod to WhatsApp's heritage — not a copy of
+its bright `#25D366`, but the same teal-green lineage, tuned for a calmer,
+more considered feel.
+
+**Hard rule:** `accent-teal` and `accent-teal-solid` are not interchangeable.
+Text and solid-fill-with-white-text situations must use `-solid` — the
+lighter shade fails AA at normal text size (4.09:1, below the 4.5:1
+threshold). This isn't a style choice, it's a contrast requirement.
+
+Contrast is **computed**, never eyeballed. 4.5:1 for text, 3:1 for
+non-text/graphical elements (icons, dots, focus rings).
+
+---
+
+## 3. Spacing — Strict 4px Grid, No Exceptions
+
+Every `padding`, `itemSpacing`, and gap value must be a multiple of 4.
+
+This was audited directly against the built file: 860 of 2,418 checked
+spacing values were off-grid (7px, 9px, 5px, 3px, 11px, 13px — hand-picked
+to "look about right" instead of snapped to a scale). All fixed. Zero
+tolerance going forward — this is exactly the kind of discipline that
+separates a considered system from one that was eyeballed, and it's fully
+within a static design tool's power to get right every time.
+
+Standard scale: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`.
+
+---
+
+## 4. Typography
+
+Inter. A deliberately tight scale — restraint, not variety, is the actual
+signal of a considered system (this is what Stripe/Linear are known for).
+Two H1 sizes exist on purpose, not by accident:
+
+| Tier | Size / Weight | Usage |
+|---|---|---|
+| Hero | 28px Semi Bold | Once-per-session greeting only (e.g. Module Selector). |
+| Page Title | 24px Semi Bold | Every repeated utility screen — Templates, Settings, Debug. |
+| Section Heading | 20px Semi Bold | Empty states, card headings, modal/panel titles. |
+| Body | 13px Regular | Default paragraph, table cells, input values. |
+| Emphasis / Interactive | 13px Medium | Buttons, links, active nav state. |
+| Caption | 11px Medium, +6% tracking, `muted-fg` | Table headers, filter group labels. Always uppercase. |
+
+**Numeric figures**: any number in a scannable list — quality scores, counts,
+dates, stats — uses tabular figures so digits align in a column. Prose
+numbers stay proportional.
+
+Adding a new size below this table requires a stated reason — same bar as
+adding a new component pattern.
+
+---
+
+## 5. Base Layout
+
+### Nav Rail
+- Gradient chrome: `ink` fading to near-black, not a flat fill. This is
+  where brand identity concentrates, precisely because everything else
+  stays restrained.
+- **Collapsible, not fixed** — this was already a considered decision in
+  the underlying code, kept as-is: defaults to expanded/labeled (discoverable
+  for a first-time, non-technical user), collapse is opt-in and persisted.
+  Hover-to-peek when collapsed.
+- **Override**: the rail always force-expands on the Iris route regardless
+  of the collapsed preference — session history must stay visible. The one
+  place user preference is overridden by context.
+- Expanded width ~260px (full nav items with labels + nested session list on
+  Iris). Collapsed width 80px (icon-only).
+
+### Command Bar — Scope Switchers
+Client switcher and Module switcher live in the same navy bar as pills,
+divided by a 1px hairline, opening the same overlay/search interaction
+pattern — one mental model for every cross-cutting scope switch, not one
+per switcher. Dropdown rows: colored dot (swatch, never a Badge component) +
+plain text + optional status word (Current / New / Not enabled).
+
+---
+
+## 6. Component Patterns
+
+Same pattern = same component. Check this list before building anything new.
+
+**Buttons** — Primary (`accent-teal-solid`, one per section) / Secondary
+(outline) / Ghost (text-only, low-emphasis actions) / Destructive (red,
+confirm via Modal first). All four need Default/Hover/Pressed/Disabled
+states defined, not just Default.
+
+**Cards** — generic container, header/body/footer slots all optional.
+
+**Tables** — caption-style uppercase headers (11px Medium, +6% tracking).
+Rows: 13px Regular, 1px border-bottom, no zebra striping. Hover state
+required (`muted` tint across the full row) — a table with only a resting
+state isn't done.
+
+**Tabs vs. Segmented Control** — two different patterns, not
+interchangeable: **Tabs** (underline-style) for switching between full page
+sections. **Segmented control** (pill track, `bg-muted` + raised selected
+segment) for switching between a small closed set of equivalent options
+inline (e.g. AI provider: OpenAI/Claude/NVIDIA). If Meta's own category
+tabs (Marketing/Utility/Authentication) ever get rebuilt, they're the
+underline Tabs variant, matching how they behave as page-level navigation.
+
+**Form controls** — Select, Toggle, Checkbox, Radio (option card: border
+only when unselected, border + subtle tint when selected — never border
+alone, that's too weak a signal), Text Input, Textarea (with toolbar +
+character counter when it claims to have one — don't describe a feature in
+copy without drawing it).
+
+**Filters** — one "Filters" button (with active-count badge), opening a
+single panel with grouped sections (Category, Language, Status, Method,
+whatever applies) — never scattered individual dropdowns/pills across the
+toolbar. Search box stays separate, outside the panel, for free-text fields.
+Open-ended data (languages, paths) gets a search+list inside its group;
+small fixed enums (category, status, method) get a pill row.
+
+**Modal** — the shared primitive for anything that blocks the whole screen.
+Max 640px desktop, focus trap, Escape-to-close, backdrop-dismiss.
+
+**Docked panel — not a Modal.** Anything that needs to stay visible
+alongside the content that produced it (Iris's confirm-before-submit,
+review steps) docks to one side with a border, full height. This is
+deliberate: the user needs to compare the panel against what's still on
+screen, which a modal overlay prevents.
+
+**ErrorBanner / ConsequenceLine / Tooltip** — inline error (no shadow,
+optional retry), one-line consequence statement per screen with real
+stakes, brief hover context for icon-only controls or disabled-state
+reasons.
+
+**Badge/Pill vs. StatusIndicator** — distinct. StatusIndicator is always
+dot + plain label, no background tint, used for status semantics
+(Approved/Pending/etc). Badge/Pill is a separate primitive for counts and
+short flags ("New", a count circle) — has its own tinted background because
+it isn't describing a status, it's flagging an item.
+
+**Stepper** — numbered circles + connecting line, for genuine multi-step
+flows only. Don't invent a wizard where a flat form is correct.
+
+*Revised mid-project, 2026-08.* The template **Create** flow uses a 3-step
+Stepper (Set up template / Edit template / Submit for Review). This is not
+a free reskin of the old single-page form — Figma's redesign is making a
+real structural argument: name+category+language, the editable content,
+and the final review-before-submit are three genuinely distinct decisions,
+each with its own point of no return, and collapsing them into one scroll
+hid that. The **Edit** flow stays a flat single-page form with a live side
+preview, deliberately — once a template exists, Meta locks name, category,
+and language for its lifetime (see Authentication's fixed body/button
+shape, which is similarly locked and never offered a stepper), so there is
+nothing left to sequence. A stepper on Edit would manufacture steps where
+none exist.
+
+This is the rule now, not a one-off exception bolted on top of the old
+blanket rule. When a Figma redesign changes how a pattern in this document
+should be used, that change gets written into the document itself, in the
+same pass as the code that implements it — not left as a footnote appended
+after the fact, and not left for someone to notice the drift later and ask
+why the code and the doc disagree.
+
+**IconChip** — flat tinted square (`bg-accent-teal` at ~14% opacity), icon on
+top at full color. Two sizes. Never a gradient, never a shadow. **Never for
+empty states** — an empty state renders a live-preview/next-action instead
+of a centered icon. This was already the rule before this rewrite; it just
+wasn't being followed.
+
+**Empty states** — asymmetric, never centered-icon-plus-heading (that's the
+generic Shadcn/Tailwind default, and it's on the anti-pattern list). A left
+accent bar instead of a centered icon, left-aligned copy, a real primary CTA
+plus a locked/muted preview of what's coming if relevant.
+
+**Skeleton loading** — muted-color bars matching the real content's shape
+and column widths, not a generic spinner, for anything that takes a
+noticeable moment to load (a table, a job status).
+
+**Scroll affordances** — for any list or conversation that can overflow: a
+top fade (card-color to transparent) signaling more content above, and a
+floating scroll-to-bottom button once the user has scrolled up. Neither
+existed before this session; both are now required for any scrollable
+message/list surface.
+
+**Live-preview snippet** — a required identity primitive, not decoration.
+Any card representing "what a message/template will actually look like"
+renders the real preview (chat bubble, WhatsApp bubble), never a decorative
+abstraction (dots, gradients standing in for content). If the surrounding
+copy says "here's a preview," there must be an actual preview under it.
+
+### WhatsApp Template Preview
+
+The one component every template-adjacent surface reuses: Create/Edit form,
+Iris draft cards, Iris confirm panel. Must render all of:
+
+- **Header formats**: None, Text, Image, Video, Document (icon + filename,
+  no thumbnail)
+- **Button types**: Quick Reply (stacked, divider between each button after
+  the first — not just spacing), Call-to-Action/URL, Call Phone Number,
+  WhatsApp Flow, Copy Code (Authentication)
+- **Mixed buttons** — up to 3 combined (e.g. one CTA + Quick Replies together)
+- **Carousel** — horizontally-scrolling cards, each with its own
+  image+body+button; the preview must show a genuine partial peek of the
+  next card, not exactly-fitting cards with nothing implying more exist
+- **Authentication/OTP** — body is the code slot only, no header/footer,
+  single Copy Code button
+
+WhatsApp's own header teal (`#075E54`) is used for the phone-preview chrome
+specifically — distinct from the product's own `accent-teal-solid`, so the
+simulated device never gets confused with the app's own UI.
+
+### Iris-Specific Patterns
+
+**Draft Snapshot Card** — inline in the chat, not a side panel, every time
+Iris drafts or updates a template. Compact WhatsApp preview + a
+"Draft started" / "Draft updated — [changed fields]" label. One-shot
+highlight ring on mount when something changed from the previous snapshot,
+then it clears — never an ambient/looping highlight.
+
+**Confirm Panel** — docked right, appears only at the real submission
+moment (create_template / edit_template / send_test), never earlier. Full
+preview + Name/Category/Language chips + an explicit "this cannot be undone"
+warning + Submit/Cancel. This is the actual gate before anything reaches
+Meta — a chat message that just says "Submitted" without this panel
+appearing first is a broken flow, not a shortcut.
+
+**Session sidebar** — New Chat + Search + **5 most recent sessions** + a
+"View all chats" link (only past 5). A dedicated All Chats page groups by
+Today / Yesterday / Previous 7 days / Older, with its own search. Showing
+every session unfiltered in the rail is not acceptable past 5.
+
+---
+
+## 7. Voice & Copy
+
+Audience: a business owner who is not technical, setting up something they
+don't fully understand.
+
+- Plain words. "Connect your number," never "Provision integration."
+- Explain consequences. "Nothing goes live until you confirm."
+- Errors say what to do next, not what failed internally.
+- No jargon, no API terminology in user-facing copy.
+- No exclamation marks. Confidence is quiet.
+- "You" and "your" — the product is talking to a person.
+- Never describe a feature in copy (a toolbar, a counter, a warning) that
+  isn't actually drawn on screen. If the words promise it, the screen shows
+  it.
+
+---
+
+## 8. Screen Intelligence — The Thinking Layer
+
+Before building any screen, answer in a comment block:
+
+```
 /**
  * Screen: [PageName]
  *
  * 1. USER GOAL: What does the user want to accomplish here?
- *    → [One sentence. Be specific. "Send a message to their customers" not "Use the messaging feature."]
- *
  * 2. EMOTIONAL STATE: What might they be feeling?
- *    → [Anxious? Excited? Confused? Rushed? Overwhelmed by options?]
- *
- * 3. POSSIBLE ACTIONS: What can they do here?
- *    → [Primary action, secondary actions, escape hatches, undo paths]
- *
- * 4. HOW WE HELP: What can we offer to make them feel better?
- *    → [Reassurance, preview, progress indicator, plain-language explanation,
- *       smart defaults, auto-save, inline validation, next-step suggestion]
+ * 3. POSSIBLE ACTIONS: Primary, secondary, escape hatches, undo paths.
+ * 4. HOW WE HELP: Reassurance, preview, progress, plain language, smart
+ *    defaults, inline validation, next-step suggestion.
  */
-The Intelligence Principles
-1. Anticipate, Don't React
-Don't wait for the user to make a mistake. Show them the path before they need to search for it.
-Example: In a multi-step setup, don't show all form fields at once. Show the first step, validate it, then reveal the next. The UI should feel like a conversation, not an exam.
-Example: If a user has connected an account but hasn't created their first item yet, the dashboard should suggest that as the primary action, not show an empty table.
-2. State Is a Story
-Every state of a screen — loading, empty, error, success, partial — should feel like the same screen, not a different page.
-Loading: Skeleton that mirrors the final layout. Never a generic spinner in the center of a blank page.
-Empty: Show the live preview or a next-action prompt. Never a centered card with a big icon.
-Error: Inline, contextual, with a recovery path. "We couldn't connect. Check your details and try again." Not "Error 400: Bad Request."
-Success: Brief, then move on. Success is not a destination — it's a signal to keep going.
-3. The Output Is Always Present
-Wherever possible, the live output preview should be visible. It is the product's heartbeat.
-Creation flows: Live preview panel showing the output as the user configures it.
-Dashboard: A status snippet with a recent activity excerpt.
-Settings: A "Test your setup" quick-action that opens the preview.
-Empty state: A sample output preview with a clear next step.
-4. One Breath Per Screen
-The user should be able to understand the screen in one breath — one glance, one read-through.
-One primary action per section. If there are two equally important actions, the section is too big. Split it.
-One reassurance line per decision. "Nothing goes live until you confirm."
-One status narrative per entity. "Active since Tuesday." Not a badge + a timestamp + a tooltip.
-5. Smart Defaults, Not Blank Slates
-Never present a blank form unless the user truly needs to invent from scratch.
-Name fields: Suggest a sensible default if we know the business name.
-Message fields: Pre-fill with a sensible default the user can edit.
-Time fields: Default to business hours in the user's timezone.
-Selection lists: Show the most-used options first, not alphabetically.
-6. Progress Is Visible
-The user should always know where they are, how far they've come, and what's next.
-Wizards: Step indicator with completed/pending states.
-Forms: Section progress (e.g., "Step 2 of 4").
-Long processes: Progress bar or percentage for setup/connect flows.
-Background tasks: Toast or inline status for "Syncing..." with a time estimate if possible.
-7. Undo Is a Feature
-Every destructive or consequential action should have an undo path, or at minimum, a confirmation that explains the consequence.
-Delete: "This will stop all activity. You can restore it within 30 days."
-Change configuration: "Active items using this setting will be paused."
-Disconnect: "Your setup will stop working. Your history will be preserved."
-8. Contextual Help, Not Documentation
-Help should appear exactly when and where it is needed.
-Inline hints: "This is what your customers will see first." under the message field.
-Tooltips: For technical terms that can't be avoided.
-Expandable sections: "Not sure what to write? See examples." that expand in place.
-Never: A "Read docs" link that dumps the user into a help center.
-8. Animation & Motion
-Philosophy
-Motion answers questions. It does not decorate.
-Table
-Question	Motion
-"Where did this come from?"	Enter: fade + 8px translateY, 200ms ease-out
-"Where did that go?"	Exit: fade + 8px translateY (reverse), 150ms ease-in
-"What changed?"	Layout shift: 200ms ease, layout prop where supported
-"Is this active?"	Micro: scale 0.98 on press, 100ms
-"Is something happening?"	Pulse: opacity 0.4→1, 2s ease-in-out, infinite (active status only)
-Rules
-No ambient/looping animation except active-status pulse.
-No parallax, no scroll-triggered reveals, no decorative particle effects.
-Entrance animations are subtle: 8px translate + opacity, not dramatic slides.
-Stagger children by 30–50ms for lists appearing, never more than 100ms per item.
-Respect prefers-reduced-motion: All animations should reduce to instant or fade-only when this is set.
-Easing
-css
---ease-out: cubic-bezier(0.16, 1, 0.3, 1);
---ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-9. The Karix Identity — Dots, Lines, and Connection
-Karix's logo is dots and lines. This is not a visual gimmick — it is the product's truth. Messages are dots. Conversations are lines connecting them. We express this subtly, not literally.
-How We Express It
-Connection lines in diagrams: Flow builders, logic trees, journeys — use subtle 1px lines (border-subtle) connecting nodes. Not decorative, structural.
-Dot patterns in empty states: A subtle grid of low-opacity dots as background texture for empty/creation screens. Not animated. Not distracting.
-Status dots: The StatusIndicator dot is a direct reference to the brand DNA. It is purposeful, not ornamental.
-Motion: When elements connect or transition, use a brief line-draw or path animation (SVG stroke-dashoffset) to express "connection forming." Use sparingly — setup flows only.
-How We Don't Express It
-No animated dot grids in the background of every page.
-No literal network diagrams as decoration.
-No gradient meshes trying to look like "connectivity."
-10. Dark Mode
-Dark mode is not an inversion. It is a different time of day.
-Background: #0D1117 — deep, not pure black. Warmth preserved.
-Cards: #161B22 — elevated, but not floating.
-Borders: #30363D — visible, but quiet.
-Text: #F0F2F5 — high contrast, but not harsh white.
-Accent colors unchanged: brand-pink, brand-purple, brand-green stay the same. They are vibrant enough for both modes.
-Elevation: Reads via lighter surface tints, not shadow. --card is lighter than --background.
-Focus ring: brand-purple/40 on dark surfaces reads as a soft glow.
-Changelog
-Table
-Date	Change
-2026-08-06	Complete rewrite. Elevated from compliance document to design philosophy. Replaced adversarial tone with collaborative language. Added Screen Intelligence framework (§7). Replaced #160E7A with Karix Blue Zodiac #11225F. Replaced #E73590 with Karix Cranberry #D6468F. Added brand-purple and brand-periwinkle from Karix heritage. Expanded animation guidelines. Added Karix identity expression (§9). Dark mode refined for warmth. Removed all feature-specific references (agents, templates, campaigns, WABA, etc.) to make the system future-proof.
-"The best design system is the one people want to use."
+```
+
+Anticipate, don't react. State is a story, not a status code. The output is
+always present (live preview, not a hidden result). One breath per screen —
+don't cram two decisions into one view. Smart defaults, not blank slates.
+Progress is visible. Undo is a feature. Contextual help, not documentation.
+
+---
+
+## 9. Definition of Done — The Benchmark
+
+A pass here means *checked*, not *perfect*. The failure mode is skipping the
+check, not occasionally missing something the check would've caught.
+
+1. **Consistency** — checked against `wiki/decisions/design-evaluator-anti-patterns.md`
+   before shipping. Not a vibe check.
+2. **Accessibility** — WCAG contrast actually computed (4.5:1 text, 3:1
+   non-text), not eyeballed. Every interactive element has a defined focus
+   state.
+3. **Defined states** — hover / pressed / focus / disabled / loading /
+   error specified for every control. A screen or component with only a
+   resting state isn't done.
+4. **Stress-tested content** — proven against real data shape: long names,
+   zero-state, many-language accounts, large lists (500+ rows), RTL text.
+   Not just clean example rows.
+
+Known anti-patterns already caught once in this system, worth never
+repeating:
+- Centered-icon-and-heading for empty states
+- Hardcoded lists for genuinely open-ended data (languages, paths) instead
+  of a dynamic, searchable set scoped to what actually exists
+- Mixed vocabulary within one column (e.g. "Green" and "High" both meaning
+  quality in the same field) — one vocabulary per field, always
+- Skeleton-style flat gray bars used as decorative filler instead of an
+  actual live-preview snippet
+
+---
+
+## 10. Identity — Karix DNA
+
+Dots, lines, and connection. This shows up in exactly one place with real
+weight: the nav rail's gradient + a quiet dots-and-lines mark low in the
+rail. Not repeated as decoration elsewhere — concentrating it in the one
+piece of chrome that's always visible is what keeps it a signature instead
+of noise.
+
+---
+
+## 11. Known Gaps — Not Yet Built
+
+Stated plainly rather than silently skipped:
+
+- **Dark mode** — not designed in this version. First-class in both Stripe
+  and Vercel's own products; genuinely absent here.
+- **Motion/interaction spec** — hover/press feedback, transition timing,
+  none of it is specified. A static design tool can describe intent but
+  can't prove the feel.
+- **Mobile/responsive** — explicitly out of scope per the laptop-first
+  decision, not an oversight.
+- **Real device/API behavior** — Meta's exact template validation rules,
+  live WhatsApp rendering, actual carousel swipe physics. Everything here
+  proves design *intent*; none of it is a substitute for testing against
+  the real API and a real device.

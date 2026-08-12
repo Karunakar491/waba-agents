@@ -162,9 +162,17 @@ function TemplateEditorPage({
       </button>
 
       <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          {isEdit ? 'Edit template' : 'Create template'}
+        <p className="text-xs text-muted-foreground">
+          Template Studio &nbsp;›&nbsp; Templates &nbsp;›&nbsp; {isEdit ? 'Edit' : 'Create'}
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-foreground">
+          {isEdit ? `Edit ${lockedMeta?.name || 'template'}` : 'Create Template'}
         </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isEdit
+            ? "Editing resubmits this template for Meta review — it won't send until re-approved."
+            : "Iris can do this faster — this manual form is here if you'd rather build it yourself."}
+        </p>
         <div className="mt-2 space-y-1.5">
           {isEdit ? (
             <>

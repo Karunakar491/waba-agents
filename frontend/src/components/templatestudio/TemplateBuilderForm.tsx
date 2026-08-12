@@ -1,18 +1,26 @@
-import { FileText, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, ArrowRight, FileText, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useTemplateBuilder } from './useTemplateBuilder'
 import WhatsAppTemplatePreview from './WhatsAppTemplatePreview'
 import TemplateSubmitSuccess from './TemplateSubmitSuccess'
+import Stepper from '../shared/Stepper'
 import TemplateMetaFields from './builder/TemplateMetaFields'
+import VariableTypeSelector from './builder/VariableTypeSelector'
 import HeaderEditor from './builder/HeaderEditor'
 import BodyEditor from './builder/BodyEditor'
 import AuthenticationEditor from './builder/AuthenticationEditor'
 import FooterEditor from './builder/FooterEditor'
+import LimitedTimeOfferEditor from './builder/LimitedTimeOfferEditor'
 import ButtonsEditor from './builder/ButtonsEditor'
+import ReviewSummary from './builder/ReviewSummary'
 
-// Thin composer (V2 rebrand slice 7) — sub-editors extracted to builder/
-// per an EM-approved decomposition plan; this file was 380 lines, over the
-// 200-line component ceiling.
+const CREATE_STEPS = ['Set up template', 'Edit template', 'Submit for Review']
+
+// Thin composer (V2 rebrand slice 7, restructured for the Create-flow
+// Stepper per Figma node 172:41 — founder-approved DESIGN.md amendment).
+// Edit mode stays flat (Figma node 93:18 has no stepper — name/category/
+// language are locked on edit, so there's nothing to step through).
 export default function TemplateBuilderForm({
   wabaId, mode, templateId, onDone,
 }: {
@@ -22,61 +30,87 @@ export default function TemplateBuilderForm({
   onDone?: () => void
 }) {
   const b = useTemplateBuilder({ wabaId, mode, templateId, onDone })
+  const [step, setStep] = useState(1)
 
   if (b.submittedName !== null) {
     return (
       <TemplateSubmitSuccess
         templateName={b.submittedName}
         onBackToTemplates={() => onDone?.()}
-        onCreateAnother={b.resetForCreateAnother}
+        onCreateAnother={() => { b.resetForCreateAnother(); setStep(1) }}
       />
     )
   }
 
-  return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
-      <div className="space-y-4 rounded-xl border bg-card p-5 shadow-surface-resting">
-        {!b.isEdit && (
+  const step1Ready = b.templateName.trim().length > 0 && b.language.trim().length > 0
+  const ltoReady = !b.ltoEnabled || b.ltoText.trim().length > 0
+  const step2Ready = b.isAuthentication ? !!b.otpExampleCode.trim() : b.bodyText.trim().length > 0 && ltoReady
+
+  const fieldsCard = (
+    <div className="space-y-4 rounded-xl border bg-card p-5 shadow-surface-resting">
+      {!b.isEdit && step === 1 && (
+        <>
           <TemplateMetaFields
             templateName={b.templateName} setTemplateName={b.setTemplateName}
             language={b.language} setLanguage={b.setLanguage}
             category={b.category} setCategory={b.setCategory}
           />
-        )}
+          {!b.isAuthentication && (
+            <VariableTypeSelector value={b.variableFormat} onChange={b.setVariableFormat} />
+          )}
+        </>
+      )}
 
-        {b.isEdit && !b.seeded && !b.existingTemplateQuery.isError && (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        )}
-        {b.isEdit && !b.seeded && b.existingTemplateQuery.isError && (
-          <div className="flex items-center gap-2 text-xs text-destructive">
-            <span>Could not load this template&apos;s current content — editing is blocked to avoid submitting a blank replacement.</span>
-            <button type="button" onClick={() => b.existingTemplateQuery.refetch()} className="shrink-0 underline">Retry</button>
-          </div>
-        )}
-        {(!b.isEdit || b.seeded) && b.isAuthentication && (
-          <AuthenticationEditor
-            codeExpirationMinutes={b.codeExpirationMinutes} setCodeExpirationMinutes={b.setCodeExpirationMinutes}
-            otpExampleCode={b.otpExampleCode} setOtpExampleCode={b.setOtpExampleCode}
+      {b.isEdit && !b.seeded && !b.existingTemplateQuery.isError && (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      )}
+      {b.isEdit && !b.seeded && b.existingTemplateQuery.isError && (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <span>Could not load this template&apos;s current content — editing is blocked to avoid submitting a blank replacement.</span>
+          <button type="button" onClick={() => b.existingTemplateQuery.refetch()} className="shrink-0 underline">Retry</button>
+        </div>
+      )}
+
+      {(b.isEdit || step === 2) && (!b.isEdit || b.seeded) && b.isAuthentication && (
+        <AuthenticationEditor
+          codeExpirationMinutes={b.codeExpirationMinutes} setCodeExpirationMinutes={b.setCodeExpirationMinutes}
+          otpExampleCode={b.otpExampleCode} setOtpExampleCode={b.setOtpExampleCode}
+        />
+      )}
+      {(b.isEdit || step === 2) && (!b.isEdit || b.seeded) && !b.isAuthentication && (
+        <>
+          <HeaderEditor
+            headerFormat={b.headerFormat} setHeaderFormat={b.setHeaderFormat}
+            headerText={b.headerText} setHeaderText={b.setHeaderText}
+            headerHandle={b.headerHandle} setMediaError={b.setMediaError} mediaError={b.mediaError}
+            uploadMediaMutation={b.uploadMediaMutation}
           />
-        )}
-        {(!b.isEdit || b.seeded) && !b.isAuthentication && (
-          <>
-            <HeaderEditor
-              headerFormat={b.headerFormat} setHeaderFormat={b.setHeaderFormat}
-              headerText={b.headerText} setHeaderText={b.setHeaderText}
-              headerHandle={b.headerHandle} setMediaError={b.setMediaError} mediaError={b.mediaError}
-              uploadMediaMutation={b.uploadMediaMutation}
+          <BodyEditor bodyText={b.bodyText} setBodyText={b.setBodyText} bodyExamples={b.bodyExamples} setBodyExamples={b.setBodyExamples} />
+          {b.category === 'MARKETING' ? (
+            <LimitedTimeOfferEditor
+              enabled={b.ltoEnabled} onEnabledChange={b.setLtoEnabled}
+              text={b.ltoText} onTextChange={b.setLtoText}
+              hasExpiration={b.ltoHasExpiration} onHasExpirationChange={b.setLtoHasExpiration}
             />
-            <BodyEditor bodyText={b.bodyText} setBodyText={b.setBodyText} bodyExamples={b.bodyExamples} setBodyExamples={b.setBodyExamples} />
+          ) : (
             <FooterEditor footerText={b.footerText} setFooterText={b.setFooterText} />
-            <ButtonsEditor buttons={b.buttons} setButtons={b.setButtons} />
-          </>
-        )}
+          )}
+          <ButtonsEditor buttons={b.buttons} setButtons={b.setButtons} />
+        </>
+      )}
 
-        {b.result && (
-          <p className={cn('text-xs', b.result.ok ? 'text-accent-teal-solid' : 'text-destructive')}>{b.result.message}</p>
-        )}
+      {!b.isEdit && step === 3 && (
+        <ReviewSummary
+          templateName={b.templateName} language={b.language} category={b.category}
+          bodyText={b.bodyText}
+        />
+      )}
 
+      {b.result && (
+        <p className={cn('text-xs', b.result.ok ? 'text-accent-teal-solid' : 'text-destructive')}>{b.result.message}</p>
+      )}
+
+      {b.isEdit && (
         <button
           type="button"
           disabled={!b.canSubmit}
@@ -84,21 +118,67 @@ export default function TemplateBuilderForm({
           className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
         >
           {b.submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-          {b.isEdit ? 'Save changes' : 'Submit for approval'}
+          Save changes
         </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {!b.isEdit && <Stepper steps={CREATE_STEPS} currentStep={step} />}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+        {fieldsCard}
+        <div className="space-y-2 lg:sticky lg:top-6 lg:self-start">
+          <p className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground">LIVE PREVIEW</p>
+          <WhatsAppTemplatePreview
+            headerFormat={b.headerFormat}
+            headerText={b.headerText}
+            bodyText={b.bodyText}
+            footerText={b.category === 'MARKETING' && b.ltoEnabled ? '' : b.footerText}
+            buttons={b.buttons}
+            isAuthentication={b.isAuthentication}
+          />
+        </div>
       </div>
 
-      <div className="space-y-2 lg:sticky lg:top-6 lg:self-start">
-        <p className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground">LIVE PREVIEW</p>
-        <WhatsAppTemplatePreview
-          headerFormat={b.headerFormat}
-          headerText={b.headerText}
-          bodyText={b.bodyText}
-          footerText={b.footerText}
-          buttons={b.buttons}
-          isAuthentication={b.isAuthentication}
-        />
-      </div>
+      {!b.isEdit && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <button
+            type="button"
+            disabled={step === 1}
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground disabled:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+
+          {step < 3 ? (
+            <button
+              type="button"
+              disabled={step === 1 ? !step1Ready : !step2Ready}
+              onClick={() => setStep((s) => Math.min(3, s + 1))}
+              className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+            >
+              Next Step
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!b.canSubmit}
+              onClick={() => { b.setResult(null); b.submitMutation.mutate() }}
+              className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+            >
+              {b.submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              Submit for approval
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+

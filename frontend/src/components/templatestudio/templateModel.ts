@@ -14,16 +14,26 @@ export interface TemplateSummary {
   quality_score?: { score?: string } | string
 }
 
-export type HeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
-export type ButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'
-export interface ButtonDraft { type: ButtonType; text: string; url: string; phoneNumber: string }
+export type HeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION'
+export type ButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE'
+export interface ButtonDraft { type: ButtonType; text: string; url: string; phoneNumber: string; code: string }
+
+// Named-vs-positional variables (Meta's parameter_format — docs/meta-api/
+// .../location_templates.md, LTO.md). Only choosable at creation; Meta
+// locks it for the lifetime of the template, so edit mode never shows this.
+export type VariableFormat = 'NUMBERED' | 'NAMED'
 
 export interface KarixComponent {
   type: string
   format?: string
   text?: string
-  example?: { header_handle?: string[]; body_text?: string[][] }
-  buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string }>
+  example?: {
+    header_handle?: string[]
+    body_text?: string[][]
+    body_text_named_params?: Array<{ param_name: string; example: string }>
+  }
+  buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string; example?: string | string[] }>
+  limited_time_offer?: { text?: string; has_expiration?: boolean }
 }
 
 export const AUTH_BODY_TEXT = '{{1}}'
@@ -91,27 +101,50 @@ export function seedFromComponents(components: KarixComponent[]) {
     bodyExamples: {} as Record<string, string>,
     footerText: '',
     buttons: [] as ButtonDraft[],
+    ltoEnabled: false,
+    ltoText: '',
+    ltoHasExpiration: false,
   }
   for (const c of components) {
     if (c.type === 'HEADER') {
       seed.headerFormat = (c.format as HeaderFormat) || 'TEXT'
       if (c.format === 'TEXT') seed.headerText = c.text || ''
-      else seed.headerHandle = c.example?.header_handle?.[0] || ''
+      else if (c.format !== 'LOCATION') seed.headerHandle = c.example?.header_handle?.[0] || ''
     } else if (c.type === 'BODY') {
       seed.bodyText = c.text || ''
-      const vars = extractVariables(seed.bodyText)
-      const examples = c.example?.body_text?.[0] || []
-      vars.forEach((v, i) => { seed.bodyExamples[v] = examples[i] || '' })
+      if (c.example?.body_text_named_params) {
+        for (const p of c.example.body_text_named_params) seed.bodyExamples[p.param_name] = p.example
+      } else {
+        const vars = extractVariables(seed.bodyText)
+        const examples = c.example?.body_text?.[0] || []
+        vars.forEach((v, i) => { seed.bodyExamples[v] = examples[i] || '' })
+      }
     } else if (c.type === 'FOOTER') {
       seed.footerText = c.text || ''
+    } else if (c.type === 'LIMITED_TIME_OFFER') {
+      seed.ltoEnabled = true
+      seed.ltoText = c.limited_time_offer?.text || ''
+      seed.ltoHasExpiration = !!c.limited_time_offer?.has_expiration
     } else if (c.type === 'BUTTONS') {
       seed.buttons = (c.buttons || []).map((b) => ({
-        type: (b.type as ButtonType) || 'QUICK_REPLY',
+        type: ((b.type || 'QUICK_REPLY').toUpperCase() as ButtonType),
         text: b.text || '',
         url: b.url || '',
         phoneNumber: b.phone_number || '',
+        code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
       }))
     }
   }
   return seed
+}
+
+/** Named params use letter-led placeholder names ({{customer_name}}); Meta's
+ *  positional style is purely numeric ({{1}}). A body with any non-numeric
+ *  variable can only be positional if it was typed by mistake — used to
+ *  seed the "Type of variable" selector from existing content on edit-seed
+ *  or Iris-authored drafts, not to force a choice the user already made. */
+export function detectVariableFormat(bodyText: string): VariableFormat {
+  const vars = extractVariables(bodyText)
+  if (vars.length === 0) return 'NUMBERED'
+  return vars.some((v) => !/^\d+$/.test(v)) ? 'NAMED' : 'NUMBERED'
 }

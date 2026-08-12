@@ -10,9 +10,11 @@ import {
   NAME_RE,
   extractVariables,
   seedFromComponents,
+  detectVariableFormat,
   type ButtonDraft,
   type HeaderFormat,
   type KarixComponent,
+  type VariableFormat,
 } from './templateModel'
 
 export function useTemplateBuilder({
@@ -40,6 +42,10 @@ export function useTemplateBuilder({
   const [bodyExamples, setBodyExamples] = useState<Record<string, string>>({})
   const [footerText, setFooterText] = useState('')
   const [buttons, setButtons] = useState<ButtonDraft[]>([])
+  const [variableFormat, setVariableFormat] = useState<VariableFormat>('NUMBERED')
+  const [ltoEnabled, setLtoEnabled] = useState(false)
+  const [ltoText, setLtoText] = useState('')
+  const [ltoHasExpiration, setLtoHasExpiration] = useState(false)
   const [seeded, setSeeded] = useState(!isEdit)
   const [codeExpirationMinutes, setCodeExpirationMinutes] = useState(DEFAULT_CODE_EXPIRATION_MINUTES)
   const [otpExampleCode, setOtpExampleCode] = useState('')
@@ -57,6 +63,15 @@ export function useTemplateBuilder({
     setFooterText('')
     setBodyText(AUTH_BODY_TEXT)
   }, [isAuthentication])
+
+  // LTO.md limitation: "Only templates categorized as MARKETING are
+  // supported" and "Footer components are not supported" alongside LTO.
+  useEffect(() => {
+    if (category !== 'MARKETING' && ltoEnabled) setLtoEnabled(false)
+  }, [category, ltoEnabled])
+  useEffect(() => {
+    if (ltoEnabled && footerText) setFooterText('')
+  }, [ltoEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const existingTemplateQuery = useQuery({
     queryKey: ['template-detail', wabaId, templateId],
@@ -83,6 +98,10 @@ export function useTemplateBuilder({
     setBodyExamples(seed.bodyExamples)
     setFooterText(seed.footerText)
     setButtons(seed.buttons)
+    setLtoEnabled(seed.ltoEnabled)
+    setLtoText(seed.ltoText)
+    setLtoHasExpiration(seed.ltoHasExpiration)
+    setVariableFormat(detectVariableFormat(seed.bodyText))
     if (raw.template_name || raw.name) setTemplateName(raw.template_name || raw.name || '')
     if (raw.language) setLanguage(raw.language)
     if (raw.category) setCategory(raw.category)
@@ -116,6 +135,10 @@ export function useTemplateBuilder({
     if (headerFormat !== 'NONE') {
       if (headerFormat === 'TEXT') {
         components.push({ type: 'HEADER', format: 'TEXT', text: headerText })
+      } else if (headerFormat === 'LOCATION') {
+        // No handle to upload — the location itself is supplied at send
+        // time, not creation time (docs/meta-api/.../location_templates.md).
+        components.push({ type: 'HEADER', format: 'LOCATION' })
       } else {
         components.push({ type: 'HEADER', format: headerFormat, example: { header_handle: [headerHandle] } })
       }
@@ -123,16 +146,30 @@ export function useTemplateBuilder({
     const variables = extractVariables(bodyText)
     const bodyComponent: Record<string, unknown> = { type: 'BODY', text: bodyText }
     if (variables.length > 0) {
-      bodyComponent.example = { body_text: [variables.map((v) => bodyExamples[v] || '')] }
+      bodyComponent.example = variableFormat === 'NAMED' && !isEdit
+        ? { body_text_named_params: variables.map((v) => ({ param_name: v, example: bodyExamples[v] || '' })) }
+        : { body_text: [variables.map((v) => bodyExamples[v] || '')] }
     }
     components.push(bodyComponent)
-    if (footerText.trim()) components.push({ type: 'FOOTER', text: footerText })
+    // LTO.md: "Only templates categorized as MARKETING are supported" and
+    // "Footer components are not supported" alongside limited_time_offer —
+    // footerText is already force-cleared by the effect above when LTO is
+    // on, so no footer push happens here; this mirrors that invariant.
+    if (ltoEnabled && category === 'MARKETING' && ltoText.trim()) {
+      components.push({
+        type: 'LIMITED_TIME_OFFER',
+        limited_time_offer: { text: ltoText.trim(), has_expiration: ltoHasExpiration },
+      })
+    } else if (footerText.trim()) {
+      components.push({ type: 'FOOTER', text: footerText })
+    }
     if (buttons.length > 0) {
       components.push({
         type: 'BUTTONS',
         buttons: buttons.map((b) => {
           if (b.type === 'URL') return { type: 'URL', text: b.text, url: b.url }
           if (b.type === 'PHONE_NUMBER') return { type: 'PHONE_NUMBER', text: b.text, phone_number: b.phoneNumber }
+          if (b.type === 'COPY_CODE') return { type: 'copy_code', example: b.code }
           return { type: 'QUICK_REPLY', text: b.text }
         }),
       })
@@ -147,7 +184,10 @@ export function useTemplateBuilder({
       if (isEdit && templateId) {
         return api.post(`/templates/${wabaId}/${templateId}/edit`, { components, ...authFields })
       }
-      return api.post(`/templates/${wabaId}`, { templateName, language, category, components, ...authFields })
+      // parameter_format is locked by Meta for a template's lifetime — only
+      // ever sent at creation, never on edit.
+      const parameterFormat = variableFormat === 'NAMED' && extractVariables(bodyText).length > 0 ? 'named' : undefined
+      return api.post(`/templates/${wabaId}`, { templateName, language, category, components, parameterFormat, ...authFields })
     },
     onSuccess: (res) => {
       const ok = res.data?.data?.ok !== false
@@ -181,6 +221,10 @@ export function useTemplateBuilder({
     setBodyExamples({})
     setFooterText('')
     setButtons([])
+    setVariableFormat('NUMBERED')
+    setLtoEnabled(false)
+    setLtoText('')
+    setLtoHasExpiration(false)
     setCodeExpirationMinutes(DEFAULT_CODE_EXPIRATION_MINUTES)
     setOtpExampleCode('')
     setResult(null)
@@ -189,8 +233,16 @@ export function useTemplateBuilder({
 
   const nameOk = isEdit || (templateName.trim().length > 0 && templateName.length <= 512 && NAME_RE.test(templateName))
   const bodyLenOk = isAuthentication || bodyText.length <= BODY_MAX
-  const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT' ? true : !!headerHandle
-  const canSubmit = nameOk && bodyLenOk
+  // LOCATION needs no upload — the coordinates are supplied at send time,
+  // not creation time (docs/meta-api/.../location_templates.md).
+  const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT' || headerFormat === 'LOCATION'
+    ? true
+    : !!headerHandle
+  // A toggled-on LTO with no offer text would otherwise submit silently
+  // with neither an offer banner nor a footer (footerText is cleared the
+  // moment ltoEnabled flips true) — block submit instead of losing content.
+  const ltoReady = !ltoEnabled || ltoText.trim().length > 0
+  const canSubmit = nameOk && bodyLenOk && ltoReady
     && (isAuthentication ? !!otpExampleCode.trim() : bodyText.trim() && headerReady)
     && (!isEdit || seeded) && !submitMutation.isPending
 
@@ -208,6 +260,10 @@ export function useTemplateBuilder({
     bodyExamples, setBodyExamples,
     footerText, setFooterText,
     buttons, setButtons,
+    variableFormat, setVariableFormat,
+    ltoEnabled, setLtoEnabled,
+    ltoText, setLtoText,
+    ltoHasExpiration, setLtoHasExpiration,
     seeded,
     codeExpirationMinutes, setCodeExpirationMinutes,
     otpExampleCode, setOtpExampleCode,

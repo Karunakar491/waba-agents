@@ -26,7 +26,14 @@ export default function HeaderEditor({ headerFormat, setHeaderFormat, headerText
         <option value="IMAGE">Image</option>
         <option value="VIDEO">Video</option>
         <option value="DOCUMENT">Document</option>
+        <option value="LOCATION">Location</option>
       </select>
+      {headerFormat === 'LOCATION' && (
+        <p className="text-xs text-muted-foreground">
+          No upload needed — this lets the customer see and share a location pin (e.g. your store or a delivery point).
+          The actual coordinates are supplied when you send the template, not now.
+        </p>
+      )}
       {headerFormat === 'TEXT' && (
         <input
           type="text"

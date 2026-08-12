@@ -12,7 +12,7 @@ interface PreviewComponent {
   type: string
   format?: string
   text?: string
-  buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string }>
+  buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string; example?: string | string[] }>
 }
 
 export function previewPropsFromArgs(args: Record<string, unknown>) {
@@ -29,10 +29,11 @@ export function previewPropsFromArgs(args: Record<string, unknown>) {
   const buttons: ButtonDraft[] = rawButtons
     .filter((b) => b.type !== 'OTP')
     .map((b) => ({
-      type: (b.type as ButtonType) || 'QUICK_REPLY',
+      type: ((b.type || 'QUICK_REPLY').toUpperCase() as ButtonType),
       text: b.text || '',
       url: b.url || '',
       phoneNumber: b.phone_number || '',
+      code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
     }))
 
   return {

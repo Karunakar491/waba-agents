@@ -319,7 +319,7 @@ export default function AgentDetailPage() {
                   </button>
                   <button
                     onClick={() => setTestOpen(true)}
-                    className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold
+                    className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-semibold
                       text-white transition-opacity hover:opacity-90"
                   >
                     <Zap className="h-4 w-4" />
@@ -332,7 +332,7 @@ export default function AgentDetailPage() {
                   onClick={handleDeployClick}
                   disabled={deployMutation.isPending || preflightChecking || !!preflightWarning || !canDeploy}
                   title={!canDeploy ? 'Connect a phone number first' : undefined}
-                  className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold
+                  className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-semibold
                     text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {deployMutation.isPending || preflightChecking ? (
@@ -372,7 +372,7 @@ export default function AgentDetailPage() {
                 </button>
                 <button
                   onClick={() => { setPreflightWarning(null); deployMutation.mutate() }}
-                  className="rounded-md bg-brand-pink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                  className="rounded-md bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
                 >
                   Continue
                 </button>
@@ -481,7 +481,7 @@ function ThreadControlModal({
           <button
             onClick={() => { setError(null); releaseMutation.mutate() }}
             disabled={releaseMutation.isPending}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
               text-sm font-semibold text-white transition-opacity hover:opacity-90
               disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -614,7 +614,7 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
                 <button
                   onClick={handleAdd}
                   disabled={!question.trim() || !answer.trim() || addMutation.isPending}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+                  className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
                     text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {addMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -759,7 +759,7 @@ function WebsitesSection({ agentId, open, onToggle }: { agentId: string; open: b
               <button
                 onClick={() => { setAddError(null); addMutation.mutate({ url: url.trim() }) }}
                 disabled={!url.trim() || addMutation.isPending}
-                className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-4 py-2 text-xs font-semibold
+                className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4 py-2 text-xs font-semibold
                   text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {addMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -1217,7 +1217,7 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
             <button
               type="submit"
               disabled={saving || !name.trim() || !description.trim() || !baseUrl.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
                 text-sm font-semibold text-white transition-opacity hover:opacity-90
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1353,7 +1353,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
             <button
               type="submit"
               disabled={saving || !name.trim() || !description.trim() || !path.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
                 text-sm font-semibold text-white transition-opacity hover:opacity-90
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1466,7 +1466,7 @@ function ToolsList({
                 <button
                   onClick={() => setRunningTool(tool)}
                   aria-label={`Run tool ${tool.name}`}
-                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-brand-pink"
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-accent-teal-solid"
                 >
                   <Play className="h-3.5 w-3.5" />
                 </button>
@@ -1602,7 +1602,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
         <h3 className="text-sm font-semibold text-foreground">Connectors</h3>
         <button
           onClick={() => setShowAddConnector(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
             text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -1940,7 +1940,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
                 onClick={() => setValue('handoffEnabled', !handoffEnabledValue, { shouldDirty: true })}
                 className={cn(
                   'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-                  handoffEnabledValue ? 'bg-brand-pink' : 'bg-muted',
+                  handoffEnabledValue ? 'bg-accent-teal-solid' : 'bg-muted',
                 )}
               >
                 <span
@@ -1977,7 +1977,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
             <button
               type="submit"
               disabled={isSubmitting || !isDirty}
-              className="flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5
+              className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5
                 text-sm font-semibold text-white transition-opacity hover:opacity-90
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -2267,7 +2267,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
           onClick={handleToggleAudience}
           className={cn(
             'relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50',
-            currentAudience === 'ALLOWLISTED_ONLY' ? 'bg-brand-pink' : 'bg-muted',
+            currentAudience === 'ALLOWLISTED_ONLY' ? 'bg-accent-teal-solid' : 'bg-muted',
           )}
         >
           <span
@@ -2280,7 +2280,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
       </div>
 
       {currentAudience === 'ALLOWLISTED_ONLY' && (
-        <p className="text-xs font-medium text-brand-pink">
+        <p className="text-xs font-medium text-accent-teal-solid">
           Only the numbers below receive AI responses. Everyone else is silently ignored.
         </p>
       )}
@@ -2486,7 +2486,7 @@ function TestDrawer({
                   className={cn(
                     'max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm',
                     msg.role === 'user'
-                      ? 'bg-brand-pink text-white rounded-tr-sm'
+                      ? 'bg-accent-teal-solid text-white rounded-tr-sm'
                       : 'bg-muted text-foreground rounded-tl-sm',
                   )}
                 >
@@ -2526,7 +2526,7 @@ function TestDrawer({
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || testLoading}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-pink text-white
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-teal-solid text-white
                   transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Send message"
               >
@@ -2573,7 +2573,7 @@ function AgentNotFound({ onBack }: { onBack: () => void }) {
       <p className="mt-1 text-sm text-muted-foreground">This agent may have been deleted.</p>
       <button
         onClick={onBack}
-        className="mt-6 rounded-lg bg-brand-pink px-5 py-2.5 text-sm font-semibold text-white
+        className="mt-6 rounded-lg bg-accent-teal-solid px-5 py-2.5 text-sm font-semibold text-white
           transition-opacity hover:opacity-90"
       >
         Back to Agents

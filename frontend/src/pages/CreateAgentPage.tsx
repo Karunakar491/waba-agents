@@ -865,7 +865,7 @@ function StepGoLive({
           onClick={() => onFinish(true)}
           disabled={saving || checkingPhone || !canPublish}
           title={!checkingPhone && !canPublish ? 'Connect a phone number first' : undefined}
-          className="flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
           Publish &amp; Test
@@ -961,7 +961,7 @@ function WizardNav({
         type="button"
         onClick={onNext}
         disabled={nextDisabled || saving}
-        className="flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {saving && <Loader2 className="h-4 w-4 animate-spin" />}
         {nextLabel}

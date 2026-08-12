@@ -102,7 +102,7 @@ export default function InboxPage() {
           onClick={() => setView('conversations')}
           className={cn(
             'flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium border-b-2 transition-colors',
-            view === 'conversations' ? 'border-brand-pink text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+            view === 'conversations' ? 'border-accent-teal-solid text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
           )}
         >
           <MessageSquare className="h-3.5 w-3.5" />
@@ -112,7 +112,7 @@ export default function InboxPage() {
           onClick={() => setView('webhooks')}
           className={cn(
             'flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium border-b-2 transition-colors',
-            view === 'webhooks' ? 'border-brand-pink text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+            view === 'webhooks' ? 'border-accent-teal-solid text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
           )}
         >
           <Webhook className="h-3.5 w-3.5" />
@@ -267,10 +267,10 @@ function MessageBubble({ msg }: { msg: Message }) {
     <div className={cn('group flex items-end gap-2', isOutbound ? 'flex-row-reverse' : 'flex-row')}>
       <div className={cn(
         'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-        isOutbound ? 'bg-brand-pink/10' : 'bg-muted'
+        isOutbound ? 'bg-accent-teal/15' : 'bg-muted'
       )}>
         {isOutbound
-          ? <Bot className="h-3.5 w-3.5 text-brand-pink" />
+          ? <Bot className="h-3.5 w-3.5 text-accent-teal-solid" />
           : <User className="h-3.5 w-3.5 text-muted-foreground" />
         }
       </div>
@@ -279,7 +279,7 @@ function MessageBubble({ msg }: { msg: Message }) {
       <div className={cn(
         'max-w-[70%] rounded-2xl px-3.5 py-2.5',
         isOutbound
-          ? 'rounded-br-sm bg-brand-pink text-white'
+          ? 'rounded-br-sm bg-accent-teal-solid text-white'
           : 'rounded-bl-sm bg-white border text-foreground'
       )}>
         <p className="text-sm leading-relaxed">{content}</p>
@@ -362,7 +362,7 @@ function ConversationEmptyState({ onGoToAgentsClick }: { onGoToAgentsClick: () =
       </p>
       <button
         onClick={onGoToAgentsClick}
-        className="mt-5 flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2
+        className="mt-5 flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2
           text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         Go to Agents

@@ -166,7 +166,7 @@ export default function SkillTemplateBrowsePage() {
                   onClick={() => copyMutation.mutate(template.id)}
                   disabled={!waba || copyMutation.isPending}
                   title={!waba ? 'Connect a WABA first' : undefined}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
                     text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {copyMutation.isPending && copyMutation.variables === template.id ? (
@@ -207,7 +207,7 @@ export default function SkillTemplateBrowsePage() {
               }}
               disabled={!waba || copyMutation.isPending}
               title={!waba ? 'Connect a WABA first' : undefined}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3.5 py-2 text-sm font-semibold
+              className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3.5 py-2 text-sm font-semibold
                 text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Copy to my Skills

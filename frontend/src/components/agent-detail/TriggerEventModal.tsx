@@ -132,7 +132,7 @@ export default function TriggerEventModal({
           <button
             onClick={handleSend}
             disabled={!description.trim() || !to.trim() || poll.status === 'pending'}
-            className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5 text-sm font-semibold
+            className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5 text-sm font-semibold
               text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {poll.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}

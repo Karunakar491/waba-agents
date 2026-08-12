@@ -106,7 +106,7 @@ export default function AgentsPage() {
         </div>
         <button
           onClick={() => navigate('/agents/new')}
-          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+          className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
             text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
@@ -297,7 +297,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       </p>
       <button
         onClick={onCreateClick}
-        className="mt-6 flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5
+        className="mt-6 flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5
           text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         <Plus className="h-4 w-4" />

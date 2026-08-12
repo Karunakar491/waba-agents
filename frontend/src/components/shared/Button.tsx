@@ -19,7 +19,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'ghost'
 type ButtonSize = 'default' | 'sm'
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-pink text-white hover:opacity-90',
+  primary: 'bg-accent-teal-solid text-white hover:opacity-90',
   secondary: 'border bg-background text-foreground hover:bg-muted',
   destructive: 'bg-destructive text-white hover:opacity-90',
   ghost: 'text-muted-foreground hover:text-foreground hover:bg-muted',

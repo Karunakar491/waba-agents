@@ -65,7 +65,7 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
             text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-3.5 w-3.5" />

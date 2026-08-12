@@ -82,7 +82,7 @@ export default function WabasPage() {
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2.5
+          className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
             text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
@@ -356,7 +356,7 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
                 <button
                   type="submit"
                   disabled={validateMutation.isPending || !wabaIdInput.trim()}
-                  className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2
+                  className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2
                     text-sm font-semibold text-white transition-opacity hover:opacity-90
                     disabled:opacity-60 disabled:pointer-events-none"
                 >
@@ -433,7 +433,7 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
                       type="button"
                       onClick={handleRegister}
                       disabled={registerMutation.isPending}
-                      className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2
+                      className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2
                         text-sm font-semibold text-white transition-opacity hover:opacity-90
                         disabled:opacity-60 disabled:pointer-events-none"
                     >
@@ -465,7 +465,7 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
       </p>
       <button
         onClick={onAddClick}
-        className="mt-6 flex items-center gap-2 rounded-lg bg-brand-pink px-5 py-2.5
+        className="mt-6 flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5
           text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         <Plus className="h-4 w-4" />

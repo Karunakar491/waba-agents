@@ -17,27 +17,18 @@ export default {
       },
       colors: {
         // Karix brand colors — must match DESIGN.md §1 exactly (single source
-        // of truth). EL-caught gap (2026-08-07 audit): this config still had
-        // the RETIRED navy (#160E7A, replaced by #11225F 2026-08-05) and the
-        // wrong pink (#E73590 instead of #D6468F Karix Cranberry), and
-        // brand-purple didn't exist as a Tailwind class at all despite
-        // DESIGN.md documenting it and code already trying to reference it
-        // (`ring-brand-purple/40`, `text-brand-purple`) — those classes were
-        // silently no-ops. This is why the "retired navy" problem wasn't
-        // just a stale --primary CSS variable; the underlying color itself
-        // was never corrected.
+        // of truth). brand.navy/brand.pink REMOVED 2026-08-12 (V2 rebrand
+        // slice 8, final sweep) — grep for brand-navy/brand-pink across src/
+        // returned zero real usages (only comment mentions), so the tracked
+        // removal condition from slice 1 was met. brand.purple/green/dark
+        // still have real call sites (--primary CSS var role, ClientCommandBar
+        // risk dots, IconChip 'green' tone) and are out of scope for this sweep.
         brand: {
-          navy:   '#11225F',
-          pink:   '#D6468F',
           purple: '#6B4EE6',
           green:  '#1EBA5D',
           dark:   '#1F1F1F',
         },
-        // DESIGN.md V2 "Modern Minimal" tokens (2026-08-11 nav rebrand,
-        // slice 1) — added ADDITIVELY alongside `brand.*` above, which stays
-        // live until every one of its ~25 remaining call sites migrates
-        // (tracked: grep for `brand-navy\|brand-pink` must hit zero before
-        // those keys are ever removed). See DESIGN.md §2.
+        // DESIGN.md V2 "Modern Minimal" tokens (2026-08-11 nav rebrand, slice 1).
         ink: '#0A0A0A',
         'accent-teal': '#0D9488',
         'accent-teal-solid': '#0F766E',

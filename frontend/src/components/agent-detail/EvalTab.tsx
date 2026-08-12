@@ -93,7 +93,7 @@ export default function EvalTab({ agentId }: { agentId: string }) {
           <button
             onClick={runEval}
             disabled={cases.length === 0 || poll.status === 'pending'}
-            className="flex items-center gap-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold
+            className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-semibold
               text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {poll.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -109,7 +109,7 @@ export default function EvalTab({ agentId }: { agentId: string }) {
       )}
 
       {summary && (
-        <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5">
+        <div className="rounded-xl border bg-accent-teal/5 border-accent-teal/20 p-5">
           <p className="text-sm text-foreground">{summary.summary}</p>
           {typeof summary.avgConversationScore === 'number' && (
             <p className="mt-1 text-xs text-muted-foreground">

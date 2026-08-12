@@ -11,7 +11,7 @@ export default function NotFoundPage() {
       </p>
       <Link
         to="/dashboard"
-        className="mt-2 rounded-lg bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        className="mt-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         Back to dashboard
       </Link>

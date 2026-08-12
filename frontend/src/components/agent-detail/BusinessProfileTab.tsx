@@ -168,7 +168,7 @@ export default function BusinessProfileTab({ phoneNumberId }: { phoneNumberId: s
 
 function LiveStatusCard({ live }: { live: BusinessProfileResponse | null }) {
   return (
-    <div className="rounded-xl border bg-brand-navy/5 border-brand-navy/20 p-5">
+    <div className="rounded-xl border bg-accent-teal/5 border-accent-teal/20 p-5">
       {live ? (
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand-green/10 px-2.5 py-0.5 text-xs font-medium text-brand-green">
@@ -215,7 +215,7 @@ function DraftsCard({
         <span className="text-sm font-semibold text-foreground">Drafts</span>
         <button
           onClick={onNewDraft}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
             text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -248,7 +248,7 @@ function DraftsCard({
                 <button
                   onClick={() => onDeployDraft(draft.id)}
                   disabled={deploying}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+                  className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
                     text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {deploying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
@@ -347,7 +347,7 @@ export function ProfileEditor({ form, formError, saving, isEditing, onChange, on
         <button
           onClick={onSave}
           disabled={saving}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-pink px-3 py-1.5 text-xs font-semibold
+          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
             text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

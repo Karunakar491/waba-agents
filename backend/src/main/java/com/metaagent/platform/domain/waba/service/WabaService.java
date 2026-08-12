@@ -151,6 +151,17 @@ public class WabaService {
             // Known Phase-1 simplification: per-account nicknames for a
             // shared WABA aren't supported yet — flagged for a later pass.
             waba = existing.get();
+            if (waba.getStatus() == Waba.Status.disconnected) {
+                // 2026-08-12 regression: listForAccount() now filters out
+                // disconnected WABAs (V39), but this path only granted access
+                // without reactivating -- an operator explicitly registering
+                // this WABA is clear signal it should become usable again,
+                // otherwise "Confirm & register" returns 200 with zero
+                // visible effect (the account's list stays empty forever).
+                log.info("create: reactivating disconnected WABA id={} wabaId={} on re-registration", waba.getId(), wabaId);
+                waba.setStatus(Waba.Status.active);
+                waba = wabaRepository.save(waba);
+            }
             grantAccessIfMissing(waba.getId(), accountId);
         } else {
             try {

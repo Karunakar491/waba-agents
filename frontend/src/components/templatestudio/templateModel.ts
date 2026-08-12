@@ -77,11 +77,23 @@ export const TEMPLATE_STATUS_TONE: Record<ReturnType<typeof classifyStatus>, Sta
   OTHER: 'neutral',
 }
 
+// karix-mcp's real list-templates response wraps the actual payload one
+// level deeper than its own docs suggest: {ok, result: {response: {
+// templates: [...], APPROVED: [...], PENDING: [...], ...}}} -- confirmed
+// live 2026-08-12 via backend diagnostic logging, after "No templates yet"
+// showed for a WABA with real existing templates. `response` is unwrapped
+// here if present; falls back to `result` directly for any other shape.
 export function extractTemplates(data: unknown): TemplateSummary[] {
-  const d = data as { result?: { templates?: TemplateSummary[]; data?: TemplateSummary[] } | TemplateSummary[] } | null
+  const d = data as { result?: unknown } | null
   if (!d?.result) return []
-  if (Array.isArray(d.result)) return d.result
-  return d.result.templates ?? d.result.data ?? []
+  if (Array.isArray(d.result)) return d.result as TemplateSummary[]
+  const result = d.result as { response?: unknown; templates?: TemplateSummary[]; data?: TemplateSummary[] }
+  const response = result.response
+  const container = (response && typeof response === 'object' && !Array.isArray(response))
+    ? response as { templates?: TemplateSummary[]; data?: TemplateSummary[] }
+    : result
+  if (Array.isArray(container)) return container as TemplateSummary[]
+  return container.templates ?? container.data ?? []
 }
 
 export function extractVariables(text: string): string[] {

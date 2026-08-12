@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-12 (slice 6)",
+    "lastUpdated": "2026-08-12 (slice 7)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1196,7 +1196,31 @@
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateBuilderForm.tsx",
-      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings. 2026-08-11 (V2 rebrand slice 3): submit button bg-brand-pink → bg-accent-teal-solid. 2026-08-11 slice 4e (Figma node 99:2): renders TemplateSubmitSuccess.tsx in place of the form when b.submittedName !== null (create-mode success only); text-brand-green → text-accent-teal-solid on the inline result message. Now 379 lines (was 368), still over the 200-line ceiling — pre-existing debt, EL judged this diff's +11 lines a defensible small increment, full decomposition explicitly deferred to a future slice 4d restyle pass."
+      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings. 2026-08-11 (V2 rebrand slice 3): submit button bg-brand-pink → bg-accent-teal-solid. 2026-08-11 slice 4e (Figma node 99:2): renders TemplateSubmitSuccess.tsx in place of the form when b.submittedName !== null (create-mode success only); text-brand-green → text-accent-teal-solid on the inline result message. 2026-08-12 (V2 rebrand slice 7, EM-approved decomposition): was 380 lines, now a ~100-line thin composer — the 6 sub-editors extracted to components/templatestudio/builder/. First clean EL pass this slice (no reject round)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/TemplateMetaFields.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — name/language/category fields, extracted from TemplateBuilderForm.tsx. Focus rings normalized to ring-accent-teal-solid across the whole builder/ split; dropped an inconsistent extra focus-visible:border-primary that only some of the original inputs had (not a deliberate pattern, EL confirmed dropping uniformly was the right call over adding it everywhere)."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/HeaderEditor.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — header format/media upload, extracted from TemplateBuilderForm.tsx. text-brand-green (\"Media uploaded.\") → text-accent-teal-solid."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/BodyEditor.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — body text + variable examples, extracted from TemplateBuilderForm.tsx."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/AuthenticationEditor.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — OTP/COPY_CODE fields, extracted from TemplateBuilderForm.tsx."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/FooterEditor.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — footer text field, extracted from TemplateBuilderForm.tsx."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/builder/ButtonsEditor.tsx",
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 7) — button list editor, extracted from TemplateBuilderForm.tsx. text-primary (Add button link) → text-accent-teal-solid. The original had ZERO focus-visible states anywhere in this component; added to every select/input/button during extraction, not literally requested by the EM plan but consistent with every prior slice's EL findings this session."
     },
     {
       "path": "frontend/src/components/templatestudio/useTemplateBuilder.ts",

@@ -88,9 +88,13 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   const [resuming, setResuming] = useState(false)
 
   useEffect(() => {
-    const prefill = (location.state as { prefillMessage?: string } | null)?.prefillMessage
-    if (prefill) {
-      setInput(prefill)
+    const state = location.state as { prefillMessage?: string; resumeSessionId?: string } | null
+    if (state?.prefillMessage) {
+      setInput(state.prefillMessage)
+      navigate(location.pathname, { replace: true, state: null })
+    } else if (state?.resumeSessionId) {
+      // From the "All Chats" page (2026-08-12) — same resume path the sidebar uses.
+      resumeSession(state.resumeSessionId)
       navigate(location.pathname, { replace: true, state: null })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

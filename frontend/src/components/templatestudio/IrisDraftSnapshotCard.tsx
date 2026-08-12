@@ -46,7 +46,7 @@ export default function IrisDraftSnapshotCard({
       <div
         className={
           highlighting
-            ? 'rounded-xl ring-2 ring-brand-purple/60 transition-shadow duration-[1800ms] ease-out'
+            ? 'rounded-xl ring-2 ring-accent-teal-solid/60 transition-shadow duration-[1800ms] ease-out'
             : 'rounded-xl ring-2 ring-transparent transition-shadow duration-[1800ms] ease-out'
         }
       >

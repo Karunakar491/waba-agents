@@ -7,7 +7,7 @@ import { create } from 'zustand'
 // data — a store lets AppShell read it without a Context provider wrapping
 // the route tree. No persistence: this is live session state, not a
 // preference.
-interface SessionSummary { id: string; title: string | null; updatedAt: string }
+export interface SessionSummary { id: string; title: string | null; updatedAt: string }
 
 interface IrisSidebarState {
   sessions: SessionSummary[]

@@ -301,7 +301,11 @@ export default function AppShell() {
                           </p>
                         )
                       }
-                      return filtered.map((s) => (
+                      // DESIGN.md's session-sidebar rule: 5 most recent only,
+                      // "View all chats" for the rest — was previously
+                      // rendering every session unfiltered (2026-08-12 fix,
+                      // Figma node 108:2).
+                      return filtered.slice(0, 5).map((s) => (
                         <button
                           key={s.id}
                           type="button"
@@ -318,6 +322,17 @@ export default function AppShell() {
                       ))
                     })()}
                   </div>
+
+                  {!irisSidebar.loading && irisSidebar.sessions.length > 0 && (
+                    <Link
+                      to="/templates/iris/all"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-1.5 rounded-lg py-2 pl-8 pr-3 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white/80"
+                    >
+                      View all chats
+                      <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

@@ -1,11 +1,13 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Send, ShieldAlert, Settings, RotateCcw, Square } from 'lucide-react'
+import { ArrowDown, Loader2, ShieldAlert, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../../lib/utils'
 import ErrorBanner from '../shared/ErrorBanner'
 import StatusIndicator from '../shared/StatusIndicator'
 import IrisDraftSnapshotCard from './IrisDraftSnapshotCard'
+import { Composer, SetupBanner } from './IrisComposer'
 
 export interface IrisChatEntry {
   id: string
@@ -19,10 +21,16 @@ export interface IrisChatEntry {
   previousTemplateArgs?: Record<string, unknown> | null
 }
 
+// Labeled category+description pills (Figma node 108:37) — replaces the
+// old plain underlined-text links. Category matches Meta's real fixed
+// enum (Marketing/Utility/Authentication), plus Carousel as a message
+// shape, not a Meta category — same distinction TemplateFiltersPanel
+// draws elsewhere in Template Studio.
 const SUGGESTIONS = [
-  'Create a shipping-update template',
-  'Help me plan a marketing message',
-  'Send a test of an approved template',
+  { category: 'Marketing', text: 'Plan a Diwali sale message' },
+  { category: 'Utility', text: 'Draft a shipping-update template' },
+  { category: 'Authentication', text: 'Set up an OTP login template' },
+  { category: 'Carousel', text: 'Showcase 3 products in one message' },
 ]
 
 export default function IrisChatPane({
@@ -56,6 +64,19 @@ export default function IrisChatPane({
   onSuggestion: (text: string) => void
   onAbort: () => void
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [showTopFade, setShowTopFade] = useState(false)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+
+  function onScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    setShowTopFade(el.scrollTop > 8)
+    setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 120)
+  }
+
+  useEffect(() => { onScroll() }, [entries.length])
+
   if (resuming) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -86,21 +107,43 @@ export default function IrisChatPane({
             {needsSetup && <SetupBanner />}
             <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} />
           </div>
-          <div className="flex flex-col items-center gap-1.5">
-            {SUGGESTIONS.map((text) => (
+          <div className="flex max-w-3xl flex-wrap items-center justify-center gap-2">
+            {SUGGESTIONS.map((s) => (
               <button
-                key={text}
+                key={s.text}
                 type="button"
-                onClick={() => onSuggestion(text)}
-                className="text-sm text-muted-foreground underline decoration-border underline-offset-4 transition hover:text-foreground hover:decoration-foreground"
+                onClick={() => onSuggestion(s.text)}
+                className="rounded-full border bg-background px-4 py-2 text-sm text-foreground transition hover:border-accent-teal-solid/40 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
               >
-                {text}
+                <span className="font-medium text-accent-teal-solid">{s.category}</span>
+                <span className="mx-1.5 text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{s.text}</span>
               </button>
             ))}
           </div>
         </div>
       ) : (
-        <div className="flex-1 space-y-6 overflow-y-auto px-8 py-8">
+        <div className="relative min-h-0 flex-1">
+          {/* Scroll affordances (DESIGN.md §6) — top fade signals more content
+              above; scroll-to-bottom appears once scrolled up more than a
+              screenful. Neither existed before this V2 rebrand pass. */}
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-card to-transparent transition-opacity',
+              showTopFade ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+          {showScrollBtn && (
+            <button
+              type="button"
+              onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              aria-label="Scroll to latest message"
+              className="absolute bottom-4 right-8 z-10 flex h-9 w-9 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-surface-lifted transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </button>
+          )}
+          <div ref={scrollRef} onScroll={onScroll} className="h-full space-y-6 overflow-y-auto px-8 py-8">
           {entries.map((e) =>
             e.who === 'user' ? (
               <div key={e.id} className="flex flex-col items-end gap-1">
@@ -151,6 +194,7 @@ export default function IrisChatPane({
           )}
           {error && <ErrorBanner error={error} />}
           <div ref={bottomRef} />
+          </div>
         </div>
       )}
 
@@ -160,77 +204,6 @@ export default function IrisChatPane({
           <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} />
         </div>
       )}
-    </div>
-  )
-}
-
-function Composer({
-  input, setInput, onSubmit, disabled, pending, thinking, onAbort,
-}: {
-  input: string
-  setInput: (v: string) => void
-  onSubmit: () => void
-  disabled: boolean
-  pending: boolean
-  thinking: boolean
-  onAbort: () => void
-}) {
-  return (
-    // Flattened per Design Evaluator review (2026-08-07 Iris redesign, Direction
-    // 3 salvage): rounded-full pill + circular send button was a DESIGN.md
-    // violation (rounded-full reserved for avatars/icon-only controls) and part
-    // of the generic-ChatGPT-clone tell. rounded-lg bar with a square icon
-    // button keeps the same 44px+ touch target without the pill silhouette.
-    <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-lg border bg-background px-5 py-3 shadow-surface-resting transition-shadow focus-within:ring-2 focus-within:ring-brand-purple/40">
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
-        disabled={pending || disabled}
-        placeholder={pending ? 'Confirm or cancel the pending action…' : 'Ask Iris to create a template…'}
-        className="flex-1 bg-transparent text-base placeholder:text-muted-foreground outline-none focus-visible:outline-none disabled:opacity-50"
-      />
-      {thinking ? (
-        // UX-caught gap (2026-08-07 audit): there used to be no way to abort
-        // a pending send at all -- the composer just locked until it resolved.
-        <button
-          type="button"
-          onClick={onAbort}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted-foreground/40 text-white"
-          aria-label="Stop"
-        >
-          <Square className="h-3.5 w-3.5 fill-current" />
-        </button>
-      ) : (
-        <button
-          type="button"
-          disabled={!input.trim() || pending || disabled}
-          onClick={onSubmit}
-          className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white disabled:opacity-40',
-            pending ? 'bg-muted-foreground/40' : 'bg-accent-teal-solid',
-          )}
-          aria-label="Send"
-        >
-          <Send className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  )
-}
-
-function SetupBanner() {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <span>No WABA or AI provider connected yet — Iris can chat, but can&apos;t create or send templates until then.</span>
-      <Link
-        to="/templates/settings"
-        className="flex shrink-0 items-center gap-1 font-medium text-foreground hover:underline"
-      >
-        <Settings className="h-3 w-3" />
-        Settings
-      </Link>
     </div>
   )
 }

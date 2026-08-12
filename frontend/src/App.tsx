@@ -19,6 +19,7 @@ import ProfilePage from './pages/ProfilePage'
 import ModuleSelectorPage from './pages/ModuleSelectorPage'
 import TemplateStudioPage from './pages/TemplateStudioPage'
 import TemplateIrisPage from './pages/TemplateIrisPage'
+import TemplateIrisAllChatsPage from './pages/TemplateIrisAllChatsPage'
 import TemplateSettingsPage from './pages/TemplateSettingsPage'
 import TemplateDebugPage from './pages/TemplateDebugPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/templates" element={<TemplateStudioPage />} />
               <Route path="/templates/iris" element={<TemplateIrisPage />} />
+              <Route path="/templates/iris/all" element={<TemplateIrisAllChatsPage />} />
               <Route path="/templates/settings" element={<TemplateSettingsPage />} />
               <Route path="/templates/debug" element={<TemplateDebugPage />} />
               <Route path="/agents"   element={<AgentsPage />} />

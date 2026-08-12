@@ -20,8 +20,18 @@
        every screen. brand-navy is chrome-only per DESIGN.md §1; what this
        variable is actually USED for (secondary emphasis, active states)
        matches brand-purple's defined role instead, so it now points there —
-       a single-token fix instead of an N-file find/replace. */
-    --primary: 251 75% 60%;           /* #6B4EE6 brand-purple */
+       a single-token fix instead of an N-file find/replace.
+       2026-08-12 (V2 rebrand slice 9, EM-approved): repeated the same fix —
+       --primary was still #6B4EE6 brand-purple (V1), the last leftover
+       non-teal accent after the 8-slice V2 rebrand. Repointed to
+       accent-teal-solid's exact value (#0F766E, 5.47:1) rather than
+       accent-teal's lighter value, since --primary is consumed for both
+       text (text-primary, needs 4.5:1) and non-text (bg-/border-/ring-primary,
+       needs 3:1) roles across 28 files/147 usages indiscriminately — the
+       solid value clears both bars at once, so no per-usage audit was
+       needed. `primary` is now effectively a semantic alias for
+       accent-teal-solid, not a distinct color. */
+    --primary: 175 77% 26%;           /* #0F766E accent-teal-solid (was #6B4EE6 brand-purple) */
     --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -52,7 +62,11 @@
     --popover: 240 8% 9%;
     --popover-foreground: 0 0% 98%;
     --warning: 38 92% 60%;             /* lighter amber for AA contrast on dark surfaces */
-    --primary: 251 75% 60%;           /* #6B4EE6 brand-purple — accent colors stay unchanged in dark mode per DESIGN.md */
+    /* 2026-08-12 (V2 rebrand slice 9): matches the :root fix above — repointed
+       to accent-teal-solid's value. Dark mode kept identical to light mode
+       (accent colors stay unchanged in dark mode per DESIGN.md), unlike
+       --warning/--accent above which do get dark-mode-specific adjustments. */
+    --primary: 175 77% 26%;           /* #0F766E accent-teal-solid (was #6B4EE6 brand-purple) */
     --primary-foreground: 0 0% 98%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;

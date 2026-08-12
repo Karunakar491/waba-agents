@@ -9,7 +9,10 @@ import {
   Check,
   Loader2,
   Search,
+  Unlink,
 } from 'lucide-react'
+import ErrorBanner from '../components/shared/ErrorBanner'
+import { extractErrorMessage } from '../lib/errors'
 import api from '../lib/api'
 import { cn } from '../lib/utils'
 import StatusIndicator from '../components/shared/StatusIndicator'
@@ -50,6 +53,7 @@ export default function WabasPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
+  const [disconnectTarget, setDisconnectTarget] = useState<WabaEntry | null>(null)
 
   const { data: wabas = [], isLoading } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -115,7 +119,7 @@ export default function WabasPage() {
             </p>
           ) : (
             <>
-              <WabaTable wabas={pagedWabas} />
+              <WabaTable wabas={pagedWabas} onDisconnect={setDisconnectTarget} />
               {pageCount > 1 && (
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>
@@ -150,6 +154,11 @@ export default function WabasPage() {
 
       {/* Add WABA modal */}
       {showAdd && <AddWabaModal onClose={() => setShowAdd(false)} />}
+
+      {/* Disconnect WABA modal */}
+      {disconnectTarget && (
+        <DisconnectWabaModal waba={disconnectTarget} onClose={() => setDisconnectTarget(null)} />
+      )}
     </div>
   )
 }
@@ -158,7 +167,7 @@ export default function WabasPage() {
 // WabaTable
 // ---------------------------------------------------------------------------
 
-function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
+function WabaTable({ wabas, onDisconnect }: { wabas: WabaEntry[]; onDisconnect: (waba: WabaEntry) => void }) {
   const navigate = useNavigate()
 
   return (
@@ -182,7 +191,12 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
         </thead>
         <tbody className="divide-y">
           {wabas.map((waba) => (
-            <WabaRow key={waba.id} waba={waba} onOpen={() => navigate(`/wabas/${waba.wabaId}`)} />
+            <WabaRow
+              key={waba.id}
+              waba={waba}
+              onOpen={() => navigate(`/wabas/${waba.wabaId}`)}
+              onDisconnect={() => onDisconnect(waba)}
+            />
           ))}
         </tbody>
       </table>
@@ -196,7 +210,7 @@ function WabaTable({ wabas }: { wabas: WabaEntry[] }) {
 
 // Phase 2 item 14b (2026-08-05) — no longer expands inline into a nested
 // table; the phone-number drill-down is now WabaDetailPage's own route.
-function WabaRow({ waba, onOpen }: { waba: WabaEntry; onOpen: () => void }) {
+function WabaRow({ waba, onOpen, onDisconnect }: { waba: WabaEntry; onOpen: () => void; onDisconnect: () => void }) {
   const isActive = waba.status === 'active'
 
   return (
@@ -231,11 +245,19 @@ function WabaRow({ waba, onOpen }: { waba: WabaEntry; onOpen: () => void }) {
 
       {/* Actions */}
       <td className="px-4 py-3">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDisconnect() }}
+            className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium
+              text-muted-foreground transition-colors hover:border-destructive hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+          >
+            <Unlink className="h-3.5 w-3.5" />
+            Disconnect
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); onOpen() }}
             className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium
-              text-foreground transition-colors hover:bg-muted"
+              text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
           >
             View
             <ChevronRight className="h-3.5 w-3.5" />
@@ -448,6 +470,61 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
             )}
           </>
         )}
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// DisconnectWabaModal
+// ---------------------------------------------------------------------------
+
+// Removes THIS account's access only — a shared WABA (2026-07-28 decoupling)
+// may still be usable by other accounts; the backend soft-deactivates the
+// row (never a hard delete) only once zero accounts have access left.
+function DisconnectWabaModal({ waba, onClose }: { waba: WabaEntry; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => api.delete(`/waba/${waba.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wabas'] })
+      queryClient.invalidateQueries({ queryKey: ['templates', waba.id] })
+      onClose()
+    },
+    onError: (err) => setError(extractErrorMessage(err)),
+  })
+
+  return (
+    <Modal title="Disconnect WABA" onClose={onClose} preventClose={disconnectMutation.isPending} maxWidthClassName="max-w-md">
+      <p className="mb-4 text-sm text-muted-foreground">
+        This removes your account&apos;s access to <span className="font-medium text-foreground">{waba.label ?? waba.wabaId}</span>.
+        Templates and agents on this WABA stay on Meta and on Karix — nothing there is deleted. You (or another
+        account) can reconnect this same WABA ID later.
+      </p>
+
+      {error && <ErrorBanner error={error} />}
+
+      <div className="flex items-center justify-end gap-3 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={disconnectMutation.isPending}
+          className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => { setError(null); disconnectMutation.mutate() }}
+          disabled={disconnectMutation.isPending}
+          className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white
+            transition-opacity hover:opacity-90 disabled:opacity-60 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+        >
+          {disconnectMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Disconnect
+        </button>
+      </div>
     </Modal>
   )
 }

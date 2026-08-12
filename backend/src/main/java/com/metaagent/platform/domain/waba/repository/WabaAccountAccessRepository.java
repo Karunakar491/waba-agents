@@ -14,4 +14,6 @@ public interface WabaAccountAccessRepository extends JpaRepository<WabaAccountAc
     List<WabaAccountAccess> findAllByWabaId(Long wabaId);
 
     long countByWabaId(Long wabaId);
+
+    void deleteByWabaIdAndAccountId(Long wabaId, Long accountId);
 }

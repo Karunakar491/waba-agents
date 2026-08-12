@@ -41,6 +41,12 @@ public class WabaController {
         return ApiResponse.ok(wabaService.list().stream().map(WabaController::toResponse).toList());
     }
 
+    @DeleteMapping("/{wabaId}")
+    public ApiResponse<Void> disconnect(@PathVariable Long wabaId) {
+        wabaService.disconnect(wabaId);
+        return ApiResponse.ok();
+    }
+
     @GetMapping("/{wabaId}/phones")
     public ApiResponse<List<WabaDtos.PhoneNumber>> getPhones(@PathVariable String wabaId) {
         return ApiResponse.ok(wabaService.getPhones(wabaId));

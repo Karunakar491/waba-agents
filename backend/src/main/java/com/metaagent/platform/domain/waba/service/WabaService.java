@@ -1,6 +1,7 @@
 package com.metaagent.platform.domain.waba.service;
 
 import com.metaagent.platform.common.exception.BusinessException;
+import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.BackgroundCallContext;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.entity.Agent;
@@ -184,6 +185,40 @@ public class WabaService {
         // call listAllPhonesForAccountId), so calling it from here would be
         // a circular bean dependency. See WabaController.create().
         return waba;
+    }
+
+    /**
+     * Removes THIS account's access to a shared WABA — never a hard DELETE
+     * of the waba row itself (client/skill/phone_esme_mapping/
+     * waba_karix_credential/iris_session all hold RESTRICT foreign keys to
+     * waba.id with no ON DELETE clause, per the 2026-08-12 audit; a hard
+     * delete would fail loudly or orphan those rows). Only unbinds THIS
+     * account's own agents from the WABA — other accounts sharing the same
+     * WABA (2026-07-28 decoupling) keep their own access and their agents
+     * untouched. If this was the last account with access, the WABA is
+     * soft-deactivated (status=disconnected, same mechanism as V39) so it
+     * stops appearing anywhere (listForAccount already filters this out)
+     * without destroying the row or its history.
+     */
+    @Transactional
+    public void disconnect(Long wabaId) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        wabaAccessGuard.requireAccess(wabaId, accountId);
+
+        for (Agent agent : agentRepository.findAllByAccountIdAndWabaId(accountId, wabaId)) {
+            agent.setWabaId(null);
+            agentRepository.save(agent);
+        }
+
+        wabaAccountAccessRepository.deleteByWabaIdAndAccountId(wabaId, accountId);
+        log.info("disconnect: accountId={} removed access to wabaId={}", accountId, wabaId);
+
+        if (wabaAccountAccessRepository.countByWabaId(wabaId) == 0) {
+            Waba waba = wabaRepository.findById(wabaId).orElseThrow(() -> new NotFoundException("WABA not found"));
+            waba.setStatus(Waba.Status.disconnected);
+            wabaRepository.save(waba);
+            log.info("disconnect: wabaId={} had zero remaining accounts with access, marked disconnected", wabaId);
+        }
     }
 
     private void grantAccessIfMissing(Long wabaId, Long accountId) {

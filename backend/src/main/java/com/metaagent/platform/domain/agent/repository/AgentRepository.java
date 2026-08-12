@@ -26,4 +26,9 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
      * caller MUST have already verified the calling account has access to
      * this wabaId (e.g. via requireWabaAccess) before calling this. */
     List<Agent> findAllByWabaId(Long wabaId);
+
+    /** This account's OWN agents on a given WABA — used when disconnecting
+     * from a shared WABA, to unbind only the disconnecting account's agents
+     * rather than every agent on the (possibly still-shared) WABA. */
+    List<Agent> findAllByAccountIdAndWabaId(Long accountId, Long wabaId);
 }

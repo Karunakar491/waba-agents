@@ -275,9 +275,16 @@ public class TemplateStudioClient {
     private static Object describeResultShape(Map<String, Object> body) {
         if (body == null) return null;
         Object result = body.get("result");
-        if (result instanceof Map<?, ?> map) return map.keySet();
-        if (result instanceof java.util.List<?> list) return "list(size=" + list.size() + ")";
-        return result == null ? null : result.getClass().getSimpleName();
+        if (!(result instanceof Map<?, ?> resultMap)) {
+            if (result instanceof java.util.List<?> list) return "list(size=" + list.size() + ")";
+            return result == null ? null : result.getClass().getSimpleName();
+        }
+        Object inner = resultMap.get("response");
+        String innerDescr = inner == null ? "null"
+                : inner instanceof java.util.List<?> l ? "list(size=" + l.size() + ")"
+                : inner instanceof Map<?, ?> m ? "map(keys=" + m.keySet() + ")"
+                : inner.getClass().getSimpleName();
+        return "result.keys=" + resultMap.keySet() + " result.response=" + innerDescr;
     }
 
     // karix-mcp always returns a JSON object at this endpoint — Map.class is

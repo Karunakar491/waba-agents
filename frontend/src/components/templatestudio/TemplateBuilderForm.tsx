@@ -12,6 +12,7 @@ import {
 } from './templateModel'
 import { useTemplateBuilder } from './useTemplateBuilder'
 import WhatsAppTemplatePreview from './WhatsAppTemplatePreview'
+import TemplateSubmitSuccess from './TemplateSubmitSuccess'
 
 export default function TemplateBuilderForm({
   wabaId, mode, templateId, onDone,
@@ -22,6 +23,16 @@ export default function TemplateBuilderForm({
   onDone?: () => void
 }) {
   const b = useTemplateBuilder({ wabaId, mode, templateId, onDone })
+
+  if (b.submittedName !== null) {
+    return (
+      <TemplateSubmitSuccess
+        templateName={b.submittedName}
+        onBackToTemplates={() => onDone?.()}
+        onCreateAnother={b.resetForCreateAnother}
+      />
+    )
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
@@ -64,7 +75,7 @@ export default function TemplateBuilderForm({
         )}
 
         {b.result && (
-          <p className={cn('text-xs', b.result.ok ? 'text-brand-green' : 'text-destructive')}>{b.result.message}</p>
+          <p className={cn('text-xs', b.result.ok ? 'text-accent-teal-solid' : 'text-destructive')}>{b.result.message}</p>
         )}
 
         <button

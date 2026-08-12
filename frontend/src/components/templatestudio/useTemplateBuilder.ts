@@ -44,6 +44,10 @@ export function useTemplateBuilder({
   const [codeExpirationMinutes, setCodeExpirationMinutes] = useState(DEFAULT_CODE_EXPIRATION_MINUTES)
   const [otpExampleCode, setOtpExampleCode] = useState('')
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+  // Figma node 99:2 "Submit Success" — create-mode only; edit keeps the
+  // existing inline-message + auto-return behavior since Figma didn't spec
+  // a dedicated success screen for edits.
+  const [submittedName, setSubmittedName] = useState<string | null>(null)
 
   const isAuthentication = category === 'AUTHENTICATION'
 
@@ -155,11 +159,33 @@ export function useTemplateBuilder({
       })
       if (ok) {
         queryClient.invalidateQueries({ queryKey: templateQueryKeys.list(wabaId) })
-        setTimeout(() => onDone?.(), 1500)
+        if (isEdit) {
+          setTimeout(() => onDone?.(), 1500)
+        } else {
+          setSubmittedName(templateName)
+        }
       }
     },
     onError: (err) => setResult({ ok: false, message: extractErrorMessage(err) }),
   })
+
+  function resetForCreateAnother() {
+    setTemplateName('')
+    setLanguage('en')
+    setCategory('UTILITY')
+    setHeaderFormat('NONE')
+    setHeaderText('')
+    setHeaderHandle('')
+    setMediaError(null)
+    setBodyText('')
+    setBodyExamples({})
+    setFooterText('')
+    setButtons([])
+    setCodeExpirationMinutes(DEFAULT_CODE_EXPIRATION_MINUTES)
+    setOtpExampleCode('')
+    setResult(null)
+    setSubmittedName(null)
+  }
 
   const nameOk = isEdit || (templateName.trim().length > 0 && templateName.length <= 512 && NAME_RE.test(templateName))
   const bodyLenOk = isAuthentication || bodyText.length <= BODY_MAX
@@ -186,6 +212,8 @@ export function useTemplateBuilder({
     codeExpirationMinutes, setCodeExpirationMinutes,
     otpExampleCode, setOtpExampleCode,
     result, setResult,
+    submittedName,
+    resetForCreateAnother,
     existingTemplateQuery,
     uploadMediaMutation,
     submitMutation,

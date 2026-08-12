@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-11 (slice 4b)",
+    "lastUpdated": "2026-08-12 (slice 4e)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1196,11 +1196,15 @@
     },
     {
       "path": "frontend/src/components/templatestudio/TemplateBuilderForm.tsx",
-      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings. 2026-08-11 (V2 rebrand slice 3): submit button bg-brand-pink → bg-accent-teal-solid."
+      "purpose": "Create/edit template form + sticky WhatsApp preview (2026-08-06). Render-only; state/submit in useTemplateBuilder. Meta name sanitize + body var warnings. 2026-08-11 (V2 rebrand slice 3): submit button bg-brand-pink → bg-accent-teal-solid. 2026-08-11 slice 4e (Figma node 99:2): renders TemplateSubmitSuccess.tsx in place of the form when b.submittedName !== null (create-mode success only); text-brand-green → text-accent-teal-solid on the inline result message. Now 379 lines (was 368), still over the 200-line ceiling — pre-existing debt, EL judged this diff's +11 lines a defensible small increment, full decomposition explicitly deferred to a future slice 4d restyle pass."
     },
     {
       "path": "frontend/src/components/templatestudio/useTemplateBuilder.ts",
-      "purpose": "Template create/edit state, seedFromComponents, media upload, buildComponents, submit to /templates or /edit (2026-08-06)."
+      "purpose": "Template create/edit state, seedFromComponents, media upload, buildComponents, submit to /templates or /edit (2026-08-06). 2026-08-11 (V2 rebrand slice 4e): submitMutation's onSuccess now branches — edit mode unchanged (inline message + auto onDone after 1.5s); create mode instead sets submittedName (real templateName, not a placeholder) and does NOT auto-navigate, letting TemplateSubmitSuccess's Back-to-Templates/Create-another choice drive what happens next. resetForCreateAnother() clears every create-mode field back to initial state."
+    },
+    {
+      "path": "frontend/src/components/templatestudio/TemplateSubmitSuccess.tsx",
+      "purpose": "NEW 2026-08-11 (V2 rebrand slice 4e, Figma node 99:2) — Submit Success screen shown after a create (not edit) template submission succeeds. Check-icon circle (bg-accent-teal, non-text) + real submitted template name + Back to Templates (calls onDone) / Create another (calls useTemplateBuilder's resetForCreateAnother, stays on the same create view with a cleared form)."
     },
     {
       "path": "frontend/src/components/templatestudio/templateModel.ts",

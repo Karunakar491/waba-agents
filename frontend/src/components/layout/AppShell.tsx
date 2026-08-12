@@ -17,6 +17,7 @@ import {
   Plus,
   Search,
   Loader2,
+  Bug,
 } from 'lucide-react'
 import { useLogout } from '../../hooks/useAuth'
 import { useAuthStore } from '../../store/authStore'
@@ -59,6 +60,7 @@ const TEMPLATE_STUDIO_NAV = [
   { to: '/templates/iris', icon: MessageSquare, label: 'Iris', soon: false, end: false },
   { to: '/templates', icon: FileText, label: 'Templates', soon: false, end: true },
   { to: '/templates/settings', icon: SettingsIcon, label: 'Settings', soon: false, end: false },
+  { to: '/templates/debug', icon: Bug, label: 'Debug', soon: false, end: false },
 ]
 
 const COLLAPSE_KEY = 'sidebar-collapsed'

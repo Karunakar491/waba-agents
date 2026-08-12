@@ -20,6 +20,7 @@ import ModuleSelectorPage from './pages/ModuleSelectorPage'
 import TemplateStudioPage from './pages/TemplateStudioPage'
 import TemplateIrisPage from './pages/TemplateIrisPage'
 import TemplateSettingsPage from './pages/TemplateSettingsPage'
+import TemplateDebugPage from './pages/TemplateDebugPage'
 import NotFoundPage from './pages/NotFoundPage'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/router/ProtectedRoute'
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="/templates" element={<TemplateStudioPage />} />
               <Route path="/templates/iris" element={<TemplateIrisPage />} />
               <Route path="/templates/settings" element={<TemplateSettingsPage />} />
+              <Route path="/templates/debug" element={<TemplateDebugPage />} />
               <Route path="/agents"   element={<AgentsPage />} />
               <Route path="/agents/new" element={<CreateAgentPage />} />
               <Route path="/agents/:id" element={<AgentDetailPage />} />

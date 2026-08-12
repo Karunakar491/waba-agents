@@ -9,6 +9,7 @@ import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
 import { formatDateTimeIST } from '../lib/dateFormat'
+import { redactSecrets } from '../components/templatestudio/auditRedaction'
 
 /**
  * Template Studio Settings — full page (2026-08-06 redesign).
@@ -774,32 +775,6 @@ function ProviderTabButton({
   )
 }
 
-/** Client-side belt for audit display — never show credential material even if a body leaked it. */
-function redactSecrets(raw: string): string {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return JSON.stringify(redactValue(parsed), null, 2)
-  } catch {
-    return raw
-      .replace(/(api[_-]?key|client_secret|authorization|bearer)\s*[:=]\s*["']?[^"'&\s,}]+/gi, '$1=[REDACTED]')
-  }
-}
-
-function redactValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactValue)
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (/api[_-]?key|client_secret|authorization|password|token/i.test(k)) {
-        out[k] = '[REDACTED]'
-      } else {
-        out[k] = redactValue(v)
-      }
-    }
-    return out
-  }
-  return value
-}
 
 function AdvancedAuditPanel({ wabaInternalId }: { wabaInternalId: string }) {
   const [open, setOpen] = useState(false)

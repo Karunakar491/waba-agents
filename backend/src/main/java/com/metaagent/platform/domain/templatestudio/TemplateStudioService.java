@@ -12,6 +12,7 @@ import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +27,7 @@ import java.util.Map;
  * target WABA (existsByWabaIdAndAccountId) before touching Karix
  * credentials — same fail-closed pattern as AgentAccessService/WabaService.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TemplateStudioService {
@@ -49,12 +51,17 @@ public class TemplateStudioService {
 
     public Map<String, Object> createTemplate(Long wabaId, Map<String, Object> payload) {
         ResolvedCredential cred = resolveCredential(wabaId);
-        return templateStudioClient.createTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), payload);
+        log.info("createTemplate: wabaId={} karixWabaId={} templateName={}", wabaId, cred.karixWabaId(), payload.get("template_name"));
+        Map<String, Object> result = templateStudioClient.createTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), payload);
+        log.info("createTemplate result: wabaId={} responseKeys={}", wabaId, result != null ? result.keySet() : null);
+        return result;
     }
 
     public void deleteTemplate(Long wabaId, String templateId) {
         ResolvedCredential cred = resolveCredential(wabaId);
+        log.info("deleteTemplate: wabaId={} karixWabaId={} templateId={}", wabaId, cred.karixWabaId(), templateId);
         templateStudioClient.deleteTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId);
+        log.info("deleteTemplate succeeded: wabaId={} templateId={}", wabaId, templateId);
     }
 
     public Map<String, Object> bulkImport(Long wabaId, MultipartFile file) {
@@ -84,7 +91,10 @@ public class TemplateStudioService {
 
     public Map<String, Object> editTemplate(Long wabaId, String templateId, Map<String, Object> payload) {
         ResolvedCredential cred = resolveCredential(wabaId);
-        return templateStudioClient.editTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId, payload);
+        log.info("editTemplate: wabaId={} karixWabaId={} templateId={}", wabaId, cred.karixWabaId(), templateId);
+        Map<String, Object> result = templateStudioClient.editTemplate(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(), templateId, payload);
+        log.info("editTemplate result: wabaId={} templateId={} responseKeys={}", wabaId, templateId, result != null ? result.keySet() : null);
+        return result;
     }
 
     public Map<String, Object> getAuditLog(Long wabaId, String pathPrefix) {
@@ -125,6 +135,8 @@ public class TemplateStudioService {
         KarixEsmeCredential credential = esmeCredentialRepository.findById(mapping.getEsmeCredentialId())
                 .orElseThrow(() -> new BusinessException("Karix credential not found for the mapped phone number."));
 
+        log.info("resolveCredential: wabaId={} resolved esmeAddr={} via phoneEsmeMapping.id={} (first-found heuristic)",
+                wabaId, credential.getEsmeAddr(), mapping.getId());
         return new ResolvedCredential(
                 credential.getEsmeAddr(),
                 secretEncryptor.decrypt(credential.getEncryptedApiKey()),

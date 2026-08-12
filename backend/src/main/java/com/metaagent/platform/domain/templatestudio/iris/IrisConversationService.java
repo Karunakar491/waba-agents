@@ -13,6 +13,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
  * multi-step native tool loop is real complexity deferred past v1; this is
  * simpler and still correct for a request/response, turn-based assistant.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class IrisConversationService {
@@ -218,6 +220,7 @@ public class IrisConversationService {
         String systemPrompt = SYSTEM_PROMPT_BASE.formatted(describeWabas(accountWabas));
 
         AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, TOOLS);
+        log.info("sendMessage: sessionId={} provider={} resultType={}", sessionId, cred.provider(), result.type());
 
         if (result.type() == AiTurnResult.Type.TEXT) {
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT).content(result.text()).build());
@@ -226,12 +229,16 @@ public class IrisConversationService {
 
         AiToolSpec tool = TOOLS.stream().filter(t -> t.name().equals(result.toolName())).findFirst()
                 .orElseThrow(() -> new BusinessException("Iris tried to use a tool that isn't allowed: " + result.toolName()));
+        log.info("sendMessage: sessionId={} modelSelectedTool={} wabaId={} requiresConfirmation={}",
+                sessionId, tool.name(), result.toolArguments().get("wabaId"), tool.requiresConfirmation());
 
         if (!tool.requiresConfirmation()) {
             Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), accountWabas);
             String summary = "Tool " + tool.name() + " result: " + writeJson(toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
+            log.info("sendMessage: sessionId={} tool={} executed inline, resultKeys={}", sessionId, tool.name(),
+                    toolResult != null ? toolResult.keySet() : null);
             return new TurnResponse(String.valueOf(sessionId), summary, false, null, null);
         }
 
@@ -240,6 +247,7 @@ public class IrisConversationService {
         sessionRepository.save(session);
         messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT)
                 .content("I've drafted this — review it and confirm to submit.").toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
+        log.info("sendMessage: sessionId={} tool={} drafted, awaiting confirmation", sessionId, tool.name());
 
         return new TurnResponse(String.valueOf(sessionId), "I've drafted this — review it and confirm to submit.", true, tool.name(), result.toolArguments());
     }
@@ -251,8 +259,11 @@ public class IrisConversationService {
         }
         String toolName = session.getPendingToolName();
         Map<String, Object> args = readJson(session.getPendingToolArgsJson());
+        log.info("confirmPendingAction: sessionId={} tool={} wabaId={}", sessionId, toolName, args.get("wabaId"));
 
         Map<String, Object> result = executeTool(toolName, args, wabaService.listForAccount(session.getAccountId()));
+        log.info("confirmPendingAction: sessionId={} tool={} executed, resultKeys={}", sessionId, toolName,
+                result != null ? result.keySet() : null);
 
         session.setPendingToolName(null);
         session.setPendingToolArgsJson(null);
@@ -284,8 +295,10 @@ public class IrisConversationService {
         Long wabaId = Long.valueOf(String.valueOf(args.get("wabaId")));
         Set<Long> accountWabaIds = accountWabas.stream().map(Waba::getId).collect(Collectors.toSet());
         if (!accountWabaIds.contains(wabaId)) {
+            log.warn("executeTool rejected: tool={} wabaId={} not in caller's account WABAs {}", toolName, wabaId, accountWabaIds);
             throw new BusinessException("That WABA isn't available on this account.");
         }
+        log.info("executeTool: tool={} wabaId={}", toolName, wabaId);
         return switch (toolName) {
             // EL-caught gap (2026-08-07 audit): this used to build the raw
             // Karix payload by hand from model output, bypassing the exact
@@ -299,7 +312,8 @@ public class IrisConversationService {
                         String.valueOf(args.get("language")),
                         String.valueOf(args.get("category")),
                         castComponents(args.get("components")),
-                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
+                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))),
+                        args.get("parameterFormat") == null ? null : String.valueOf(args.get("parameterFormat")));
                 validateOrThrow(request);
                 yield templateStudioService.createTemplate(wabaId, request.toKarixPayload());
             }

@@ -127,17 +127,31 @@ public class TemplateStudioClient {
     public Map<String, Object> createTemplate(String esmeAddr, String apiKey, String wabaId, Map<String, Object> payload) {
         return withCircuitBreaker(() -> {
             String token = mintToken(esmeAddr, apiKey, wabaId);
-            return restClient.post()
+            Map<String, Object> body = restClient.post()
                     .uri("/api/templates")
                     .header("Authorization", "Bearer " + token)
                     .body(payload)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                        String responseBody = readBodyBestEffort(resp);
+                        log.warn("karix-mcp createTemplate failed: wabaId={} status={} body={}", wabaId, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
                                 "Template creation failed. Check the template details and try again.",
-                                resp.getStatusCode().value(), readBodyBestEffort(resp));
+                                resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
+            // 2xx from karix-mcp isn't the same as Meta accepting the template —
+            // Karix can return 200 with a rejection/pending status embedded in the
+            // body (2026-08-12 audit finding: this was the one hop with NO log at
+            // all on a "successful" HTTP call, the exact gap that would hide
+            // "Iris said success but Meta shows nothing"). Log structural fields
+            // only (id/status/keys) — never the full body, which can echo back
+            // customer-supplied variable examples from the payload.
+            log.info("karix-mcp createTemplate response: wabaId={} keys={} status={} id={}",
+                    wabaId, body != null ? body.keySet() : null,
+                    body != null ? body.get("status") : null,
+                    body != null ? body.get("id") : null);
+            return body;
         });
     }
 
@@ -149,10 +163,14 @@ public class TemplateStudioClient {
                     .header("Authorization", "Bearer " + token)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                        String responseBody = readBodyBestEffort(resp);
+                        log.warn("karix-mcp deleteTemplate failed: wabaId={} templateId={} status={} body={}",
+                                wabaId, templateId, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
-                                "Template deletion failed.", resp.getStatusCode().value(), readBodyBestEffort(resp));
+                                "Template deletion failed.", resp.getStatusCode().value(), responseBody);
                     })
                     .toBodilessEntity();
+            log.info("karix-mcp deleteTemplate succeeded: wabaId={} templateId={}", wabaId, templateId);
             return null;
         });
     }
@@ -166,18 +184,24 @@ public class TemplateStudioClient {
             MultipartBodyBuilder multipart = new MultipartBodyBuilder();
             multipart.part("file", fileBytes).filename(filename);
 
-            return restClient.post()
+            Map<String, Object> body = restClient.post()
                     .uri("/api/bulk-import")
                     .header("Authorization", "Bearer " + token)
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(multipart.build())
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                        String responseBody = readBodyBestEffort(resp);
+                        log.warn("karix-mcp bulkImport failed: wabaId={} filename={} status={} body={}",
+                                wabaId, filename, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
                                 "Bulk import upload failed. Check the file and try again.",
-                                resp.getStatusCode().value(), readBodyBestEffort(resp));
+                                resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
+            log.info("karix-mcp bulkImport response: wabaId={} filename={} keys={} jobId={}",
+                    wabaId, filename, body != null ? body.keySet() : null, body != null ? body.get("job_id") : null);
+            return body;
         });
     }
 
@@ -247,17 +271,23 @@ public class TemplateStudioClient {
     public Map<String, Object> editTemplate(String esmeAddr, String apiKey, String wabaId, String templateId, Map<String, Object> payload) {
         return withCircuitBreaker(() -> {
             String token = mintToken(esmeAddr, apiKey, wabaId);
-            return restClient.post()
+            Map<String, Object> body = restClient.post()
                     .uri("/api/templates/{id}/edit", templateId)
                     .header("Authorization", "Bearer " + token)
                     .body(payload)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                        String responseBody = readBodyBestEffort(resp);
+                        log.warn("karix-mcp editTemplate failed: wabaId={} templateId={} status={} body={}",
+                                wabaId, templateId, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
                                 "Template edit failed. Check the template details and try again.",
-                                resp.getStatusCode().value(), readBodyBestEffort(resp));
+                                resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
+            log.info("karix-mcp editTemplate response: wabaId={} templateId={} keys={} status={}",
+                    wabaId, templateId, body != null ? body.keySet() : null, body != null ? body.get("status") : null);
+            return body;
         });
     }
 
@@ -336,5 +366,16 @@ public class TemplateStudioClient {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // Error bodies are logged for diagnosis, but capped — karix-mcp can echo
+    // back submitted template content (including customer-supplied example
+    // values) in a validation error, and a log line isn't the place for an
+    // uncapped dump of that.
+    private static final int LOG_BODY_MAX_CHARS = 500;
+
+    private static String truncate(String body) {
+        if (body == null) return null;
+        return body.length() > LOG_BODY_MAX_CHARS ? body.substring(0, LOG_BODY_MAX_CHARS) + "...(truncated)" : body;
     }
 }

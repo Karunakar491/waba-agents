@@ -201,7 +201,13 @@ public class WabaService {
         List<Long> wabaIds = wabaAccountAccessRepository.findAllByAccountId(accountId).stream()
                 .map(WabaAccountAccess::getWabaId)
                 .toList();
-        return wabaRepository.findAllById(wabaIds);
+        // V39: a disconnected WABA (e.g. the demo seed row) stays in the table
+        // for FK/audit-trail integrity but should never appear in any
+        // account's usable list — this is the single choke point every
+        // caller (Iris, Template Studio, the WABA picker UI) goes through.
+        return wabaRepository.findAllById(wabaIds).stream()
+                .filter(w -> w.getStatus() != Waba.Status.disconnected)
+                .toList();
     }
 
     /**

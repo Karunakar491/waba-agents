@@ -31,6 +31,7 @@ export default function AiProviderPanel() {
   const [model, setModel] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   const credentialQuery = useQuery<CredentialStatus>({
     queryKey: ['iris-credential'],
@@ -53,9 +54,10 @@ export default function AiProviderPanel() {
     onSuccess: () => {
       setApiKey('')
       setError(null)
+      setSaved(true)
       queryClient.invalidateQueries({ queryKey: ['iris-credential'] })
     },
-    onError: (err) => setError(extractErrorMessage(err)),
+    onError: (err) => { setError(extractErrorMessage(err)); setSaved(false) },
   })
 
   const canSave = !!model && !!apiKey.trim() && !mutation.isPending
@@ -76,7 +78,12 @@ export default function AiProviderPanel() {
         </p>
       )}
 
-      <SegmentedControl label="AI provider" options={PROVIDER_OPTIONS} value={tab} onChange={setTab} />
+      <SegmentedControl
+        label="AI provider"
+        options={PROVIDER_OPTIONS}
+        value={tab}
+        onChange={(next) => { setTab(next); setSaved(false); setError(null) }}
+      />
 
       {(providers[tab]?.length ?? 0) > 1 && (
         <select
@@ -95,13 +102,18 @@ export default function AiProviderPanel() {
         <input
           type="password"
           value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
+          onChange={(e) => { setApiKey(e.target.value); setSaved(false) }}
           placeholder="Paste API key"
           className="w-full max-w-[320px] rounded-lg border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid"
         />
       </div>
 
       {error && <ErrorBanner error={error} />}
+      {saved && !error && (
+        <p className="text-sm text-accent-teal-solid">
+          {providerLabel} key saved — Iris will use it from now on.
+        </p>
+      )}
 
       <button
         type="button"

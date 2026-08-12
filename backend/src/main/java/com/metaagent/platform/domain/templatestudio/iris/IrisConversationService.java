@@ -61,6 +61,14 @@ public class IrisConversationService {
             proposing any action (e.g. "Using WABA \\"Acme Retail\\" — here's the template I'll create") so the \
             operator always sees which WABA an action applies to.
 
+            Critical: create_template, edit_template, and send_test_template already require the operator's \
+            confirmation before anything is actually submitted — this app shows them a preview and a Confirm \
+            button automatically whenever you call one of these tools. Because of that, you must call the tool \
+            as soon as you have everything it needs — never describe the action in plain text and ask "shall I \
+            proceed?" or "do you want me to create this?" instead of calling it. Asking in prose skips the real \
+            confirmation step entirely and nothing gets drafted. If you are missing required information, ask \
+            for exactly that missing piece — but once you have it all, call the tool immediately in that same turn.
+
             Meta requires exact values on every template: category must be exactly MARKETING, UTILITY, or \
             AUTHENTICATION (uppercase, no other categories exist) — never a lowercase guess. language must be a \
             Meta locale code like en_US, never a bare language name like "English".""";

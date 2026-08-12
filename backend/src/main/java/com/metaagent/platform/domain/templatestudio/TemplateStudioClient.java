@@ -247,8 +247,8 @@ public class TemplateStudioClient {
                                 "Could not fetch templates.", resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
-            log.info("karix-mcp listTemplates response: karixWabaId={} statusFilter={} keys={} resultCount={}",
-                    wabaId, status, body != null ? body.keySet() : null, countTemplates(body));
+            log.info("karix-mcp listTemplates response: karixWabaId={} statusFilter={} keys={} resultCount={} resultShape={}",
+                    wabaId, status, body != null ? body.keySet() : null, countTemplates(body), describeResultShape(body));
             return body;
         });
     }
@@ -260,8 +260,24 @@ public class TemplateStudioClient {
         if (result instanceof Map<?, ?> map) {
             Object data = map.get("data");
             if (data instanceof java.util.List<?> list) return list.size();
+            Object templates = map.get("templates");
+            if (templates instanceof java.util.List<?> list) return list.size();
         }
         return null;
+    }
+
+    // Temporary diagnostic (2026-08-12): countTemplates() only recognized
+    // result / result.data / result.templates as the list shape, and a real
+    // WABA with known-existing templates still logged resultCount=null —
+    // this surfaces the ACTUAL top-level keys under "result" so the real
+    // shape Karix returns can be identified from one log line, without
+    // dumping the full (business-content-bearing) body.
+    private static Object describeResultShape(Map<String, Object> body) {
+        if (body == null) return null;
+        Object result = body.get("result");
+        if (result instanceof Map<?, ?> map) return map.keySet();
+        if (result instanceof java.util.List<?> list) return "list(size=" + list.size() + ")";
+        return result == null ? null : result.getClass().getSimpleName();
     }
 
     // karix-mcp always returns a JSON object at this endpoint — Map.class is

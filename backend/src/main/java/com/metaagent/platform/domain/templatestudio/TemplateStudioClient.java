@@ -229,7 +229,7 @@ public class TemplateStudioClient {
     public Map<String, Object> listTemplates(String esmeAddr, String apiKey, String wabaId, String status) {
         return withCircuitBreaker(() -> {
             String token = mintToken(esmeAddr, apiKey, wabaId);
-            return restClient.get()
+            Map<String, Object> body = restClient.get()
                     .uri(uriBuilder -> {
                         var b = uriBuilder.path("/api/templates");
                         if (status != null && !status.isBlank()) {
@@ -240,11 +240,28 @@ public class TemplateStudioClient {
                     .header("Authorization", "Bearer " + token)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                        String responseBody = readBodyBestEffort(resp);
+                        log.warn("karix-mcp listTemplates failed: karixWabaId={} status={} httpStatus={} body={}",
+                                wabaId, status, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
-                                "Could not fetch templates.", resp.getStatusCode().value(), readBodyBestEffort(resp));
+                                "Could not fetch templates.", resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
+            log.info("karix-mcp listTemplates response: karixWabaId={} statusFilter={} keys={} resultCount={}",
+                    wabaId, status, body != null ? body.keySet() : null, countTemplates(body));
+            return body;
         });
+    }
+
+    private static Integer countTemplates(Map<String, Object> body) {
+        if (body == null) return null;
+        Object result = body.get("result");
+        if (result instanceof java.util.List<?> list) return list.size();
+        if (result instanceof Map<?, ?> map) {
+            Object data = map.get("data");
+            if (data instanceof java.util.List<?> list) return list.size();
+        }
+        return null;
     }
 
     // karix-mcp always returns a JSON object at this endpoint — Map.class is

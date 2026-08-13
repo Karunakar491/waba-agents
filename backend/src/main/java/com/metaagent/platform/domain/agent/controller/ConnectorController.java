@@ -3,7 +3,7 @@ package com.metaagent.platform.domain.agent.controller;
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
-import com.metaagent.platform.domain.agent.service.AgentDeployService;
+import com.metaagent.platform.domain.connector.service.ConnectorLibraryService;
 import com.metaagent.platform.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +15,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ConnectorController {
 
-    private final AgentDeployService agentDeployService;
+    private final ConnectorLibraryService connectorLibraryService;
 
+    /**
+     * Still the live rollup. It now goes through ConnectorLibraryService so
+     * rows that are deployments of a library connector (V46) report a real
+     * "used by N agents" count instead of V45's name+base_url heuristic.
+     */
     @GetMapping("/api/v1/connectors")
     public ApiResponse<ConnectorDtos.ConnectorListResponse> list(@RequestParam("wabaId") String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
-        return ApiResponse.ok(new ConnectorDtos.ConnectorListResponse(
-                agentDeployService.listConnectorsForWaba(wabaId, accountId)));
+        return ApiResponse.ok(connectorLibraryService.listLiveForWaba(wabaId, accountId));
     }
 
     private static Long parseId(String raw) {

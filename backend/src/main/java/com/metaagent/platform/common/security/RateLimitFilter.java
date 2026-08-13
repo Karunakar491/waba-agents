@@ -54,11 +54,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${ratelimit.refresh.window-seconds:60}")
     private long refreshWindow;
 
-    @Value("${ratelimit.generate-defaults.limit:10}")
-    private int generateDefaultsLimit;
-    @Value("${ratelimit.generate-defaults.window-seconds:3600}")
-    private long generateDefaultsWindow;
-
     // EM-caught gap (2026-08-07 audit): zero rate limiting existed on Iris or
     // Template Studio endpoints despite both costing real money per call
     // (AI provider tokens, Karix/Meta API calls) -- confirmed exploitable
@@ -156,11 +151,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         .orElseGet(() -> "ip:" + clientIp(request));
                 return new Rule("rl:refresh:" + subject, refreshLimit, refreshWindow);
             default:
-                if (path.startsWith("/api/v1/agents/") && path.endsWith("/generate-defaults")) {
-                    // Per-IP: this filter runs before authentication, and Claude cost
-                    // abuse from one origin is what we are bounding.
-                    return new Rule("rl:generate-defaults:ip:" + clientIp(request), generateDefaultsLimit, generateDefaultsWindow);
-                }
                 if (IRIS_MESSAGE_PATH.matcher(path).matches()) {
                     return new Rule("rl:iris-message:ip:" + clientIp(request), irisMessageLimit, irisMessageWindow);
                 }

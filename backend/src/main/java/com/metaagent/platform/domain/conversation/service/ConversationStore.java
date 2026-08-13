@@ -86,6 +86,26 @@ public class ConversationStore {
         );
     }
 
+    /**
+     * The "sent" status webhook and the message_echoes webhook both describe the same
+     * outbound BizAI reply but can arrive in either order. If the status webhook already
+     * created the row (with null content), fill in the text now. If the echo arrives first,
+     * create the row here instead — same as saveOutbound's "sent" path.
+     */
+    @Transactional
+    public Message upsertOutboundEcho(Long accountId, Long agentId, Long conversationId,
+                                       String metaMessageId, String textBody) {
+        return messageRepository.findByMetaMessageId(metaMessageId)
+                .map(message -> {
+                    if (message.getContent() == null) {
+                        message.setContent(textBody);
+                        messageRepository.save(message);
+                    }
+                    return message;
+                })
+                .orElseGet(() -> saveOutbound(accountId, conversationId, agentId, metaMessageId, textBody));
+    }
+
     @Transactional
     public void updateMessageStatus(String metaMessageId, Message.Status newStatus) {
         messageRepository.findByMetaMessageId(metaMessageId).ifPresent(message -> {

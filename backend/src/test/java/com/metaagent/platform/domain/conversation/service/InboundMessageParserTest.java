@@ -61,6 +61,43 @@ class InboundMessageParserTest {
     }
 
     @Test
+    void should_parse_message_nested_under_standby_when_bizai_is_active() {
+        // docs/meta-api/webhook-standby-handoff.md row 2: when Meta's own AI is
+        // actively responding, the customer's real message is nested one level
+        // deeper, under value.standby.messages — not value.messages. Missing
+        // this meant no message was ever persisted for any agent Meta's AI was
+        // actually handling (2026-08-13 founder report: "not getting logged in
+        // conversations tab").
+        String payload = """
+                {
+                  "entry": [{
+                    "changes": [{
+                      "value": {
+                        "standby": {
+                          "contacts": [{ "wa_id": "919876543210" }],
+                          "messages": [{
+                            "from": "919876543210",
+                            "id": "wamid.standby001",
+                            "type": "text",
+                            "text": { "body": "Hi" }
+                          }]
+                        }
+                      }
+                    }]
+                  }]
+                }
+                """;
+
+        Optional<InboundMessage> result = parser.parse(payload);
+
+        assertTrue(result.isPresent(), "Expected a non-empty Optional for a standby-wrapped text message");
+        InboundMessage msg = result.get();
+        assertEquals("919876543210", msg.customerPhone());
+        assertEquals("wamid.standby001", msg.metaMessageId());
+        assertEquals("Hi", msg.textBody());
+    }
+
+    @Test
     void should_return_empty_when_payload_has_no_messages_array() {
         // 'entry' and 'changes' exist but 'value.messages' is absent.
         String payload = """

@@ -4,6 +4,7 @@ import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.domain.reports.service.EvalRollupService;
 import com.metaagent.platform.domain.reports.service.ReportsService;
 import com.metaagent.platform.infrastructure.meta.audit.ApiCallLog;
+import com.metaagent.platform.infrastructure.meta.audit.ApiCallLogFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -29,8 +30,17 @@ public class AccountReportsController {
     }
 
     @GetMapping("/api-calls")
-    public ApiResponse<List<ApiCallLog>> getApiCallLog(@RequestParam(defaultValue = "100") int limit) {
-        return ApiResponse.ok(reportsService.getApiCallLog(limit));
+    public ApiResponse<List<ApiCallLog>> getApiCallLog(
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) String method,
+            @RequestParam(required = false) String pathContains,
+            @RequestParam(required = false) String phoneNumberId,
+            @RequestParam(required = false) Long agentId,
+            @RequestParam(required = false, defaultValue = "ALL") ApiCallLogFilter.Outcome outcome,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return ApiResponse.ok(reportsService.getApiCallLog(
+                new ApiCallLogFilter(method, pathContains, phoneNumberId, agentId, outcome, from, to), limit));
     }
 
     @PostMapping("/eval-rollup")

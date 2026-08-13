@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useModuleEntitlements } from '../hooks/useModuleEntitlements'
 import { MODULES } from '../lib/modules'
@@ -18,8 +18,13 @@ import ModuleCard from '../components/shared/ModuleCard'
 
 export default function ModuleSelectorPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const { data: entitlements, isLoading } = useModuleEntitlements()
+  // Forwarded from RootRedirect only on a real login (see its own comment) —
+  // opening Business Agents right after signing in should land on Webhooks,
+  // not its normal home route, per the founder's "webhooks on login" ask.
+  const postLogin = Boolean((location.state as { postLogin?: boolean } | null)?.postLogin)
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -60,7 +65,7 @@ export default function ModuleSelectorPage() {
                   key={mod.key}
                   module={mod}
                   enabled={enabled}
-                  onOpen={() => navigate(mod.homeRoute)}
+                  onOpen={() => navigate(postLogin && mod.key === 'BUSINESS_AGENTS' ? '/inbox?view=webhooks' : mod.homeRoute)}
                 />
               )
             })}

@@ -63,6 +63,14 @@ public class ReportsService {
         return apiCallLogRepository.findAllByAccountIdOrderByCalledAtDesc(accountId, PageRequest.of(0, Math.min(limit, 200)));
     }
 
+    public List<ApiCallLog> getApiCallLog(com.metaagent.platform.infrastructure.meta.audit.ApiCallLogFilter filter, int limit) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        var spec = com.metaagent.platform.infrastructure.meta.audit.ApiCallLogFilter.toSpecification(accountId, filter);
+        return apiCallLogRepository.findAll(spec,
+                PageRequest.of(0, Math.min(limit, 200), org.springframework.data.domain.Sort.by("calledAt").descending()))
+                .getContent();
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, Object> listEvalCases(Long agentId) {
         String phoneNumberId = phoneNumberIdFor(agentId);

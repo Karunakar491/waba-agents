@@ -7,7 +7,8 @@ import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
-import { formatTimeIST, formatDateTimeIST } from '../lib/dateFormat'
+import { formatTimeIST } from '../lib/dateFormat'
+import WebhookLogPanel from '../components/debug/WebhookLogPanel'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
@@ -18,6 +19,13 @@ interface Conversation {
   status: 'open' | 'closed'
   lastMessageAt: string | null
   channel: string
+  // Which of the account's several business numbers this conversation came
+  // in on — resolved via the owning agent, since Conversation itself has no
+  // phone number field (founder, 2026-08-13: "we have 7-8 phone numbers, how
+  // should I identify which number it is pinged to"). Null if the agent was
+  // deleted or the number never synced.
+  displayPhoneNumber: string | null
+  agentDisplayName: string | null
 }
 
 interface Message {
@@ -29,25 +37,18 @@ interface Message {
   receivedAt: string
 }
 
-interface WebhookRawEntry {
-  id: string
-  agentId: string | null
-  payload: string
-  signature: string
-  status: 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED'
-  errorMessage: string | null
-  receivedAt: string
-  processedAt: string | null
-}
-
 export default function InboxPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('conversationId')
   const [filter, setFilter] = useState<ConversationFilter>('ALL')
   // Founder-caught gap (2026-08-07): no provision existed to view logged
-  // webhooks or copy them at all.
-  const [view, setView] = useState<'conversations' | 'webhooks'>('conversations')
+  // webhooks or copy them at all. Initial value honors ?view=webhooks
+  // (2026-08-13) — RootRedirect/ModuleSelectorPage land here right after a
+  // fresh login via that query param, per "webhooks on login".
+  const [view, setView] = useState<'conversations' | 'webhooks'>(
+    searchParams.get('view') === 'webhooks' ? 'webhooks' : 'conversations'
+  )
 
   const {
     data: conversations = [],
@@ -190,7 +191,9 @@ export default function InboxPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{selectedConv.externalId}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{selectedConv.status} · {selectedConv.channel}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {selectedConv.status} · {selectedConv.channel} · to {selectedConv.displayPhoneNumber ?? '—'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -247,6 +250,12 @@ function ConversationRow({
           <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
           <span className="text-xs text-muted-foreground shrink-0">{time}</span>
         </div>
+        {/* Which of the account's several numbers this came in on (2026-08-13
+            founder ask) — "to" makes the direction unambiguous next to the
+            customer's own number above. */}
+        <p className="truncate text-xs text-muted-foreground" title={conv.agentDisplayName ?? undefined}>
+          to {conv.displayPhoneNumber ?? '—'}
+        </p>
         <div className="mt-0.5 flex items-center gap-1.5">
           <StatusIndicator label={conv.status === 'open' ? 'Open' : 'Closed'} tone={conv.status === 'open' ? 'positive' : 'neutral'} />
           <span className="text-xs text-muted-foreground capitalize">· {conv.channel}</span>
@@ -296,59 +305,6 @@ function MessageBubble({ msg }: { msg: Message }) {
         size="icon"
         className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
       />
-    </div>
-  )
-}
-
-const WEBHOOK_STATUS_TONE: Record<WebhookRawEntry['status'], 'positive' | 'negative' | 'neutral'> = {
-  PROCESSED: 'positive',
-  FAILED: 'negative',
-  PENDING: 'neutral',
-  PROCESSING: 'neutral',
-}
-
-function WebhookLogPanel() {
-  const { data: webhooks = [], isLoading, isError, error, refetch } = useQuery<WebhookRawEntry[]>({
-    queryKey: ['webhooks-raw'],
-    queryFn: () => api.get('/webhooks/raw').then((r) => r.data.data),
-  })
-
-  return (
-    <div className="flex-1 overflow-y-auto bg-muted/20 p-4">
-      <p className="mb-3 text-xs text-muted-foreground">
-        Most recent 100 webhooks received for this account — raw payload, signature, and processing status.
-      </p>
-      {isLoading ? (
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />)}
-        </div>
-      ) : isError ? (
-        <ErrorBanner error={error} onRetry={() => refetch()} />
-      ) : webhooks.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">No webhooks logged yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {webhooks.map((w) => (
-            <div key={w.id} className="rounded-lg border bg-card p-3 shadow-surface-resting">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <StatusIndicator label={w.status} tone={WEBHOOK_STATUS_TONE[w.status]} />
-                  <span className="text-xs text-muted-foreground">
-                    {formatDateTimeIST(w.receivedAt)}
-                  </span>
-                </div>
-                <CopyButton value={w.payload} label="Copy payload" />
-              </div>
-              {w.errorMessage && (
-                <p className="mt-1.5 text-xs text-destructive">{w.errorMessage}</p>
-              )}
-              <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted/50 p-2 text-xs text-foreground">
-                {w.payload}
-              </pre>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

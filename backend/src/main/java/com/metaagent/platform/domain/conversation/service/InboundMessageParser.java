@@ -27,6 +27,20 @@ public class InboundMessageParser {
             // .at() returns MissingNode (not null) on absent path — consistent with StatusUpdateParser
             JsonNode messageNode = root.at("/entry/0/changes/0/value/messages/0");
             if (messageNode.isMissingNode()) {
+                // Founder-reported gap (2026-08-13): when BizAI (Meta's own AI) is
+                // actively handling the conversation, the customer's real message
+                // is NOT under value.messages at all — Meta nests it one level
+                // deeper, under value.standby.messages (docs/meta-api/webhook-
+                // standby-handoff.md, row 2: "consumer message arrives while BizAI
+                // is responding"). This is the normal case for every live deployed
+                // agent, not an edge case — missing it meant the Conversations tab
+                // never showed a single message for any agent Meta's AI was
+                // actually answering. HandoffClassifier already reads this same
+                // path to detect BIZAI_ACTIVE; this just also extracts the message
+                // itself instead of only using standby's presence as a signal.
+                messageNode = root.at("/entry/0/changes/0/value/standby/messages/0");
+            }
+            if (messageNode.isMissingNode()) {
                 return Optional.empty();
             }
 

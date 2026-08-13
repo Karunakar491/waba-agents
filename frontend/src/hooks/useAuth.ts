@@ -20,7 +20,10 @@ export function useLogin() {
       // vs. multi-module landing from there. Hardcoding "/dashboard" here
       // bypassed that logic entirely on the one path that matters most: an
       // actual login (2026-08-04 bug — module selector never fired).
-      navigate('/')
+      // postLogin state (2026-08-13): tells RootRedirect this navigation is a
+      // real login, not a bookmark/refresh landing on "/" — see its own
+      // comment for why that distinction matters (webhooks-on-login ask).
+      navigate('/', { state: { postLogin: true } })
     },
   })
 }

@@ -6,6 +6,7 @@ import com.metaagent.platform.domain.conversation.entity.Conversation;
 import com.metaagent.platform.domain.conversation.entity.Message;
 import com.metaagent.platform.domain.conversation.model.HandoffSignal;
 import com.metaagent.platform.domain.conversation.model.InboundMessage;
+import com.metaagent.platform.domain.conversation.model.OutboundEcho;
 import com.metaagent.platform.domain.conversation.model.StatusUpdate;
 import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
 import com.metaagent.platform.domain.conversation.repository.MessageRepository;
@@ -41,6 +42,7 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final InboundMessageParser parser;
     private final StatusUpdateParser statusUpdateParser;
+    private final OutboundEchoParser outboundEchoParser;
     private final HandoffClassifier handoffClassifier;
     private final ConversationStore conversationStore;
     private final RabbitTemplate rabbitTemplate;
@@ -74,10 +76,14 @@ public class ConversationService {
                 if (signal == HandoffSignal.BIZAI_ACTIVE) {
                     log.info("BizAI active on webhook: id={} — observability only, no action taken", webhookRawId);
                 }
-                // Not an inbound message — check if it's a status update
+                // Not an inbound message — check if it's a status update or BizAI's own echo
                 Optional<StatusUpdate> statusUpdate = statusUpdateParser.parse(raw.getPayload());
                 if (statusUpdate.isPresent()) {
                     processStatusUpdate(statusUpdate.get(), accountId, agentId);
+                }
+                Optional<OutboundEcho> echo = outboundEchoParser.parse(raw.getPayload());
+                if (echo.isPresent()) {
+                    processOutboundEcho(echo.get(), accountId, agentId);
                 }
                 markProcessed(raw);
                 return;
@@ -212,6 +218,17 @@ public class ConversationService {
             conversationStore.updateMessageStatus(su.metaMessageId(), newStatus);
             log.info("Message status updated: metaMessageId={} status={}", su.metaMessageId(), newStatus);
         }
+    }
+
+    private void processOutboundEcho(OutboundEcho echo, Long accountId, Long agentId) {
+        if (echo.textBody() == null) {
+            return; // rich/template reply with no plain-text body — nothing to fill in
+        }
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, echo.recipientPhone());
+        conversationStore.upsertOutboundEcho(accountId, agentId, conversation.getId(),
+                echo.metaMessageId(), echo.textBody());
+        log.info("Outbound echo applied: metaMessageId={} conversationId={}",
+                echo.metaMessageId(), conversation.getId());
     }
 
     private Message.Status resolveMessageStatus(String metaStatus) {

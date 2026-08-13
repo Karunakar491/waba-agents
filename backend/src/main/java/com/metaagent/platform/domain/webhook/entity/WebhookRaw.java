@@ -25,13 +25,23 @@ public class WebhookRaw {
     @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long id;
 
-    @Column(name = "account_id", nullable = false)
+    // Nullable (V50) — a payload Meta sends for a phone_number_id we don't
+    // recognize, or one that fails signature verification, has no known
+    // account to attribute it to at all. Still persisted (see
+    // WebhookController) rather than dropped, per the founder's "log every
+    // kind of webhook" requirement — null here just means "unattributed",
+    // never "lost".
+    @Column(name = "account_id")
     @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long accountId;
 
     @Column(name = "agent_id")
     @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER
     private Long agentId;
+
+    /** Meta's phone_number_id from the payload — extracted at receipt, independent of whether an agent/account was resolved. */
+    @Column(name = "phone_number_id", length = 64)
+    private String phoneNumberId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "json")

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import LoginPage from './pages/LoginPage'
@@ -11,6 +11,7 @@ import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
 import ConnectorLibraryPage from './pages/ConnectorLibraryPage'
 import FileLibraryPage from './pages/FileLibraryPage'
 import ReportsPage from './pages/ReportsPage'
+import DebugPage from './pages/DebugPage'
 import WabasPage from './pages/WabasPage'
 import WabaDetailPage from './pages/WabaDetailPage'
 import InboxPage from './pages/InboxPage'
@@ -50,9 +51,24 @@ const MODULE_HOME_ROUTE: Record<ModuleName, string> = {
  * network call). Every OTHER route (bookmarks, deep-links, sessionStorage
  * last-agent:{tab} resume) bypasses this entirely — this is the post-login
  * default, not a checkpoint on navigation.
+ *
+ * postLogin state (2026-08-13, founder: "when a user logs in, all the
+ * webhooks related to the WABA should be displayed") — set only by
+ * useLogin's navigate('/', { state: { postLogin: true } }), never by a
+ * bookmark/deep-link/refresh landing on "/". Deliberately NOT a hardcoded
+ * destination change to MODULE_HOME_ROUTE itself — that would silently
+ * change what every later visit to "/" does, not just the moment right
+ * after signing in, and would bypass the module-resolution fix from
+ * 2026-08-04 this function exists to do. Only redirects to Webhooks for the
+ * module that actually has an Inbox (BUSINESS_AGENTS); forwarded through
+ * /select for the (currently unused) multi-module case — see
+ * ModuleSelectorPage.
  */
 function RootRedirect() {
   const { data: entitlements, isLoading } = useModuleEntitlements()
+  const location = useLocation()
+  const postLogin = Boolean((location.state as { postLogin?: boolean } | null)?.postLogin)
+
   if (isLoading) {
     return (
       <div className="flex h-dvh w-screen items-center justify-center bg-background">
@@ -63,11 +79,15 @@ function RootRedirect() {
 
   const enabledModules = (Object.keys(MODULE_HOME_ROUTE) as ModuleName[]).filter((m) => entitlements?.[m])
   if (enabledModules.length === 1) {
-    return <Navigate to={MODULE_HOME_ROUTE[enabledModules[0]]} replace />
+    const mod = enabledModules[0]
+    if (postLogin && mod === 'BUSINESS_AGENTS') {
+      return <Navigate to="/inbox?view=webhooks" replace />
+    }
+    return <Navigate to={MODULE_HOME_ROUTE[mod]} replace />
   }
   // 0 enabled is handled by ProtectedRoute's lock screen before this ever
   // renders; 2+ enabled shows the selector.
-  return <Navigate to="/select" replace />
+  return <Navigate to="/select" state={postLogin ? { postLogin: true } : undefined} replace />
 }
 
 export default function App() {
@@ -100,6 +120,7 @@ export default function App() {
               <Route path="/library/connectors" element={<ConnectorLibraryPage />} />
               <Route path="/library/files" element={<FileLibraryPage />} />
               <Route path="/reports"  element={<ReportsPage />} />
+              <Route path="/debug"    element={<DebugPage />} />
               <Route path="/wabas"    element={<WabasPage />} />
               <Route path="/wabas/:wabaId" element={<WabaDetailPage />} />
               <Route path="/inbox"    element={<InboxPage />} />

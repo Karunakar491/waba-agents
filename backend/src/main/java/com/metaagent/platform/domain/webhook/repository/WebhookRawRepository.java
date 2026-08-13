@@ -2,6 +2,7 @@ package com.metaagent.platform.domain.webhook.repository;
 
 import com.metaagent.platform.domain.webhook.entity.WebhookRaw;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface WebhookRawRepository extends JpaRepository<WebhookRaw, Long> {
+public interface WebhookRawRepository extends JpaRepository<WebhookRaw, Long>, JpaSpecificationExecutor<WebhookRaw> {
 
     /**
      * Founder-caught gap (2026-08-07): no way existed to view logged webhooks

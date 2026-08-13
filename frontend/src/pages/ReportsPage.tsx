@@ -1,21 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, BarChart3, ClipboardList, Code2, Loader2, MessageSquare } from 'lucide-react'
+import { AlertTriangle, BarChart3, ClipboardList, Loader2, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
 import api from '../lib/api'
 import { useJobPoll } from '../hooks/useJobPoll'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator from '../components/shared/StatusIndicator'
-import CopyButton from '../components/shared/CopyButton'
-import { formatTimeIST } from '../lib/dateFormat'
 
-type ReportTab = 'conversations' | 'eval' | 'api-calls'
+// API Calls moved to Debug > APIs (2026-08-13, "move API calls and webhooks
+// to a new Debug section... remove API entirely from reports") — this page
+// is business-metric reporting only now (Conversations, Eval), not raw
+// technical logs.
+type ReportTab = 'conversations' | 'eval'
 
 const TABS: { key: ReportTab; label: string; icon: React.FC<{ className?: string }> }[] = [
   { key: 'conversations', label: 'Conversations', icon: MessageSquare },
   { key: 'eval',          label: 'Eval',          icon: ClipboardList },
-  { key: 'api-calls',     label: 'API Calls',     icon: Code2 },
 ]
 
 export default function ReportsPage() {
@@ -26,7 +27,7 @@ export default function ReportsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Reports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Account-wide conversation volume, eval quality, and Meta API activity.
+          Account-wide conversation volume and eval quality.
         </p>
       </div>
 
@@ -50,7 +51,6 @@ export default function ReportsPage() {
 
       {activeTab === 'conversations' && <ConversationsReport />}
       {activeTab === 'eval' && <EvalRollup />}
-      {activeTab === 'api-calls' && <ApiCallsLog />}
     </div>
   )
 }
@@ -266,113 +266,3 @@ function EvalRollup() {
   )
 }
 
-// ── API Calls log ─────────────────────────────────────────────────────────────
-
-interface ApiCallLogRow {
-  id: string
-  method: string
-  path: string
-  statusCode: number | null
-  durationMs: number | null
-  requestBody: string | null
-  responseBody: string | null
-  errorMessage: string | null
-  calledAt: string
-}
-
-function ApiCallsLog() {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  const { data: calls = [], isLoading } = useQuery<ApiCallLogRow[]>({
-    queryKey: ['reports-api-calls'],
-    queryFn: () => api.get('/reports/api-calls').then((r) => r.data.data ?? []),
-    refetchInterval: 10_000,
-  })
-
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" />)}
-      </div>
-    )
-  }
-
-  if (calls.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
-        <Code2 className="h-10 w-10 text-muted-foreground mb-3" />
-        <p className="font-semibold text-foreground">No API calls logged yet</p>
-        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-          Every request this platform makes to Meta will show up here for debugging.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden">
-      <ul className="divide-y">
-        {calls.map((call) => {
-          const isExpanded = expandedId === call.id
-          const ok = call.statusCode != null && call.statusCode < 400
-          return (
-            <li key={call.id}>
-              <button
-                onClick={() => setExpandedId(isExpanded ? null : call.id)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
-              >
-                <StatusIndicator label={ok ? 'OK' : 'Error'} tone={ok ? 'positive' : 'negative'} />
-                <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide bg-muted text-muted-foreground">
-                  {call.method}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{call.path}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{call.statusCode ?? '—'}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{call.durationMs ?? '—'}ms</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatTimeIST(call.calledAt)}
-                </span>
-              </button>
-              {isExpanded && (
-                <div className="border-t bg-muted/20 px-4 py-3 space-y-2">
-                  {call.errorMessage && (
-                    <p className="text-xs text-destructive">{call.errorMessage}</p>
-                  )}
-                  <ApiCallDetail call={call} />
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-// Founder-caught gap (2026-08-07): request/response boxes had no copy
-// button and relied on awkward horizontal drag-scroll to read long JSON --
-// wrapping long lines (whitespace-pre-wrap break-all) plus a taller vertical
-// scroller reads far better than forcing horizontal scroll for JSON.
-function ApiCallDetail({ call }: { call: ApiCallLogRow }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <div>
-        <div className="mb-1 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Request</p>
-          {call.requestBody && <CopyButton value={call.requestBody} />}
-        </div>
-        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-background border p-3 text-xs text-foreground">
-          {call.requestBody ?? '(no body)'}
-        </pre>
-      </div>
-      <div>
-        <div className="mb-1 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Response</p>
-          {call.responseBody && <CopyButton value={call.responseBody} />}
-        </div>
-        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-background border p-3 text-xs text-foreground">
-          {call.responseBody ?? '(no body)'}
-        </pre>
-      </div>
-    </div>
-  )
-}

@@ -47,6 +47,15 @@ public class ApiCallLog {
     @Column(name = "duration_ms")
     private Long durationMs;
 
+    /** Extracted from `path` at write time (first numeric path segment) — see ApiCallLogWriter. Null for calls with no phone-scoped path (e.g. graphGet). */
+    @Column(name = "phone_number_id", length = 64)
+    private String phoneNumberId;
+
+    /** Our internal Agent.id, resolved from phoneNumberId at write time — not Meta's own agent_id (a different identifier, sometimes present in the path/query separately). Null if no agent binds that phone number (yet, or ever). */
+    @Column(name = "agent_id")
+    @JsonSerialize(using = ToStringSerializer.class) // TSIDs overflow JS Number.MAX_SAFE_INTEGER — caught live (2026-08-13) via a real precision-loss mismatch against the Agents list's own id
+    private Long agentId;
+
     @Column(name = "request_body", columnDefinition = "TEXT")
     private String requestBody;
 

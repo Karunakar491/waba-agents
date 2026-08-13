@@ -42,6 +42,10 @@ const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',    soon: false, end: false },
   { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false, end: false },
   { to: '/reports',  icon: BarChart3,    label: 'Reports',        soon: false, end: false },
+  // Own nav item (2026-08-13) — mirrors Template Studio's existing
+  // /templates/debug page; raw technical logs (API calls, webhooks) don't
+  // belong mixed into Reports' business-metric tabs.
+  { to: '/debug',    icon: Bug,          label: 'Debug',          soon: false, end: false },
   { to: '/wabas',    icon: Building2,    label: 'WABAs',          soon: false, end: false },
   { to: '/inbox',    icon: MessageSquare, label: 'Inbox',          soon: false, end: false },
   { to: '/handover', icon: Users,         label: 'Human Handover', soon: true,  end: false },

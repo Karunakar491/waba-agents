@@ -77,8 +77,24 @@ public class WebhookController {
         // 1. Signature Verification (HMAC-SHA256 using META_APP_SECRET) — always
         // enforced; appSecret has no default, so a missing config value already
         // crashed Spring context startup before this method could ever run.
+        //
+        // Founder-reported gap (2026-08-13): "log ALL webhooks, every kind" —
+        // this used to return 403 without ever persisting anything, so a
+        // failed-signature attempt (misconfigured secret, spoofed request)
+        // left literally no record anywhere. Still never trusted as real Meta
+        // data (accountId/agentId stay null, status FAILED, never queued for
+        // processing) — persisting it is for audit/debugging visibility only.
         if (signatureHeader == null || !verifySignature(rawPayload, signatureHeader, appSecret)) {
             log.warn("Webhook signature verification failed");
+            webhookRawRepository.save(WebhookRaw.builder()
+                    .accountId(null)
+                    .agentId(null)
+                    .phoneNumberId(bestEffortExtractPhoneNumberId(rawPayload))
+                    .payload(rawPayload)
+                    .signature(signatureHeader != null ? signatureHeader : "UNSIGNED")
+                    .status(WebhookRaw.Status.FAILED)
+                    .errorMessage("Signature verification failed")
+                    .build());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Signature verification failed");
         }
 
@@ -96,8 +112,20 @@ public class WebhookController {
         }
 
         if (agent == null) {
-            // No tenant to attribute this payload to. Always 200 — Meta retry-loops on errors.
-            log.warn("Webhook unattributable — no agent for phone_number_id={}. Payload dropped.", phoneNumberId);
+            // No tenant to attribute this payload to — still persisted (V50 made
+            // account_id nullable for exactly this case), just never queued for
+            // processing (nothing downstream knows which account/agent to use).
+            // Always 200 — Meta retry-loops on errors.
+            log.warn("Webhook unattributable — no agent for phone_number_id={}. Persisted, not processed.", phoneNumberId);
+            webhookRawRepository.save(WebhookRaw.builder()
+                    .accountId(null)
+                    .agentId(null)
+                    .phoneNumberId(phoneNumberId)
+                    .payload(rawPayload)
+                    .signature(signatureHeader)
+                    .status(WebhookRaw.Status.FAILED)
+                    .errorMessage("No agent found for phone_number_id=" + phoneNumberId)
+                    .build());
             return ResponseEntity.ok("OK");
         }
 
@@ -108,6 +136,7 @@ public class WebhookController {
         WebhookRaw webhookRaw = WebhookRaw.builder()
                 .accountId(accountId)
                 .agentId(agentId)
+                .phoneNumberId(phoneNumberId)
                 .payload(rawPayload)
                 .signature(signatureHeader != null ? signatureHeader : "UNSIGNED")
                 .status(WebhookRaw.Status.PENDING)
@@ -130,6 +159,15 @@ public class WebhookController {
 
         // 5. Respond 200 OK immediately within 20s window
         return ResponseEntity.ok("OK");
+    }
+
+    /** Best-effort — used only for the signature-failed audit trail, where the payload is untrusted and may not even be valid JSON. */
+    private String bestEffortExtractPhoneNumberId(String rawPayload) {
+        try {
+            return extractPhoneNumberId(objectMapper.readTree(rawPayload));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private boolean verifySignature(String payload, String signatureHeader, String secret) {

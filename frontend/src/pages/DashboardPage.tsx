@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   Bot,
-  FileEdit,
-  PhoneOff,
   ArrowRight,
   MessageSquare,
   Phone,
@@ -12,7 +10,6 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
-import ConsequenceLine from '../components/shared/ConsequenceLine'
 import { useClientScope } from '../hooks/useClientScope'
 
 interface AgentRow {
@@ -65,10 +62,14 @@ interface AttentionItem {
   reason: AttentionReason
 }
 
-const REASON_CONFIG: Record<AttentionReason, { label: string; icon: typeof FileEdit; iconClassName: string }> = {
-  draft: { label: 'Never deployed — still in draft', icon: FileEdit, iconClassName: 'text-muted-foreground' },
-  paused: { label: 'Paused — not replying to customers', icon: AlertTriangle, iconClassName: 'text-warning' },
-  disconnected: { label: 'Active with no phone number connected', icon: PhoneOff, iconClassName: 'text-destructive' },
+// Figma node 140:33 "AttentionCard" -- every row uses the same warning-
+// triangle icon and a short one-word status, not a per-reason icon/label;
+// the fuller reason text still lives in each icon's title tooltip so the
+// detail isn't lost, just not the headline anymore.
+const REASON_CONFIG: Record<AttentionReason, { label: string; title: string }> = {
+  draft: { label: 'Draft', title: 'Never deployed — still in draft' },
+  paused: { label: 'Paused', title: 'Paused — not replying to customers' },
+  disconnected: { label: 'No phone number', title: 'Active with no phone number connected' },
 }
 
 // Client-side heuristic — no dedicated "attention" signal exists on the backend yet.
@@ -135,18 +136,11 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Attention narrative renders first, deliberately with no card chrome —
-          per DESIGN.md's Bento/hierarchy note, this is a headline the eye
-          should land on before the reference tables below, not one more card
-          that reads as "table, then another table" (2026-08-05 reorder). */}
-      {isLoading ? (
-        <AttentionSkeleton />
-      ) : isError ? (
-        <ErrorState />
-      ) : (
-        <AttentionList agents={scopedAgents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
-      )}
-
+      {/* Figma node 125:3 "7.1 -- Business Agents: Dashboard": metrics row
+          first, then Needs Attention and the phone table side-by-side in
+          two columns -- supersedes the 2026-08-05 chromeless-attention-list
+          reorder now that a real two-column layout gives it its own visual
+          weight without needing the "no card" treatment to stand out. */}
       {summaryLoading ? (
         <MetricsSkeleton />
       ) : summaryError || !summary ? (
@@ -155,16 +149,28 @@ export default function DashboardPage() {
         <MetricsRow summary={{ ...summary, phoneNumbers: scopedPhones ?? summary.phoneNumbers }} />
       )}
 
-      {summaryLoading ? (
-        <SkeletonList />
-      ) : summaryError || !summary ? null : (
-        <PhoneNumbersTable
-          phones={scopedPhones ?? summary.phoneNumbers}
-          unavailableWabaLabels={summary.unavailableWabaLabels}
-          syncedAt={summary.phoneNumbersSyncedAt}
-          onOpenAgent={(id) => navigate(`/agents/${id}`)}
-        />
-      )}
+      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+        <div className="rounded-xl border bg-card p-4 shadow-surface-resting">
+          {isLoading ? (
+            <AttentionSkeleton />
+          ) : isError ? (
+            <ErrorState />
+          ) : (
+            <AttentionList agents={scopedAgents ?? []} onOpenAgent={(id) => navigate(`/agents/${id}`)} />
+          )}
+        </div>
+
+        {summaryLoading ? (
+          <SkeletonList />
+        ) : summaryError || !summary ? null : (
+          <PhoneNumbersTable
+            phones={scopedPhones ?? summary.phoneNumbers}
+            unavailableWabaLabels={summary.unavailableWabaLabels}
+            syncedAt={summary.phoneNumbersSyncedAt}
+            onOpenAgent={(id) => navigate(`/agents/${id}`)}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -219,28 +225,6 @@ const PHONE_STATUS_CONFIG: Record<string, { label: string; tone: StatusTone; pul
   draft: { label: 'Draft', tone: 'neutral' },
 }
 
-// TASK-061 — Meta's quality_rating is the leading indicator before WhatsApp
-// restricts/bans a number. GREEN/YELLOW/RED assumed from common WhatsApp
-// Cloud API usage, NOT confirmed against any doc in docs/meta-api/ (EL
-// review, 2026-07-30 — flagged as unconfirmed, not sourced). Any other value
-// (blank, UNKNOWN, or something we haven't seen) renders as a neutral badge
-// rather than hiding the signal.
-const QUALITY_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  GREEN: { label: 'Quality: High', tone: 'positive' },
-  YELLOW: { label: 'Quality: Medium', tone: 'warning' },
-  RED: { label: 'Quality: Low', tone: 'negative' },
-}
-
-function QualityBadge({ qualityRating }: { qualityRating: string | null }) {
-  if (!qualityRating) return null
-  const cfg = QUALITY_CONFIG[qualityRating] ?? { label: `Quality: ${qualityRating}`, tone: 'neutral' as const }
-  return (
-    <span className="shrink-0">
-      <StatusIndicator label={cfg.label} tone={cfg.tone} />
-    </span>
-  )
-}
-
 function PhoneNumbersTable({
   phones,
   unavailableWabaLabels,
@@ -284,11 +268,10 @@ function PhoneNumbersTable({
             <thead>
               <tr className="border-b text-left text-xs font-medium text-muted-foreground">
                 <th className="px-4 py-3">Phone number</th>
-                <th className="px-4 py-3">WABA</th>
                 <th className="px-4 py-3">Display name</th>
+                <th className="px-4 py-3">WABA ID</th>
                 <th className="px-4 py-3">Agent status</th>
-                <th className="px-4 py-3">Quality</th>
-                <th className="px-4 py-3">Agent id</th>
+                <th className="px-4 py-3">Agent ID</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -306,8 +289,8 @@ function PhoneNumbersTable({
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{phone.wabaLabel}</td>
                     <td className="px-4 py-3 text-muted-foreground">{phone.verifiedName || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={phone.wabaLabel}>{phone.wabaId}</td>
                     <td className="px-4 py-3">
                       {phone.hasAgent && statusCfg ? (
                         <button
@@ -320,9 +303,6 @@ function PhoneNumbersTable({
                       ) : (
                         <StatusIndicator label="No agent deployed" tone="neutral" />
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <QualityBadge qualityRating={phone.qualityRating} />
                     </td>
                     <td className="px-4 py-3">
                       {phone.hasAgent && phone.agentId ? (
@@ -343,18 +323,11 @@ function PhoneNumbersTable({
           </table>
         </div>
       )}
-      {phones.some((phone) => phone.qualityRating === 'YELLOW' || phone.qualityRating === 'RED') && (
-        <div className="border-t px-4 py-2.5">
-          <ConsequenceLine tone="warning">
-            Meta's quality rating for a number — a drop here can precede messaging restrictions.
-          </ConsequenceLine>
-        </div>
-      )}
     </div>
   )
 }
 
-const ATTENTION_INLINE_CAP = 3
+const ATTENTION_INLINE_CAP = 4
 
 function AttentionList({
   agents,
@@ -379,11 +352,19 @@ function AttentionList({
     )
   }
 
+  // Figma node 145:2 "7.2 -- Needs Attention: All States" -- zero-items
+  // keeps the "Needs attention" header (no count badge, no description
+  // line) rather than dropping it entirely, so the card never reads as
+  // unlabeled content.
   if (items.length === 0) {
     return (
-      <p className="flex items-center gap-2 text-sm text-foreground">
-        <StatusIndicator label="All agents are live and connected. Nothing needs attention." tone="positive" />
-      </p>
+      <div className="space-y-3">
+        <p className="text-[15px] font-semibold text-foreground">Needs attention</p>
+        <div className="flex items-center gap-2 text-[13px] text-foreground">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-accent-teal-solid" />
+          All agents are live and connected. Nothing needs attention.
+        </div>
+      </div>
     )
   }
 
@@ -391,32 +372,41 @@ function AttentionList({
   const remaining = items.length - visible.length
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-semibold text-foreground">
-        {items.length} {items.length === 1 ? 'agent needs' : 'agents need'} attention
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[15px] font-semibold text-foreground">Needs attention</p>
+        <span className="flex h-5 min-w-[28px] items-center justify-center rounded-full bg-warning/10 px-1.5 text-[11px] font-semibold text-warning">
+          {items.length}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Across all agents, including drafts not yet connected to a phone number.
       </p>
-      <div className="space-y-1">
+      <div className="divide-y">
         {visible.map(({ agent, reason }) => {
           const cfg = REASON_CONFIG[reason]
-          const Icon = cfg.icon
           return (
             <button
               key={agent.id}
               onClick={() => onOpenAgent(agent.id)}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/30"
+              className="flex w-full items-center gap-2.5 py-2 text-left transition-colors hover:bg-muted/30"
             >
-              <Icon className={`h-4 w-4 shrink-0 ${cfg.iconClassName}`} />
+              <span title={cfg.title}>
+                <AlertTriangle className="h-[15px] w-[15px] shrink-0 text-warning" />
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground truncate">{agent.displayName}</p>
-                <p className="text-xs text-muted-foreground truncate">{cfg.label}</p>
+                <p className="truncate text-[13px] font-medium text-foreground">{agent.displayName}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{cfg.label}</p>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
           )
         })}
       </div>
       {remaining > 0 && (
-        <p className="pl-2 text-xs text-muted-foreground">+{remaining} more</p>
+        <Link to="/agents" className="block text-xs text-accent-teal-solid hover:underline">
+          +{remaining} more — view all in Agents
+        </Link>
       )}
     </div>
   )

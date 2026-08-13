@@ -156,15 +156,18 @@ export default function TemplateBuilderForm({
           </button>
 
           {step < 3 ? (
-            <button
-              type="button"
-              disabled={step === 1 ? !step1Ready : !step2Ready}
-              onClick={() => setStep((s) => Math.min(3, s + 1))}
-              className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
-            >
-              Next Step
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-5">
+              <span className="text-sm text-muted-foreground">{CREATE_STEPS[step - 1]}</span>
+              <button
+                type="button"
+                disabled={step === 1 ? !step1Ready : !step2Ready}
+                onClick={() => setStep((s) => Math.min(3, s + 1))}
+                className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+              >
+                Next Step
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           ) : (
             <button
               type="button"

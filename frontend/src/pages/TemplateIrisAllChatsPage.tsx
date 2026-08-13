@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Loader2, Search } from 'lucide-react'
 import api from '../lib/api'
 import type { SessionSummary } from '../store/irisSidebarStore'
+import { formatTimeIST, istStartOfDayMs, parseAsUtc } from '../lib/dateFormat'
 
 // Iris "All Chats" (2026-08-12, V2 rebrand slice 5, Figma node 112:2) — the
 // destination for the sidebar's "View all chats" link, which only shows the
@@ -85,23 +86,29 @@ export default function TemplateIrisAllChatsPage() {
   )
 }
 
+// Bucket/format boundaries founder-caught (2026-08-13, same class as the
+// 2026-08-07 fix documented in dateFormat.ts): this used to zero the
+// VIEWER's own OS-timezone midnight and format with the browser's default
+// locale/timezone — a viewer machine set to anything other than IST got a
+// different "Today" boundary and a wall-clock time that didn't match
+// India's actual clock, for an India-only product. Every boundary and every
+// displayed time below is now anchored to IST explicitly, never the viewer's
+// machine.
 function groupByRecency(sessions: SessionSummary[]): Array<{ label: string; sessions: SessionSummary[] }> {
-  const startOfToday = new Date()
-  startOfToday.setHours(0, 0, 0, 0)
-  const todayMs = startOfToday.getTime()
+  const todayMs = istStartOfDayMs(new Date())
   const yesterdayMs = todayMs - 24 * 60 * 60 * 1000
   const sevenDaysMs = todayMs - 7 * 24 * 60 * 60 * 1000
 
   const buckets = { today: [] as SessionSummary[], yesterday: [] as SessionSummary[], last7: [] as SessionSummary[], older: [] as SessionSummary[] }
   for (const s of sessions) {
-    const t = new Date(s.updatedAt).getTime()
+    const t = parseAsUtc(s.updatedAt).getTime()
     if (Number.isNaN(t)) { buckets.older.push(s); continue }
     if (t >= todayMs) buckets.today.push(s)
     else if (t >= yesterdayMs) buckets.yesterday.push(s)
     else if (t >= sevenDaysMs) buckets.last7.push(s)
     else buckets.older.push(s)
   }
-  const byRecency = (a: SessionSummary, b: SessionSummary) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  const byRecency = (a: SessionSummary, b: SessionSummary) => parseAsUtc(b.updatedAt).getTime() - parseAsUtc(a.updatedAt).getTime()
   ;[buckets.today, buckets.yesterday, buckets.last7, buckets.older].forEach((b) => b.sort(byRecency))
 
   return [
@@ -113,12 +120,12 @@ function groupByRecency(sessions: SessionSummary[]): Array<{ label: string; sess
 }
 
 function formatTimestamp(iso: string): string {
-  const d = new Date(iso)
+  const d = parseAsUtc(iso)
   if (Number.isNaN(d.getTime())) return ''
-  const now = new Date()
-  const sameDay = d.toDateString() === now.toDateString()
-  if (sameDay) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  const daysAgo = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000))
-  if (daysAgo < 7) return d.toLocaleDateString(undefined, { weekday: 'short' })
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const sameDay = d.getTime() >= istStartOfDayMs(new Date())
+  if (sameDay) return formatTimeIST(iso)
+  const daysAgo = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000))
+  const istOpts: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Kolkata' }
+  if (daysAgo < 7) return d.toLocaleDateString('en-IN', { ...istOpts, weekday: 'short' })
+  return d.toLocaleDateString('en-IN', { ...istOpts, month: 'short', day: 'numeric' })
 }

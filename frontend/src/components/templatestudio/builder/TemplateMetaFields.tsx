@@ -1,4 +1,12 @@
+import { useState } from 'react'
+import { Tag } from 'lucide-react'
 import { NAME_RE } from '../templateModel'
+
+const CATEGORY_LABEL: Record<string, string> = {
+  UTILITY: 'Utility',
+  MARKETING: 'Marketing',
+  AUTHENTICATION: 'Authentication',
+}
 
 // Extracted from TemplateBuilderForm.tsx (V2 rebrand slice 7). Focus rings
 // normalized to focus-visible:ring-2 ring-accent-teal-solid ring-offset-2
@@ -16,6 +24,11 @@ export default function TemplateMetaFields({ templateName, setTemplateName, lang
     : templateName.length > 512
       ? 'Meta limits names to 512 characters.'
       : null
+
+  // Figma node 150:63 "CategoryLocked" — category shows as a summary pill
+  // with an explicit Change action rather than a bare always-open select,
+  // since most templates never change category after the first pick.
+  const [changingCategory, setChangingCategory] = useState(false)
 
   return (
     <>
@@ -43,18 +56,36 @@ export default function TemplateMetaFields({ templateName, setTemplateName, lang
           />
         </div>
       </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-foreground">Category</label>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
-        >
-          <option value="UTILITY">Utility</option>
-          <option value="MARKETING">Marketing</option>
-          <option value="AUTHENTICATION">Authentication</option>
-        </select>
-      </div>
+      {changingCategory ? (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">Category</label>
+          <select
+            value={category}
+            autoFocus
+            onChange={(e) => { setCategory(e.target.value); setChangingCategory(false) }}
+            onBlur={() => setChangingCategory(false)}
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+          >
+            <option value="UTILITY">Utility</option>
+            <option value="MARKETING">Marketing</option>
+            <option value="AUTHENTICATION">Authentication</option>
+          </select>
+        </div>
+      ) : (
+        <div className="flex w-full items-center justify-between rounded-lg border bg-background px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Tag className="h-3.5 w-3.5 text-foreground" />
+            <span className="text-sm font-medium text-foreground">{CATEGORY_LABEL[category] ?? category}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setChangingCategory(true)}
+            className="text-xs font-medium text-accent-teal-solid hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+          >
+            Change
+          </button>
+        </div>
+      )}
     </>
   )
 }

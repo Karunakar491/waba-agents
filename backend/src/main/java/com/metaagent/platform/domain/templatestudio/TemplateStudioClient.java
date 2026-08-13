@@ -52,6 +52,33 @@ public class TemplateStudioClient {
 
     private final RestClient restClient;
 
+    // karix-mcp wraps Meta's own rejection differently at almost every call
+    // site -- sometimes {errorCode, errorMessage: "<JSON string>"}, sometimes
+    // {ok:false, error: "edit_template failed 500: <JSON string>"} -- with
+    // Meta's actual {error: {error_user_title, error_user_msg}} escaped N
+    // levels deep inside either shape. Structured parsing broke across the
+    // two variants seen live 2026-08-12, so this scans the raw text for
+    // Meta's own field names instead of assuming a specific nesting.
+    private static final java.util.regex.Pattern USER_MSG = java.util.regex.Pattern.compile("\"error_user_msg\"\\s*:\\s*\"([^\"]*)\"");
+    private static final java.util.regex.Pattern USER_TITLE = java.util.regex.Pattern.compile("\"error_user_title\"\\s*:\\s*\"([^\"]*)\"");
+
+    private static String extractMetaErrorMessage(String responseBody, String fallback) {
+        if (responseBody == null || responseBody.isBlank()) return fallback;
+        // Each layer of nesting escapes the previous layer's quotes with a
+        // backslash (\"error_user_msg\":\"...\"), which the two patterns
+        // above never match literally -- stripping all backslashes first
+        // (pure escaping artifacts here, no legitimate field value in this
+        // response shape contains one) makes every nesting depth look the
+        // same to a plain "field":"value" regex.
+        String unescaped = responseBody.replace("\\", "");
+        var msgMatcher = USER_MSG.matcher(unescaped);
+        String userMsg = msgMatcher.find() ? msgMatcher.group(1) : null;
+        if (userMsg == null) return fallback;
+        var titleMatcher = USER_TITLE.matcher(unescaped);
+        String userTitle = titleMatcher.find() ? titleMatcher.group(1) : null;
+        return userTitle != null ? userTitle + " — " + userMsg : userMsg;
+    }
+
     public TemplateStudioClient(RestClient.Builder builder, @Value("${karix-mcp.base-url}") String baseUrl) {
         this.restClient = builder.clone()
                 .baseUrl(baseUrl)
@@ -136,7 +163,7 @@ public class TemplateStudioClient {
                         String responseBody = readBodyBestEffort(resp);
                         log.warn("karix-mcp createTemplate failed: wabaId={} status={} body={}", wabaId, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
-                                "Template creation failed. Check the template details and try again.",
+                                extractMetaErrorMessage(responseBody, "Template creation failed. Check the template details and try again."),
                                 resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);
@@ -271,7 +298,7 @@ public class TemplateStudioClient {
     public Map<String, Object> getTemplate(String esmeAddr, String apiKey, String wabaId, String templateId) {
         return withCircuitBreaker(() -> {
             String token = mintToken(esmeAddr, apiKey, wabaId);
-            return restClient.get()
+            Map<String, Object> body = restClient.get()
                     .uri("/api/templates/{id}", templateId)
                     .header("Authorization", "Bearer " + token)
                     .retrieve()
@@ -280,6 +307,10 @@ public class TemplateStudioClient {
                                 "Could not fetch template.", resp.getStatusCode().value(), readBodyBestEffort(resp));
                     })
                     .body(Map.class);
+            log.info("karix-mcp getTemplate response: karixWabaId={} templateId={} topLevelKeys={} result={}",
+                    wabaId, templateId, body == null ? null : body.keySet(),
+                    body != null ? body.get("result") : null);
+            return body;
         });
     }
 
@@ -299,7 +330,7 @@ public class TemplateStudioClient {
                         log.warn("karix-mcp editTemplate failed: wabaId={} templateId={} status={} body={}",
                                 wabaId, templateId, resp.getStatusCode().value(), truncate(responseBody));
                         throw new TemplateStudioException(
-                                "Template edit failed. Check the template details and try again.",
+                                extractMetaErrorMessage(responseBody, "Template edit failed. Check the template details and try again."),
                                 resp.getStatusCode().value(), responseBody);
                     })
                     .body(Map.class);

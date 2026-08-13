@@ -81,7 +81,12 @@ export function useTemplateBuilder({
 
   useEffect(() => {
     if (!isEdit || seeded || !existingTemplateQuery.data?.result) return
-    const raw = existingTemplateQuery.data.result as {
+    // karix-mcp wraps the single-template payload under `response`, same as
+    // listTemplates (see templateModel.ts's extractTemplates) -- confirmed
+    // live 2026-08-12 after the body/header seeded as empty despite a
+    // successful fetch with real component data.
+    const result = existingTemplateQuery.data.result as {
+      response?: Record<string, unknown>
       components?: KarixComponent[]
       template?: { components?: KarixComponent[] }
       template_name?: string
@@ -89,6 +94,7 @@ export function useTemplateBuilder({
       language?: string
       category?: string
     }
+    const raw = (result.response ?? result) as typeof result
     const components: KarixComponent[] = raw.components ?? raw.template?.components ?? []
     const seed = seedFromComponents(components)
     setHeaderFormat(seed.headerFormat)

@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils'
 import ErrorBanner from '../shared/ErrorBanner'
 import StatusIndicator from '../shared/StatusIndicator'
 import IrisDraftSnapshotCard from './IrisDraftSnapshotCard'
-import { Composer, SetupBanner } from './IrisComposer'
+import { Composer, SetupBanner, type IrisAttachment } from './IrisComposer'
 
 export interface IrisChatEntry {
   id: string
@@ -48,6 +48,9 @@ export default function IrisChatPane({
   onRetry,
   onSuggestion,
   onAbort,
+  attachment,
+  onAttach,
+  onRemoveAttachment,
 }: {
   needsSetup: boolean
   resuming: boolean
@@ -63,6 +66,9 @@ export default function IrisChatPane({
   onRetry: (entry: IrisChatEntry) => void
   onSuggestion: (text: string) => void
   onAbort: () => void
+  attachment: IrisAttachment | null
+  onAttach: (file: File) => void
+  onRemoveAttachment: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showTopFade, setShowTopFade] = useState(false)
@@ -105,7 +111,7 @@ export default function IrisChatPane({
           </div>
           <div className="w-full max-w-3xl space-y-2">
             {needsSetup && <SetupBanner />}
-            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} />
+            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
           </div>
           <div className="flex max-w-3xl flex-wrap items-center justify-center gap-2">
             {SUGGESTIONS.map((s) => (
@@ -201,7 +207,7 @@ export default function IrisChatPane({
       {started && (
         <div className="space-y-2 border-t bg-background px-6 py-4">
           {needsSetup && <SetupBanner />}
-          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} />
+          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
         </div>
       )}
     </div>

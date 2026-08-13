@@ -9,6 +9,8 @@ import { useIrisSidebarStore } from '../store/irisSidebarStore'
 import { TEMPLATE_STUDIO_WABA_KEY } from '../hooks/useSelectedWaba'
 import IrisConfirmPanel from '../components/templatestudio/IrisConfirmPanel'
 import IrisChatPane, { type IrisChatEntry } from '../components/templatestudio/IrisChatPane'
+import type { IrisAttachment } from '../components/templatestudio/IrisComposer'
+import { useSelectedWaba } from '../hooks/useSelectedWaba'
 
 // Iris — Template Studio chat (A− pass 2026-08-06). Sessions in AppShell
 // navy rail. Mutating tools pause for docked IrisConfirmPanel beside Iris's
@@ -86,6 +88,35 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   const [pending, setPending] = useState<{ toolName: string; args: Record<string, unknown> } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resuming, setResuming] = useState(false)
+  const [attachment, setAttachment] = useState<IrisAttachment | null>(null)
+  // Iris's tool-calling has no wabaId selected yet when a file is chosen
+  // (the model only picks one once it reads the message) -- media upload is
+  // a separate, WABA-scoped karix-mcp call that must happen up front, so it
+  // reuses whichever WABA the rest of Template Studio has remembered.
+  const { selectedWabaId } = useSelectedWaba()
+
+  const uploadAttachment = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('category', 'image')
+      const res = await api.post(`/templates/${selectedWabaId}/media`, form, { headers: { 'Content-Type': undefined } })
+      const handle = res.data?.data?.result?.fileHandle || res.data?.data?.result?.file_handle
+      if (!handle) throw new Error('Upload succeeded but no file handle was returned.')
+      return handle as string
+    },
+    onSuccess: (fileHandle, file) => setAttachment({ fileName: file.name, status: 'ready', fileHandle }),
+    onError: (err, file) => setAttachment({ fileName: file.name, status: 'error', errorMessage: extractErrorMessage(err) }),
+  })
+
+  function handleAttach(file: File) {
+    if (!selectedWabaId) {
+      setAttachment({ fileName: file.name, status: 'error', errorMessage: 'Pick a WABA on the Templates page first — image uploads need one.' })
+      return
+    }
+    setAttachment({ fileName: file.name, status: 'uploading' })
+    uploadAttachment.mutate(file)
+  }
 
   useEffect(() => {
     const state = location.state as { prefillMessage?: string; resumeSessionId?: string } | null
@@ -279,12 +310,26 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
 
   function submit(text?: string) {
     const value = (text ?? input).trim()
-    if (!value || pending || sendMessage.isPending) return
+    const readyAttachment = attachment?.status === 'ready' ? attachment : null
+    if ((!value && !readyAttachment) || pending || sendMessage.isPending) return
     setError(null)
     const entryId = newEntryId()
-    setEntries((prev) => [...prev, { id: entryId, who: 'user', text: value, status: 'sending' }])
+    // The bracketed tag is the ONLY channel carrying the file_handle to the
+    // model -- Iris reads plain message text, so this is deliberately
+    // machine-readable prose rather than a separate request field. Its
+    // system prompt (IrisConversationService.SYSTEM_PROMPT) is written to
+    // recognize this exact tag and use the handle for a HEADER IMAGE
+    // component instead of asking the operator to attach differently.
+    const attachmentTag = readyAttachment ? `\n\n[Attached image: ${readyAttachment.fileName} — file_handle: ${readyAttachment.fileHandle}]` : ''
+    const displayText = value + (readyAttachment ? `\n\n📎 ${readyAttachment.fileName}` : '')
+    setEntries((prev) => [...prev, { id: entryId, who: 'user', text: displayText, status: 'sending' }])
     setInput('')
-    sendEntry(entryId, value)
+    setAttachment(null)
+    sendEntry(entryId, value + attachmentTag)
+  }
+
+  function removeAttachment() {
+    setAttachment(null)
   }
 
   function retry(entry: IrisChatEntry) {
@@ -319,6 +364,9 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
           onRetry={retry}
           onSuggestion={submit}
           onAbort={abortSend}
+          attachment={attachment}
+          onAttach={handleAttach}
+          onRemoveAttachment={removeAttachment}
         />
         {pending && (
           <IrisConfirmPanel

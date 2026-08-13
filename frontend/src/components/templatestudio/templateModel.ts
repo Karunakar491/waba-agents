@@ -4,6 +4,7 @@ export interface TemplateSummary {
   id?: string
   sno?: string
   template_id?: string
+  fb_template_id?: string
   template_name?: string
   name?: string
   status?: string
@@ -49,8 +50,12 @@ export const PAGE_SIZE = 10
 
 const VAR_RE = /\{\{\s*(\w+)\s*\}\}/g
 
+// karix-mcp's single-template GET (/api/templates/{id}) only recognizes
+// Meta's own template id (fb_template_id) -- confirmed live 2026-08-12 via
+// backend diagnostic logging, after passing t.sno there returned
+// {errorCode: 1012, errorMessage: "Template Not Found"} on every template.
 export function templateId(t: TemplateSummary): string {
-  return String(t.id ?? t.sno ?? t.template_id ?? '')
+  return String(t.fb_template_id ?? t.id ?? t.sno ?? t.template_id ?? '')
 }
 
 export function qualityLabel(t: TemplateSummary): string | null {

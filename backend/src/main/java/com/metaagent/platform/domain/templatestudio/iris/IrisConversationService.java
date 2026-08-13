@@ -4,13 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
-import com.metaagent.platform.domain.templatestudio.EditTemplateRequest;
-import com.metaagent.platform.domain.templatestudio.TemplateRequest;
-import com.metaagent.platform.domain.templatestudio.TemplateStudioService;
-import com.metaagent.platform.domain.waba.entity.Waba;
-import com.metaagent.platform.domain.waba.service.WabaService;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -18,23 +11,28 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Iris's tool-calling loop. Fixed allowlist (2026-08-04, locked scope) —
- * create_template/edit_template/list_templates/send_test_template plus a
- * no-op "just talk" path. A tool name the model returns that ISN'T one of
- * these four is hard-rejected here, before anything executes — this
- * enforcement lives in code, never trusted to system-prompt instruction
- * alone.
+ * Iris's generic tool-calling engine. Tools/system-prompt-fragments/
+ * execution are supplied by every registered {@link IrisToolProvider} bean
+ * (today: only {@link TemplateStudioToolProvider}) — this class owns
+ * session/message persistence, the model round-trip, and the confirm-
+ * before-submit mechanism, none of which are feature-specific.
+ * Extracted 2026-08-12 (see wiki/decisions/2026-08-12-iris-generalization-
+ * plan.md, step 1) — pure refactor, byte-identical behavior for the one
+ * provider that existed before this change.
  *
- * Confirm-before-submit: create_template/edit_template/send_test_template
- * all have requiresConfirmation=true — calling the tool does NOT execute
- * it. Instead the exact args are persisted on the session's pending_tool_*
- * columns and returned to the frontend as a preview; a separate confirm()
- * call replays THOSE persisted args (never a fresh model message) to
- * actually execute. list_templates is read-only and executes inline.
+ * A tool name the model returns that isn't declared by ANY provider is
+ * hard-rejected here, before anything executes — this enforcement lives in
+ * code, never trusted to system-prompt instruction alone.
+ *
+ * Confirm-before-submit: a provider marks a tool requiresConfirmation=true
+ * to mean calling it does NOT execute it. Instead the exact args are
+ * persisted on the session's pending_tool_* columns and returned to the
+ * frontend as a preview; a separate confirm() call replays THOSE persisted
+ * args (never a fresh model message) to actually execute. A tool with
+ * requiresConfirmation=false executes inline.
  *
  * v1 simplification (intentional, not hidden): after a tool executes, Iris
  * does not do a second full model round-trip using Anthropic's native
@@ -48,107 +46,36 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class IrisConversationService {
 
+    // Feature-agnostic identity + the confirm-before-submit and attached-
+    // image mechanics, which are true of every provider's tools, not just
+    // Template Studio's. Provider-specific scope/values guidance is
+    // appended per-provider via systemPromptFragment() below.
     private static final String SYSTEM_PROMPT_BASE = """
-            You are Iris, the WhatsApp template assistant inside Template Studio. You help create templates, \
-            edit templates, list existing templates, send a TEST template to a test number, and discuss \
-            marketing copy/strategy for WhatsApp templates. You do nothing else — no bulk sends, no campaigns, \
-            no account or settings changes. If asked for something outside this, say plainly that you can't do that here.
+            You are Iris, an assistant inside this platform. Depending on where you're being used, you help with \
+            WhatsApp templates, or with setting up a Business Agent. You do nothing else — no bulk sends, no \
+            campaigns, no account or settings changes outside what your available tools cover. If asked for \
+            something outside that, say plainly that you can't do that here.
 
-            Every tool call requires a wabaId. Here are the WABAs this operator can use:
             %s
-            If there is only one, use it without asking. If there are several, ask which one they mean before \
-            doing anything — never guess. Once you know which WABA, say its name back in your reply before \
-            proposing any action (e.g. "Using WABA \\"Acme Retail\\" — here's the template I'll create") so the \
-            operator always sees which WABA an action applies to.
 
-            Critical: create_template, edit_template, and send_test_template already require the operator's \
-            confirmation before anything is actually submitted — this app shows them a preview and a Confirm \
-            button automatically whenever you call one of these tools. Because of that, you must call the tool \
-            as soon as you have everything it needs — never describe the action in plain text and ask "shall I \
-            proceed?" or "do you want me to create this?" instead of calling it. Asking in prose skips the real \
-            confirmation step entirely and nothing gets drafted. If you are missing required information, ask \
-            for exactly that missing piece — but once you have it all, call the tool immediately in that same turn.
+            Critical: any tool that requires confirmation already shows the operator a preview and a Confirm \
+            button automatically the moment you call it — this app does that, not you. Because of that, you must \
+            call the tool as soon as you have everything it needs — never describe the action in plain text and \
+            ask "shall I proceed?" or "do you want me to do this?" instead of calling it. Asking in prose skips \
+            the real confirmation step entirely and nothing gets drafted. If you are missing required information, \
+            ask for exactly that missing piece — but once you have it all, call the tool immediately in that same turn.
 
-            Meta requires exact values on every template: category must be exactly MARKETING, UTILITY, or \
-            AUTHENTICATION (uppercase, no other categories exist) — never a lowercase guess. language must be a \
-            Meta locale code like en_US, never a bare language name like "English".""";
-
-    /**
-     * A bare {"type":"array"} schema gave the model zero shape guidance —
-     * live-tested (2026-08-06) against a real model with that bare schema,
-     * it reliably invented Meta's message-SENDING-time component shapes
-     * (flat {"type":"image","image":{"link":...}}, one component per
-     * button) instead of the correct template-CREATION-time shapes below.
-     * Kept terse by design (EM condition) — component essentials only, not
-     * a full API reference.
-     */
-    private static final String COMPONENTS_SCHEMA_DESCRIPTION =
-            "Each entry is one Meta template component (creation-time shape, NOT the message-sending shape). " +
-            "BODY {type,text} — required, exactly one. If text contains any {{n}} variable placeholder, you MUST also " +
-            "include \"example\":{\"body_text\":[[\"<sample value for {{1}}>\",\"<sample for {{2}}>\",...]]} with one " +
-            "sample string per placeholder, in order — Karix rejects a template with placeholders and no example block " +
-            "(confirmed live 2026-08-07: \"BODY text has placeholders (1) but no example block\"). " +
-            "Also: {{n}} must never be the very first or very last thing in the body text — Meta rejects leading/trailing " +
-            "variables (confirmed live 2026-08-07: \"Leading or trailing params not allowed\"); always put real words " +
-            "before and after every placeholder. " +
-            "HEADER {type,format} where format is TEXT/IMAGE/VIDEO/DOCUMENT/LOCATION — optional; no media link needed at creation time. " +
-            "FOOTER {type,text} — optional. " +
-            "BUTTONS {type,buttons:[...]} — at most ONE such component wrapping ALL buttons in one nested array, " +
-            "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP. " +
-            "For category AUTHENTICATION specifically, the BUTTONS component's single button MUST be " +
-            "{\"type\":\"OTP\",\"otp_type\":\"COPY_CODE\",\"example\":\"<sample one-time code, e.g. 123456>\"} — " +
-            "Meta rejects an AUTHENTICATION template missing otp_type or example on the OTP button (PM-caught gap, 2026-08-07 audit).";
+            If the operator's message contains a line like "[Attached image: <filename> — file_handle: <handle>]", \
+            they have already uploaded that image on your behalf — that exact handle is ready to use immediately. \
+            Never tell the operator you can't use images, and never ask them to attach it differently — this tag \
+            is the only way an image reaches you, and it means the upload already succeeded.""";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;
     private final AiCredentialService aiCredentialService;
-    private final TemplateStudioService templateStudioService;
-    private final KarixMessagingClient karixMessagingClient;
-    private final WabaService wabaService;
-    private final Validator validator;
     private final List<AiProviderAdapter> adapters;
+    private final List<IrisToolProvider> toolProviders;
     private final ObjectMapper objectMapper;
-
-    private static final List<AiToolSpec> TOOLS = List.of(
-            new AiToolSpec("create_template", "Create a new WhatsApp template. Requires user confirmation before it is actually submitted. " +
-                    "For category AUTHENTICATION specifically, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
-                    Map.of("type", "object", "properties", Map.of(
-                            "wabaId", Map.of("type", "string"),
-                            "templateName", Map.of("type", "string"),
-                            "language", Map.of("type", "string"),
-                            "category", Map.of("type", "string"),
-                            "components", Map.of("type", "array", "description", COMPONENTS_SCHEMA_DESCRIPTION),
-                            "codeExpirationMinutes", Map.of("type", "integer")),
-                            "required", List.of("wabaId", "templateName", "language", "category", "components")),
-                    true),
-            new AiToolSpec("edit_template", "Edit an existing WhatsApp template's components. Requires user confirmation. " +
-                    "For an AUTHENTICATION template, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
-                    Map.of("type", "object", "properties", Map.of(
-                            "wabaId", Map.of("type", "string"),
-                            "templateId", Map.of("type", "string"),
-                            "components", Map.of("type", "array", "description", COMPONENTS_SCHEMA_DESCRIPTION),
-                            "codeExpirationMinutes", Map.of("type", "integer")),
-                            "required", List.of("wabaId", "templateId", "components")),
-                    true),
-            new AiToolSpec("list_templates", "List existing templates for a WABA, optionally filtered by status. Read-only, runs immediately.",
-                    Map.of("type", "object", "properties", Map.of(
-                            "wabaId", Map.of("type", "string"),
-                            "status", Map.of("type", "string")),
-                            "required", List.of("wabaId")),
-                    false),
-            new AiToolSpec("send_test_template", "Send an approved template to a single test phone number. Requires user confirmation. " +
-                    "templateName MUST be the template's name field (e.g. from list_templates), NEVER its numeric fb_template_id — " +
-                    "Karix's real send API rejects a numeric id with \"HSM ID does not exist\" (confirmed 2026-08-07 live send test). " +
-                    "parameterValues fills the template's positional placeholders in order — for an AUTHENTICATION/OTP template " +
-                    "this is the one-time code value that goes into {{1}} and the OTP button.",
-                    Map.of("type", "object", "properties", Map.of(
-                            "wabaId", Map.of("type", "string"),
-                            "templateName", Map.of("type", "string"),
-                            "testPhoneNumber", Map.of("type", "string"),
-                            "parameterValues", Map.of("type", "array", "items", Map.of("type", "string"))),
-                            "required", List.of("wabaId", "templateName", "testPhoneNumber")),
-                    true)
-    );
 
     // sessionId/id as String — TSID values exceed JS Number.MAX_SAFE_INTEGER,
     // same convention as WabaResponse (see WabaDtos.java).
@@ -224,10 +151,11 @@ public class IrisConversationService {
                 .map(m -> new AiMessage(m.getRole() == IrisMessage.Role.USER ? AiMessage.Role.USER : AiMessage.Role.ASSISTANT, m.getContent()))
                 .toList();
 
-        List<Waba> accountWabas = wabaService.listForAccount(session.getAccountId());
-        String systemPrompt = SYSTEM_PROMPT_BASE.formatted(describeWabas(accountWabas));
+        List<AiToolSpec> tools = toolProviders.stream().flatMap(p -> p.tools().stream()).toList();
+        String fragments = toolProviders.stream().map(p -> p.systemPromptFragment(session.getAccountId())).collect(Collectors.joining("\n\n"));
+        String systemPrompt = SYSTEM_PROMPT_BASE.formatted(fragments);
 
-        AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, TOOLS);
+        AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, tools);
         log.info("sendMessage: sessionId={} provider={} resultType={}", sessionId, cred.provider(), result.type());
 
         if (result.type() == AiTurnResult.Type.TEXT) {
@@ -235,13 +163,13 @@ public class IrisConversationService {
             return new TurnResponse(String.valueOf(sessionId), result.text(), false, null, null);
         }
 
-        AiToolSpec tool = TOOLS.stream().filter(t -> t.name().equals(result.toolName())).findFirst()
+        AiToolSpec tool = tools.stream().filter(t -> t.name().equals(result.toolName())).findFirst()
                 .orElseThrow(() -> new BusinessException("Iris tried to use a tool that isn't allowed: " + result.toolName()));
-        log.info("sendMessage: sessionId={} modelSelectedTool={} wabaId={} requiresConfirmation={}",
-                sessionId, tool.name(), result.toolArguments().get("wabaId"), tool.requiresConfirmation());
+        log.info("sendMessage: sessionId={} modelSelectedTool={} requiresConfirmation={}",
+                sessionId, tool.name(), tool.requiresConfirmation());
 
         if (!tool.requiresConfirmation()) {
-            Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), accountWabas);
+            Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), session.getAccountId());
             String summary = "Tool " + tool.name() + " result: " + writeJson(toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
@@ -267,9 +195,9 @@ public class IrisConversationService {
         }
         String toolName = session.getPendingToolName();
         Map<String, Object> args = readJson(session.getPendingToolArgsJson());
-        log.info("confirmPendingAction: sessionId={} tool={} wabaId={}", sessionId, toolName, args.get("wabaId"));
+        log.info("confirmPendingAction: sessionId={} tool={}", sessionId, toolName);
 
-        Map<String, Object> result = executeTool(toolName, args, wabaService.listForAccount(session.getAccountId()));
+        Map<String, Object> result = executeTool(toolName, args, session.getAccountId());
         log.info("confirmPendingAction: sessionId={} tool={} executed, resultKeys={}", sessionId, toolName,
                 result != null ? result.keySet() : null);
 
@@ -291,86 +219,12 @@ public class IrisConversationService {
                 .content("Cancelled — nothing was submitted.").build());
     }
 
-    /**
-     * Iris resolves wabaId itself from conversation (no upfront picker) —
-     * the model supplies it on every tool call. This is the one place ALL
-     * tool dispatch passes through, so the account-membership check lives
-     * here rather than trusting each downstream service to remember its
-     * own (TemplateStudioService/KarixMessagingClient both already check
-     * too, but that's defense in depth, not a substitute for this).
-     */
-    private Map<String, Object> executeTool(String toolName, Map<String, Object> args, List<Waba> accountWabas) {
-        Long wabaId = Long.valueOf(String.valueOf(args.get("wabaId")));
-        Set<Long> accountWabaIds = accountWabas.stream().map(Waba::getId).collect(Collectors.toSet());
-        if (!accountWabaIds.contains(wabaId)) {
-            log.warn("executeTool rejected: tool={} wabaId={} not in caller's account WABAs {}", toolName, wabaId, accountWabaIds);
-            throw new BusinessException("That WABA isn't available on this account.");
-        }
-        log.info("executeTool: tool={} wabaId={}", toolName, wabaId);
-        return switch (toolName) {
-            // EL-caught gap (2026-08-07 audit): this used to build the raw
-            // Karix payload by hand from model output, bypassing the exact
-            // @Valid TemplateRequest/EditTemplateRequest validation the
-            // human UI path enforces — a model-drafted template could reach
-            // Karix with no schema check at all beyond system-prompt prose.
-            // Now runs through the SAME validated DTO the controller uses.
-            case "create_template" -> {
-                TemplateRequest request = new TemplateRequest(
-                        String.valueOf(args.get("templateName")),
-                        String.valueOf(args.get("language")),
-                        String.valueOf(args.get("category")),
-                        castComponents(args.get("components")),
-                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))),
-                        args.get("parameterFormat") == null ? null : String.valueOf(args.get("parameterFormat")));
-                validateOrThrow(request);
-                yield templateStudioService.createTemplate(wabaId, request.toKarixPayload());
-            }
-            case "edit_template" -> {
-                EditTemplateRequest request = new EditTemplateRequest(
-                        castComponents(args.get("components")),
-                        null, null, null,
-                        args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
-                validateOrThrow(request);
-                yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), request.toKarixPayload());
-            }
-            case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
-            case "send_test_template" -> {
-                @SuppressWarnings("unchecked")
-                List<String> parameterValues = args.get("parameterValues") == null
-                        ? List.of()
-                        : ((List<Object>) args.get("parameterValues")).stream().map(String::valueOf).toList();
-                yield karixMessagingClient.sendTestTemplate(wabaId, String.valueOf(args.get("templateName")), String.valueOf(args.get("testPhoneNumber")), parameterValues);
-            }
-            default -> throw new BusinessException("Unknown tool: " + toolName);
-        };
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> castComponents(Object rawComponents) {
-        if (!(rawComponents instanceof List<?> list)) {
-            throw new BusinessException("components must be a list.");
-        }
-        return (List<Map<String, Object>>) list;
-    }
-
-    private <T> void validateOrThrow(T request) {
-        Set<ConstraintViolation<T>> violations = validator.validate(request);
-        if (!violations.isEmpty()) {
-            String message = violations.stream()
-                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
-                    .findFirst()
-                    .orElse("Validation failed");
-            throw new BusinessException(message);
-        }
-    }
-
-    private String describeWabas(List<Waba> wabas) {
-        if (wabas.isEmpty()) {
-            return "(none — this account has no WABAs yet, tell the operator there's nothing to work with)";
-        }
-        return wabas.stream()
-                .map(w -> "- \"%s\" (wabaId: %d)".formatted(w.getLabel(), w.getId()))
-                .collect(Collectors.joining("\n"));
+    private Map<String, Object> executeTool(String toolName, Map<String, Object> args, Long accountId) {
+        IrisToolProvider owner = toolProviders.stream()
+                .filter(p -> p.tools().stream().anyMatch(t -> t.name().equals(toolName)))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Unknown tool: " + toolName));
+        return owner.execute(toolName, args, accountId);
     }
 
     /**

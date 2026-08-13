@@ -31,25 +31,37 @@ type StudioView = 'list' | 'create' | 'edit' | 'bulk'
 
 export default function TemplateStudioPage() {
   const { wabas, isLoading: wabasLoading, selectedWabaId, setSelectedWabaId } = useSelectedWaba()
+  // Lifted out of WabaTemplateStudio so this page's own header/WabaPicker
+  // chrome can hide for create/edit/bulk -- Figma's Create/Edit mockup
+  // (node 90:2) has no "Templates" summary header above the form, and
+  // showing both stacked read as a duplicated page to the user.
+  const [view, setView] = useState<StudioView>('list')
 
   if (wabasLoading) {
     return <div className="p-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
   }
 
+  // Figma node 23:3 "3.1 — Templates: Listing Screen" -- Main is full-width
+  // next to the nav rail (flex-1, no max-width cap), not a centered narrow
+  // column. mx-auto max-w-5xl was the app-wide list-page convention, but it
+  // reads as unwanted left/right whitespace against this specific mockup.
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <p className="text-xs text-muted-foreground">Template Studio &nbsp;›&nbsp; Templates</p>
-        <h1 className="mt-2 text-2xl font-semibold text-foreground">Templates</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          All templates across your WhatsApp Business Accounts.
-        </p>
-      </div>
-
-      <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
+    <div className="w-full space-y-6 px-12 py-10">
+      {view === 'list' && (
+        <>
+          <div>
+            <p className="text-xs text-muted-foreground">Template Studio &nbsp;›&nbsp; Templates</p>
+            <h1 className="mt-2 text-2xl font-semibold text-foreground">Templates</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              All templates across your WhatsApp Business Accounts.
+            </p>
+          </div>
+          <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
+        </>
+      )}
 
       {selectedWabaId ? (
-        <WabaTemplateStudio wabaId={selectedWabaId} />
+        <WabaTemplateStudio wabaId={selectedWabaId} view={view} setView={setView} />
       ) : (
         <p className="text-sm text-muted-foreground">Select a WABA to list and create templates.</p>
       )}
@@ -57,8 +69,11 @@ export default function TemplateStudioPage() {
   )
 }
 
-function WabaTemplateStudio({ wabaId }: { wabaId: string }) {
-  const [view, setView] = useState<StudioView>('list')
+function WabaTemplateStudio({ wabaId, view, setView }: {
+  wabaId: string
+  view: StudioView
+  setView: (v: StudioView) => void
+}) {
   const [editingTemplate, setEditingTemplate] = useState<TemplateSummary | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -173,30 +188,17 @@ function TemplateEditorPage({
             ? "Editing resubmits this template for Meta review — it won't send until re-approved."
             : "Iris can do this faster — this manual form is here if you'd rather build it yourself."}
         </p>
-        <div className="mt-2 space-y-1.5">
-          {isEdit ? (
-            <>
-              <ConsequenceLine>
-                Meta allows edits only for Approved, Rejected, or Paused templates.
-                Name and language stay locked. Category of an approved template cannot change.
-              </ConsequenceLine>
-              <ConsequenceLine tone="warning">
-                Approved templates: at most 1 edit per 24 hours and 10 edits per 30 days.
-                Rejected or paused: unlimited. Submitting replaces the full component set.
-              </ConsequenceLine>
-            </>
-          ) : (
-            <>
-              <ConsequenceLine>
-                Name: lowercase letters, numbers, and underscores only (max 512). Categories: Marketing, Utility, Authentication.
-                Same name + different language = separate templates.
-              </ConsequenceLine>
-              <ConsequenceLine>
-                Meta review can take up to 24 hours. Body max 1024 characters; variables need examples and cannot start or end the body (except Authentication).
-              </ConsequenceLine>
-            </>
-          )}
-        </div>
+        {!isEdit && (
+          <div className="mt-2 space-y-1.5">
+            <ConsequenceLine>
+              Name: lowercase letters, numbers, and underscores only (max 512). Categories: Marketing, Utility, Authentication.
+              Same name + different language = separate templates.
+            </ConsequenceLine>
+            <ConsequenceLine>
+              Meta review can take up to 24 hours. Body max 1024 characters; variables need examples and cannot start or end the body (except Authentication).
+            </ConsequenceLine>
+          </div>
+        )}
         {isEdit && lockedMeta && (
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span><span className="font-medium text-foreground">Name</span> {lockedMeta.name || '—'}</span>

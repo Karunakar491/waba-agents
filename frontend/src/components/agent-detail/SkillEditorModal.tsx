@@ -147,7 +147,12 @@ export default function SkillEditorModal({
               disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isEditing ? 'Save changes' : 'Add skill'}
+            {/* Library path never touches Meta (genuinely a draft — see the
+                librarySkillId prop's own doc comment above); legacy
+                agent-scoped path writes to Meta immediately. Label reflects
+                which one this actually is (item 8, 2026-08-13), not a
+                generic "Save" that would be accurate for neither case. */}
+            {isLibrary ? 'Save draft' : (isEditing ? 'Publish changes' : 'Publish skill')}
           </button>
           <button
             onClick={onClose}

@@ -47,6 +47,13 @@ public class Skill {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
 
+    /** Provenance tags (V43). NULL for every skill created before the column existed. */
+    @Column(length = 64)
+    private String industry;
+
+    @Column(name = "use_case", length = 64)
+    private String useCase;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

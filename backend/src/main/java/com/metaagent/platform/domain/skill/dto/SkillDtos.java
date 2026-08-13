@@ -24,7 +24,11 @@ public final class SkillDtos {
 
             @NotBlank(message = "Body is required")
             @Size(max = 20000, message = "Body cannot exceed 20,000 characters")
-            String body
+            String body,
+
+            /** Optional provenance tags (V43). Null leaves the stored value untouched. */
+            @Size(max = 64) String industry,
+            @Size(max = 64) String useCase
     ) {}
 
     public record UpdateRequest(
@@ -38,7 +42,11 @@ public final class SkillDtos {
 
             @NotBlank(message = "Body is required")
             @Size(max = 20000, message = "Body cannot exceed 20,000 characters")
-            String body
+            String body,
+
+            /** Optional provenance tags (V43). Null leaves the stored value untouched. */
+            @Size(max = 64) String industry,
+            @Size(max = 64) String useCase
     ) {}
 
     /** deployed = at least one agent_skill_attachment has ever synced this skill
@@ -60,7 +68,9 @@ public final class SkillDtos {
             String source, // "LIBRARY" | "AGENT"
             String agentId, // set only when source = "AGENT"
             String agentName, // set only when source = "AGENT"
-            List<Deployment> deployments // every agent+number this skill is live on (0..N for LIBRARY, 0..1 for AGENT)
+            List<Deployment> deployments, // every agent+number this skill is live on (0..N for LIBRARY, 0..1 for AGENT)
+            String industry, // V43 provenance tag; null for skills created before it existed and for every legacy AGENT row
+            String useCase
     ) {}
 
     /** One agent+phone-number a skill is deployed to — a Library skill can have several. */

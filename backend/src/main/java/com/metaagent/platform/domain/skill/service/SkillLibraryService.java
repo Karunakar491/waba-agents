@@ -72,6 +72,8 @@ public class SkillLibraryService {
                 .title(request.title())
                 .description(request.description())
                 .body(request.body())
+                .industry(request.industry())
+                .useCase(request.useCase())
                 .build();
         // A brand-new skill has no attachments yet — always Draft.
         return toResponse(skillRepository.save(skill), false, List.of());
@@ -139,7 +141,9 @@ public class SkillLibraryService {
                         agent != null ? agent.getDisplayName() : null,
                         agent != null
                                 ? List.of(new SkillDtos.Deployment(String.valueOf(agent.getId()), agent.getDisplayName(), agent.getPhoneNumberId()))
-                                : List.of()
+                                : List.of(),
+                        null, // legacy AgentSkill has no industry/use_case columns — no tags to show
+                        null
                 ));
             }
         }
@@ -190,6 +194,10 @@ public class SkillLibraryService {
         skill.setTitle(request.title());
         skill.setDescription(request.description());
         skill.setBody(request.body());
+        // Null-guarded: the existing edit form doesn't send these, and a
+        // blind set would silently wipe a copied skill's provenance tags.
+        if (request.industry() != null) skill.setIndustry(request.industry());
+        if (request.useCase() != null) skill.setUseCase(request.useCase());
         skill = skillRepository.save(skill);
         boolean deployed = !attachmentRepository.findDeployedSkillIds(List.of(skill.getId())).isEmpty();
         return toResponse(skill, deployed, List.of());
@@ -207,7 +215,9 @@ public class SkillLibraryService {
                 "LIBRARY",
                 null,
                 null,
-                deployments
+                deployments,
+                skill.getIndustry(),
+                skill.getUseCase()
         );
     }
 
@@ -385,6 +395,10 @@ public class SkillLibraryService {
                 .title(template.getTitle())
                 .description(template.getDescription())
                 .body(template.getBody())
+                // V43: carry the catalog's provenance across the one-way copy so
+                // the Skills Library grid can show real tags instead of none.
+                .industry(template.getIndustry())
+                .useCase(template.getUseCase())
                 .build();
         return toResponse(skillRepository.save(skill), false, List.of()); // freshly copied — no attachments yet, Draft
     }

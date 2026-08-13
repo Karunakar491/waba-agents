@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import api from '../../lib/api'
 import type { BusinessProfileResponse } from '../agent-detail/BusinessProfileTab'
-import type { PersonaRow } from './PersonaTable'
+import type { PersonaRow } from './personaTypes'
 
 // Matches WabaDtos.PhoneNumber (GET /waba/{wabaId}/phones) — no wabaId/
 // wabaLabel here, unlike the account-wide Dashboard inventory DTO.

@@ -2,6 +2,7 @@ package com.metaagent.platform.domain.skill.repository;
 
 import com.metaagent.platform.domain.skill.entity.AgentSkillAttachment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -10,6 +11,9 @@ import java.util.Optional;
 
 public interface AgentSkillAttachmentRepository extends JpaRepository<AgentSkillAttachment, Long> {
     List<AgentSkillAttachment> findAllByAgentId(Long agentId);
+
+    @Modifying
+    void deleteAllByAgentId(Long agentId);
     /** Batched lookup for the aggregate Skills table — every attachment (deployed or not) for a set of Library skills. */
     List<AgentSkillAttachment> findAllBySkillIdIn(List<Long> skillIds);
     Optional<AgentSkillAttachment> findByAgentIdAndSkillId(Long agentId, Long skillId);

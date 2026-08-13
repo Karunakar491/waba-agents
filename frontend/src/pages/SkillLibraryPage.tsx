@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Zap } from 'lucide-react'
+import { Loader2, Trash2, Zap } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
-import { SkillsTable, type SkillRow } from '../components/skills/SkillsTable'
+import { type SkillRow } from '../components/skills/skillTypes'
+import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
+import LibraryToolbar from '../components/library/LibraryToolbar'
 import { UiSkillsLibraryTable, type UiSkillRow } from '../components/skills/UiSkillsLibraryTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
@@ -26,6 +28,18 @@ interface LibrarySkill extends SkillRow {
   wabaId: string | null
   agentId: string | null
   agentName: string | null
+  // V43 — real provenance tags, carried across from skill_template on copy.
+  // Null on every skill created before V43 and on every legacy AGENT row.
+  industry: string | null
+  useCase: string | null
+}
+
+type SkillSort = 'most-used' | 'recent'
+
+function uniqueSorted(values: (string | null)[]): { value: string; label: string }[] {
+  return Array.from(new Set(values.filter((v): v is string => !!v)))
+    .sort((a, b) => a.localeCompare(b))
+    .map((v) => ({ value: v, label: v }))
 }
 
 export default function SkillLibraryPage() {
@@ -39,7 +53,10 @@ export default function SkillLibraryPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<LibrarySkill | null>(null)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'deployed' | 'draft'>('all')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [industryFilter, setIndustryFilter] = useState('ALL')
+  const [useCaseFilter, setUseCaseFilter] = useState('ALL')
+  const [sort, setSort] = useState<SkillSort>('most-used')
 
   // Multi-WABA switcher deferred (TASKS.md follow-up) — default to the first
   // WABA this account has access to, same resolution order used elsewhere
@@ -62,13 +79,22 @@ export default function SkillLibraryPage() {
     enabled: !!waba && activeTab === 'ui-skills',
   })
 
+  const industryOptions = useMemo(() => uniqueSorted(skills.map((s) => s.industry)), [skills])
+  const useCaseOptions = useMemo(() => uniqueSorted(skills.map((s) => s.useCase)), [skills])
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase()
     return skills
       .filter((s) => !q || s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
-      .filter((s) => statusFilter === 'all' || (statusFilter === 'deployed' ? s.deployed : !s.deployed))
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [skills, search, statusFilter])
+      .filter((s) => statusFilter === 'ALL' || (statusFilter === 'deployed' ? s.deployed : !s.deployed))
+      .filter((s) => industryFilter === 'ALL' || s.industry === industryFilter)
+      .filter((s) => useCaseFilter === 'ALL' || s.useCase === useCaseFilter)
+      .sort((a, b) =>
+        sort === 'most-used'
+          ? b.deployments.length - a.deployments.length
+          : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      )
+  }, [skills, search, statusFilter, industryFilter, useCaseFilter, sort])
 
   const deleteMutation = useMutation({
     mutationFn: (skill: LibrarySkill) =>
@@ -96,9 +122,10 @@ export default function SkillLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Skills</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Skills Library</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {waba ? `Every skill live on any agent on ${waba.label ?? waba.wabaId}, plus shared drafts.` : 'Every skill your agents have, in one place.'}
+          Reusable rules pulled from every agent on your account
+          {waba ? ` on ${waba.label ?? waba.wabaId}` : ''}.
         </p>
       </div>
 
@@ -164,48 +191,102 @@ export default function SkillLibraryPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search skills by title or description…"
-                    className="w-full rounded-lg border bg-background py-2.5 pl-9 pr-3 text-sm
-                      placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
-                      focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-                  />
-                </div>
-                <label htmlFor="skill-status-filter" className="sr-only">Filter by status</label>
-                <select
-                  id="skill-status-filter"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                  className="rounded-lg border bg-background px-3 py-2.5 text-sm"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="deployed">Deployed</option>
-                  <option value="draft">Draft</option>
-                </select>
-                <p className="text-xs text-muted-foreground shrink-0">
-                  Add new shared skills via Promote (agent Skills tab) or the Browse Templates tab.
-                </p>
-              </div>
+              <LibraryToolbar
+                searchId="skill-search"
+                searchLabel="Search skills by title or description"
+                searchPlaceholder="Search skills…"
+                search={search}
+                onSearchChange={setSearch}
+                filters={[
+                  ...(industryOptions.length > 0
+                    ? [{ id: 'skill-industry-filter', label: 'Industry', value: industryFilter, onChange: setIndustryFilter, options: industryOptions }]
+                    : []),
+                  ...(useCaseOptions.length > 0
+                    ? [{ id: 'skill-use-case-filter', label: 'Use case', value: useCaseFilter, onChange: setUseCaseFilter, options: useCaseOptions }]
+                    : []),
+                  {
+                    id: 'skill-sort',
+                    label: 'Sort',
+                    value: sort,
+                    onChange: (v: string) => setSort(v as SkillSort),
+                    includeAll: false,
+                    options: [
+                      { value: 'most-used', label: 'Most used' },
+                      { value: 'recent', label: 'Recently edited' },
+                    ],
+                  },
+                  {
+                    id: 'skill-status-filter',
+                    label: 'Status',
+                    value: statusFilter,
+                    onChange: setStatusFilter,
+                    options: [
+                      { value: 'deployed', label: 'Published' },
+                      { value: 'draft', label: 'Draft' },
+                    ],
+                  },
+                ]}
+              />
 
-              <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
-                <SkillsTable
-                  isLoading={isLoading}
-                  totalCount={skills.length}
-                  rows={filteredRows}
-                  deletingId={deletingId}
-                  onEdit={openEdit}
-                  onDelete={(row) => {
-                    const skill = skills.find((s) => s.id === row.id)
-                    if (skill) { setDeleteError(null); setPendingDelete(skill) }
-                  }}
-                />
-              </div>
+              {isLoading ? (
+                <LibraryCardGridSkeleton />
+              ) : filteredRows.length === 0 ? (
+                <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
+                  <p className="text-base font-semibold text-foreground">
+                    {skills.length === 0 ? 'No shared skills yet' : 'Nothing matches those filters'}
+                  </p>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                    {skills.length === 0
+                      ? 'Skills arrive here two ways: promote one from an agent’s Skills tab, or start from a ready-made rule in Browse Templates.'
+                      : 'Clear a filter or search for a different word to see the rest of your skills.'}
+                  </p>
+                  {skills.length === 0 && (
+                    <button
+                      onClick={() => setSearchParams({ tab: 'browse' })}
+                      className="mt-4 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                    >
+                      Browse templates
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <LibraryCardGrid>
+                  {filteredRows.map((skill) => (
+                    <LibraryItemCard
+                      key={skill.id}
+                      name={skill.title}
+                      statusLabel={skill.deployed ? 'Published' : 'Draft'}
+                      statusTone={skill.deployed ? 'positive' : 'neutral'}
+                      tags={[skill.industry, skill.useCase].filter((t): t is string => !!t)}
+                      usageLine={
+                        skill.deployments.length > 0
+                          ? `Used by ${skill.deployments.length} agent${skill.deployments.length === 1 ? '' : 's'}`
+                          : 'Not yet published'
+                      }
+                      actions={
+                        <>
+                          <button
+                            onClick={() => openEdit(skill)}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            {skill.source === 'LIBRARY' ? 'View' : 'Edit'}
+                          </button>
+                          <button
+                            onClick={() => { setDeleteError(null); setPendingDelete(skill) }}
+                            disabled={deletingId === skill.id}
+                            aria-label={`Delete skill ${skill.title}`}
+                            className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                          >
+                            {deletingId === skill.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Trash2 className="h-4 w-4" />}
+                          </button>
+                        </>
+                      }
+                    />
+                  ))}
+                </LibraryCardGrid>
+              )}
             </>
           )}
         </>

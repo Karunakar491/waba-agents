@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Rocket } from 'lucide-react'
+import { Loader2, Plus, Rocket, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import {
@@ -8,12 +8,22 @@ import {
   toFormValues,
 } from '../components/agent-detail/BusinessProfileTab'
 import type { BusinessProfileResponse, BusinessProfileFormValues } from '../components/agent-detail/BusinessProfileTab'
-import { PersonaTable } from '../components/persona/PersonaTable'
-import { PersonaFilters, PersonaDraftEditor } from '../components/persona/PersonaFilters'
-import type { StatusFilter } from '../components/persona/PersonaFilters'
+import { PersonaDraftEditor } from '../components/persona/PersonaFilters'
 import { usePersonaData } from '../components/persona/usePersonaData'
+import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
+import LibraryToolbar from '../components/library/LibraryToolbar'
+import type { StatusTone } from '../components/shared/StatusIndicator'
 import Modal from '../components/shared/Modal'
 import ErrorBanner from '../components/shared/ErrorBanner'
+
+/** Our real persona lifecycle, in the user's words. Figma 8.15 only draws
+ *  Published/Draft; ARCHIVED is a third state that genuinely exists here
+ *  (a prior version moved to history) and is kept rather than hidden. */
+const STATUS_DISPLAY: Record<string, { label: string; tone: StatusTone }> = {
+  DRAFT: { label: 'Draft', tone: 'neutral' },
+  DEPLOYED: { label: 'Published', tone: 'positive' },
+  ARCHIVED: { label: 'Saved', tone: 'neutral' },
+}
 
 export default function BusinessPersonaLibraryPage() {
   const queryClient = useQueryClient()
@@ -27,7 +37,7 @@ export default function BusinessPersonaLibraryPage() {
   const [deployingDraftId, setDeployingDraftId] = useState<string | null>(null)
   const [deployTargets, setDeployTargets] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL')
   const [pendingDeploy, setPendingDeploy] = useState<{ draftId: string; phoneNumberId: string } | null>(null)
 
   const filteredRows = useMemo(() => {
@@ -112,27 +122,42 @@ export default function BusinessPersonaLibraryPage() {
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Business Persona</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Persona Library</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Payment terms, return policy, and contact info — drafted account-wide, deployed to one phone
-            number at a time. Deploying replaces what's live on that number; the prior version moves to history.
+            Saved tones and starting styles pulled from every agent on your account. Payment terms, return
+            policy, and contact info are drafted account-wide, then deployed to one phone number at a time —
+            deploying replaces what's live on that number and the prior version moves to history.
           </p>
         </div>
         <button
           onClick={() => startEdit()}
-          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
-            text-white transition-opacity hover:opacity-90 shrink-0"
+          className="flex shrink-0 items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium
+            text-white transition-opacity hover:opacity-90"
         >
-          <Plus className="h-3.5 w-3.5" />
-          New draft
+          <Plus className="h-4 w-4" />
+          Save current persona
         </button>
       </div>
 
-      <PersonaFilters
+      <LibraryToolbar
+        searchId="persona-search"
+        searchLabel="Search personas by description"
+        searchPlaceholder="Search personas…"
         search={search}
         onSearchChange={setSearch}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
+        filters={[
+          {
+            id: 'persona-status-filter',
+            label: 'Status',
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'DEPLOYED', label: 'Published' },
+              { value: 'ARCHIVED', label: 'Saved (history)' },
+            ],
+          },
+        ]}
       />
 
       {showEditor && (
@@ -153,23 +178,93 @@ export default function BusinessPersonaLibraryPage() {
         </div>
       )}
 
-      <div className="rounded-xl border bg-card shadow-surface-resting overflow-x-auto">
-        <PersonaTable
-          isLoading={isLoading}
-          totalCount={rows.length}
-          filteredRows={filteredRows}
-          phones={phones}
-          deployTargets={deployTargets}
-          onDeployTargetChange={(draftId, phoneNumberId) =>
-            setDeployTargets((prev) => ({ ...prev, [draftId]: phoneNumberId }))
-          }
-          onEdit={startEdit}
-          onDeploy={requestDeployConfirm}
-          onDelete={(id) => deleteDraftMutation.mutate(id)}
-          deploying={deployMutation.isPending}
-          deployingDraftId={deployingDraftId}
-        />
-      </div>
+      {isLoading ? (
+        <LibraryCardGridSkeleton />
+      ) : filteredRows.length === 0 ? (
+        <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
+          <p className="text-base font-semibold text-foreground">
+            {rows.length === 0 ? 'No personas saved yet' : 'Nothing matches those filters'}
+          </p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            {rows.length === 0
+              ? 'Save a persona to describe your payment terms, return policy, and contact info once, then deploy it to any number.'
+              : 'Clear a filter or search for a different word to see the rest of your personas.'}
+          </p>
+        </div>
+      ) : (
+        <LibraryCardGrid>
+          {filteredRows.map((row) => {
+            const status = STATUS_DISPLAY[row.profile.status] ?? { label: row.profile.status, tone: 'neutral' as StatusTone }
+            const isDraft = row.profile.status === 'DRAFT'
+            const deployTarget = deployTargets[row.profile.id]
+            return (
+              <LibraryItemCard
+                key={`${row.profile.status}-${row.profile.id}`}
+                name={row.profile.businessDescription || `Persona ${row.profile.id}`}
+                statusLabel={status.label}
+                statusTone={status.tone}
+                // Figma's Industry / Tone chips have no backing data — business_profile
+                // stores policy text and contact details, not a categorisation.
+                usageLine={row.displayPhoneNumber ? `Live on ${row.displayPhoneNumber}` : 'Not yet published'}
+                actions={
+                  <>
+                    <button
+                      onClick={() => startEdit(row.profile)}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      {isDraft ? 'Edit' : 'Edit as new draft'}
+                    </button>
+                    {isDraft && (
+                      <>
+                        {phones.length > 0 && (
+                          <>
+                            <label htmlFor={`deploy-target-${row.profile.id}`} className="sr-only">
+                              Choose a phone number to deploy this draft to
+                            </label>
+                            <select
+                              id={`deploy-target-${row.profile.id}`}
+                              className="rounded-lg border bg-card px-2 py-1 text-xs"
+                              value={deployTarget ?? ''}
+                              onChange={(e) =>
+                                setDeployTargets((prev) => ({ ...prev, [row.profile.id]: e.target.value }))
+                              }
+                            >
+                              <option value="">Deploy to…</option>
+                              {phones.map((p) => (
+                                <option key={p.phoneNumberId} value={p.phoneNumberId}>
+                                  {p.displayPhoneNumber}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                        <button
+                          onClick={() => { if (deployTarget) requestDeployConfirm(row.profile.id, deployTarget) }}
+                          disabled={deployMutation.isPending || !deployTarget}
+                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-accent-teal-solid
+                            transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          {deployMutation.isPending && deployingDraftId === row.profile.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Rocket className="h-3.5 w-3.5" />}
+                          Publish
+                        </button>
+                        <button
+                          onClick={() => deleteDraftMutation.mutate(row.profile.id)}
+                          aria-label={`Delete persona draft ${row.profile.businessDescription || row.profile.id}`}
+                          className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </>
+                }
+              />
+            )
+          })}
+        </LibraryCardGrid>
+      )}
 
       {pendingDeploy && (
         <Modal

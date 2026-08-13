@@ -22,6 +22,10 @@ public record AgentRequest(
     @Size(max = 4000)
     String systemPrompt,
 
+    // Figma 8.1 "About" column — short human label, distinct from systemPrompt. Optional.
+    @Size(max = 255, message = "About label must be at most 255 characters")
+    String aboutLabel,
+
     @Size(max = 50)
     String tone,
 
@@ -30,6 +34,10 @@ public record AgentRequest(
 
     @Size(max = 4000, message = "Behavior rules must be at most 4000 characters")
     String behaviorRules,
+
+    // Figma 8.4 — edited sample reply setting the agent's starting style.
+    @Size(max = 4000, message = "Starting style must be at most 4000 characters")
+    String personaSampleReply,
 
     boolean handoffEnabled,
 

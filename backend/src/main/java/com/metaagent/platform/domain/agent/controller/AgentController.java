@@ -1,6 +1,9 @@
 package com.metaagent.platform.domain.agent.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
+import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.agent.dto.AgentDeleteResult;
+import com.metaagent.platform.domain.agent.dto.AgentListItem;
 import com.metaagent.platform.domain.agent.dto.AgentRequest;
 import com.metaagent.platform.domain.agent.dto.AllowlistRequest;
 import com.metaagent.platform.domain.agent.dto.AudienceRequest;
@@ -8,15 +11,13 @@ import com.metaagent.platform.domain.agent.dto.AgentTestRequest;
 import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.dto.BindPhoneRequest;
 import com.metaagent.platform.domain.agent.dto.FaqRequest;
-import com.metaagent.platform.domain.agent.dto.GenerateDefaultsRequest;
-import com.metaagent.platform.domain.agent.dto.GenerateDefaultsResponse;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
 import com.metaagent.platform.domain.agent.dto.UiSkillRequest;
 import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.*;
-import com.metaagent.platform.domain.agent.service.AgentDefaultsService;
 import com.metaagent.platform.domain.agent.service.AgentDeployService;
 import com.metaagent.platform.domain.agent.service.AgentService;
+import com.metaagent.platform.domain.agent.service.AgentTeardownService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +32,9 @@ public class AgentController {
 
     private final AgentService agentService;
     private final AgentDeployService agentDeployService;
-    private final AgentDefaultsService agentDefaultsService;
-
-    @PostMapping("/generate-defaults")
-    public ApiResponse<GenerateDefaultsResponse> generateDefaults(@Valid @RequestBody GenerateDefaultsRequest request) {
-        return ApiResponse.ok(agentDefaultsService.generateDefaults(request.businessDescription()));
-    }
+    private final AgentTeardownService agentTeardownService;
+    private final com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
+    private final com.metaagent.platform.domain.persona.repository.BusinessProfileRepository businessProfileRepository;
 
     @PostMapping
     public ApiResponse<Agent> createAgent(@Valid @RequestBody AgentRequest request) {
@@ -45,15 +43,55 @@ public class AgentController {
     }
 
     @GetMapping
-    public ApiResponse<List<Agent>> listAgents() {
+    public ApiResponse<List<AgentListItem>> listAgents() {
         List<Agent> agents = agentService.listAgents();
-        return ApiResponse.ok(agents);
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        Map<String, String> displayByPhoneNumberId = phoneNumberSnapshotRepository.findAllByAccountId(accountId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot::getPhoneNumberId,
+                        s -> s.getDisplayPhoneNumber() != null ? s.getDisplayPhoneNumber() : "",
+                        (a, b) -> a)); // duplicate phoneNumberId rows shouldn't exist, but keep the first if they ever do
+
+        List<String> phoneNumberIds = agents.stream().map(Agent::getPhoneNumberId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<String, String> personaByPhoneNumberId = businessProfileRepository
+                .findAllByPhoneNumberIdInAndStatus(phoneNumberIds, com.metaagent.platform.domain.persona.entity.BusinessProfile.Status.DEPLOYED)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.metaagent.platform.domain.persona.entity.BusinessProfile::getPhoneNumberId,
+                        p -> p.getBusinessDescription() != null ? p.getBusinessDescription() : "",
+                        (a, b) -> a));
+
+        List<AgentListItem> items = agents.stream()
+                .map(agent -> new AgentListItem(
+                        agent,
+                        emptyToNull(displayByPhoneNumberId.get(agent.getPhoneNumberId())),
+                        emptyToNull(personaByPhoneNumberId.get(agent.getPhoneNumberId()))))
+                .toList();
+        return ApiResponse.ok(items);
+    }
+
+    private static String emptyToNull(String s) {
+        return s == null || s.isEmpty() ? null : s;
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Agent> getAgent(@PathVariable Long id) {
+    public ApiResponse<AgentListItem> getAgent(@PathVariable Long id) {
         Agent agent = agentService.getAgent(id);
-        return ApiResponse.ok(agent);
+        String displayPhoneNumber = null;
+        String personaDescription = null;
+        if (agent.getPhoneNumberId() != null) {
+            Long accountId = SecurityContextHelper.getRequiredAccountId();
+            displayPhoneNumber = phoneNumberSnapshotRepository.findByAccountIdAndPhoneNumberId(accountId, agent.getPhoneNumberId())
+                    .map(com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot::getDisplayPhoneNumber)
+                    .filter(s -> s != null && !s.isEmpty())
+                    .orElse(null);
+            personaDescription = businessProfileRepository
+                    .findByPhoneNumberIdAndStatus(agent.getPhoneNumberId(), com.metaagent.platform.domain.persona.entity.BusinessProfile.Status.DEPLOYED)
+                    .map(com.metaagent.platform.domain.persona.entity.BusinessProfile::getBusinessDescription)
+                    .filter(s -> s != null && !s.isEmpty())
+                    .orElse(null);
+        }
+        return ApiResponse.ok(new AgentListItem(agent, displayPhoneNumber, personaDescription));
     }
 
     @PutMapping("/{id}")
@@ -62,10 +100,15 @@ public class AgentController {
         return ApiResponse.ok(agent);
     }
 
+    /**
+     * Deletes the agent from Meta and from our database. Returns a per-step
+     * report rather than a bare acknowledgement: Meta teardown is best-effort,
+     * and the caller has to be able to tell a fully-clean delete from one that
+     * left configuration behind on the phone number.
+     */
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> deleteAgent(@PathVariable Long id) {
-        agentService.deleteAgent(id);
-        return ApiResponse.ok();
+    public ApiResponse<AgentDeleteResult> deleteAgent(@PathVariable Long id) {
+        return ApiResponse.ok(agentTeardownService.deleteEverywhere(id));
     }
 
     @PutMapping("/{id}/phone")
@@ -108,6 +151,17 @@ public class AgentController {
     public ApiResponse<Void> updateAiAudience(@PathVariable Long id, @Valid @RequestBody AudienceRequest request) {
         agentDeployService.updateAiAudience(id, request.aiAudience());
         return ApiResponse.ok();
+    }
+
+    /**
+     * Settings tab draft/publish gap: PUT /{id} above only ever writes
+     * handoff config to our own DB. This is the explicit publish step that
+     * actually pushes it to Meta's agent_config/settings — see
+     * AgentDeployService.publishHandoffSettings for why it's separate.
+     */
+    @PostMapping("/{id}/settings/publish-handoff")
+    public ApiResponse<Agent> publishHandoffSettings(@PathVariable Long id) {
+        return ApiResponse.ok(agentDeployService.publishHandoffSettings(id));
     }
 
     @GetMapping("/{id}/allowlist")

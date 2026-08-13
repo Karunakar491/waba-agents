@@ -52,6 +52,9 @@ public class AgentService {
     private final WebhookRawRepository webhookRawRepository;
     private final MetaMirrorReconciler metaMirrorReconciler;
     private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
+    private final AgentConnectorRepository agentConnectorRepository;
+    private final com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository connectorDeploymentRepository;
+    private final com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository agentSkillAttachmentRepository;
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -76,9 +79,11 @@ public class AgentService {
                 .customerFacingName(request.customerFacingName())
                 .channel(request.channel())
                 .systemPrompt(request.systemPrompt())
+                .aboutLabel(request.aboutLabel())
                 .tone(request.tone())
                 .language(request.language())
                 .behaviorRules(request.behaviorRules())
+                .personaSampleReply(request.personaSampleReply())
                 .handoffEnabled(request.handoffEnabled())
                 .handoffMessage(request.handoffMessage())
                 .enabled(false)
@@ -107,9 +112,11 @@ public class AgentService {
             agent.setDisplayName(request.displayName());
             agent.setCustomerFacingName(request.customerFacingName());
             agent.setSystemPrompt(request.systemPrompt());
+            agent.setAboutLabel(request.aboutLabel());
             agent.setTone(request.tone());
             agent.setLanguage(request.language());
             agent.setBehaviorRules(request.behaviorRules());
+            agent.setPersonaSampleReply(request.personaSampleReply());
             agent.setHandoffEnabled(request.handoffEnabled());
             agent.setHandoffMessage(request.handoffMessage());
             agent.setUpdatedBy(accountId);
@@ -347,8 +354,15 @@ public class AgentService {
         agentWebsiteRepository.deleteAllByAgentId(id);
         agentFaqRepository.deleteAllByAgentId(id);
         agentSkillRepository.deleteAllByAgentId(id);
+        agentSkillAttachmentRepository.deleteAllByAgentId(id);
         agentUiSkillRepository.deleteAllByAgentId(id);
         agentFileRepository.deleteAllByAgentId(id);
+        // Added later than the rest of this cascade (connector-mirror + connector-library
+        // features) — caught live, 2026-08-13: a real delete against an agent with any
+        // connector history failed with a FK violation on agent_connector because this
+        // cascade was never updated when that table was added.
+        connectorDeploymentRepository.deleteAllByAgentId(id);
+        agentConnectorRepository.deleteAllByAgentId(id);
         messageRepository.deleteAllByAgentId(id);
         conversationRepository.deleteAllByAgentId(id);
         webhookRawRepository.deleteAllByAgentId(id);
@@ -453,7 +467,9 @@ public class AgentService {
     // trigger definition. `flow` component_type is intentionally excluded
     // (Flows out of scope, see F9). Base path is api.facebook.com (the
     // default restClient), not the Graph API -- confirmed against
-    // docs/meta-api/ui-skills.md, no live call made yet as of this write.
+    // docs/meta-api/ui-skills.md, and confirmed live 2026-08-13: interactive_list,
+    // carousel_quick_reply, and cta_url UI skills all created successfully on the
+    // IndiaMART agent with real metaUiSkillId values.
 
     private static String uiSkillPath(Agent agent) {
         return "/" + agent.getPhoneNumberId() + "/agent-ui-skills";

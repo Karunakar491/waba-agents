@@ -102,7 +102,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_create_phoneless_draft_agent_without_meta_calls() {
-        AgentRequest request = new AgentRequest("My Agent", null, null, "You are a helpful agent.", null, null, null, false, null);
+        AgentRequest request = new AgentRequest("My Agent", null, null, "You are a helpful agent.", null, null, null, null, null, false, null);
         Agent created = agentService.createAgent(request);
 
         assertThat(created.getId()).isNotNull();
@@ -122,7 +122,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_bind_phone_when_waba_owned_phone_in_waba_and_eligible() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "777888999");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -143,7 +143,7 @@ class AgentServiceTest extends IntegrationTestBase {
     // connect-time before an operator ever saw the config.
     @Test
     void should_hydrate_handoff_and_preserve_followup_and_audience_from_live_settings_on_bind() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200301");
         stubPhoneList("100200301", "777888111");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -182,7 +182,7 @@ class AgentServiceTest extends IntegrationTestBase {
     @Test
     void should_preserve_local_handoff_message_when_live_handoff_has_no_message() {
         Agent agent = agentService.createAgent(new AgentRequest(
-                "Bind Agent", null, null, null, null, null, null, true, "My own handoff message."));
+                "Bind Agent", null, null, null, null, null, null, null, null, true, "My own handoff message."));
         Waba waba = ownedWaba("100200302");
         stubPhoneList("100200302", "777888222");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -207,7 +207,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_throw_not_found_when_waba_belongs_to_another_account() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         BusinessAccount other = businessAccountRepository.save(BusinessAccount.builder()
                 .name("Other Co").email("other-" + UUID.randomUUID() + "@example.com")
                 .passwordHash("hashed").build());
@@ -221,7 +221,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_reject_phone_that_does_not_belong_to_waba() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "111111111"); // different phone
 
@@ -233,7 +233,7 @@ class AgentServiceTest extends IntegrationTestBase {
 
     @Test
     void should_throw_business_exception_when_phone_number_not_eligible() {
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "000000001");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
@@ -250,7 +250,7 @@ class AgentServiceTest extends IntegrationTestBase {
     @Test
     void should_reject_binding_phone_already_connected_to_another_agent() {
         agentRepository.save(draftAgent("777888999")); // occupies the number
-        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, false, null));
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
         Waba waba = ownedWaba("100200300");
         stubPhoneList("100200300", "777888999");
 

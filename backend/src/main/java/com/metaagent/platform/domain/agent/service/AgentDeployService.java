@@ -45,6 +45,7 @@ public class AgentDeployService {
     private final WabaAccessGuard wabaAccessGuard;
     private final MetaApiClient metaApiClient;
     private final ThreadControlClient threadControlClient;
+    private final ConnectorMirrorService connectorMirrorService;
 
     // Per-agentId lock — two accounts on a shared WABA could otherwise call
     // deploy/pause/deleteFromMeta on the same Agent concurrently. Copy of the
@@ -165,6 +166,55 @@ public class AgentDeployService {
         }
     }
 
+    /**
+     * Settings tab draft/publish gap (founder-reported, 2026-08-13): PUT
+     * /agents/{id} only ever wrote handoffEnabled/handoffMessage to our own
+     * DB — nothing pushed it to Meta's real agent_config/settings, so a
+     * "saved" handoff toggle silently never took effect on the live agent.
+     * This is the explicit publish step: read-modify-write exactly like
+     * updateAiAudience (preserve rollout/followup/ai_audience untouched),
+     * replace only handoff, then stamp handoffPublishedAt so the tab can
+     * show a real "not published" state instead of assuming a DB save
+     * reached Meta.
+     */
+    @Transactional
+    public Agent publishHandoffSettings(Long agentId) {
+        synchronized (lockFor(agentId)) {
+            Agent agent = loadOwnedAgent(agentId);
+            requirePhoneNumberId(agent);
+            String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/settings", agent.getMetaAgentId());
+
+            Map<String, Object> live = readLiveWhatsappSettings(agent.getPhoneNumberId(), agent.getMetaAgentId());
+            if (live == null) {
+                throw new BusinessException(
+                        "Could not read current agent settings from Meta — handoff not published. Try again.");
+            }
+            Object rollout = live.get("rollout") != null
+                    ? live.get("rollout") : Map.of("enabled", agent.getStatus() == Agent.Status.active);
+            Object followup = live.get("followup");
+            Object aiAudience = live.get("ai_audience");
+
+            Map<String, Object> handoff = agent.getHandoffMessage() != null
+                    ? Map.of("enabled", agent.isHandoffEnabled(), "message", agent.getHandoffMessage())
+                    : Map.of("enabled", agent.isHandoffEnabled());
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("rollout", rollout);
+            payload.put("handoff", handoff);
+            payload.put("followup", followup != null ? followup : Map.of("enabled", false));
+            payload.put("ai_audience", aiAudience != null ? aiAudience : "EVERYONE");
+
+            try {
+                metaApiClient.put(path, payload, Map.class);
+            } catch (Exception e) {
+                throw new BusinessException("Meta settings update failed — handoff not published: " + e.getMessage());
+            }
+
+            agent.setHandoffPublishedAt(LocalDateTime.now());
+            return agentRepository.save(agent);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Allowlist — agent_config/allowlist (allowlist.md). Meta's API is
     // add-one/list/delete-by-id, NOT full-replace like settings — do not
@@ -275,16 +325,44 @@ public class AgentDeployService {
     }
 
     // -------------------------------------------------------------------------
-    // Connectors — thin proxies, no DB writes
+    // Connectors — Meta is authoritative; every live read upserts the local
+    // mirror (agent_connector, V45), and the mirror is the fallback when Meta
+    // is unreachable. No credential material is ever mirrored.
     // -------------------------------------------------------------------------
 
-    /** Meta returns a bare JSON array here (confirmed 2026-07-28 via api_call_log), not an object — List.class, not Map.class. */
+    /**
+     * Meta returns a bare JSON array here (confirmed 2026-07-28 via api_call_log), not an object — List.class, not Map.class.
+     *
+     * On success the mirror is refreshed from what Meta just said. On failure
+     * the last-synced mirror rows are returned instead, each carrying
+     * "cached": true so the caller can tell live data from stale data.
+     */
     @SuppressWarnings("unchecked")
     public List<Object> listConnectors(Long agentId) {
         Agent agent = loadOwnedAgent(agentId);
         requirePhoneNumberId(agent);
         String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors", agent.getMetaAgentId());
-        return metaApiClient.get(path, List.class);
+        try {
+            List<Object> live = metaApiClient.get(path, List.class);
+            connectorMirrorService.syncFromMeta(agent, live);
+            return live;
+        } catch (MetaApiException e) {
+            if (e.isNotFound()) throw e; // a real 404 is a real answer, not an outage
+            return cachedConnectors(agent, e);
+        } catch (Exception e) {
+            return cachedConnectors(agent, e);
+        }
+    }
+
+    private List<Object> cachedConnectors(Agent agent, Exception cause) {
+        List<com.metaagent.platform.domain.agent.entity.AgentConnector> cached =
+                connectorMirrorService.cachedFor(agent.getId());
+        if (cached.isEmpty()) {
+            throw cause instanceof RuntimeException re ? re : new BusinessException("Could not reach Meta to load connectors.");
+        }
+        log.warn("Meta connectors fetch failed for agentId={} ({}); serving {} cached mirror rows",
+                agent.getId(), cause.getMessage(), cached.size());
+        return cached.stream().map(row -> (Object) connectorMirrorService.toMetaShape(row)).toList();
     }
 
     @SuppressWarnings("unchecked")
@@ -368,55 +446,83 @@ public class AgentDeployService {
     }
 
     /**
-     * TASK-064 aggregate view: every connector live on any agent on this WABA.
-     * PM+EM gate (2026-07-30): live fan-out (Option A), no local mirror table —
-     * reuses the same per-agent try/catch-404-as-empty pattern already proven
-     * in WabaService.deployPreflight. One agent's Meta failure never fails the
-     * whole table — it's just skipped with a warning log.
+     * TASK-064 aggregate view: every connector on any agent on this WABA.
+     *
+     * Still a live fan-out per agent (Meta is authoritative). Each agent's live
+     * result is upserted into the mirror; if an agent's fetch fails we serve
+     * that agent's last-synced mirror rows instead of dropping it silently, and
+     * mark the whole response cached=true. A real 404 still means "this number
+     * has no connectors", not an outage, so it contributes nothing.
+     *
+     * The response rows are then enriched with the local-only columns
+     * (systemType, tags, publishedToLibrary) and the heuristic used-by count.
      */
     @SuppressWarnings("unchecked")
-    public List<ConnectorDtos.ConnectorRow> listConnectorsForWaba(Long wabaId, Long accountId) {
+    public ConnectorDtos.ConnectorListResponse listConnectorsForWaba(Long wabaId, Long accountId) {
         wabaAccessGuard.requireAccess(wabaId, accountId);
         List<Agent> agents = agentRepository.findAllByWabaId(wabaId).stream()
                 .filter(a -> a.getPhoneNumberId() != null)
                 .toList();
 
-        List<ConnectorDtos.ConnectorRow> rows = new java.util.ArrayList<>();
+        boolean anyCached = false;
+        List<com.metaagent.platform.domain.agent.entity.AgentConnector> mirrorRows = new java.util.ArrayList<>();
+        Map<Long, Agent> agentsById = new HashMap<>();
+
         for (Agent agent : agents) {
-            List<Object> connectors;
+            agentsById.put(agent.getId(), agent);
             try {
                 String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors", agent.getMetaAgentId());
-                connectors = metaApiClient.get(path, List.class);
+                List<Object> connectors = metaApiClient.get(path, List.class);
+                mirrorRows.addAll(connectorMirrorService.syncFromMeta(agent, connectors));
             } catch (MetaApiException e) {
                 if (e.isNotFound()) continue; // no connectors configured on this number yet
-                log.warn("Aggregate connectors fetch failed for agentId={}: {}", agent.getId(), e.getMessage());
-                continue;
+                anyCached |= addCachedRows(agent, mirrorRows, e);
             } catch (Exception e) {
-                log.warn("Aggregate connectors fetch failed for agentId={}: {}", agent.getId(), e.getMessage());
-                continue;
-            }
-            if (connectors == null) continue;
-            for (Object entry : connectors) {
-                if (entry instanceof Map<?, ?> m) {
-                    Object id = m.get("id");
-                    Object name = m.get("name");
-                    String status = null;
-                    if (m.get("connection_status") instanceof Map<?, ?> connectionStatus) {
-                        Object statusValue = connectionStatus.get("status");
-                        status = statusValue != null ? statusValue.toString() : null;
-                    }
-                    rows.add(new ConnectorDtos.ConnectorRow(
-                            id != null ? id.toString() : null,
-                            name != null ? name.toString() : "Unnamed connector",
-                            String.valueOf(agent.getId()),
-                            agent.getDisplayName(),
-                            agent.getPhoneNumberId(),
-                            status
-                    ));
-                }
+                anyCached |= addCachedRows(agent, mirrorRows, e);
             }
         }
-        return rows;
+
+        Map<String, Integer> usedBy = connectorMirrorService.usedByAgentCounts(mirrorRows);
+        boolean cached = anyCached;
+        List<ConnectorDtos.ConnectorRow> rows = mirrorRows.stream()
+                .map(row -> toConnectorRow(row, agentsById.get(row.getAgentId()), usedBy, cached))
+                .toList();
+        return new ConnectorDtos.ConnectorListResponse(rows, cached);
+    }
+
+    private boolean addCachedRows(Agent agent, List<com.metaagent.platform.domain.agent.entity.AgentConnector> into, Exception cause) {
+        List<com.metaagent.platform.domain.agent.entity.AgentConnector> cached = connectorMirrorService.cachedFor(agent.getId());
+        log.warn("Aggregate connectors fetch failed for agentId={}: {} — serving {} cached mirror rows",
+                agent.getId(), cause.getMessage(), cached.size());
+        into.addAll(cached);
+        return !cached.isEmpty();
+    }
+
+    private static ConnectorDtos.ConnectorRow toConnectorRow(
+            com.metaagent.platform.domain.agent.entity.AgentConnector row,
+            Agent agent,
+            Map<String, Integer> usedBy,
+            boolean cached) {
+        List<String> tags = row.getTags() == null || row.getTags().isBlank()
+                ? List.of()
+                : java.util.Arrays.stream(row.getTags().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        return new ConnectorDtos.ConnectorRow(
+                row.getMetaConnectorId(),
+                row.getName(),
+                String.valueOf(row.getAgentId()),
+                agent != null ? agent.getDisplayName() : null,
+                row.getPhoneNumberId(),
+                row.getStatus(),
+                row.getAuthType(),
+                row.getBaseUrl(),
+                row.getSystemType(),
+                tags,
+                row.isPublishedToLibrary(),
+                usedBy.getOrDefault(row.getIdentityKey(), 1),
+                cached,
+                row.getLastSyncedAt(),
+                null // filled in by ConnectorLibraryService when this row is a library deployment
+        );
     }
 
     // -------------------------------------------------------------------------

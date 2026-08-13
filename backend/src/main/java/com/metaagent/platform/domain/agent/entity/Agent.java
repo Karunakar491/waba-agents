@@ -89,6 +89,14 @@ public class Agent {
     @Column(name = "behavior_rules", columnDefinition = "TEXT")
     private String behaviorRules;
 
+    /**
+     * Figma 8.4 Business Persona — the operator-edited sample reply that sets
+     * the agent's starting style ("Based on 'Friendly shopkeeper' — edit
+     * freely"). Distinct from `tone`, which holds only the preset's label.
+     */
+    @Column(name = "persona_sample_reply", columnDefinition = "TEXT")
+    private String personaSampleReply;
+
     @Column(nullable = false)
     private boolean enabled;
 
@@ -125,6 +133,15 @@ public class Agent {
     @Column(name = "system_prompt", columnDefinition = "TEXT")
     private String systemPrompt;
 
+    /**
+     * Figma 8.1 "About" column — a short, human-written label (e.g. "Handles
+     * bulk grocery orders"), NOT a reuse/truncation of systemPrompt (which is
+     * the longer instructional prompt driving agent behavior). Optional;
+     * null renders as "—" with an "Add a label" affordance in the table.
+     */
+    @Column(name = "about_label", length = 255)
+    private String aboutLabel;
+
     /** Human handoff toggle (settings.md handoff.enabled) — per-agent, wired into deploy settings PUT. */
     @Column(name = "handoff_enabled", nullable = false)
     @Builder.Default
@@ -133,6 +150,15 @@ public class Agent {
     /** Message shown to the customer on handoff (settings.md handoff.message). Nullable — Meta accepts omission. */
     @Column(name = "handoff_message", length = 1000)
     private String handoffMessage;
+
+    /**
+     * When handoffEnabled/handoffMessage were last actually pushed to Meta's
+     * agent_config/settings via publishHandoffSettings — null means never
+     * published. Draft (this row) vs. published (Meta) is considered out of
+     * sync whenever updatedAt is after handoffPublishedAt (V49).
+     */
+    @Column(name = "handoff_published_at")
+    private LocalDateTime handoffPublishedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

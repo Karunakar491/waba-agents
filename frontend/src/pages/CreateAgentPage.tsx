@@ -1,1029 +1,264 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Bot,
-  Check,
-  Loader2,
-  ArrowLeft,
-  Sparkles,
-  Plus,
-  Trash2,
-  Phone,
-  Rocket,
-} from 'lucide-react'
 import api from '../lib/api'
+import { extractErrorMessage } from '../lib/errors'
 import ErrorBanner from '../components/shared/ErrorBanner'
-import ConsequenceLine from '../components/shared/ConsequenceLine'
-import EvalTab from '../components/agent-detail/EvalTab'
+import Stepper from '../components/shared/Stepper'
+import IrisRail from '../components/create-agent/IrisRail'
+import StepBasics from '../components/create-agent/StepBasics'
+import StepBusinessPersona from '../components/create-agent/StepBusinessPersona'
+import StepKnowledgeBase from '../components/create-agent/StepKnowledgeBase'
+import StepSkills from '../components/create-agent/StepSkills'
+import StepConnectors from '../components/create-agent/StepConnectors'
+import StepEvals from '../components/create-agent/StepEvals'
+import StepTestDeploy from '../components/create-agent/StepTestDeploy'
+import {
+  EMPTY_WIZARD_STATE,
+  WIZARD_STEPS,
+  type StepNumber,
+  type WizardState,
+} from '../components/create-agent/wizardTypes'
 
-/* ------------------------------------------------------------------ */
-/* Types + wizard store (spec section 4 — 5-step Create Agent wizard) */
-/* ------------------------------------------------------------------ */
+const DRAFT_KEY = 'create-agent-draft'
 
-type Channel = 'whatsapp' | 'messenger' | 'instagram'
-
-interface Faq {
-  id: string
-  question: string
-  answer: string
-}
-
-interface WizardState {
-  agentId: string | null
-  displayName: string
-  businessDescription: string
-  channel: Channel
-  tone: string
-  language: string
-  behaviorRules: string
-  faqs: Faq[]
-}
-
-const STEPS = [
-  { n: 1, title: 'Identity', desc: 'Name and channel' },
-  { n: 2, title: 'Personality', desc: 'Tone and behavior' },
-  { n: 3, title: 'Knowledge', desc: 'FAQs (optional)' },
-  { n: 4, title: 'Connect', desc: 'Link your WhatsApp number' },
-  // Founder-caught gap (2026-08-07): Evals existed only as a post-creation
-  // AgentDetailPage tab, invisible during the wizard entirely. Added here
-  // rather than left to be discovered later, reusing the same EvalTab.
-  { n: 5, title: 'Evaluate', desc: 'Meta-configured test scenarios (optional)' },
-  { n: 6, title: 'Go live', desc: 'Review and publish' },
-] as const
-
-const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
-
-function extractError(err: unknown): string {
-  const data = (err as { response?: { data?: { error?: string; message?: string } } })
-    ?.response?.data
-  return data?.error ?? data?.message ?? 'Something went wrong. Please try again.'
-}
-
-/* ------------------------------------------------------------------ */
-
+/**
+ * The 7-step Create Agent wizard (Figma 8.3–8.9). This file owns only the
+ * frame — step order, the shared draft state, the two writes every step
+ * shares (the agent row and its business profile) and resuming a draft.
+ * Every step's content lives in components/create-agent/.
+ */
 export default function CreateAgentPage() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState<StepNumber>(1)
+  const [state, setState] = useState<WizardState>(EMPTY_WIZARD_STATE)
   const [saving, setSaving] = useState(false)
-  const [hydrating, setHydrating] = useState(() => !!sessionStorage.getItem('create-agent-draft'))
   const [error, setError] = useState<string | null>(null)
-  const [state, setState] = useState<WizardState>({
-    agentId: null,
-    displayName: '',
-    businessDescription: '',
-    channel: 'whatsapp',
-    tone: '',
-    language: '',
-    behaviorRules: '',
-    faqs: [],
-  })
+  const [hydrating, setHydrating] = useState(() => !!sessionStorage.getItem(DRAFT_KEY))
+  // Lifted out of the Skills step because Figma 8.16 replaces the Iris rail
+  // with the Library drawer — one rail slot, two possible occupants.
+  const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false)
 
-  const set = <K extends keyof WizardState>(key: K, value: WizardState[K]) =>
-    setState((s) => ({ ...s, [key]: value }))
+  const onChange = useCallback(
+    (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch })),
+    [],
+  )
 
-  // Resume a draft if the browser closed/crashed mid-wizard. agentId + step
-  // are persisted locally; the actual field values live server-side via
-  // saveAndGo's autosave — hydrated once on mount, confirming the draft
-  // agent still exists before trusting the persisted step.
-  //
-  // QA-caught gap (2026-08-07 audit, F29): this used to fetch the agent just
-  // to confirm it exists, then discard the response entirely — step
-  // position was restored but every field reset to blank, while the wizard
-  // visually signaled progress was preserved. Now repopulates state from
-  // the response. faqs are intentionally NOT restored here — they're held
-  // client-side only until a later step persists them, so a mid-wizard
-  // refresh before that point genuinely has nothing to recover for them.
-  const hydratedDraft = useRef(false)
+  // Resume a draft if the browser closed mid-wizard. Only agentId + step are
+  // held locally; every field value is re-read from the server it was saved
+  // to, so a restored wizard never shows progress it can't back up.
+  const hydrated = useRef(false)
   useEffect(() => {
-    if (hydratedDraft.current) return
-    hydratedDraft.current = true
-    const raw = sessionStorage.getItem('create-agent-draft')
+    if (hydrated.current) return
+    hydrated.current = true
+    const raw = sessionStorage.getItem(DRAFT_KEY)
     if (!raw) return
+    let draft: { agentId: string | null; step: number }
     try {
-      const draft = JSON.parse(raw) as { agentId: string | null; step: number }
-      if (!draft.agentId) {
-        setHydrating(false)
-        return
-      }
-      api.get(`/agents/${draft.agentId}`).then((r) => {
+      draft = JSON.parse(raw)
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY)
+      setHydrating(false)
+      return
+    }
+    if (!draft.agentId) {
+      setHydrating(false)
+      return
+    }
+    api
+      .get(`/agents/${draft.agentId}`)
+      .then((r) => {
         const agent = r.data.data
         setState((s) => ({
           ...s,
           agentId: draft.agentId,
           displayName: agent.displayName ?? s.displayName,
-          businessDescription: agent.systemPrompt ?? s.businessDescription,
-          channel: agent.channel ?? s.channel,
-          tone: agent.tone ?? s.tone,
-          language: agent.language ?? s.language,
-          behaviorRules: agent.behaviorRules ?? s.behaviorRules,
+          phoneNumberId: agent.phoneNumberId ?? s.phoneNumberId,
+          wabaId: agent.wabaId ?? s.wabaId,
+          personaPreset: agent.tone ?? s.personaPreset,
+          personaSampleReply: agent.personaSampleReply ?? s.personaSampleReply,
+          enabled: agent.enabled ?? s.enabled,
         }))
-        setStep(draft.step)
-      }).catch(() => {
-        sessionStorage.removeItem('create-agent-draft')
-      }).finally(() => {
-        setHydrating(false)
+        setStep(Math.min(7, Math.max(1, draft.step)) as StepNumber)
       })
-    } catch {
-      sessionStorage.removeItem('create-agent-draft')
-      setHydrating(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => sessionStorage.removeItem(DRAFT_KEY))
+      .finally(() => setHydrating(false))
   }, [])
 
   useEffect(() => {
     if (!state.agentId) return
-    sessionStorage.setItem('create-agent-draft', JSON.stringify({ agentId: state.agentId, step }))
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ agentId: state.agentId, step }))
   }, [state.agentId, step])
+
+  // Connector count feeds the Test & Deploy summary row. Cheap, and it must
+  // reflect what's live on Meta rather than what this session happens to
+  // remember creating.
+  const { data: connectors = [] } = useQuery<unknown[]>({
+    queryKey: ['agent-connectors', state.agentId],
+    queryFn: () => api.get(`/agents/${state.agentId}/connectors`).then((r) => r.data.data ?? []),
+    enabled: !!state.agentId && step === 7,
+  })
 
   const agentPayload = () => ({
     displayName: state.displayName.trim(),
-    channel: state.channel,
-    systemPrompt: state.businessDescription.trim(),
-    tone: state.tone || null,
-    language: state.language.trim() || null,
-    behaviorRules: state.behaviorRules.trim() || null,
+    channel: 'whatsapp',
+    tone: state.personaPreset || null,
+    personaSampleReply: state.personaSampleReply.trim() || null,
+    systemPrompt: state.businessInfo.businessDescription.trim() || null,
+    handoffEnabled: false,
   })
 
-  /** Autosave: agent is created as a draft on Step 1, updated on later steps. */
-  async function saveAndGo(nextStep: number) {
+  /** Creates the agent on first use, binds the chosen number, then advances. */
+  async function saveBasicsAndGo() {
     setSaving(true)
     setError(null)
     try {
-      if (!state.agentId) {
+      let agentId = state.agentId
+      if (!agentId) {
         const r = await api.post('/agents', agentPayload())
-        set('agentId', String(r.data.data.id))
+        agentId = String(r.data.data.id)
+        onChange({ agentId })
       } else {
-        await api.put(`/agents/${state.agentId}`, agentPayload())
+        await api.put(`/agents/${agentId}`, agentPayload())
       }
-      setStep(nextStep)
+      await api.put(`/agents/${agentId}/phone`, {
+        phoneNumberId: state.phoneNumberId,
+        wabaId: state.wabaId,
+      })
+      setStep(2)
     } catch (err) {
-      setError(extractError(err))
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
-  async function finish(activate: boolean) {
+  /**
+   * Business Persona writes to two places: the agent row (tone + starting
+   * style) and the business profile deployed to this number. They're saved
+   * together so leaving the step never persists half of it.
+   */
+  async function savePersonaAndGo() {
     if (!state.agentId) return
     setSaving(true)
     setError(null)
     try {
       await api.put(`/agents/${state.agentId}`, agentPayload())
-      if (activate) {
-        await api.post(`/agents/${state.agentId}/deploy`)
-      }
-      sessionStorage.removeItem('create-agent-draft')
-      navigate(`/agents/${state.agentId}`)
+      const body = { ...state.businessInfo }
+      const r = state.businessProfileId
+        ? await api.put(`/business-profiles/draft/${state.businessProfileId}`, body)
+        : await api.post('/business-profiles/draft', body)
+      const profileId = String(r.data.data.id)
+      await api.post(`/business-profiles/draft/${profileId}/deploy`, {
+        phoneNumberId: state.phoneNumberId,
+      })
+      onChange({ businessProfileId: profileId })
+      setStep(3)
     } catch (err) {
-      setError(extractError(err))
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
-  const step1Valid =
-    state.displayName.trim().length >= 2 &&
-    state.displayName.length <= 40 &&
-    state.businessDescription.trim().length >= 20 &&
-    state.businessDescription.length <= 200
+  async function finish() {
+    if (!state.agentId) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.put(`/agents/${state.agentId}`, agentPayload())
+      if (state.enabled) await api.post(`/agents/${state.agentId}/deploy`)
+      sessionStorage.removeItem(DRAFT_KEY)
+      navigate(`/agents/${state.agentId}`)
+    } catch (err) {
+      setError(extractErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (hydrating) {
     return (
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-4 h-4 w-16 rounded bg-muted/40 animate-pulse" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr_320px]">
-          <div className="space-y-1">
-            {STEPS.map((s) => (
-              <div key={s.n} className="h-14 rounded-lg bg-muted/40 animate-pulse" />
-            ))}
-          </div>
-          <div className="h-96 rounded-xl border bg-muted/40 animate-pulse" />
-          <div className="h-96 rounded-xl border bg-muted/40 animate-pulse" />
-        </div>
+      <div className="mx-auto max-w-5xl space-y-6 p-8">
+        <div className="h-6 animate-pulse rounded bg-muted" />
+        <div className="h-64 animate-pulse rounded-xl bg-muted" />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <button
-        onClick={() => navigate(-1)}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr_320px]">
-        {/* Left: steps rail */}
-        <nav aria-label="Wizard steps" className="space-y-1">
-          {STEPS.map((s) => {
-            const done = s.n < step
-            const active = s.n === step
-            return (
-              <div
-                key={s.n}
-                aria-current={active ? 'step' : undefined}
-                className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${
-                  active ? 'bg-primary/10' : ''
-                }`}
-              >
-                <span
-                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                    done
-                      ? 'bg-primary text-white'
-                      : active
-                        ? 'border-2 border-primary text-primary'
-                        : 'border text-muted-foreground'
-                  }`}
-                >
-                  {done ? <Check className="h-3.5 w-3.5" /> : s.n}
-                </span>
-                <div>
-                  <p
-                    className={`text-sm font-medium ${
-                      active ? 'text-foreground' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {s.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground/70">{s.desc}</p>
-                </div>
-              </div>
-            )
-          })}
-        </nav>
-
-        {/* Center: form */}
-        <div className="rounded-xl border bg-card p-6 shadow-surface-resting">
-          {error && (
-            <div className="mb-4">
-              <ErrorBanner error={error} />
-            </div>
-          )}
-
-          {step === 1 && (
-            <StepIdentity
-              state={state}
-              set={set}
-              valid={step1Valid}
-              saving={saving}
-              onNext={() => saveAndGo(2)}
-            />
-          )}
-          {step === 2 && (
-            <StepPersonality
-              state={state}
-              set={set}
-              setState={setState}
-              saving={saving}
-              onBack={() => setStep(1)}
-              onNext={() => saveAndGo(3)}
-              onError={setError}
-            />
-          )}
-          {step === 3 && (
-            <StepKnowledge
-              state={state}
-              set={set}
-              onBack={() => setStep(2)}
-              onNext={() => setStep(4)}
-              onError={setError}
-            />
-          )}
-          {step === 4 && (
-            <StepConnections onBack={() => setStep(3)} onNext={() => setStep(5)} />
-          )}
-          {step === 5 && (
-            <StepEvaluate agentId={state.agentId} onBack={() => setStep(4)} onNext={() => setStep(6)} />
-          )}
-          {step === 6 && (
-            <StepGoLive
-              state={state}
-              saving={saving}
-              onBack={() => setStep(5)}
-              onFinish={finish}
-              onGoToConnect={() => setStep(4)}
-            />
-          )}
+    <div className="flex min-h-full">
+      <div className="min-w-0 flex-1 overflow-x-auto px-8 py-8">
+        <div className="mb-8">
+          <Stepper steps={[...WIZARD_STEPS]} currentStep={step} />
         </div>
 
-        {/* Right: live preview */}
-        <ChatPreview state={state} />
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 1 — Identity                                                   */
-/* ------------------------------------------------------------------ */
-
-const CHANNELS: { id: Channel; label: string; available: boolean }[] = [
-  { id: 'whatsapp', label: 'WhatsApp', available: true },
-  { id: 'messenger', label: 'Messenger', available: false },
-  { id: 'instagram', label: 'Instagram', available: false },
-]
-
-function StepIdentity({
-  state,
-  set,
-  valid,
-  saving,
-  onNext,
-}: {
-  state: WizardState
-  set: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
-  valid: boolean
-  saving: boolean
-  onNext: () => void
-}) {
-  const locked = state.agentId !== null
-  const [touched, setTouched] = useState<{ name?: boolean; desc?: boolean }>({})
-  const nameError =
-    touched.name && state.displayName.trim().length < 2
-      ? 'Give your agent a name (at least 2 characters).'
-      : null
-  const descError =
-    touched.desc && state.businessDescription.trim().length < 20
-      ? 'Add a little more detail (at least 20 characters).'
-      : null
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Identity</h2>
-        <p className="text-sm text-muted-foreground">
-          Tell us who your agent is and where it lives.
-        </p>
-      </div>
-
-      <Field
-        label="Agent name"
-        hint="Only you see this."
-        value={state.displayName}
-        max={40}
-        onChange={(v) => set('displayName', v)}
-        onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-        error={nameError}
-        placeholder="e.g. Bloom Bakery Support"
-      />
-
-      <div className="space-y-1.5">
-        <label htmlFor="bizdesc" className="block text-sm font-medium text-foreground">
-          What does your business do?
-        </label>
-        <p className="text-xs text-muted-foreground">
-          One or two sentences. We use this to set up your agent automatically.
-        </p>
-        <textarea
-          id="bizdesc"
-          rows={3}
-          maxLength={200}
-          value={state.businessDescription}
-          onChange={(e) => set('businessDescription', e.target.value)}
-          onBlur={() => setTouched((t) => ({ ...t, desc: true }))}
-          placeholder="e.g. We're a bakery in Pune selling custom cakes and weekly bread subscriptions."
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
-        />
-        <div className="flex items-start justify-between">
-          <p role="alert" className="text-xs text-destructive">{descError}</p>
-          <p className="ml-4 shrink-0 text-xs text-muted-foreground">
-            {state.businessDescription.length}/200
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="text-sm font-medium text-foreground">Channel</p>
-        <p className="text-xs text-muted-foreground">
-          {locked
-            ? "Channel can't be changed after the agent is created."
-            : 'Where your agent talks to customers. Locked after creation.'}
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {CHANNELS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              disabled={!c.available || locked}
-              aria-pressed={state.channel === c.id}
-              onClick={() => set('channel', c.id)}
-              className={`rounded-lg border px-3 py-3 text-sm font-medium transition ${
-                state.channel === c.id
-                  ? 'border-primary bg-primary/10 text-foreground'
-                  : 'text-muted-foreground'
-              } ${!c.available || locked ? 'cursor-not-allowed opacity-50' : 'hover:border-primary/50'}`}
-            >
-              {c.label}
-              {!c.available && (
-                <span className="mt-0.5 block text-[10px] font-normal">Coming soon</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <WizardNav saving={saving} nextDisabled={!valid} onNext={onNext} />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 2 — Personality (with Claude auto-generation)                  */
-/* ------------------------------------------------------------------ */
-
-interface GeneratedDefaults {
-  generated: boolean
-  tone: string | null
-  language: string | null
-  behaviorRules: string | null
-  faqs: { question: string; answer: string }[]
-}
-
-function StepPersonality({
-  state,
-  set,
-  setState,
-  saving,
-  onBack,
-  onNext,
-  onError,
-}: {
-  state: WizardState
-  set: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
-  setState: React.Dispatch<React.SetStateAction<WizardState>>
-  saving: boolean
-  onBack: () => void
-  onNext: () => void
-  onError: (e: string | null) => void
-}) {
-  const [generating, setGenerating] = useState(false)
-  const [suggestedFaqs, setSuggestedFaqs] = useState<
-    { question: string; answer: string }[]
-  >([])
-
-  async function generate() {
-    setGenerating(true)
-    onError(null)
-    try {
-      const r = await api.post('/agents/generate-defaults', {
-        businessDescription: state.businessDescription,
-      })
-      const d = r.data.data as GeneratedDefaults
-      if (!d.generated) {
-        onError("Auto-generation isn't available right now — fill these in manually.")
-        return
-      }
-      setState((s) => ({
-        ...s,
-        tone: d.tone ?? s.tone,
-        language: d.language ?? s.language,
-        behaviorRules: d.behaviorRules ?? s.behaviorRules,
-      }))
-      setSuggestedFaqs(d.faqs)
-    } catch {
-      onError("Auto-generation isn't available right now — fill these in manually.")
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  // Suggested FAQs carry into Step 3 via wizard state (saved there).
-  function acceptFaqs() {
-    setState((s) => ({
-      ...s,
-      faqs: [
-        ...s.faqs,
-        ...suggestedFaqs.map((f, i) => ({ id: `suggested-${Date.now()}-${i}`, ...f })),
-      ],
-    }))
-    setSuggestedFaqs([])
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Personality</h2>
-          <p className="text-sm text-muted-foreground">
-            How your agent sounds when talking to customers.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={generating}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:opacity-60"
-        >
-          {generating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          {generating ? 'Generating…' : 'Generate with AI'}
-        </button>
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="text-sm font-medium text-foreground">Tone</p>
-        <div className="flex flex-wrap gap-2">
-          {TONES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              aria-pressed={state.tone === t}
-              onClick={() => set('tone', t)}
-              className={`rounded-full border px-4 py-1.5 text-sm transition ${
-                state.tone === t
-                  ? 'border-primary bg-primary/10 font-medium text-foreground'
-                  : 'text-muted-foreground hover:border-primary/50'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <Field
-        label="Language"
-        hint="The language your agent replies in."
-        value={state.language}
-        max={50}
-        onChange={(v) => set('language', v)}
-        placeholder="e.g. English"
-      />
-
-      <div className="space-y-1.5">
-        <label htmlFor="rules" className="block text-sm font-medium text-foreground">
-          Behavior rules
-        </label>
-        <p className="text-xs text-muted-foreground">
-          Things your agent must always (or never) do. One per line.
-        </p>
-        <textarea
-          id="rules"
-          rows={5}
-          maxLength={4000}
-          value={state.behaviorRules}
-          onChange={(e) => set('behaviorRules', e.target.value)}
-          placeholder={'Never promise refunds — collect the order number instead.\nAlways greet the customer by name if known.'}
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
-        />
-      </div>
-
-      {suggestedFaqs.length > 0 && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-          <p className="text-sm font-medium text-foreground">
-            {suggestedFaqs.length} suggested FAQs generated
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            You can review and edit them in the Knowledge step.
-          </p>
-          <button
-            type="button"
-            onClick={acceptFaqs}
-            className="mt-2 text-sm font-medium text-primary hover:underline"
-          >
-            Add them to my agent
-          </button>
-        </div>
-      )}
-
-      <WizardNav saving={saving} onBack={onBack} onNext={onNext} />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 3 — Knowledge (FAQs)                                           */
-/* ------------------------------------------------------------------ */
-
-function StepKnowledge({
-  state,
-  set,
-  onBack,
-  onNext,
-  onError,
-}: {
-  state: WizardState
-  set: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void
-  onBack: () => void
-  onNext: () => void
-  onError: (e: string | null) => void
-}) {
-  const [question, setQuestion] = useState('')
-  const [answer, setAnswer] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  function addLocal() {
-    if (!question.trim() || !answer.trim()) return
-    set('faqs', [
-      ...state.faqs,
-      { id: `local-${crypto.randomUUID()}`, question: question.trim(), answer: answer.trim() },
-    ])
-    setQuestion('')
-    setAnswer('')
-  }
-
-  function remove(id: string) {
-    set('faqs', state.faqs.filter((f) => f.id !== id))
-  }
-
-  /**
-   * Persist pending FAQs, then advance. Already-saved ones have numeric ids.
-   * State is updated per-item so a partial failure + retry never double-saves.
-   */
-  async function saveAndNext() {
-    if (!state.agentId) return onNext()
-    setBusy(true)
-    onError(null)
-    const faqs = state.faqs.map((f) => ({ ...f }))
-    try {
-      await Promise.all(
-        faqs
-          .filter((f) => !/^\d+$/.test(f.id))
-          .map(async (f) => {
-            const r = await api.post(`/agents/${state.agentId}/faq`, {
-              question: f.question,
-              answer: f.answer,
-            })
-            f.id = String(r.data.data.id)
-            set('faqs', faqs.map((x) => ({ ...x })))
-          }),
-      )
-      onNext()
-    } catch (err) {
-      onError(extractError(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Knowledge</h2>
-        <p className="text-sm text-muted-foreground">
-          Add questions customers often ask. Optional — you can add these later.
-        </p>
-      </div>
-
-      {state.faqs.length > 0 && (
-        <ul className="space-y-2">
-          {state.faqs.map((f) => (
-            <li
-              key={f.id}
-              className="flex items-start justify-between gap-3 rounded-lg border px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{f.question}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{f.answer}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(f.id)}
-                aria-label={`Remove FAQ: ${f.question}`}
-                className="shrink-0 rounded p-1 text-muted-foreground transition hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="space-y-2 rounded-lg border border-dashed p-4">
-        <input
-          type="text"
-          value={question}
-          maxLength={512}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Question — e.g. Do you deliver on Sundays?"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
-        />
-        <textarea
-          rows={2}
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Answer"
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
-        />
-        <button
-          type="button"
-          onClick={addLocal}
-          disabled={!question.trim() || !answer.trim() || busy}
-          className="flex items-center gap-1.5 text-sm font-medium text-primary transition hover:underline disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" />
-          Add FAQ
-        </button>
-      </div>
-
-      <WizardNav
-        saving={busy}
-        onBack={onBack}
-        onNext={saveAndNext}
-        nextLabel={state.faqs.length === 0 ? 'Skip for now' : 'Continue'}
-      />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 4 — Connect                                                    */
-/* ------------------------------------------------------------------ */
-
-function StepConnections({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Connect</h2>
-        <p className="text-sm text-muted-foreground">
-          Link your WhatsApp number.
-        </p>
-      </div>
-      <div className="flex items-start gap-4 rounded-xl border bg-muted/20 px-5 py-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <Phone className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            Connect a WhatsApp number from the agent page
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            After creating your agent, connect a WhatsApp number from the agent page to go live.
-          </p>
-        </div>
-      </div>
-      <WizardNav onBack={onBack} onNext={onNext} />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 5 — Evaluate                                                   */
-/* ------------------------------------------------------------------ */
-
-function StepEvaluate({ agentId, onBack, onNext }: { agentId: string | null; onBack: () => void; onNext: () => void }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Evaluate</h2>
-        <p className="text-sm text-muted-foreground">
-          Meta-configured test scenarios for this number, if any exist. Optional — most agents have none yet.
-        </p>
-      </div>
-      {agentId ? (
-        <EvalTab agentId={agentId} />
-      ) : (
-        <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-4 text-sm text-muted-foreground">
-          Save step 1 first to see this agent's eval status.
-        </div>
-      )}
-      <WizardNav onBack={onBack} onNext={onNext} />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 6 — Go live                                                    */
-/* ------------------------------------------------------------------ */
-
-function StepGoLive({
-  state,
-  saving,
-  onBack,
-  onFinish,
-  onGoToConnect,
-}: {
-  state: WizardState
-  saving: boolean
-  onBack: () => void
-  onFinish: (activate: boolean) => void
-  onGoToConnect: () => void
-}) {
-  // Same precondition AgentDetailPage already enforces (`canDeploy`) — the
-  // wizard's own "Go live" step was letting Publish fire with no connected
-  // number, producing a confusing backend error instead of a clear stop here.
-  const { data: agentDetail, isLoading: checkingPhone } = useQuery({
-    queryKey: ['agent', state.agentId, 'phone-check'],
-    queryFn: () => api.get(`/agents/${state.agentId}`).then((r) => r.data.data as { phoneNumberId: string | null }),
-    enabled: !!state.agentId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  })
-  const canPublish = !!agentDetail?.phoneNumberId
-
-  // capitalize only the channel — user-entered values render verbatim
-  const rows: [string, string, boolean][] = [
-    ['Agent name', state.displayName, false],
-    ['Channel', state.channel, true],
-    ['Tone', state.tone || '—', false],
-    ['Language', state.language || '—', false],
-    ['FAQs', String(state.faqs.length), false],
-  ]
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Go live</h2>
-        <p className="text-sm text-muted-foreground">
-          Review your agent. You can change everything later from settings.
-        </p>
-      </div>
-
-      <dl className="divide-y rounded-lg border">
-        {rows.map(([k, v, cap]) => (
-          <div key={k} className="flex items-center justify-between px-4 py-2.5">
-            <dt className="text-sm text-muted-foreground">{k}</dt>
-            <dd className={`text-sm font-medium text-foreground ${cap ? 'capitalize' : ''}`}>
-              {v}
-            </dd>
+        {error && (
+          <div className="mb-6">
+            <ErrorBanner error={error} />
           </div>
-        ))}
-      </dl>
+        )}
 
-      <ConsequenceLine>
-        Publish &amp; Test makes this agent live on {state.channel} — it starts replying to real
-        customer messages on the connected number immediately.
-      </ConsequenceLine>
-
-      {!checkingPhone && !canPublish && (
-        <p className="text-sm text-muted-foreground">
-          Connect a WhatsApp number before publishing —{' '}
-          <button type="button" onClick={onGoToConnect} className="font-medium text-primary hover:underline">
-            go back to Connect
-          </button>
-          . You can still save as a draft now and publish once a number is connected.
-        </p>
-      )}
-
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          type="button"
-          onClick={() => onFinish(true)}
-          disabled={saving || checkingPhone || !canPublish}
-          title={!checkingPhone && !canPublish ? 'Connect a phone number first' : undefined}
-          className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-          Publish &amp; Test
-        </button>
-        <button
-          type="button"
-          onClick={() => onFinish(false)}
-          disabled={saving}
-          className="rounded-lg border px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted/50 disabled:opacity-60"
-        >
-          Save as draft
-        </button>
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={saving}
-          className="ml-auto rounded-lg px-4 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Back
-        </button>
+        {step === 1 && (
+          <StepBasics
+            state={state}
+            onChange={onChange}
+            onCancel={() => navigate('/agents')}
+            onNext={() => void saveBasicsAndGo()}
+            busy={saving}
+          />
+        )}
+        {step === 2 && (
+          <StepBusinessPersona
+            state={state}
+            onChange={onChange}
+            onBack={() => setStep(1)}
+            onNext={() => void savePersonaAndGo()}
+            busy={saving}
+          />
+        )}
+        {step === 3 && (
+          <StepKnowledgeBase
+            agentId={state.agentId}
+            onBack={() => setStep(2)}
+            onNext={() => setStep(4)}
+          />
+        )}
+        {step === 4 && (
+          <StepSkills
+            agentId={state.agentId}
+            wabaId={state.wabaId}
+            drawerOpen={skillsDrawerOpen}
+            onDrawerOpenChange={setSkillsDrawerOpen}
+            onBack={() => setStep(3)}
+            onNext={() => setStep(5)}
+          />
+        )}
+        {step === 5 && (
+          <StepConnectors
+            agentId={state.agentId}
+            wabaId={state.wabaId}
+            onBack={() => setStep(4)}
+            onNext={() => setStep(6)}
+          />
+        )}
+        {step === 6 && (
+          <StepEvals agentId={state.agentId} onBack={() => setStep(5)} onNext={() => setStep(7)} />
+        )}
+        {step === 7 && (
+          <StepTestDeploy
+            state={state}
+            onChange={onChange}
+            onBack={() => setStep(6)}
+            onEditStep={setStep}
+            onFinish={() => void finish()}
+            busy={saving}
+            connectorCount={connectors.length}
+          />
+        )}
       </div>
+
+      {!(step === 4 && skillsDrawerOpen) && <IrisRail step={step} wabaId={state.wabaId} />}
     </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Shared bits                                                         */
-/* ------------------------------------------------------------------ */
-
-function Field({
-  label,
-  hint,
-  value,
-  max,
-  onChange,
-  onBlur,
-  error,
-  placeholder,
-}: {
-  label: string
-  hint?: string
-  value: string
-  max: number
-  onChange: (v: string) => void
-  onBlur?: () => void
-  error?: string | null
-  placeholder?: string
-}) {
-  const id = label.toLowerCase().replace(/\s+/g, '-')
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-foreground">
-        {label}
-      </label>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      <input
-        id={id}
-        type="text"
-        value={value}
-        maxLength={max}
-        autoComplete="off"
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition"
-      />
-      <div className="flex items-start justify-between">
-        <p role="alert" className="text-xs text-destructive">{error}</p>
-        <p className="ml-4 shrink-0 text-xs text-muted-foreground">
-          {value.length}/{max}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function WizardNav({
-  saving,
-  nextDisabled,
-  nextLabel = 'Continue',
-  onBack,
-  onNext,
-}: {
-  saving?: boolean
-  nextDisabled?: boolean
-  nextLabel?: string
-  onBack?: () => void
-  onNext: () => void
-}) {
-  return (
-    <div className="flex items-center gap-3 pt-2">
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={nextDisabled || saving}
-        className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-        {nextLabel}
-      </button>
-      {onBack && (
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={saving}
-          className="rounded-lg px-4 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Back
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Right panel: WhatsApp-style live preview driven by wizard state. */
-function ChatPreview({ state }: { state: WizardState }) {
-  const name = state.displayName || 'Your agent'
-  const greeting =
-    state.tone === 'Formal'
-      ? `Good day. This is ${name}. How may I assist you?`
-      : state.tone === 'Professional'
-        ? `Hello, you've reached ${name}. How can I help you today?`
-        : state.tone === 'Casual'
-          ? `Hey! ${name} here — what's up?`
-          : `Hi there! I'm ${name}. How can I help? 😊`
-  return (
-    <aside aria-label="Chat preview" className="hidden lg:block">
-      <div className="sticky top-6 overflow-hidden rounded-xl border shadow-surface-resting">
-        <div className="flex items-center gap-2.5 bg-whatsapp-header px-4 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
-            <Bot className="h-4 w-4 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{name}</p>
-            <p className="text-[11px] text-white/70">online</p>
-          </div>
-        </div>
-        <div className="space-y-2 bg-whatsapp-canvas p-4 pb-6">
-          <div className="max-w-[85%] rounded-lg rounded-tl-none bg-white px-3 py-2 shadow-sm">
-            <p className="text-sm text-whatsapp-ink">{greeting}</p>
-          </div>
-          {state.faqs[0] && (
-            <>
-              <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-whatsapp-bubble px-3 py-2 shadow-sm">
-                <p className="text-sm text-whatsapp-ink">{state.faqs[0].question}</p>
-              </div>
-              <div className="max-w-[85%] rounded-lg rounded-tl-none bg-white px-3 py-2 shadow-sm">
-                <p className="text-sm text-whatsapp-ink">{state.faqs[0].answer}</p>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="border-t bg-card px-4 py-2.5">
-          <p className="text-center text-[11px] text-muted-foreground">
-            Live preview — updates as you type
-          </p>
-        </div>
-      </div>
-    </aside>
   )
 }

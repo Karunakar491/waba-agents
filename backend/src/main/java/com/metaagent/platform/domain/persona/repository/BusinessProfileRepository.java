@@ -14,5 +14,7 @@ public interface BusinessProfileRepository extends JpaRepository<BusinessProfile
 
     Optional<BusinessProfile> findByPhoneNumberIdAndStatus(String phoneNumberId, BusinessProfile.Status status);
 
+    List<BusinessProfile> findAllByPhoneNumberIdInAndStatus(List<String> phoneNumberIds, BusinessProfile.Status status);
+
     List<BusinessProfile> findAllByPhoneNumberIdAndStatusOrderByArchivedAtDesc(String phoneNumberId, BusinessProfile.Status status);
 }

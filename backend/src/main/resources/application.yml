@@ -86,9 +86,6 @@ ratelimit:
   refresh:
     limit: 30
     window-seconds: 60
-  generate-defaults:
-    limit: 10
-    window-seconds: 3600
 
 jwt:
   private-key-path: ${JWT_PRIVATE_KEY_PATH:/opt/metaagent/keys/jwt-private.pem}

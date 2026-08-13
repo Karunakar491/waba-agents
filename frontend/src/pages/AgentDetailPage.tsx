@@ -31,6 +31,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { useDraftPublish } from '../hooks/useDraftPublish'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import ConnectPhoneModal from '../components/waba/ConnectPhoneModal'
@@ -38,6 +39,7 @@ import RunToolModal from '../components/agent-detail/RunToolModal'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
+import DeleteAgentModal from '../components/agent-detail/DeleteAgentModal'
 import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
 
 // Lazy-loaded — each is a real, separate chunk not bundled into this page's
@@ -60,11 +62,18 @@ interface AgentApi {
   status: 'draft' | 'active' | 'paused'
   phoneNumberId: string | null
   systemPrompt: string | null
+  // Figma 8.1 "About" column — short human label, distinct from systemPrompt.
+  aboutLabel: string | null
   tone: string | null
   language: string | null
   behaviorRules: string | null
   handoffEnabled: boolean
   handoffMessage: string | null
+  handoffPublishedAt: string | null
+  // Real dialable number (PhoneNumberSnapshot cache) — may be null if this
+  // number predates that sync or hasn't synced yet; fall back to
+  // phoneNumberId (Meta's internal id) rather than showing nothing.
+  displayPhoneNumber: string | null
   updatedAt: string
   deployedAt: string | null
   sharedAccountCount: number | null
@@ -90,6 +99,7 @@ const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
 const settingsSchema = z.object({
   displayName: z.string().min(2, 'At least 2 characters').max(80, 'Max 80 characters'),
   systemPrompt: z.string().min(20, 'At least 20 characters').max(4000, 'Max 4000 characters'),
+  aboutLabel: z.string().max(255, 'Max 255 characters').optional(),
   tone: z.string().optional(),
   language: z.string().optional(),
   behaviorRules: z.string().optional(),
@@ -284,7 +294,7 @@ export default function AgentDetailPage() {
                 </div>
                 <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
                   <Phone className="h-3.5 w-3.5" />
-                  {agent.phoneNumberId ?? 'No number connected'}
+                  {agent.displayPhoneNumber ?? agent.phoneNumberId ?? 'No number connected'}
                 </p>
               </div>
             </div>
@@ -1222,7 +1232,14 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isEditing ? 'Save changes' : 'Add'}
+              {/* "Publish" not "Save" (2026-08-13, item 8) — this submit is a
+                  real, immediate write to Meta's agent_connectors API, not a
+                  local draft. Note: connector creation currently fails
+                  against real Meta regardless of payload — see
+                  wiki/bugs-violations/connector-creation-never-succeeds-2026-08-13.md,
+                  an escalated, unresolved Meta-side issue, not a bug in this
+                  form. */}
+              {isEditing ? 'Publish changes' : 'Publish connector'}
             </button>
             <button
               type="button"
@@ -1760,8 +1777,6 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
   const [saved, setSaved] = useState(false)
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [confirmName, setConfirmName] = useState('')
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [showDeleteFromMetaModal, setShowDeleteFromMetaModal] = useState(false)
   const [showEventModal, setShowEventModal] = useState(false)
 
@@ -1776,6 +1791,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
     defaultValues: {
       displayName: agent.displayName,
       systemPrompt: agent.systemPrompt ?? '',
+      aboutLabel: agent.aboutLabel ?? '',
       tone: agent.tone ?? '',
       language: agent.language ?? '',
       behaviorRules: agent.behaviorRules ?? '',
@@ -1793,6 +1809,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       api.put(`/agents/${agent.id}`, {
         displayName: values.displayName,
         systemPrompt: values.systemPrompt,
+        aboutLabel: values.aboutLabel || null,
         tone: values.tone || null,
         language: values.language || null,
         behaviorRules: values.behaviorRules || null,
@@ -1808,13 +1825,20 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
     onError: (err) => setServerError(extractErrorMessage(err)),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: () => api.delete(`/agents/${agent.id}`),
-    onSuccess: onDeleted,
-    onError: (err) => setDeleteError(extractErrorMessage(err)),
+  // Handoff is the only Settings-tab field Meta's API actually accepts
+  // (agent_config/settings handoff.{enabled,message}) — tone/language/
+  // behaviorRules/systemPrompt/aboutLabel/displayName have no matching Meta
+  // endpoint at all, they're local-only product fields, so "publish" only
+  // applies to handoff here. A save reaching our DB does NOT mean Meta has
+  // it — handoffPublishedAt (V49) is the only source of truth for that.
+  const handoffIsDraft = !agent.handoffPublishedAt || new Date(agent.updatedAt) > new Date(agent.handoffPublishedAt)
+  const publishHandoffMutation = useMutation({
+    mutationFn: () => api.post(`/agents/${agent.id}/settings/publish-handoff`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent', agent.id] })
+    },
+    onError: (err) => setServerError(extractErrorMessage(err)),
   })
-
-  const nameMatches = confirmName.trim() === agent.displayName.trim()
 
   return (
     <div className="space-y-6">
@@ -1866,6 +1890,29 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
               </div>
               <p className="text-xs text-muted-foreground shrink-0 ml-4">{promptLength}/4000</p>
             </div>
+          </div>
+
+          {/* aboutLabel — Figma 8.1 "About" column on the Agents list */}
+          <div className="space-y-1.5">
+            <label htmlFor="s-aboutLabel" className="block text-sm font-medium text-foreground">
+              Short label
+            </label>
+            <p className="text-xs text-muted-foreground">
+              A brief note shown in the Agents list (e.g. "Handles bulk grocery orders"). Optional.
+            </p>
+            <input
+              id="s-aboutLabel"
+              type="text"
+              maxLength={255}
+              placeholder="e.g. Handles bulk grocery orders"
+              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
+                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
+                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
+              {...register('aboutLabel')}
+            />
+            {errors.aboutLabel && (
+              <p className="text-xs text-destructive">{errors.aboutLabel.message}</p>
+            )}
           </div>
 
           {/* tone */}
@@ -1925,11 +1972,24 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
           <div className="space-y-2.5 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div>
-                <label htmlFor="s-handoffEnabled" className="block text-sm font-medium text-foreground">
-                  Human handoff
-                </label>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="s-handoffEnabled" className="block text-sm font-medium text-foreground">
+                    Human handoff
+                  </label>
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      handoffIsDraft
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-brand-green/10 text-brand-green',
+                    )}
+                  >
+                    {handoffIsDraft ? 'Draft — not on Meta' : 'Published to Meta'}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Let the agent hand a conversation to a human when it can't help.
+                  Let the agent hand a conversation to a human when it can't help. Saving above stores your
+                  choice locally; nothing reaches Meta until you publish it below.
                 </p>
               </div>
               <button
@@ -1971,6 +2031,24 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
                 )}
               </div>
             )}
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={!agent.phoneNumberId || isDirty || !handoffIsDraft || publishHandoffMutation.isPending}
+                onClick={() => publishHandoffMutation.mutate()}
+                title={!agent.phoneNumberId ? 'Connect a phone number first' : isDirty ? 'Save your changes above first' : undefined}
+                className="flex items-center gap-2 rounded-lg border border-accent-teal-solid px-4 py-2
+                  text-sm font-medium text-accent-teal-solid transition-opacity hover:opacity-90
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {publishHandoffMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                Publish handoff to Meta
+              </button>
+              {publishHandoffMutation.isSuccess && (
+                <span className="text-sm font-medium text-brand-green">Live on Meta!</span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -1982,9 +2060,15 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save changes
+              Publish
             </button>
-            {saved && <span className="text-sm font-medium text-brand-green">Saved!</span>}
+            {/* Per-tab draft indicator, not a global one (2026-08-13 founder
+                decision — see wiki/decisions/). isDirty here is react-hook-form's
+                own dirty tracking against defaultValues, which already IS the
+                draft-vs-live comparison for this tab: nothing is written to
+                /agents/{id} until Publish is clicked. */}
+            {isDirty && !saved && <StatusIndicator label="Draft — not yet published" tone="warning" />}
+            {saved && <span className="text-sm font-medium text-brand-green">Published!</span>}
           </div>
         </form>
       </div>
@@ -1995,7 +2079,7 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         {agent.phoneNumberId ? (
           <div className="flex items-center justify-between">
             <p className="text-sm text-foreground">
-              Connected: <span className="font-medium">{agent.phoneNumberId}</span>
+              Connected: <span className="font-medium">{agent.displayPhoneNumber ?? agent.phoneNumberId}</span>
             </p>
             <button
               onClick={() => {
@@ -2054,13 +2138,22 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-destructive">Delete this agent</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Permanently deletes this agent and all its data. This cannot be undone. Active
-              conversations will be dropped.
+              Clears this agent's persona, connectors and skills on Meta, removes its configuration
+              from the phone number, then deletes it and all its data here. This cannot be undone.
+              Active conversations will be dropped.
             </p>
+            {agent.phoneNumberId && agent.status !== 'paused' && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Pause this agent first — deleting changes its configuration on Meta, which must not
+                happen while it's still answering customers.
+              </p>
+            )}
             <button
-              onClick={() => { setShowDeleteModal(true); setConfirmName(''); setDeleteError(null) }}
+              onClick={() => setShowDeleteModal(true)}
+              disabled={!!agent.phoneNumberId && agent.status !== 'paused'}
               className="mt-4 flex items-center gap-2 rounded-lg border border-destructive px-4 py-2
-                text-sm font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white"
+                text-sm font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white
+                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
               Delete agent
@@ -2098,59 +2191,16 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
         </div>
       </div>
 
-      {/* Delete confirmation modal — routed through the shared Modal primitive
-          (EL-caught regression, 2026-08-07 audit: this was a 10th hand-rolled
-          `fixed inset-0` overlay despite the 2026-08-05 fix covering 9 others). */}
+      {/* Delete = Meta teardown + local cleanup, with a per-step report when
+          Meta doesn't come away clean. See DeleteAgentModal. */}
       {showDeleteModal && (
-        <Modal
-          title={`Delete "${agent.displayName}"?`}
+        <DeleteAgentModal
+          agentId={agent.id}
+          agentName={agent.displayName}
+          phoneNumberId={agent.phoneNumberId}
           onClose={() => setShowDeleteModal(false)}
-          preventClose={deleteMutation.isPending}
-          maxWidthClassName="max-w-md"
-        >
-          <ConsequenceLine tone="warning">
-            This action is permanent and cannot be undone. Type{' '}
-            <strong className="font-semibold text-foreground">{agent.displayName}</strong> to
-            confirm.
-          </ConsequenceLine>
-
-          {deleteError && (
-            <div className="mt-3">
-              <ErrorBanner error={deleteError} />
-            </div>
-          )}
-
-          <input
-            type="text"
-            value={confirmName}
-            onChange={(e) => setConfirmName(e.target.value)}
-            placeholder={agent.displayName}
-            autoFocus
-            className="mt-4 w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:border-destructive transition"
-          />
-
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => deleteMutation.mutate()}
-              disabled={!nameMatches || deleteMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
-                text-sm font-semibold text-white transition-opacity hover:opacity-90
-                disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Delete permanently
-            </button>
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              disabled={deleteMutation.isPending}
-              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
+          onDeleted={onDeleted}
+        />
       )}
 
       {showConnectModal && (
@@ -2201,7 +2251,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
     enabled: !!phoneNumberId,
   })
   const whatsappEntry = settingsQuery.data?.find((e) => e.channel === 'whatsapp')
-  const currentAudience: 'EVERYONE' | 'ALLOWLISTED_ONLY' = whatsappEntry?.ai_audience ?? 'EVERYONE'
+  const liveAudience: 'EVERYONE' | 'ALLOWLISTED_ONLY' = whatsappEntry?.ai_audience ?? 'EVERYONE'
 
   const allowlistQuery = useQuery({
     queryKey: ['agent-allowlist', agentId],
@@ -2210,11 +2260,16 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
   })
   const allowlist = allowlistQuery.data ?? []
 
-  const audienceMutation = useMutation({
-    mutationFn: (ai_audience: string) => api.put(`/agents/${agentId}/settings/audience`, { ai_audience }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agent-settings', agentId] }),
-    onError: (err) => setError(extractErrorMessage(err)),
+  // Draft/publish (2026-08-13): toggling this switch used to fire the PUT
+  // immediately. Founder wants edits held as a local draft with their own
+  // per-tab Publish action — this is the first real usage of the shared
+  // useDraftPublish hook (see frontend/src/hooks/useDraftPublish.ts).
+  const audienceDraft = useDraftPublish<'EVERYONE' | 'ALLOWLISTED_ONLY'>({
+    liveValue: liveAudience,
+    publish: (ai_audience) => api.put(`/agents/${agentId}/settings/audience`, { ai_audience }),
+    onPublished: () => queryClient.invalidateQueries({ queryKey: ['agent-settings', agentId] }),
   })
+  const currentAudience = audienceDraft.draft
 
   const addMutation = useMutation({
     mutationFn: (consumer_phone_number: string) =>
@@ -2239,14 +2294,14 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
     if (currentAudience === 'EVERYONE') {
       // Guard (PM condition, 2026-08-04): never let ALLOWLISTED_ONLY go live
       // with zero numbers — that silently blocks every consumer with no
-      // visible explanation.
+      // visible explanation. Still enforced at draft time, before Publish.
       if (allowlist.length === 0) {
         setError('Add at least one number to the allowlist before restricting the audience.')
         return
       }
-      audienceMutation.mutate('ALLOWLISTED_ONLY')
+      audienceDraft.setDraft('ALLOWLISTED_ONLY')
     } else {
-      audienceMutation.mutate('EVERYONE')
+      audienceDraft.setDraft('EVERYONE')
     }
   }
 
@@ -2254,7 +2309,10 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
     <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Audience</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">Audience</h3>
+            {audienceDraft.isDirty && <StatusIndicator label="Draft — not yet published" tone="warning" />}
+          </div>
           <p className="text-xs text-muted-foreground">
             Restrict responses to specific numbers — for testing before launch or a client-controlled phased rollout.
           </p>
@@ -2263,7 +2321,7 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
           type="button"
           role="switch"
           aria-checked={currentAudience === 'ALLOWLISTED_ONLY'}
-          disabled={audienceMutation.isPending || settingsQuery.isLoading}
+          disabled={settingsQuery.isLoading}
           onClick={handleToggleAudience}
           className={cn(
             'relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50',
@@ -2285,6 +2343,30 @@ function AudienceSection({ agentId, phoneNumberId }: { agentId: string; phoneNum
         </p>
       )}
 
+      {audienceDraft.isDirty && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={audienceDraft.publish}
+            disabled={audienceDraft.isPublishing}
+            className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
+              text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {audienceDraft.isPublishing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Publish
+          </button>
+          <button
+            type="button"
+            onClick={audienceDraft.resetDraft}
+            disabled={audienceDraft.isPublishing}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Discard draft
+          </button>
+        </div>
+      )}
+
+      {audienceDraft.publishError != null && <ErrorBanner error={audienceDraft.publishError} />}
       {error && <ErrorBanner error={error} />}
 
       <div className="space-y-2">

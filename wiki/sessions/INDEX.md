@@ -5,6 +5,9 @@ tags: [sessions, index, changelog]
 
 # Sessions — Running Changelog
 
+## 2026-08-13
+- [[session-2026-08-13|Session 2026-08-13]] — Full 8-series Figma build (Agents home/library/wizard), reusable-library pattern extended to Connectors, demo WABA + test-agent DB cleanup, real agent-delete cascade bug found and fixed, and the first fully live end-to-end agent deploy (create → persona → FAQ → skill → deploy → real Meta test response)
+
 ## 2026-08-04
 - [[session-2026-08-04|Session 2026-08-04]] — Iris redesigned 3x (brand polish → Claude-like → chat history sidebar), WABA picker removed from Iris, self-caught TSID serialization bug, deployment saga (wrong bastion, stray jar trap), local full-stack Docker test environment set up
 

@@ -24,5 +24,26 @@ else if value.statuses exists → normal status webhook, existing status-process
 - The distinguishing check is structural (is `messages` nested under `standby`, or is it top-level), not a field-name check.
 - `biz_opaque_callback_data: {"originator":"bizai","channel":"ent"}` appears on BizAI-originated echoes — useful for confirming a message's origin during debugging, not required for the handoff branch itself.
 
-## Open item
-Full webhook payload schemas (messages, standby) are now available via this pilot capture — `docs/meta-api/INDEX.md` "Still Missing" list should be updated to remove this item.
+## `message_echoes[]` real shape (verified 2026-08-13 against live traffic)
+The row above only says the echo lives at `value.standby.message_echoes[]` — it does NOT say what's inside one. That was guessed once (flat: `{to, id, type, text}` directly on the array element) and the guess was wrong, silently dropping every real BizAI reply for hours before being caught. The real, confirmed shape nests the actual message one level deeper, under a `message` key:
+
+```json
+"message_echoes": [{
+  "id": "wamid.HBgMOTE4NTAwOTk2NzQwFQIAERgSOUNBQzZCNzhCMzg3MjcwNjlBAA==",
+  "message": {
+    "to": "918500996740",
+    "text": { "body": "Let me connect you with a human IndiaMART representative for this.", "preview_url": "true" },
+    "type": "text",
+    "recipient": "IN.26874087912280326",
+    "recipient_type": "individual",
+    "biz_opaque_callback_data": "{\"originator\":\"bizai\",\"channel\":\"ent\"}"
+  },
+  "timestamp": "1786647759"
+}]
+```
+
+`id` is on the echo entry itself; `to`/`type`/`text.body`/`recipient`/`recipient_type`/`biz_opaque_callback_data` are all under `message`. See [[../../wiki/bugs-violations/echo-parser-wrong-nesting-2026-08-13|the incident this shape correction came from]] for the full story — real customer replies were sent but never persisted because of the wrong assumption.
+
+## Open items
+- Full webhook payload schemas (messages, standby) are now available via this pilot capture — `docs/meta-api/INDEX.md` "Still Missing" list should be updated to remove this item.
+- **Human handoff's own webhook shape is still unverified against real traffic** (whatever payload arrives at the moment BizAI actually hands off to a human, as opposed to the `standby`-absent inference this doc already documents). Given `message_echoes[]`'s shape was wrong on first guess, do not assume any related shape is correct until checked against a real captured payload in `webhook_raw` — the table persists every payload unconditionally regardless of whether any parser recognizes it, so the real shape is always retrievable when it actually occurs.

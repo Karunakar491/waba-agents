@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-12 (slice 9, --primary retired)",
+    "lastUpdated": "2026-08-13 (agent delete = real Meta teardown)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -138,11 +138,11 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/AgentController.java",
-      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind. PUT /{id}/settings/audience (2026-08-04) makes ai_audience operator-settable for the first time (previously read-and-preserved only); GET/POST /{id}/allowlist + DELETE /{id}/allowlist/{entryId} — real use case: QA against test numbers, client-controlled phased rollouts. F22 (2026-08-07): GET/POST /{id}/ui-skills, GET/PUT/DELETE /{id}/ui-skills/{uiSkillId} — rich-message component skills, distinct Meta surface from plain skills."
+      "purpose": "Agent REST endpoints - CRUD incl PUT /{id}, POST /generate-defaults (Claude wizard defaults), deploy/pause, GET /{id}/settings, POST /{id}/thread-control/release, skills/faq/files/websites subresources (2026-07-28: GET-list/GET-single/PUT added for skills/faq/websites, GET-list/single for files — closes the CRUD-completeness gap found via live testing), connectors GET-single/PUT/logs, tools POST /run, phone bind. PUT /{id}/settings/audience (2026-08-04) makes ai_audience operator-settable for the first time (previously read-and-preserved only); GET/POST /{id}/allowlist + DELETE /{id}/allowlist/{entryId} — real use case: QA against test numbers, client-controlled phased rollouts. F22 (2026-08-07): GET/POST /{id}/ui-skills, GET/PUT/DELETE /{id}/ui-skills/{uiSkillId} — rich-message component skills, distinct Meta surface from plain skills. 2026-08-13: DELETE /{id} now returns ApiResponse<AgentDeleteResult> via AgentTeardownService.deleteEverywhere (was ApiResponse<Void> + DB-only AgentService.deleteAgent)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentRequest.java",
-      "purpose": "Agent create/update request DTO — name, customerFacingName, businessDescription, systemPrompt, tone, language, behaviorRules, handoffEnabled/handoffMessage"
+      "purpose": "Agent create/update request DTO — name, customerFacingName, businessDescription, systemPrompt, aboutLabel (2026-08-13, Figma 8.1 About column — short human label, distinct from systemPrompt), tone, language, behaviorRules, handoffEnabled/handoffMessage"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/BindPhoneRequest.java",
@@ -178,11 +178,75 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/ConnectorDtos.java",
-      "purpose": "ConnectorRow (aggregate Connectors table row) + ConnectorListResponse. 2026-08-05: added status field, populated from Meta's connection_status.status in AgentDeployService.listConnectorsForWaba — previously absent, causing the frontend to hardcode 'Connected' regardless of real state."
+      "purpose": "ConnectorRow (aggregate Connectors table row) + ConnectorListResponse. 2026-08-05: added status field from Meta's connection_status.status. 2026-08-13: reverses the 2026-07-30 'no local mirror' call — row now also carries authType/baseUrl (Meta), systemType/tags/publishedToLibrary (ours, from agent_connector mirror V45), usedByAgentCount (HEURISTIC: name+base_url, Meta gives connectors no cross-agent identity), and cached/lastSyncedAt for the Meta-unreachable fallback. ConnectorListResponse gained a top-level cached flag."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentConnector.java",
+      "purpose": "2026-08-13 — local mirror of one Meta connector (table agent_connector, V45). Meta-owned columns (name/description/base_url/auth_type/status/requires_certificate) are overwritten on every live read; system_type/tags/published_to_library are ours and sync never touches them. NO credential material is stored here by design (no auth_config, api keys, oauth secrets, certificates) — Meta stays sole custodian. identity_key is our own heuristic cross-agent join key."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/repository/AgentConnectorRepository.java",
+      "purpose": "2026-08-13 — findByAgentIdAndMetaConnectorId (upsert lookup), findAllByAgentId (Meta-unreachable fallback), findAllByAgentIdIn (batched WABA rollup)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/ConnectorMirrorService.java",
+      "purpose": "2026-08-13 — upsert-on-read sync for the connector mirror. syncFromMeta writes back what Meta just returned; cachedFor/cachedForAgents serve the fallback; toMetaShape re-renders a mirror row in Meta's own response shape with cached:true; usedByAgentCounts does the heuristic cross-agent count; guessSystemType seeds a vendor label from base_url on FIRST INSERT ONLY so an operator correction is never stomped."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V45__create_agent_connector_mirror.sql",
+      "purpose": "2026-08-13 — CREATE TABLE agent_connector (additive, no drops/renames). Unique key (agent_id, meta_connector_id) because Meta connector ids are scoped to a phone number id, not globally unique."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V46__create_connector_library.sql",
+      "purpose": "2026-08-13 — CREATE TABLE connector + connector_deployment (additive). The REUSABLE LIBRARY layer above V45's agent_connector cache: connector is our own WABA-scoped definition (mirrors skill, V20), connector_deployment is one definition on one agent carrying the per-agent meta_connector_id (mirrors agent_skill_attachment). connector.auth_config_shape holds FIELD NAMES ONLY, never credential values."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/entity/Connector.java",
+      "purpose": "2026-08-13 — reusable Connector Library definition (table connector, V46). Named Connector not ConnectorTemplate deliberately: the Skill Library's WABA-scoped library row is Skill and the Template suffix is reserved for the global curated catalog (SkillTemplate), which connectors don't have. Editing never touches Meta. Never stores credential values."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/entity/ConnectorDeployment.java",
+      "purpose": "2026-08-13 — one library Connector deployed onto one agent (V46). meta_connector_id lives here, not on Connector, because Meta scopes connector ids per phone number. Makes 'Used by N agents' a real COUNT(*) instead of V45's name+base_url heuristic. Carries deployedAt (compare to connector.updatedAt for out-of-sync) and lastError so a failed deploy is visible."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/repository/ConnectorRepository.java",
+      "purpose": "2026-08-13 — findAllByWabaId (internal use only; callers must pass WabaAccessGuard first)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/repository/ConnectorDeploymentRepository.java",
+      "purpose": "2026-08-13 — findByConnectorIdAndAgentId (deploy upsert), findAllByConnectorIdIn/findAllByAgentIdIn (batched rollups), findAllByConnectorId (delete guard)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/dto/ConnectorLibraryDtos.java",
+      "purpose": "2026-08-13 — Create/Update/Deploy requests + ConnectorResponse/DeploymentView/AuthShape. AuthShape is names-only (header field_name, OAuth token_url/scopes/client_id). DeployRequest.secrets is the ONLY credential-bearing field anywhere in the library layer: write-only, forwarded to Meta, never persisted."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/service/ConnectorLibraryService.java",
+      "purpose": "2026-08-13 — same shape as SkillLibraryService: create/list/update/publish/delete are DB-only; deploy(connectorId, agentId, secrets) is the ONLY path that reaches Meta (POST agent_connectors, or PUT when redeploying an existing deployment, plus upsertCertificate when mTLS PEM is supplied). Deliberately NOT @Transactional so a Meta failure still persists last_error. listLiveForWaba wraps AgentDeployService.listConnectorsForWaba and replaces the heuristic count with the real deployment count wherever a live row's meta id matches one of our deployments."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/controller/ConnectorController.java",
+      "purpose": "GET /api/v1/connectors?wabaId — the live cross-agent rollup. 2026-08-13 (V46): now delegates to ConnectorLibraryService.listLiveForWaba instead of AgentDeployService directly, so library-deployed rows report a real used-by count. (Entry added 2026-08-13; the file itself predates it and was missing from this index.)"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/connector/controller/ConnectorLibraryController.java",
+      "purpose": "2026-08-13 — /api/v1/connector-library CRUD + /{id}/publish + /{id}/deploy. Separate from /api/v1/connectors, which stays the live Meta rollup."
+    },
+    {
+      "path": "frontend/src/components/connectors/connectorLibrary.ts",
+      "purpose": "2026-08-13 — LibraryConnector/AuthShape/LibraryDeployment types + form<->request mapping + requiredSecretFields (which credential values a deploy needs). Only one API-key header is modelled: no second real case exists yet."
+    },
+    {
+      "path": "frontend/src/components/connectors/ConnectorDefinitionEditor.tsx",
+      "purpose": "2026-08-13 — inline create/edit panel for a library connector (inline, not Modal — same call as the Persona draft editor). Deliberately has NO field to type a secret into; the copy says so."
+    },
+    {
+      "path": "frontend/src/components/connectors/ConnectorDeployModal.tsx",
+      "purpose": "2026-08-13 — deploy-to-agent picker + the one place credentials are typed. Modal (not inline) because it's a one-decision commitment reaching a live agent. Pre-selects the agent when only one target is passed (the Create-Agent wizard passes exactly one)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/Agent.java",
-      "purpose": "Agent entity - TSID PK (JSON string via ToStringSerializer), accountId (informational creator only post-2026-07-28 decoupling, NOT access control), updatedBy (last-editor stamp), wabaId (now ToStringSerializer'd too), displayName, customerFacingName, Channel enum (locked after create), tone, language, behaviorRules, systemPrompt, Status, phone binding, handoffEnabled/handoffMessage, sharedAccountCount (transient, populated by AgentAccessService), faqReconciledAt/fileReconciledAt/websiteReconciledAt (TASK-059/062 — one TTL gate per domain so reconciliation doesn't call Meta on every read; shared constant is AgentService.META_RECONCILE_TTL_MINUTES)"
+      "purpose": "Agent entity - TSID PK (JSON string via ToStringSerializer), accountId (informational creator only post-2026-07-28 decoupling, NOT access control), updatedBy (last-editor stamp), wabaId (now ToStringSerializer'd too), displayName, customerFacingName, Channel enum (locked after create), tone, language, behaviorRules, systemPrompt, aboutLabel (V42 migration, 2026-08-13 — Figma 8.1 About column, short human label e.g. \"Handles bulk grocery orders\", NOT a reuse/truncation of systemPrompt), Status, phone binding, handoffEnabled/handoffMessage, sharedAccountCount (transient, populated by AgentAccessService), faqReconciledAt/fileReconciledAt/websiteReconciledAt (TASK-059/062 — one TTL gate per domain so reconciliation doesn't call Meta on every read; shared constant is AgentService.META_RECONCILE_TTL_MINUTES)"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/entity/AgentFaq.java",
@@ -246,7 +310,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentDeployService.java",
-      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (now includes include_stats/summary_only/top_n params, 2026-08-03), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; getTool/updateTool (tool GET-single/PUT) and upsertConnectorApiKey/upsertConnectorCertificate/upsertConnectorOAuth (credential rotation, connectors.md) added 2026-08-03 — previously deferred, no longer deferred; listConnectorsForWaba now extracts connection_status.status from Meta's raw connector JSON into ConnectorRow.status (2026-08-05 fix — was silently dropped, causing the aggregate Connectors table to hardcode 'Connected' for every row regardless of real state); settings PUT is now a real read-modify-write preserving followup/ai_audience instead of hardcoding them (2026-08-03 Wave 1a fix); updateAiAudience (2026-08-04) makes ai_audience operator-settable for the first time — same read-modify-write as putSettings but ABORTS (does not guess from local Agent.status) if the live read fails, since unlike deploy()/pause() there's no caller-supplied rollout truth to fall back on (EL round-1 REJECT caught the original guessing fallback as a silent-rollout-flip risk); getAllowlist/addToAllowlist/removeFromAllowlist (allowlist.md) added same pass — thin proxies matching Meta's actual add-one/list/delete-by-id shape, deliberately not a full-replace abstraction"
+      "purpose": "Deploy/pause via Meta settings PUT — deploy blocked until phone bound; Meta first, DB second; handoff enabled/message sent from real per-agent Agent fields; releaseThreadControl proxies to ThreadControlClient; deleteFromMeta (delete_agent, requires PAUSED, resets agent to draft) and triggerEvent/getEventStatus (agent_event thin proxy) added; connector/tool methods + putSettings all use MetaApiClient.scopedPath() for agent_id query-param scoping (2026-07-28 fix — real Meta 400s confirmed via live Selenium testing once an agent already has a metaAgentId); getSettings (read-through), getConnector/updateConnector/getConnectorLogs (now includes include_stats/summary_only/top_n params, 2026-08-03), runTool (P0 per PM — the actual connector validation mechanism) all added same pass; getTool/updateTool (tool GET-single/PUT) and upsertConnectorApiKey/upsertConnectorCertificate/upsertConnectorOAuth (credential rotation, connectors.md) added 2026-08-03 — previously deferred, no longer deferred; listConnectorsForWaba now extracts connection_status.status from Meta's raw connector JSON into ConnectorRow.status (2026-08-05 fix — was silently dropped, causing the aggregate Connectors table to hardcode 'Connected' for every row regardless of real state); settings PUT is now a real read-modify-write preserving followup/ai_audience instead of hardcoding them (2026-08-03 Wave 1a fix); updateAiAudience (2026-08-04) makes ai_audience operator-settable for the first time — same read-modify-write as putSettings but ABORTS (does not guess from local Agent.status) if the live read fails, since unlike deploy()/pause() there's no caller-supplied rollout truth to fall back on (EL round-1 REJECT caught the original guessing fallback as a silent-rollout-flip risk); getAllowlist/addToAllowlist/removeFromAllowlist (allowlist.md) added same pass — thin proxies matching Meta's actual add-one/list/delete-by-id shape, deliberately not a full-replace abstraction. 2026-08-13 connector mirror: listConnectors and listConnectorsForWaba now upsert into agent_connector (V45) on every successful live read via ConnectorMirrorService, and fall back to the last-synced mirror rows (flagged cached, never passed off as live) when Meta is unreachable — a genuine 404 is still treated as 'no connectors', not an outage. listConnectorsForWaba now returns ConnectorListResponse (rows + cached) instead of a bare List"
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentService.java",
@@ -683,8 +747,22 @@
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaAccessGuard.java",
       "purpose": "2026-08-05 (Phase 7 item 42, EM architecture-vision audit finding [BOUNDARY-RISK]): single place answering 'can this account touch this WABA' — replaces existsByWabaIdAndAccountId being hand-copied across 8+ files. requireAccess() throws NotFoundException (mirrors AgentAccessService); hasAccess() non-throwing variant for callers building their own boolean logic. Enforcement: WabaAccessGuardEnforcementTest source-scans for any new direct repository call outside the two documented idempotent-insert exceptions (WabaService.grantAccessIfMissing, WabaAgentReconciliationService.grantAccessIfMissing).",
-      "tags": ["waba", "security", "tenant-isolation"],
-      "usedBy": ["AgentService.java", "AgentDeployService.java", "SkillLibraryService.java", "TemplateStudioService.java", "KarixCredentialService.java", "KarixMessagingClient.java", "WabaService.java", "PhoneNumberAccessGuard.java", "AgentAccessService.java"]
+      "tags": [
+        "waba",
+        "security",
+        "tenant-isolation"
+      ],
+      "usedBy": [
+        "AgentService.java",
+        "AgentDeployService.java",
+        "SkillLibraryService.java",
+        "TemplateStudioService.java",
+        "KarixCredentialService.java",
+        "KarixMessagingClient.java",
+        "WabaService.java",
+        "PhoneNumberAccessGuard.java",
+        "AgentAccessService.java"
+      ]
     },
     {
       "path": "frontend/src/components/agent-detail/SkillsTab.tsx",
@@ -953,90 +1031,187 @@
     {
       "path": "karix-mcp/karix_mcp/__init__.py",
       "purpose": "Empty package marker for the karix_mcp module; contains no code.",
-      "tags": ["karix-mcp", "package-init"]
+      "tags": [
+        "karix-mcp",
+        "package-init"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/config.py",
       "purpose": "Single source of env-driven constants — Karix send/template base URLs and the MCP server's listen port.",
-      "tags": ["karix-mcp", "config"],
-      "usedBy": ["karix-mcp/karix_mcp/auth.py", "karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py"]
+      "tags": [
+        "karix-mcp",
+        "config"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/auth.py",
+        "karix-mcp/karix_mcp/server.py",
+        "karix-mcp/karix_mcp/rest.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/credentials.py",
       "purpose": "Resolves per-request Karix credentials (api_key, waba_id, esme_addr) from JWT claims injected by AuthMiddleware, falling back to env vars for single-tenant dev; sender_id is deliberately excluded from tokens and always env-resolved since agents pick it dynamically via get_sender_details().",
-      "tags": ["karix-mcp", "auth", "credentials"],
-      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/app.py", "karix-mcp/karix_mcp/api_call_logger.py", "karix-mcp/karix_mcp/rest.py"]
+      "tags": [
+        "karix-mcp",
+        "auth",
+        "credentials"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/server.py",
+        "karix-mcp/karix_mcp/app.py",
+        "karix-mcp/karix_mcp/api_call_logger.py",
+        "karix-mcp/karix_mcp/rest.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/auth.py",
       "purpose": "OAuth 2.0 authorization server for Karix MCP: validates ESME address/API key against Karix, issues/decodes HS256 JWTs, implements PKCE S256 verification and an in-memory authorization-code store, and exposes /connect/validate, /oauth/token, /oauth/authorize, and RFC 8414 metadata route handlers.",
-      "tags": ["karix-mcp", "auth", "oauth"],
-      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+      "tags": [
+        "karix-mcp",
+        "auth",
+        "oauth"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/app.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/api_call_logger.py",
       "purpose": "Logs every outbound Karix API call to the api_call_log MySQL table with allowlist-style key-name redaction of secret fields (mirroring the Java platform's ApiCallLogRedactor); never logs headers, never raises on its own failure. KNOWN GAP found live 2026-08-06 debugging a silent template-create failure: the exception branch's error field can end up empty-string (falsy), which log_call stores as NULL — masking the real failure reason behind status_code=NULL/response_body=NULL/error=NULL. Not yet fixed.",
-      "tags": ["karix-mcp", "audit-log", "db"],
-      "usedBy": ["karix-mcp/karix_mcp/karix_client.py"]
+      "tags": [
+        "karix-mcp",
+        "audit-log",
+        "db"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/karix_client.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/db.py",
       "purpose": "Thin no-ORM MySQL access layer (one connection per call via pymysql) for template_drafts, bulk_import_jobs/rows, and api_call_log tables — tenant-scoped reads by esme_addr throughout.",
-      "tags": ["karix-mcp", "db", "mysql"],
-      "usedBy": ["karix-mcp/karix_mcp/bulk_import.py", "karix-mcp/karix_mcp/template_ops.py", "karix-mcp/karix_mcp/rest.py", "karix-mcp/karix_mcp/api_call_logger.py"]
+      "tags": [
+        "karix-mcp",
+        "db",
+        "mysql"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/bulk_import.py",
+        "karix-mcp/karix_mcp/template_ops.py",
+        "karix-mcp/karix_mcp/rest.py",
+        "karix-mcp/karix_mcp/api_call_logger.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/karix_client.py",
       "purpose": "Thin HTTP wrapper around the Karix RCM/template REST API (send_message, list/get/create/delete/edit_template, upload_media) with shared retry-on-5xx and centralized audit logging via api_call_logger; documents a known Karix media-upload handle bug (error_subcode 2388084) that is surfaced, not silently patched.",
-      "tags": ["karix-mcp", "http-client", "karix-api"],
-      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py", "karix-mcp/karix_mcp/bulk_import.py", "karix-mcp/karix_mcp/template_ops.py"]
+      "tags": [
+        "karix-mcp",
+        "http-client",
+        "karix-api"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/server.py",
+        "karix-mcp/karix_mcp/rest.py",
+        "karix-mcp/karix_mcp/bulk_import.py",
+        "karix-mcp/karix_mcp/template_ops.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/validator.py",
       "purpose": "Validates a Karix-shaped template payload against Meta's real rejection rules (ported from karix-superagent's templateValidator.js) before submission — category/name/body-length checks, placeholder/example requirements, button-type rules, and a detailed AUTHENTICATION-category rule set (no header/footer, fixed {{1}} body, single OTP/COPY_CODE button, code_expiration_minutes range).",
-      "tags": ["karix-mcp", "validation", "templates"],
-      "usedBy": ["karix-mcp/karix_mcp/template_ops.py", "karix-mcp/karix_mcp/bulk_import.py"]
+      "tags": [
+        "karix-mcp",
+        "validation",
+        "templates"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/template_ops.py",
+        "karix-mcp/karix_mcp/bulk_import.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/template_ops.py",
       "purpose": "Shared template create/delete/list/get/edit/upload_media logic called by both the MCP tools (server.py) and the REST layer (rest.py) so the two entry points can never diverge; create_template validates via validator.py, persists a retryable draft row, then submits to Karix.",
-      "tags": ["karix-mcp", "templates", "template-studio"],
-      "usedBy": ["karix-mcp/karix_mcp/server.py", "karix-mcp/karix_mcp/rest.py"]
+      "tags": [
+        "karix-mcp",
+        "templates",
+        "template-studio"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/server.py",
+        "karix-mcp/karix_mcp/rest.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/templates.py",
       "purpose": "Normalizes raw Karix template list responses into compact dicts, provides list/describe with search+truncation and name/id lookup, and validates that a send's param_values count matches the template's placeholder_count.",
-      "tags": ["karix-mcp", "templates", "template-studio"],
-      "usedBy": ["karix-mcp/karix_mcp/server.py"]
+      "tags": [
+        "karix-mcp",
+        "templates",
+        "template-studio"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/server.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/builders.py",
       "purpose": "Pure functions that assemble Karix RCM sendMessage request bodies for each message type (text, template, media, reply-buttons, list menu, CTA URL) around a shared _base() envelope.",
-      "tags": ["karix-mcp", "messaging", "builders"],
-      "usedBy": ["karix-mcp/karix_mcp/server.py"]
+      "tags": [
+        "karix-mcp",
+        "messaging",
+        "builders"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/server.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/bulk_import.py",
       "purpose": "Parses an .xlsx sheet of fixed-format columns into template specs (no LLM normalization by design), persists the job/rows to MySQL, and processes template creation in a bounded background thread pool rate-limited under Karix's 100/hour cap, updating per-row and per-job status as it goes.",
-      "tags": ["karix-mcp", "bulk-import", "templates"],
-      "usedBy": ["karix-mcp/karix_mcp/rest.py"]
+      "tags": [
+        "karix-mcp",
+        "bulk-import",
+        "templates"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/rest.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/server.py",
       "purpose": "Defines the FastMCP tool surface (get_sender_details, list/describe/create/delete_template, and the send_* message tools) exposed to Convogent/Claude Desktop, wiring credential resolution, builders, templates, and template_ops together with detailed tool docstrings that double as agent-facing usage guidance.",
-      "tags": ["karix-mcp", "mcp-tools", "messaging"],
-      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+      "tags": [
+        "karix-mcp",
+        "mcp-tools",
+        "messaging"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/app.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/rest.py",
       "purpose": "Starlette REST endpoints for Template Studio (create/list/get/edit/delete template, upload media, bulk import + status, audit log) that call the exact same template_ops/bulk_import/db functions as the MCP tools, gated by the same AuthMiddleware/JWT as /sse and /mcp.",
-      "tags": ["karix-mcp", "rest-api", "template-studio"],
-      "usedBy": ["karix-mcp/karix_mcp/app.py"]
+      "tags": [
+        "karix-mcp",
+        "rest-api",
+        "template-studio"
+      ],
+      "usedBy": [
+        "karix-mcp/karix_mcp/app.py"
+      ]
     },
     {
       "path": "karix-mcp/karix_mcp/app.py",
       "purpose": "Starlette entry point wiring together the MCP SSE/streamable-HTTP transports, OAuth routes, Template Studio REST routes, and AuthMiddleware (Bearer-JWT gate on /sse, /mcp, and /api/*, live-reading JWT_SECRET each request); runs uvicorn on MCP_PORT.",
-      "tags": ["karix-mcp", "entrypoint", "auth"]
+      "tags": [
+        "karix-mcp",
+        "entrypoint",
+        "auth"
+      ]
     },
     {
       "path": "docs/knowledge-index.json",
@@ -1317,133 +1492,294 @@
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProvider.java",
       "purpose": "Closed-set enum of BYOK providers (CLAUDE, NVIDIA_LLAMA, OPENAI) each with a closed-set allowed-models list, validated server-side on every credential write; a provider must have a matching AiProviderAdapter registered before being added here. OPENAI (gpt-4o/gpt-4o-mini) added 2026-08-06 as the 3rd BYOK provider, PM+EM+EL approved (EL rejected round 1 on a stale frontend 'coming soon' cleanup, approved round 2).",
-      "tags": ["iris", "enum", "credentials", "llm-adapter"],
-      "usedBy": ["AiCredentialService.java", "AiProviderCredential.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java"]
+      "tags": [
+        "iris",
+        "enum",
+        "credentials",
+        "llm-adapter"
+      ],
+      "usedBy": [
+        "AiCredentialService.java",
+        "AiProviderCredential.java",
+        "ClaudeAdapter.java",
+        "NvidiaLlamaAdapter.java",
+        "OpenAiAdapter.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredential.java",
       "purpose": "JPA entity for BYOK AI-provider credential — account-scoped (one account-wide key, not per-WABA), stores provider/model/encryptedApiKey (via SecretEncryptor) with TSID id and created/updated timestamps.",
-      "tags": ["iris", "entity", "persistence", "credentials"],
-      "usedBy": ["AiCredentialService.java", "AiProviderCredentialRepository.java"]
+      "tags": [
+        "iris",
+        "entity",
+        "persistence",
+        "credentials"
+      ],
+      "usedBy": [
+        "AiCredentialService.java",
+        "AiProviderCredentialRepository.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredentialRepository.java",
       "purpose": "Spring Data repository for AiProviderCredential — findByAccountIdAndProvider, findAllByAccountId (one ACTIVE provider per account in practice), existsByAccountId.",
-      "tags": ["iris", "repository", "credentials"],
-      "usedBy": ["AiCredentialService.java"]
+      "tags": [
+        "iris",
+        "repository",
+        "credentials"
+      ],
+      "usedBy": [
+        "AiCredentialService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiCredentialService.java",
       "purpose": "BYOK credential CRUD — getStatus/listOptions/upsert (enforces one active provider per account, validates provider/model against AiProvider enum, encrypts key) and resolveForConversation (package-private, decrypted key, never returned via GET). EL-caught bug (2026-08-06): getStatus()/resolveForConversation() once hardcoded AiProvider.CLAUDE.name(), silently hiding a non-Claude credential — fixed to pick firstCredentialForAccount() via a new findAllByAccountId repo method instead of assuming the provider.",
-      "tags": ["iris", "service", "credentials", "security"],
-      "usedBy": ["IrisController.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "service",
+        "credentials",
+        "security"
+      ],
+      "usedBy": [
+        "IrisController.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiMessage.java",
       "purpose": "Neutral role/content message record used internally by the conversation loop and adapters — never a provider's own wire format.",
-      "tags": ["iris", "llm-adapter", "dto"],
-      "usedBy": ["AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "dto"
+      ],
+      "usedBy": [
+        "AiProviderAdapter.java",
+        "ClaudeAdapter.java",
+        "NvidiaLlamaAdapter.java",
+        "OpenAiAdapter.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiToolSpec.java",
       "purpose": "One entry in Iris's fixed tool allowlist (name/description/inputSchema/requiresConfirmation) — this Map IS the allowlist enforced in IrisConversationService before any tool executes. Two real schema bugs found+fixed 2026-08-06: (1) create_template/edit_template had no codeExpirationMinutes property, so a structurally-correct AUTHENTICATION/OTP template silently omitted a field Meta requires (found via mocked-adapter chat-scenario testing, IrisTemplateCreationScenariosTest.java); (2) components property was bare Map.of(\"type\",\"array\") with zero shape guidance, so a real live model (direct OpenAI call, no key ever touched this codebase) reliably invented Meta's message-SENDING-time shapes instead of template-CREATION-time shapes — fixed via a new COMPONENTS_SCHEMA_DESCRIPTION constant spelling out the 4 real component types (BODY/HEADER/FOOTER/BUTTONS, one BUTTONS component wrapping all buttons), live-reverified against the same real model after the fix.",
-      "tags": ["iris", "llm-adapter", "tooling"],
-      "usedBy": ["IrisConversationService.java", "AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "tooling"
+      ],
+      "usedBy": [
+        "IrisConversationService.java",
+        "AiProviderAdapter.java",
+        "ClaudeAdapter.java",
+        "NvidiaLlamaAdapter.java",
+        "OpenAiAdapter.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiTurnResult.java",
       "purpose": "Neutral result record (TEXT or TOOL_CALL) returned by every AiProviderAdapter, with text() and toolCall() factory helpers.",
-      "tags": ["iris", "llm-adapter", "dto"],
-      "usedBy": ["AiProviderAdapter.java", "ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "dto"
+      ],
+      "usedBy": [
+        "AiProviderAdapter.java",
+        "ClaudeAdapter.java",
+        "NvidiaLlamaAdapter.java",
+        "OpenAiAdapter.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderAdapter.java",
       "purpose": "Interface each BYOK provider adapter implements — provider() identity plus converse() translating Iris's neutral message/tool representation into that provider's wire format and back. IrisConversationService needs ZERO changes to add a new provider — confirmed true when NVIDIA_LLAMA and OPENAI were both added.",
-      "tags": ["iris", "llm-adapter", "interface"],
-      "usedBy": ["ClaudeAdapter.java", "NvidiaLlamaAdapter.java", "OpenAiAdapter.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "interface"
+      ],
+      "usedBy": [
+        "ClaudeAdapter.java",
+        "NvidiaLlamaAdapter.java",
+        "OpenAiAdapter.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/ClaudeAdapter.java",
       "purpose": "AiProviderAdapter for Claude — calls Anthropic Messages API directly with a per-call BYOK api key and `tools` param, parsing tool_use/text blocks into AiTurnResult; deliberately NOT built on ClaudeApiClient, which is wizard-only/platform-key/no-tool-support per its own contract.",
-      "tags": ["iris", "llm-adapter", "claude"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "claude"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/NvidiaLlamaAdapter.java",
       "purpose": "AiProviderAdapter for NVIDIA NIM (meta/llama-3.3-70b-instruct) — OpenAI-compatible wire format with 60s read timeout for the shared endpoint's cold-start latency; parses tool_calls[].function.arguments as a JSON string (unlike Claude's already-object input), wrapped in BusinessException on malformed JSON. Has a package-private test-only constructor accepting a pre-built RestClient so MockRestServiceServer tests aren't clobbered by the real constructor's requestFactory logic.",
-      "tags": ["iris", "llm-adapter", "nvidia"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "nvidia"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/OpenAiAdapter.java",
       "purpose": "AiProviderAdapter for real api.openai.com (gpt-4o/gpt-4o-mini only) — same OpenAI-compatible wire format as NvidiaLlamaAdapter, explicitly checks tool_calls for null/empty before parsing to avoid an NPE on plain-text replies.",
-      "tags": ["iris", "llm-adapter", "openai"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "llm-adapter",
+        "openai"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSession.java",
       "purpose": "JPA entity for one Iris conversation — accountId/nullable wabaId scoping, auto-derived title (set once from a truncated first-user-message, never reset), and pendingToolName/pendingToolArgsJson holding a mutating tool call's exact args awaiting confirmation (confirm() always replays these persisted args, never a fresh model message — that's what \"confirm-before-submit\" means at the data layer). id serialized via ToStringSerializer (TSID precision fix, 2026-08-04 — 18-digit values exceed JS Number.MAX_SAFE_INTEGER, same class of bug already solved once for WabaResponse).",
-      "tags": ["iris", "entity", "persistence", "chat"],
-      "usedBy": ["IrisSessionRepository.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "entity",
+        "persistence",
+        "chat"
+      ],
+      "usedBy": [
+        "IrisSessionRepository.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionRepository.java",
       "purpose": "Spring Data repository for IrisSession — existsByIdAndAccountId for ownership checks, findByAccountIdOrderByUpdatedAtDesc via a lightweight summary projection for the sidebar list.",
-      "tags": ["iris", "repository", "persistence"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "repository",
+        "persistence"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionSummaryProjection.java",
       "purpose": "Spring Data interface projection (id/title/updatedAt only) so the sidebar session list never hydrates the pending_tool_args_json TEXT column.",
-      "tags": ["iris", "projection", "persistence"],
-      "usedBy": ["IrisSessionRepository.java"]
+      "tags": [
+        "iris",
+        "projection",
+        "persistence"
+      ],
+      "usedBy": [
+        "IrisSessionRepository.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessage.java",
       "purpose": "JPA entity for one Iris chat-history message (USER/ASSISTANT/TOOL role) with content, optional toolName/toolArgsJson, and createdAt timestamp.",
-      "tags": ["iris", "entity", "persistence", "chat"],
-      "usedBy": ["IrisMessageRepository.java", "IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "entity",
+        "persistence",
+        "chat"
+      ],
+      "usedBy": [
+        "IrisMessageRepository.java",
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessageRepository.java",
       "purpose": "Spring Data repository for IrisMessage — findAllBySessionIdOrderByCreatedAtAsc loads a session's chronological transcript.",
-      "tags": ["iris", "repository", "persistence"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "repository",
+        "persistence"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/CreateSessionRequest.java",
       "purpose": "Request body record for POST /sessions — carries the (nullable) wabaId a new Iris session is scoped to.",
-      "tags": ["iris", "dto", "controller"],
-      "usedBy": ["IrisController.java"]
+      "tags": [
+        "iris",
+        "dto",
+        "controller"
+      ],
+      "usedBy": [
+        "IrisController.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/SendMessageRequest.java",
       "purpose": "Validated request body record for POST /sessions/{id}/messages — requires non-blank text.",
-      "tags": ["iris", "dto", "controller"],
-      "usedBy": ["IrisController.java"]
+      "tags": [
+        "iris",
+        "dto",
+        "controller"
+      ],
+      "usedBy": [
+        "IrisController.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/UpsertAiCredentialRequest.java",
       "purpose": "Validated request body record for PUT /credential — requires non-blank provider, model, and apiKey.",
-      "tags": ["iris", "dto", "controller", "credentials"],
-      "usedBy": ["IrisController.java"]
+      "tags": [
+        "iris",
+        "dto",
+        "controller",
+        "credentials"
+      ],
+      "usedBy": [
+        "IrisController.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisController.java",
       "purpose": "REST controller for Iris under /api/v1/templates/iris — session create/list, message get/send, confirm/cancel pending tool action, and credential status/options/upsert endpoints.",
-      "tags": ["iris", "controller", "rest"]
+      "tags": [
+        "iris",
+        "controller",
+        "rest"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/KarixMessagingClient.java",
       "purpose": "Calls Karix's real sendMessage API directly (bypassing karix-mcp, which has no send endpoint) for Iris's send_test_template tool — founder's explicit call to bypass karix-mcp since Karix's send API only needs a plain api_key Bearer header, no OAuth exchange. Reuses TemplateStudioService.resolveCredential (made public for this reuse). 2026-08-05 roadmap item 26: gained parameterValues support, built into Karix's positional {\"0\": v0, \"1\": v1, ...} map — previously always sent an empty map, so ANY templated placeholder, including an AUTHENTICATION template's {{1}} OTP code, silently failed to fill on send. NEEDS LIVE VALIDATION — no test WABA with an approved AUTHENTICATION template existed yet to confirm the OTP button fills from the same positional value as the body placeholder.",
-      "tags": ["iris", "tooling", "karix", "messaging"],
-      "usedBy": ["IrisConversationService.java"]
+      "tags": [
+        "iris",
+        "tooling",
+        "karix",
+        "messaging"
+      ],
+      "usedBy": [
+        "IrisConversationService.java"
+      ]
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisConversationService.java",
       "purpose": "Iris's core tool-calling loop — builds system prompt with every WABA the account can see (2026-08-04: asks which one if 2+, uses the only one silently if 1, always names the resolved WABA back to the operator), dispatches to the account's configured AiProviderAdapter, enforces the fixed create/edit/list/send_test tool allowlist with confirm-before-submit for mutating tools (pending args persisted on IrisSession, replayed verbatim on confirm). Tenant isolation: hard-rejects any model-supplied wabaId not in the account's own WABA list BEFORE dispatching to TemplateStudioService/KarixMessagingClient — on top of, not instead of, those services' own access checks; the one chokepoint all Iris tool dispatch passes through. conversationHistory() is the single shared USER/ASSISTANT-filtered read path for both sendMessage()'s model-history-building and the getMessages() endpoint, deliberately factored out so the two can't drift on what counts as displayable conversation vs internal tool bookkeeping. 2026-08-12: added INFO logging at sendMessage/confirmPendingAction/executeTool (tool selected, wabaId, result keys) — was previously the single biggest logging gap in the codebase (zero log statements). Also fixed a real bug found by live-testing: system prompt now explicitly tells the model the app already handles confirmation via the tool call itself, since the model was asking \"shall I proceed?\" in prose instead of calling create_template, silently skipping the whole confirm flow.",
-      "tags": ["iris", "service", "tooling", "orchestration"],
-      "usedBy": ["IrisController.java"]
+      "tags": [
+        "iris",
+        "service",
+        "tooling",
+        "orchestration"
+      ],
+      "usedBy": [
+        "IrisController.java"
+      ]
     },
     {
       "path": "frontend/src/hooks/useSelectedWaba.ts",
@@ -1487,7 +1823,11 @@
     },
     {
       "path": "frontend/src/components/connectors/ConnectorsTable.tsx",
-      "purpose": "Aggregate Connectors table row renderer (used by ConnectorLibraryPage). ConnectorRow now carries a real status field (2026-08-05) — rendered as dot+plain-text via statusDotColor/statusLabel, not a tinted pill; previously hardcoded 'Connected' for every row."
+      "purpose": "Aggregate Connectors table row renderer (used by ConnectorLibraryPage). ConnectorRow now carries a real status field (2026-08-05) — rendered as dot+plain-text via statusDotColor/statusLabel, not a tinted pill; previously hardcoded 'Connected' for every row. 2026-08-13: the exported ConnectorRow interface (shared with ConnectorLibraryPage) gained authType/baseUrl/systemType/tags/publishedToLibrary/usedByAgentCount/cached/lastSyncedAt from the V45 connector mirror; the table itself still renders name/status/agent only. 2026-08-13 (V46): also gained libraryConnectorId — set when the live row is a deployment of a Connector Library definition, in which case usedByAgentCount is a real COUNT(*) rather than the heuristic."
+    },
+    {
+      "path": "frontend/src/pages/ConnectorLibraryPage.tsx",
+      "purpose": "Cross-agent Connectors Library card grid. 2026-08-13: system-type and auth-type chips are now real data (backed by agent_connector V45) instead of the previously-flagged gap; usageLine shows 'used by N agents' only when N>1 since that count is a heuristic name+base_url match, not a Meta-guaranteed identity; a warning-bordered 'Showing last-synced data' banner renders when the API reports cached=true so stale rows never pass as live. 2026-08-13 (V46) REWRITE: now two labelled sections — 'Your connectors' (reusable library definitions from GET /connector-library, with real New/Edit/Publish/Deploy/Delete) and 'Live on agents' (the unchanged Meta rollup). Kept as two grids rather than one merged list because a definition has no agent/connection-status and a live connector has no draft state — merging would have required inventing a status for half the rows."
     },
     {
       "path": "frontend/src/pages/ProfilePage.tsx",
@@ -1535,15 +1875,59 @@
     },
     {
       "path": "frontend/src/pages/AgentDetailPage.tsx",
-      "purpose": "Agent detail — overview (deploy/pause, Connect phone number modal, Thread Control release button+confirm modal shown when handoffEnabled), Knowledge Base/Skills/Connectors/Business Profile/Eval/Settings tabs; initial tab seeded from ?tab= query param, writes sessionStorage last-agent:{tab}=id on every tab view (feeds AppShell's grouped Agents sub-nav deep-links); Delete-from-Meta danger block, Trigger Event action; 'Shared WABA' badge in header when sharedAccountCount>1; maps ApiResponse envelope + entity fields, string TSIDs. TASK-062: WebsitesSection/FilesSection were previously entirely unwired placeholders (hardcoded '0', TASK-036 TODO comments) — now real list/add/upload/delete wired to the backend, with a shared NotSyncedBadge component (also used by FaqsSection, refactored from inline duplicate markup) showing metaSynced=false. File upload MUST pass `headers: { 'Content-Type': undefined }` on the multipart POST — the shared api instance's default application/json header would otherwise override FormData's automatic boundary detection (EL REJECT caught this, and a hardcoded 'multipart/form-data' string is equally wrong — it strips the boundary= param). AudienceSection component (2026-08-04, in Settings tab) — ai_audience toggle + allowlist number CRUD; one list serves both QA-test-numbers and phased-rollout use cases (PM: same mechanism, not two features); guards against enabling ALLOWLISTED_ONLY with zero numbers (would silently block everyone with no visible explanation). 2026-08-05: header status badge and connector-row status (new connectorStatusTone() helper, replacing connectorStatusClasses) and NotSyncedBadge now render via shared StatusIndicator instead of tinted pills; METHOD_BADGE (HTTP verbs) and connectorPlugColor (icon tint) intentionally left untouched — accepted exceptions, not semantic state. Same pass: ThreadControlModal/AddConnectorModal/AddToolModal (all three inline in this file) retrofitted onto the shared Modal primitive — ThreadControlModal previously had no role=dialog/Escape at all; preventClose wired to releaseMutation.isPending / local saving booleans respectively."
+      "purpose": "2026-08-13: Settings tab's aboutLabel field added (schema/defaultValues/save payload/UI input) — this form's save PUT was already a full-payload round-trip pattern (existing bug: it never sent customerFacingName either, out of scope this pass, not fixed) so aboutLabel had to be wired into the same payload or every settings save would silently null the new About-column field. Agent detail — overview (deploy/pause, Connect phone number modal, Thread Control release button+confirm modal shown when handoffEnabled), Knowledge Base/Skills/Connectors/Business Profile/Eval/Settings tabs; initial tab seeded from ?tab= query param, writes sessionStorage last-agent:{tab}=id on every tab view (feeds AppShell's grouped Agents sub-nav deep-links); Delete-from-Meta danger block, Trigger Event action; 'Shared WABA' badge in header when sharedAccountCount>1; maps ApiResponse envelope + entity fields, string TSIDs. TASK-062: WebsitesSection/FilesSection were previously entirely unwired placeholders (hardcoded '0', TASK-036 TODO comments) — now real list/add/upload/delete wired to the backend, with a shared NotSyncedBadge component (also used by FaqsSection, refactored from inline duplicate markup) showing metaSynced=false. File upload MUST pass `headers: { 'Content-Type': undefined }` on the multipart POST — the shared api instance's default application/json header would otherwise override FormData's automatic boundary detection (EL REJECT caught this, and a hardcoded 'multipart/form-data' string is equally wrong — it strips the boundary= param). AudienceSection component (2026-08-04, in Settings tab) — ai_audience toggle + allowlist number CRUD; one list serves both QA-test-numbers and phased-rollout use cases (PM: same mechanism, not two features); guards against enabling ALLOWLISTED_ONLY with zero numbers (would silently block everyone with no visible explanation). 2026-08-05: header status badge and connector-row status (new connectorStatusTone() helper, replacing connectorStatusClasses) and NotSyncedBadge now render via shared StatusIndicator instead of tinted pills; METHOD_BADGE (HTTP verbs) and connectorPlugColor (icon tint) intentionally left untouched — accepted exceptions, not semantic state. Same pass: ThreadControlModal/AddConnectorModal/AddToolModal (all three inline in this file) retrofitted onto the shared Modal primitive — ThreadControlModal previously had no role=dialog/Escape at all; preventClose wired to releaseMutation.isPending / local saving booleans respectively."
     },
     {
       "path": "frontend/src/pages/AgentsPage.tsx",
-      "purpose": "Agents list table — name/phone/WABA ID/conversation count (GET /conversations/counts)/health (derived: status+phone, not Meta quality rating)/status/last updated; 'Shared' badge next to name when sharedAccountCount>1. Picker mode (?pickFor=knowledge|skills|connectors, from AppShell's Agents sub-nav when no agent viewed yet this session): swaps header to 'Choose an agent to view its {X}', row click routes to /agents/{id}?tab={pickFor}. React Query, loading/empty states. 2026-08-05: Status column now renders via shared StatusIndicator (active→positive+pulse, paused→warning, draft→neutral), replacing STATUS_CONFIG's tinted pill; Health column's existing dot+text left as-is (already correct). 2026-08-05 roadmap item 41: EmptyState's tinted icon-in-square (h-14 w-14 rounded-2xl bg-primary/10) removed — same §0 anti-pattern fix as WabasPage."
+      "purpose": "Agents list table — name/About label/phone/WABA ID/conversation count (GET /conversations/counts)/health (derived: status+phone, not Meta quality rating)/status/last updated; 'Shared' badge next to name when sharedAccountCount>1. Picker mode (?pickFor=knowledge|skills|connectors, from AppShell's Agents sub-nav when no agent viewed yet this session): swaps header to 'Choose an agent to view its {X}', row click routes to /agents/{id}?tab={pickFor}. React Query, loading/empty states. 2026-08-05: Status column now renders via shared StatusIndicator (active→positive+pulse, paused→warning, draft→neutral), replacing STATUS_CONFIG's tinted pill; Health column's existing dot+text left as-is (already correct). 2026-08-05 roadmap item 41: EmptyState's tinted icon-in-square (h-14 w-14 rounded-2xl bg-primary/10) removed — same §0 anti-pattern fix as WabasPage. 2026-08-13 (Figma 8.1/8.2 build): added real 'About' column matching Figma node 199/200 exactly — empty renders '+ Add a label' CTA (window.prompt, PUT /agents/:id round-tripping the FULL agent payload since the endpoint is PUT not PATCH — a partial body would null out tone/language/behaviorRules/handoff fields); AgentRow interface extended with the fields needed for that round-trip. EmptyState rebuilt to match Figma node 194:274 exactly (teal accent bar, real copy, 'WHAT YOU'LL SEE' locked-preview panel) — previous version was a generic dashed-border placeholder, a known whitewash risk this pass was explicitly asked to avoid."
     },
     {
       "path": "frontend/src/pages/CreateAgentPage.tsx",
-      "purpose": "5-step Create Agent wizard - Identity/Personality(AI generate)/Knowledge FAQs/Connections placeholder/Go live, 3-panel layout with live WhatsApp preview, autosave draft on step 1. 2026-08-05 fix: StepGoLive now checks the agent's real phoneNumberId via useQuery (GET /agents/{id}) before allowing 'Publish & Test' — same precondition AgentDetailPage's canDeploy already enforces; previously the wizard let Publish fire with no connected number, producing a confusing backend error instead of a clear stop with a 'go back to Connect' link. Save as draft is unaffected."
+      "purpose": "Orchestrator ONLY for the 7-step Create Agent wizard (Figma 8.3-8.9 + 8.16, nodes 217:16/206:2/213:2/218:2/252:35/218:253/215:10/289:2) — step order, shared draft state, sessionStorage draft resume, and the two multi-endpoint writes the steps share (saveBasicsAndGo = POST/PUT /agents then PUT /agents/{id}/phone; savePersonaAndGo = PUT /agents/{id} then POST/PUT /business-profiles/draft then deploy to the bound number). Every step's content lives in components/create-agent/. 2026-08-13 rebuild replaced the previous 5-step Identity/Personality/Knowledge/Connections/Go-live wizard: steps are now Basics / Business Persona / Knowledge Base / Skills / Connectors / Evals / Test & Deploy, with the Iris rail in the right slot (replaced by the Skills Library drawer on step 4 when open, per Figma 8.16 — which is why drawerOpen is lifted here, not held inside StepSkills)."
+    },
+    {
+      "path": "frontend/src/components/create-agent/wizardTypes.ts",
+      "purpose": "Shared types + constants for the 7-step Create Agent wizard: WIZARD_STEPS labels, StepNumber, WizardState (agentId/displayName/wabaId/phoneNumberId/phoneLabel/personaPreset/personaSampleReply/businessInfo/filledByIris/businessProfileId/enabled), PERSONA_PRESETS (Figma's four tone cards with their exact sample replies), BusinessInfo's eight fields + filledBusinessInfoCount for the 'N of 8 fields filled' summary row."
+    },
+    {
+      "path": "frontend/src/components/create-agent/WizardChrome.tsx",
+      "purpose": "Presentational primitives every wizard step reuses: StepHeader (breadcrumb/title/subtitle), SectionCard, LinkAction, FieldLabel/TextField/SelectField (label + optional API field name, as Figma's generic forms show), FilledByIrisBadge, WizardToggle, InfoNote, BottomBar. Tokens only — shadow-surface-resting, accent-teal-solid, 4px-grid spacing."
+    },
+    {
+      "path": "frontend/src/components/create-agent/IrisRail.tsx",
+      "purpose": "Figma 8.3-8.9 right rail ('Iris — Building this agent with you'). Real conversation against POST /templates/iris/sessions with the WABA picked in Basics (AgentCreationToolProvider gives Iris create_skill there); per-step opening lines come from Figma verbatim. When a session can't be opened (Template Studio module gate / no BYOK credential) it keeps the guidance text and says chat is unavailable instead of drawing a dead composer."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepBasics.tsx",
+      "purpose": "Step 1 (Figma 217:16). Flattened WABA×phone select (GET /waba then GET /waba/{metaWabaId}/phones per WABA), eligibility line derived from whether the number is already bound to another agent (GET /agents — the unique index on agent.phone_number_id would reject it anyway), internal-name field. Bottom bar is 'Cancel & Return' / 'Next Step'."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepBusinessPersona.tsx",
+      "purpose": "Step 2 (Figma 206:2). Four tone cards, each rendering its real WhatsApp sample-reply bubble (DESIGN.md live-preview-snippet rule), editable starting-style textarea -> agent.personaSampleReply, and the three detail cards (Contact & hours / How customers buy from you / About your business) mapping 1:1 onto BusinessProfile's eight columns. Import from Library = GET /business-profiles/drafts; Save to Library = POST/PUT /business-profiles/draft. 'Filled by Iris' badge renders only for fields Iris actually filled and clears the moment the operator edits them."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepKnowledgeBase.tsx",
+      "purpose": "Step 3 (Figma 213:2). FAQs (GET/POST/DELETE /agents/{id}/faq), Files (multipart POST /agents/{id}/files), Websites (POST /agents/{id}/websites), plus the background-work pill counting file/website rows still in a processing status, and the 'you don't need to wait here' note."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepSkills.tsx",
+      "purpose": "Step 4 (Figma 218:2). Plain-language rules via /agents/{id}/skills + /agents/{id}/skills-view (LIBRARY rows show 'From Skills Library · used by N other agents', joined client-side against GET /skills?wabaId's deployments; AGENT rows offer promote-to-library). Rich message components: Figma's five chips mapped onto AgentUiSkill.ComponentType, plus the generic standard-shape form (title/component_type/instruction/status). The Flow chip and flow_id field are rendered disabled with the honest reason — neither exists in the backend enum or schema."
+    },
+    {
+      "path": "frontend/src/components/create-agent/SkillsLibraryDrawer.tsx",
+      "purpose": "Figma 8.16 (node 289:2) — Skills Library docked panel over the Skills step, occupying the Iris rail slot. Search + 'Published only' + industry chips (industries derived from the returned skills, never hardcoded), rows show 'Used by N agents' from SkillResponse.deployments, '+ Add' copies the skill's body onto this agent, footer links to /library/skills. Docked panel not Modal, per DESIGN.md §6."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepConnectors.tsx",
+      "purpose": "Step 5 (Figma 252:35). Shopify/Zendesk/Custom API chips are presets that prefill the one standard connector form (name/description/base_url/auth_type/auth_config.headers[]/requires_certificate) posted to /agents/{id}/connectors, which passes straight through to Meta's agent_connectors. 2026-08-13 (V46): 'Import from Library' now reads the real Connector Library (GET /connector-library?wabaId) and 'Deploy here' opens the shared ConnectorDeployModal pre-targeted at this agent, recording a connector_deployment row. The ad-hoc preset form is unchanged and still exists for one-off connectors nobody wants to reuse. The previously-dead '+ Save to Library' gap is closed by the Library page, not by the wizard — the wizard uses the library, it doesn't curate it."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepEvals.tsx",
+      "purpose": "Step 6 (Figma 218:253). GET /reports/agents/{id}/eval/cases, 'Run all N' -> POST .../eval/run + useJobPoll. Results card renders only the figures Meta actually returned (avg_conversation_score / avg_turn_score / scenarios_passed) — a missing figure is omitted rather than shown as a placeholder score."
+    },
+    {
+      "path": "frontend/src/components/create-agent/StepTestDeploy.tsx",
+      "purpose": "Step 7 (Figma 215:10). Summary rows (phone / persona / 'N of 8 fields filled' / connectors) each with an Edit link that jumps back to the owning step; test conversation panel over POST /agents/{id}/test (multi-turn via conversationId, falls back to handoffReason/noResponseReason when there's no agentResponse); enable toggle off by default; Finish Setup PUTs the agent and only deploys when the toggle is on."
     },
     {
       "path": "frontend/src/pages/DashboardPage.tsx",
@@ -1714,8 +2098,28 @@
       "purpose": "2026-08-12: reverses V40 once Iris live-testing was confirmed working — returns the demo WABA to status='disconnected', the founder's original intent from V39."
     },
     {
+      "path": "backend/src/main/resources/db/migration/V42__add_about_label_to_agent.sql",
+      "purpose": "2026-08-13: additive-only — adds nullable agent.about_label VARCHAR(255) for the Figma 8.1 Agents-list 'About' column (a short human label, e.g. 'Handles bulk grocery orders', confirmed via get_design_context — NOT a truncation/reuse of systemPrompt, which is the longer instructional prompt). No rename/drop of any existing column."
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V44__add_persona_sample_reply_to_agent.sql",
+      "purpose": "2026-08-13: additive-only — adds nullable agent.persona_sample_reply TEXT for the Figma 8.4 Business Persona 'Based on <preset> — edit freely' textarea (the exact wording the agent uses as its starting style). No existing column could hold it: `tone` holds the preset LABEL, `system_prompt` the business description, `behavior_rules` the Skills-step rules. V43 was taken by the Skill Library industry/use_case migration. No rename/drop."
+    },
+    {
       "path": "wiki/decisions/2026-08-12-iris-generalization-plan.md",
       "purpose": "PLAN artifact (not yet built): extracts IrisConversationService's hardcoded template-specific tool list/prompt/dispatch into an IrisToolProvider interface so Iris can serve other features beyond Template Studio, without duplicating the session/message/confirm-before-execute engine. Raised by founder 2026-08-12; scoped as its own follow-up task pending EM review, not built this session."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/service/AgentTeardownService.java",
+      "purpose": "2026-08-13 — orchestrates \"delete this agent everywhere\". Meta has no single delete-everything call, so it empties business persona (BusinessProfileDeployService.resetLive) -> connectors -> skills -> ui-skills, then AgentDeployService.deleteFromMeta, then AgentService.deleteAgent for the local cascade. Every Meta step is best-effort and independently recorded in AgentDeleteResult; one failure never aborts the rest and never blocks the local delete. Deliberately NOT @Transactional (several sequential HTTP calls); the local cascade is one proxied call so it keeps its own tx. Requires paused ONLY when the agent has a phoneNumberId — a draft agent has nothing on Meta and must stay deletable."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/agent/dto/AgentDeleteResult.java",
+      "purpose": "2026-08-13 — per-step report returned by DELETE /agents/{id}. metaFullyCleaned is false if any step FAILED, so the UI can name what was left behind on the phone number instead of showing a blind success toast."
+    },
+    {
+      "path": "frontend/src/components/agent-detail/DeleteAgentModal.tsx",
+      "purpose": "2026-08-13 — two-phase delete dialog. Before: lists exactly what will be attempted on Meta (or states nothing exists on Meta for a draft agent). After: if metaFullyCleaned is false it stays open and names the failed steps rather than navigating away. Replaced the inline confirm modal that used to live in AgentDetailPage SettingsTab."
     }
   ]
 }

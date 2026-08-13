@@ -211,6 +211,19 @@ shape, which is similarly locked and never offered a stepper), so there is
 nothing left to sequence. A stepper on Edit would manufacture steps where
 none exist.
 
+*Second real use, 2026-08.* The **Create Agent** flow is a 7-step Stepper
+(Basics / Business Persona / Knowledge Base / Skills / Connectors / Evals /
+Test & Deploy). It qualifies under the same test the template Create flow
+did, not by analogy to it: each step is a genuinely different decision with
+its own point of no return — which number this agent owns (binding is
+exclusive), how it sounds, what it knows, what it's allowed to do, what
+real systems it can reach, whether it actually performs, and whether it
+goes live. Collapsing them into one form would hide those boundaries, and
+the last one — the enable toggle — is the only irreversible-feeling moment
+in the product. Edits to an existing agent stay flat tabs on the agent
+detail page, for the same reason template Edit does: once the agent exists
+there is nothing left to sequence.
+
 This is the rule now, not a one-off exception bolted on top of the old
 blanket rule. When a Figma redesign changes how a pattern in this document
 should be used, that change gets written into the document itself, in the

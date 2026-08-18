@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -30,9 +31,17 @@ import java.io.IOException;
  * /api/v1/** surface — a Template-Studio-only account (no BUSINESS_AGENTS)
  * would have been wrongly blocked from Template Studio's own endpoints.
  * Fixed to be path-aware.
+ *
+ * 2026-08-18: Iris (/api/v1/templates/iris/**) is a shared assistant used by
+ * both Template Studio's own chat UI AND the Business Agents "Create Agent"
+ * wizard rail — the latter was getting wrongly 403'd because it fell under
+ * the general /api/v1/templates/** prefix, which requires TEMPLATE_STUDIO
+ * only. Iris paths are special-cased ahead of that prefix to accept EITHER
+ * module, matching that it's genuinely shared, not Template-Studio-owned.
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class ModuleAccessFilter extends OncePerRequestFilter {
 
     private final AccountModuleService accountModuleService;
@@ -55,7 +64,8 @@ public class ModuleAccessFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!accountModuleService.isEnabled(tenantDetails.getAccountId(), requiredModule(path))) {
+        Long accountId = tenantDetails.getAccountId();
+        if (!isAllowed(accountId, path)) {
             response.setStatus(403);
             response.setContentType("application/json");
             objectMapper.writeValue(response.getWriter(),
@@ -73,13 +83,24 @@ public class ModuleAccessFilter extends OncePerRequestFilter {
                 || path.startsWith("/actuator/");
     }
 
-    /** Path-prefix routing to the module that owns it. Add a case here for
-     * every NEW module's endpoint prefix — everything unmatched still
-     * defaults to BUSINESS_AGENTS (the whole rest of the platform). */
-    private AccountModule.Module requiredModule(String path) {
-        if (path.startsWith("/api/v1/templates/")) {
-            return AccountModule.Module.TEMPLATE_STUDIO;
+    /** Path-prefix routing to the module(s) that own it. Iris is checked
+     * first since it's a shared path nested under /api/v1/templates/ but
+     * not exclusively Template Studio's — everything else falls through to
+     * the general prefix rule. Add a case here for every NEW shared or
+     * module-specific endpoint prefix; anything unmatched still defaults to
+     * BUSINESS_AGENTS (the whole rest of the platform). */
+    private boolean isAllowed(Long accountId, String path) {
+        if (path.equals("/api/v1/templates/iris") || path.startsWith("/api/v1/templates/iris/")) {
+            boolean allowed = accountModuleService.isEnabled(accountId, AccountModule.Module.TEMPLATE_STUDIO)
+                    || accountModuleService.isEnabled(accountId, AccountModule.Module.BUSINESS_AGENTS);
+            if (allowed) {
+                log.info("Iris access granted for accountId={} path={}", accountId, path);
+            }
+            return allowed;
         }
-        return AccountModule.Module.BUSINESS_AGENTS;
+        if (path.equals("/api/v1/templates") || path.startsWith("/api/v1/templates/")) {
+            return accountModuleService.isEnabled(accountId, AccountModule.Module.TEMPLATE_STUDIO);
+        }
+        return accountModuleService.isEnabled(accountId, AccountModule.Module.BUSINESS_AGENTS);
     }
 }

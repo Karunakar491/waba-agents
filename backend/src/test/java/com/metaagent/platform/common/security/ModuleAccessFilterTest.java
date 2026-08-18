@@ -100,6 +100,90 @@ class ModuleAccessFilterTest extends IntegrationTestBase {
     }
 
     // -------------------------------------------------------------------------
+    // Iris shared-path gating (2026-08-18) — TEMPLATE_STUDIO OR BUSINESS_AGENTS
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_allow_iris_when_only_template_studio_enabled() throws Exception {
+        String email = uniqueEmail();
+        registerUser(email);
+        BusinessAccount account = businessAccountRepository.findByEmail(email).orElseThrow();
+        setModuleEnabled(account.getId(), AccountModule.Module.BUSINESS_AGENTS, false);
+        setModuleEnabled(account.getId(), AccountModule.Module.TEMPLATE_STUDIO, true);
+        String accessToken = loginAndGetAccessToken(email);
+
+        mockMvc.perform(get("/api/v1/templates/iris/sessions").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_allow_iris_when_only_business_agents_enabled() throws Exception {
+        String accessToken = registerAndLogin(); // BUSINESS_AGENTS enabled by default, TEMPLATE_STUDIO not granted
+
+        mockMvc.perform(get("/api/v1/templates/iris/sessions").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_reject_iris_when_neither_module_enabled() throws Exception {
+        String email = uniqueEmail();
+        registerUser(email);
+        BusinessAccount account = businessAccountRepository.findByEmail(email).orElseThrow();
+        setModuleEnabled(account.getId(), AccountModule.Module.BUSINESS_AGENTS, false);
+        String accessToken = loginAndGetAccessToken(email);
+
+        mockMvc.perform(get("/api/v1/templates/iris/sessions").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void should_still_require_template_studio_only_for_non_iris_template_paths() throws Exception {
+        String accessToken = registerAndLogin(); // BUSINESS_AGENTS enabled, TEMPLATE_STUDIO not granted
+
+        mockMvc.perform(get("/api/v1/templates").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void should_require_template_studio_for_bare_templates_path_no_trailing_slash() throws Exception {
+        // Regression test for the bare-path fallthrough bug caught in EL review:
+        // "/api/v1/templates" (no trailing slash) must not fall through to the
+        // BUSINESS_AGENTS default — it must still require TEMPLATE_STUDIO, exactly
+        // like every other /api/v1/templates/** path. No controller currently maps
+        // this exact route, but the filter runs ahead of routing so its 403
+        // decision (or lack thereof) is provable independent of a handler existing.
+        String email = uniqueEmail();
+        registerUser(email);
+        BusinessAccount account = businessAccountRepository.findByEmail(email).orElseThrow();
+        setModuleEnabled(account.getId(), AccountModule.Module.BUSINESS_AGENTS, false);
+        setModuleEnabled(account.getId(), AccountModule.Module.TEMPLATE_STUDIO, true);
+        String accessToken = loginAndGetAccessToken(email);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/templates").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andReturn();
+
+        // TEMPLATE_STUDIO is enabled, so the filter must let this through (not 403).
+        // Whether a controller handler exists for the bare path is a separate,
+        // unrelated concern (would surface as 404, still proving the filter passed it).
+        assertThat(result.getResponse().getStatus()).isNotEqualTo(403);
+    }
+
+    private void setModuleEnabled(Long accountId, AccountModule.Module module, boolean enabled) {
+        AccountModule row = accountModuleRepository.findByAccountIdAndModule(accountId, module)
+                .orElseGet(() -> accountModuleRepository.save(newModuleRow(accountId, module)));
+        row.setEnabled(enabled);
+        accountModuleRepository.save(row);
+    }
+
+    private AccountModule newModuleRow(Long accountId, AccountModule.Module module) {
+        AccountModule row = new AccountModule();
+        row.setAccountId(accountId);
+        row.setModule(module);
+        row.setEnabled(false);
+        return row;
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

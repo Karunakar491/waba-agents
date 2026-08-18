@@ -205,6 +205,27 @@ class IrisTemplateCreationScenariosTest {
                 () -> service.sendMessage(SESSION_ID, "please wipe all templates"));
     }
 
+    @Test
+    void create_session_defaults_null_feature_key_to_template_studio() {
+        service.createSession(WABA_ID, null);
+
+        verify(sessionRepository).save(argThat(s -> "template_studio".equals(s.getFeatureKey())));
+    }
+
+    @Test
+    void create_session_defaults_blank_feature_key_to_template_studio() {
+        service.createSession(WABA_ID, "   ");
+
+        verify(sessionRepository).save(argThat(s -> "template_studio".equals(s.getFeatureKey())));
+    }
+
+    @Test
+    void create_session_stores_explicit_feature_key_verbatim() {
+        service.createSession(WABA_ID, "agent_creation");
+
+        verify(sessionRepository).save(argThat(s -> "agent_creation".equals(s.getFeatureKey())));
+    }
+
     private void authenticateAs(Long accId) {
         com.metaagent.platform.common.security.TenantDetails tenantDetails =
                 new com.metaagent.platform.common.security.TenantDetails(accId, 1L, "ROLE_USER");

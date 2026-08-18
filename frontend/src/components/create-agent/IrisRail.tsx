@@ -62,7 +62,7 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
     if (!wabaId || sessionId || unavailable) return
     let cancelled = false
     api
-      .post('/templates/iris/sessions', { wabaId })
+      .post('/templates/iris/sessions', { wabaId, featureKey: 'agent_creation' })
       .then((r) => {
         if (!cancelled) setSessionId(String(r.data.data.id))
       })

@@ -38,6 +38,12 @@ public class IrisSession {
     @Column(name = "waba_id")
     private Long wabaId;
 
+    /** Which feature started this session — "template_studio" or "agent_creation" today.
+     * Existing rows backfilled to "template_studio" (V52); lets sessions from the two
+     * Iris consumers be told apart in support/analytics without inferring it from wabaId. */
+    @Column(name = "feature_key", length = 64)
+    private String featureKey;
+
     /** Set once from a truncated first user message — "New chat" is a frontend fallback for null, never stored. */
     @Column(name = "title", length = 120)
     private String title;

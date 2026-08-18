@@ -106,9 +106,12 @@ public class IrisConversationService {
 
     private static final int TITLE_MAX_LENGTH = 120;
 
-    public IrisSession createSession(Long wabaId) {
+    private static final String DEFAULT_FEATURE_KEY = "template_studio";
+
+    public IrisSession createSession(Long wabaId, String featureKey) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        IrisSession session = IrisSession.builder().accountId(accountId).wabaId(wabaId).build();
+        String resolvedFeatureKey = (featureKey == null || featureKey.isBlank()) ? DEFAULT_FEATURE_KEY : featureKey;
+        IrisSession session = IrisSession.builder().accountId(accountId).wabaId(wabaId).featureKey(resolvedFeatureKey).build();
         return sessionRepository.save(session);
     }
 

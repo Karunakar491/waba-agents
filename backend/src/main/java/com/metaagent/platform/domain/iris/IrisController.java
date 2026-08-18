@@ -25,7 +25,7 @@ public class IrisController {
 
     @PostMapping("/sessions")
     public ApiResponse<IrisSession> createSession(@RequestBody CreateSessionRequest request) {
-        return ApiResponse.ok(conversationService.createSession(request.wabaId()));
+        return ApiResponse.ok(conversationService.createSession(request.wabaId(), request.featureKey()));
     }
 
     @GetMapping("/sessions")

@@ -7,15 +7,14 @@ import type { StepNumber } from './wizardTypes'
 /**
  * Figma 8.3–8.9 right rail — "Iris · Building this agent with you".
  *
- * This is the real Iris conversation service (POST /templates/iris/sessions),
+ * This is the real Iris conversation service (POST /api/v1/iris/sessions),
  * the same one Template Studio uses, opened against the WABA the operator
  * picked in Basics. Iris genuinely can act here: AgentCreationToolProvider
  * gives it create_skill against this account's agents.
  *
- * When a session can't be opened — Iris is behind the Template Studio module
- * and needs a BYOK credential — the rail keeps the step's opening line and
- * says plainly that chat is unavailable, instead of drawing a composer that
- * does nothing.
+ * When a session can't be opened — no BYOK credential is configured — the
+ * rail keeps the step's opening line and says plainly that chat is
+ * unavailable, instead of drawing a composer that does nothing.
  */
 
 const OPENING_LINES: Record<StepNumber, string[]> = {
@@ -62,7 +61,7 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
     if (!wabaId || sessionId || unavailable) return
     let cancelled = false
     api
-      .post('/templates/iris/sessions', { wabaId, featureKey: 'agent_creation' })
+      .post('/iris/sessions', { wabaId, featureKey: 'agent_creation' })
       .then((r) => {
         if (!cancelled) setSessionId(String(r.data.data.id))
       })
@@ -85,7 +84,7 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
     setMessages((m) => [...m, { role: 'user', content: text }])
     setSending(true)
     try {
-      const r = await api.post(`/templates/iris/sessions/${sessionId}/messages`, { text })
+      const r = await api.post(`/iris/sessions/${sessionId}/messages`, { text })
       setMessages((m) => [...m, { role: 'assistant', content: r.data.data.reply }])
     } catch (err) {
       setMessages((m) => [...m, { role: 'assistant', content: extractErrorMessage(err) }])

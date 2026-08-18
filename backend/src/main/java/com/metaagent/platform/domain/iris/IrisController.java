@@ -9,14 +9,19 @@ import java.util.Map;
 
 /**
  * REST surface for Iris — a shared assistant used by both Template Studio
- * and Business Agents (see AgentCreationToolProvider). Still mounted at
- * /api/v1/templates/iris for now (moved out of the templatestudio package
- * 2026-08-18; route itself moves to /api/v1/iris in a later phase — see
- * wiki/decisions/2026-08-12-iris-generalization-plan.md). ModuleAccessFilter
- * special-cases this path to accept either TEMPLATE_STUDIO or BUSINESS_AGENTS.
+ * and Business Agents (see AgentCreationToolProvider). 2026-08-18: mounted
+ * at BOTH /api/v1/iris (the real, permanent path) and /api/v1/templates/iris
+ * (kept live so neither frontend caller breaks mid-migration) — see
+ * wiki/decisions/2026-08-12-iris-generalization-plan.md. Once both frontend
+ * consumers have cut over to /api/v1/iris and a full deprecation window has
+ * passed with verified-zero traffic on the old path, delete the old mapping
+ * here AND its ModuleAccessFilter special-case. ModuleAccessFilter accepts
+ * either TEMPLATE_STUDIO or BUSINESS_AGENTS for BOTH paths — they must stay
+ * in lockstep until the old path is removed (see ModuleAccessFilterTest's
+ * dual-path pinning test).
  */
 @RestController
-@RequestMapping("/api/v1/templates/iris")
+@RequestMapping({IrisPaths.NEW_PREFIX, IrisPaths.LEGACY_PREFIX})
 @RequiredArgsConstructor
 public class IrisController {
 

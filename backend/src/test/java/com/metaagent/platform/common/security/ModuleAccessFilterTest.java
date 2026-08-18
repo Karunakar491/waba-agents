@@ -125,6 +125,29 @@ class ModuleAccessFilterTest extends IntegrationTestBase {
     }
 
     @Test
+    void should_allow_new_iris_path_when_only_business_agents_enabled() throws Exception {
+        // /api/v1/iris is the permanent path (added 2026-08-18, IrisController
+        // now answers both prefixes); must resolve identically to the old
+        // /api/v1/templates/iris path above until the old path is removed.
+        String accessToken = registerAndLogin();
+
+        mockMvc.perform(get("/api/v1/iris/sessions").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_reject_new_iris_path_when_neither_module_enabled() throws Exception {
+        String email = uniqueEmail();
+        registerUser(email);
+        BusinessAccount account = businessAccountRepository.findByEmail(email).orElseThrow();
+        setModuleEnabled(account.getId(), AccountModule.Module.BUSINESS_AGENTS, false);
+        String accessToken = loginAndGetAccessToken(email);
+
+        mockMvc.perform(get("/api/v1/iris/sessions").cookie(new jakarta.servlet.http.Cookie("access_token", accessToken)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void should_reject_iris_when_neither_module_enabled() throws Exception {
         String email = uniqueEmail();
         registerUser(email);

@@ -36,12 +36,12 @@ export default function AiProviderPanel() {
 
   const credentialQuery = useQuery<CredentialStatus>({
     queryKey: ['iris-credential'],
-    queryFn: () => api.get('/templates/iris/credential').then((r) => r.data.data),
+    queryFn: () => api.get('/iris/credential').then((r) => r.data.data),
   })
 
   const optionsQuery = useQuery({
     queryKey: ['iris-credential-options'],
-    queryFn: () => api.get('/templates/iris/credential/options').then((r) => r.data.data),
+    queryFn: () => api.get('/iris/credential/options').then((r) => r.data.data),
   })
   const providers: Record<string, string[]> = optionsQuery.data?.providers ?? {}
 
@@ -51,7 +51,7 @@ export default function AiProviderPanel() {
   }, [tab, providers, model])
 
   const mutation = useMutation({
-    mutationFn: () => api.put('/templates/iris/credential', { provider: tab, model, apiKey }),
+    mutationFn: () => api.put('/iris/credential', { provider: tab, model, apiKey }),
     onSuccess: () => {
       setApiKey('')
       setError(null)

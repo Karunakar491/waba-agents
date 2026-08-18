@@ -1455,7 +1455,7 @@
     },
     {
       "path": "frontend/src/components/templatestudio/AiProviderPanel.tsx",
-      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 86:2) — Iris BYOK LLM key management, extracted and rebuilt from the old page's inline function. Provider switcher rebuilt on the new shared SegmentedControl (was a hand-rolled role=\"tablist\" — DESIGN.md §6 names this exact OpenAI/Claude/NVIDIA case as the canonical Segmented Control example)."
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 6, Figma node 86:2) — Iris BYOK LLM key management, extracted and rebuilt from the old page's inline function. Provider switcher rebuilt on the new shared SegmentedControl (was a hand-rolled role=\"tablist\" — DESIGN.md §6 names this exact OpenAI/Claude/NVIDIA case as the canonical Segmented Control example). 2026-08-18: credential GET/GET-options/PUT calls cut over from legacy /templates/iris/credential to /iris/credential (backend serves both; legacy removed in a later phase)."
     },
     {
       "path": "frontend/src/components/shared/SegmentedControl.tsx",
@@ -1463,11 +1463,11 @@
     },
     {
       "path": "frontend/src/pages/TemplateIrisPage.tsx",
-      "purpose": "Iris A- pass 2026-08-06: thin IrisWorkspace + IrisChatPane + docked IrisConfirmPanel (WhatsAppTemplatePreview + ConsequenceLine; DESIGN.md section 6 co-located, not Modal). CTA Submit to Meta / Send test; View in Templates deep-link; TEMPLATE_STUDIO_WABA_KEY. PM+EM+UX+DesignEvaluator+EL approved. 2026-08-12 (V2 rebrand slice 5): mount effect now also handles location.state.resumeSessionId (from the new All Chats page) by calling the existing resumeSession() — not a new resume path, just a second entry point into it."
+      "purpose": "Iris A- pass 2026-08-06: thin IrisWorkspace + IrisChatPane + docked IrisConfirmPanel (WhatsAppTemplatePreview + ConsequenceLine; DESIGN.md section 6 co-located, not Modal). CTA Submit to Meta / Send test; View in Templates deep-link; TEMPLATE_STUDIO_WABA_KEY. PM+EM+UX+DesignEvaluator+EL approved. 2026-08-12 (V2 rebrand slice 5): mount effect now also handles location.state.resumeSessionId (from the new All Chats page) by calling the existing resumeSession() — not a new resume path, just a second entry point into it. 2026-08-18: all Iris API calls (credential, sessions list/create/messages/confirm/cancel) cut over from legacy /templates/iris/... to /iris/... (backend serves both identically; legacy removed in a later phase). The /templates/${selectedWabaId}/media upload call is unrelated (Template Studio's own media endpoint, not Iris) and was correctly left unchanged."
     },
     {
       "path": "frontend/src/pages/TemplateIrisAllChatsPage.tsx",
-      "purpose": "NEW 2026-08-12 (V2 rebrand slice 5, Figma node 112:2) — destination for the sidebar's \"View all chats\" link (DESIGN.md §6: sidebar shows only 5 most recent, this page groups everything by Today/Yesterday/Previous 7 days/Older with its own search). Reuses the existing GET /templates/iris/sessions endpoint, no new backend. Clicking a row navigates back to /templates/iris with state.resumeSessionId, which TemplateIrisPage.tsx's mount effect resolves via the real resumeSession() call — not a dead link."
+      "purpose": "NEW 2026-08-12 (V2 rebrand slice 5, Figma node 112:2) — destination for the sidebar's \"View all chats\" link (DESIGN.md §6: sidebar shows only 5 most recent, this page groups everything by Today/Yesterday/Previous 7 days/Older with its own search). Reuses the GET /iris/sessions endpoint (cut over 2026-08-18 from legacy /templates/iris/sessions), no new backend. Clicking a row navigates back to the /templates/iris FRONTEND ROUTE (unchanged — only the API path moved, not the page URL) with state.resumeSessionId, which TemplateIrisPage.tsx's mount effect resolves via the real resumeSession() call — not a dead link."
     },
     {
       "path": "frontend/src/components/templatestudio/IrisConfirmPanel.tsx",

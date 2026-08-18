@@ -9,7 +9,7 @@ import { formatTimeIST, istStartOfDayMs, parseAsUtc } from '../lib/dateFormat'
 // Iris "All Chats" (2026-08-12, V2 rebrand slice 5, Figma node 112:2) — the
 // destination for the sidebar's "View all chats" link, which only shows the
 // 5 most recent sessions per DESIGN.md. Reuses the same GET
-// /templates/iris/sessions endpoint the sidebar already calls; no new
+// /iris/sessions endpoint the sidebar already calls; no new
 // backend needed. Grouped by Today/Yesterday/Previous 7 days/Older, with
 // its own search — separate from the sidebar's search.
 export default function TemplateIrisAllChatsPage() {
@@ -18,7 +18,7 @@ export default function TemplateIrisAllChatsPage() {
 
   const sessionsQuery = useQuery<SessionSummary[]>({
     queryKey: ['iris-sessions'],
-    queryFn: () => api.get('/templates/iris/sessions').then((r) => r.data.data),
+    queryFn: () => api.get('/iris/sessions').then((r) => r.data.data),
   })
 
   const groups = useMemo(() => {

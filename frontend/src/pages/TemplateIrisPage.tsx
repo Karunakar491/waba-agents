@@ -21,7 +21,7 @@ interface WabaEntry { id: string; label: string | null }
 export default function TemplateIrisPage() {
   const credentialQuery = useQuery({
     queryKey: ['iris-credential'],
-    queryFn: () => api.get('/templates/iris/credential').then((r) => r.data.data),
+    queryFn: () => api.get('/iris/credential').then((r) => r.data.data),
   })
   const wabasQuery = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -133,7 +133,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
 
   const sessionsQuery = useQuery<SessionSummary[]>({
     queryKey: ['iris-sessions'],
-    queryFn: () => api.get('/templates/iris/sessions').then((r) => r.data.data),
+    queryFn: () => api.get('/iris/sessions').then((r) => r.data.data),
   })
 
   function isBusy() {
@@ -171,7 +171,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
     setResuming(true)
     setError(null)
     try {
-      const resume = await api.get(`/templates/iris/sessions/${id}/messages`).then((r) => r.data.data as SessionResumeResponse)
+      const resume = await api.get(`/iris/sessions/${id}/messages`).then((r) => r.data.data as SessionResumeResponse)
       setSessionId(id)
       lastTemplateArgsRef.current = null
       setEntries(resume.messages.map((m) => {
@@ -212,7 +212,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   useEffect(() => clearIrisSidebar, [])
 
   const startSession = useMutation({
-    mutationFn: () => api.post('/templates/iris/sessions', {}).then((r) => r.data.data.id as string),
+    mutationFn: () => api.post('/iris/sessions', {}).then((r) => r.data.data.id as string),
   })
 
   // UX-caught gap (2026-08-07 audit): no way to abort a pending send at all —
@@ -230,7 +230,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
       setSessionId(sid)
       const controller = new AbortController()
       abortControllerRef.current = controller
-      return api.post(`/templates/iris/sessions/${sid}/messages`, { text }, { signal: controller.signal })
+      return api.post(`/iris/sessions/${sid}/messages`, { text }, { signal: controller.signal })
         .then((r) => r.data.data as TurnResponse)
     },
     onSuccess: (res, vars) => {
@@ -268,7 +268,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   }
 
   const confirmAction = useMutation({
-    mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
+    mutationFn: () => api.post(`/iris/sessions/${sessionId}/confirm`).then((r) => r.data.data),
     onSuccess: (result) => {
       const isTemplateAction = pending?.toolName === 'create_template' || pending?.toolName === 'edit_template'
       if (isTemplateAction && pending?.args.wabaId != null) {
@@ -296,7 +296,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
   })
 
   const cancelAction = useMutation({
-    mutationFn: () => api.post(`/templates/iris/sessions/${sessionId}/cancel`),
+    mutationFn: () => api.post(`/iris/sessions/${sessionId}/cancel`),
     onSuccess: () => {
       setEntries((prev) => [...prev, { id: newEntryId(), who: 'iris', text: 'Cancelled — nothing was submitted.', status: 'sent' }])
       setPending(null)

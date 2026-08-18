@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 /** Neutral message representation — never a provider's own wire format. */
 public record AiMessage(Role role, String content) {

@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -8,8 +8,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * REST surface for Iris — same /api/v1/templates/** prefix as the rest of
- * Template Studio (TEMPLATE_STUDIO module gate applies unchanged).
+ * REST surface for Iris — a shared assistant used by both Template Studio
+ * and Business Agents (see AgentCreationToolProvider). Still mounted at
+ * /api/v1/templates/iris for now (moved out of the templatestudio package
+ * 2026-08-18; route itself moves to /api/v1/iris in a later phase — see
+ * wiki/decisions/2026-08-12-iris-generalization-plan.md). ModuleAccessFilter
+ * special-cases this path to accept either TEMPLATE_STUDIO or BUSINESS_AGENTS.
  */
 @RestController
 @RequestMapping("/api/v1/templates/iris")

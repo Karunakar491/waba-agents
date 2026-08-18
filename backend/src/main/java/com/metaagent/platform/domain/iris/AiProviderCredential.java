@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.metaagent.platform.common.id.TsidGenerator;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;

@@ -1,7 +1,9 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioService;
+import com.metaagent.platform.domain.templatestudio.iris.KarixMessagingClient;
+import com.metaagent.platform.domain.templatestudio.iris.TemplateStudioToolProvider;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.service.WabaService;
 import jakarta.validation.Validation;

@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
@@ -16,44 +16,50 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI adapter (real api.openai.com, gpt-4o/gpt-4o-mini only) — same
- * OpenAI-compatible wire format NvidiaLlamaAdapter already speaks (this is
- * the actual OpenAI API that format was modeled on): request "tools" as
- * {type:"function", function:{name,description,parameters}}, response
- * choices[0].message.tool_calls[].function.arguments is a JSON STRING that
- * must be parsed.
+ * NVIDIA NIM adapter (meta/llama-3.3-70b-instruct) — OpenAI-compatible wire
+ * format, but a distinct provider from a real future OpenAI adapter (own
+ * base_url, own model catalog, own reliability profile). Tool-calling shape
+ * differs from Claude's: request "tools" carries {type:"function",
+ * function:{name,description,parameters}}, and the response's
+ * tool_calls[].function.arguments is a JSON STRING, not an object like
+ * Claude's `input` — must be parsed, this is the one place a naive
+ * copy-paste from ClaudeAdapter would silently break.
  *
- * A plain-text turn returns tool_calls as null or an absent key, never an
- * empty-but-present list to rely on — checked explicitly below rather than
- * assumed, since trusting "non-null implies non-empty" here would NPE on
- * the first plain-text reply.
+ * Open-model tool-calling has a documented higher malformed-call rate than
+ * Claude's (EM note, 2026-08-04) — an unrecognized response shape fails
+ * with a clear BusinessException, same as ClaudeAdapter, never a raw NPE.
  */
 @Slf4j
 @Component
-public class OpenAiAdapter implements AiProviderAdapter {
+public class NvidiaLlamaAdapter implements AiProviderAdapter {
 
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
     @Autowired
-    public OpenAiAdapter(RestClient.Builder builder, ObjectMapper objectMapper,
-                          @Value("${openai.api.base-url:https://api.openai.com/v1}") String baseUrl) {
+    public NvidiaLlamaAdapter(RestClient.Builder builder, ObjectMapper objectMapper,
+                               @Value("${nvidia.api.base-url:https://integrate.api.nvidia.com/v1}") String baseUrl) {
         this.objectMapper = objectMapper;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        // 70B model behind a shared NIM endpoint can genuinely take >30s on a
+        // cold or loaded backend — 30s was tight enough to read as "could not
+        // reach the endpoint" when it was actually just slow. 60s is Claude's
+        // own effective ceiling for a tool-calling turn; matches that.
         requestFactory.setReadTimeout(Duration.ofSeconds(60));
         this.restClient = builder.requestFactory(requestFactory).baseUrl(baseUrl).build();
     }
 
-    /** Test-only — accepts a pre-built RestClient (e.g. bound to MockRestServiceServer). */
-    OpenAiAdapter(RestClient restClient, ObjectMapper objectMapper) {
+    /** Test-only — accepts a pre-built RestClient (e.g. bound to MockRestServiceServer)
+     * without this class's own requestFactory override clobbering the mock's wiring. */
+    NvidiaLlamaAdapter(RestClient restClient, ObjectMapper objectMapper) {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public AiProvider provider() {
-        return AiProvider.OPENAI;
+        return AiProvider.NVIDIA_LLAMA;
     }
 
     @SuppressWarnings("unchecked")
@@ -75,7 +81,9 @@ public class OpenAiAdapter implements AiProviderAdapter {
                 "messages", messages,
                 "tools", toolDefs,
                 "temperature", 0.2,
-                "max_tokens", 1024);
+                "top_p", 0.7,
+                "max_tokens", 1024,
+                "stream", false);
 
         Map<?, ?> response;
         try {
@@ -85,26 +93,30 @@ public class OpenAiAdapter implements AiProviderAdapter {
                     .body(payload)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (req, resp) -> {
-                        throw new BusinessException("OpenAI API error: " + resp.getStatusCode());
+                        throw new BusinessException("NVIDIA API error: " + resp.getStatusCode());
                     })
                     .body(Map.class);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("OpenAI API call failed ({}): {}", e.getClass().getSimpleName(), e.getMessage(), e);
-            throw new BusinessException("Could not reach OpenAI's endpoint — try again in a moment.");
+            // Logged with class + stack trace, not just getMessage() — the
+            // prior version collapsed timeout/SSL/DNS failures into one
+            // unhelpful log line, making a real production failure (reported
+            // 2026-08-06) undiagnosable after the fact.
+            log.error("NVIDIA API call failed ({}): {}", e.getClass().getSimpleName(), e.getMessage(), e);
+            throw new BusinessException("Could not reach NVIDIA's endpoint — try again in a moment.");
         }
 
         if (response == null) {
-            throw new BusinessException("OpenAI returned an empty response.");
+            throw new BusinessException("NVIDIA returned an empty response.");
         }
         List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new BusinessException("OpenAI returned no choices.");
+            throw new BusinessException("NVIDIA returned no choices.");
         }
         Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
         if (message == null) {
-            throw new BusinessException("OpenAI returned an unrecognized response shape.");
+            throw new BusinessException("NVIDIA returned an unrecognized response shape.");
         }
 
         List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) message.get("tool_calls");
@@ -116,7 +128,7 @@ public class OpenAiAdapter implements AiProviderAdapter {
             try {
                 arguments = objectMapper.readValue(argumentsJson, Map.class);
             } catch (Exception e) {
-                throw new BusinessException("OpenAI returned malformed tool-call arguments.");
+                throw new BusinessException("NVIDIA returned malformed tool-call arguments.");
             }
             return AiTurnResult.toolCall(name, arguments);
         }
@@ -125,6 +137,6 @@ public class OpenAiAdapter implements AiProviderAdapter {
         if (content instanceof String text && !text.isBlank()) {
             return AiTurnResult.text(text);
         }
-        throw new BusinessException("OpenAI returned an unrecognized response shape.");
+        throw new BusinessException("NVIDIA returned an unrecognized response shape.");
     }
 }

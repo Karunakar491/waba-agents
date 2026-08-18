@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import java.util.List;
 import java.util.Map;

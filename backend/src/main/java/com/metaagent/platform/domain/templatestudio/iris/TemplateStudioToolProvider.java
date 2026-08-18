@@ -1,6 +1,8 @@
 package com.metaagent.platform.domain.templatestudio.iris;
 
 import com.metaagent.platform.common.exception.BusinessException;
+import com.metaagent.platform.domain.iris.AiToolSpec;
+import com.metaagent.platform.domain.iris.IrisToolProvider;
 import com.metaagent.platform.domain.templatestudio.EditTemplateRequest;
 import com.metaagent.platform.domain.templatestudio.TemplateRequest;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioService;

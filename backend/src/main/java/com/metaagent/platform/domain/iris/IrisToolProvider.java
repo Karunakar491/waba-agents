@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import java.util.List;
 import java.util.Map;
@@ -11,8 +11,8 @@ import java.util.Map;
  * Business Agent creation) never means touching the generic engine.
  *
  * Extracted 2026-08-12 (see wiki/decisions/2026-08-12-iris-generalization-
- * plan.md) — {@link TemplateStudioToolProvider} is today's four tools moved
- * here verbatim, zero behavior change. A provider owns its own scoping/
+ * plan.md) — {@link com.metaagent.platform.domain.templatestudio.iris.TemplateStudioToolProvider}
+ * is today's four tools moved here verbatim, zero behavior change. A provider owns its own scoping/
  * access checks inside execute() — the engine has no opinion on what a
  * provider's args mean (wabaId, agentId, or anything else).
  */

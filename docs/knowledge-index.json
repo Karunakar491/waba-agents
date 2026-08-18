@@ -1487,10 +1487,14 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/",
-      "purpose": "Iris backend (2026-08-04) — locked scope: create/edit/list templates, send TEST templates, marketing conversation. DIRECTORY SUMMARY ONLY — every file below has its own entry (split 2026-08-07, per the index's own one-entry-per-file rule). Cross-cutting decisions that don't belong to one file: fixed tool allowlist enforced in IrisConversationService, never trusted to system-prompt instruction alone; a session no longer binds to one wabaId upfront (2026-08-04, PM+EM+UX+EL approved) — wabaId is always read from the model's own tool-call args and hard-rejected if not in the account's real WABA list; chat-history sidebar (2026-08-04) added GET /sessions + GET /sessions/{id}/messages, V36 migration adds iris_session.title."
+      "purpose": "2026-08-18: package split — the generic Iris engine (session/message persistence, model round-trip, tool-provider SPI, AI adapters, credentials) moved to domain/iris/ (see that directory's summary entry). Only Template-Studio-specific pieces remain here: TemplateStudioToolProvider.java (the create/edit/list_templates/send_test_template tools) and KarixMessagingClient.java (test-send). Historical context: locked scope, fixed tool allowlist never trusted to prompt instruction alone, wabaId always read from tool-call args and hard-rejected if not in the account's real WABA list — all still true, just implemented across two packages now."
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProvider.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/",
+      "purpose": "Iris's shared, feature-agnostic tool-calling engine (extracted from domain/templatestudio/iris/ 2026-08-18, per wiki/decisions/2026-08-12-iris-generalization-plan.md step 2) — session/message persistence (IrisSession, IrisMessage, repos), IrisConversationService (the generic round-trip + confirm-before-submit engine, iterates every registered IrisToolProvider bean generically), the IrisToolProvider SPI + AiToolSpec, BYOK AI provider adapters (Claude/OpenAI/NvidiaLlama) + credentials (AiCredentialService, AiProviderCredential). DIRECTORY SUMMARY ONLY — every file has its own entry. Consumed by two providers today: TemplateStudioToolProvider (domain/templatestudio/iris/) and AgentCreationToolProvider (domain/agent/iris/). Still mounted at /api/v1/templates/iris (route move to /api/v1/iris is a later phase); ModuleAccessFilter special-cases that path to accept TEMPLATE_STUDIO OR BUSINESS_AGENTS."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiProvider.java",
       "purpose": "Closed-set enum of BYOK providers (CLAUDE, NVIDIA_LLAMA, OPENAI) each with a closed-set allowed-models list, validated server-side on every credential write; a provider must have a matching AiProviderAdapter registered before being added here. OPENAI (gpt-4o/gpt-4o-mini) added 2026-08-06 as the 3rd BYOK provider, PM+EM+EL approved (EL rejected round 1 on a stale frontend 'coming soon' cleanup, approved round 2).",
       "tags": [
         "iris",
@@ -1507,7 +1511,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredential.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiProviderCredential.java",
       "purpose": "JPA entity for BYOK AI-provider credential — account-scoped (one account-wide key, not per-WABA), stores provider/model/encryptedApiKey (via SecretEncryptor) with TSID id and created/updated timestamps.",
       "tags": [
         "iris",
@@ -1521,7 +1525,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderCredentialRepository.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiProviderCredentialRepository.java",
       "purpose": "Spring Data repository for AiProviderCredential — findByAccountIdAndProvider, findAllByAccountId (one ACTIVE provider per account in practice), existsByAccountId.",
       "tags": [
         "iris",
@@ -1533,7 +1537,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiCredentialService.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiCredentialService.java",
       "purpose": "BYOK credential CRUD — getStatus/listOptions/upsert (enforces one active provider per account, validates provider/model against AiProvider enum, encrypts key) and resolveForConversation (package-private, decrypted key, never returned via GET). EL-caught bug (2026-08-06): getStatus()/resolveForConversation() once hardcoded AiProvider.CLAUDE.name(), silently hiding a non-Claude credential — fixed to pick firstCredentialForAccount() via a new findAllByAccountId repo method instead of assuming the provider.",
       "tags": [
         "iris",
@@ -1547,7 +1551,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiMessage.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiMessage.java",
       "purpose": "Neutral role/content message record used internally by the conversation loop and adapters — never a provider's own wire format.",
       "tags": [
         "iris",
@@ -1563,7 +1567,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiToolSpec.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiToolSpec.java",
       "purpose": "One entry in Iris's fixed tool allowlist (name/description/inputSchema/requiresConfirmation) — this Map IS the allowlist enforced in IrisConversationService before any tool executes. Two real schema bugs found+fixed 2026-08-06: (1) create_template/edit_template had no codeExpirationMinutes property, so a structurally-correct AUTHENTICATION/OTP template silently omitted a field Meta requires (found via mocked-adapter chat-scenario testing, IrisTemplateCreationScenariosTest.java); (2) components property was bare Map.of(\"type\",\"array\") with zero shape guidance, so a real live model (direct OpenAI call, no key ever touched this codebase) reliably invented Meta's message-SENDING-time shapes instead of template-CREATION-time shapes — fixed via a new COMPONENTS_SCHEMA_DESCRIPTION constant spelling out the 4 real component types (BODY/HEADER/FOOTER/BUTTONS, one BUTTONS component wrapping all buttons), live-reverified against the same real model after the fix.",
       "tags": [
         "iris",
@@ -1579,7 +1583,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiTurnResult.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiTurnResult.java",
       "purpose": "Neutral result record (TEXT or TOOL_CALL) returned by every AiProviderAdapter, with text() and toolCall() factory helpers.",
       "tags": [
         "iris",
@@ -1595,7 +1599,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/AiProviderAdapter.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/AiProviderAdapter.java",
       "purpose": "Interface each BYOK provider adapter implements — provider() identity plus converse() translating Iris's neutral message/tool representation into that provider's wire format and back. IrisConversationService needs ZERO changes to add a new provider — confirmed true when NVIDIA_LLAMA and OPENAI were both added.",
       "tags": [
         "iris",
@@ -1610,7 +1614,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/ClaudeAdapter.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/ClaudeAdapter.java",
       "purpose": "AiProviderAdapter for Claude — calls Anthropic Messages API directly with a per-call BYOK api key and `tools` param, parsing tool_use/text blocks into AiTurnResult; deliberately NOT built on ClaudeApiClient, which is wizard-only/platform-key/no-tool-support per its own contract.",
       "tags": [
         "iris",
@@ -1622,7 +1626,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/NvidiaLlamaAdapter.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/NvidiaLlamaAdapter.java",
       "purpose": "AiProviderAdapter for NVIDIA NIM (meta/llama-3.3-70b-instruct) — OpenAI-compatible wire format with 60s read timeout for the shared endpoint's cold-start latency; parses tool_calls[].function.arguments as a JSON string (unlike Claude's already-object input), wrapped in BusinessException on malformed JSON. Has a package-private test-only constructor accepting a pre-built RestClient so MockRestServiceServer tests aren't clobbered by the real constructor's requestFactory logic.",
       "tags": [
         "iris",
@@ -1634,7 +1638,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/OpenAiAdapter.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/OpenAiAdapter.java",
       "purpose": "AiProviderAdapter for real api.openai.com (gpt-4o/gpt-4o-mini only) — same OpenAI-compatible wire format as NvidiaLlamaAdapter, explicitly checks tool_calls for null/empty before parsing to avoid an NPE on plain-text replies.",
       "tags": [
         "iris",
@@ -1646,7 +1650,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSession.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisSession.java",
       "purpose": "JPA entity for one Iris conversation — accountId/nullable wabaId scoping, auto-derived title (set once from a truncated first-user-message, never reset), and pendingToolName/pendingToolArgsJson holding a mutating tool call's exact args awaiting confirmation (confirm() always replays these persisted args, never a fresh model message — that's what \"confirm-before-submit\" means at the data layer). id serialized via ToStringSerializer (TSID precision fix, 2026-08-04 — 18-digit values exceed JS Number.MAX_SAFE_INTEGER, same class of bug already solved once for WabaResponse).",
       "tags": [
         "iris",
@@ -1660,7 +1664,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionRepository.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisSessionRepository.java",
       "purpose": "Spring Data repository for IrisSession — existsByIdAndAccountId for ownership checks, findByAccountIdOrderByUpdatedAtDesc via a lightweight summary projection for the sidebar list.",
       "tags": [
         "iris",
@@ -1672,7 +1676,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisSessionSummaryProjection.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisSessionSummaryProjection.java",
       "purpose": "Spring Data interface projection (id/title/updatedAt only) so the sidebar session list never hydrates the pending_tool_args_json TEXT column.",
       "tags": [
         "iris",
@@ -1684,7 +1688,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessage.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisMessage.java",
       "purpose": "JPA entity for one Iris chat-history message (USER/ASSISTANT/TOOL role) with content, optional toolName/toolArgsJson, and createdAt timestamp.",
       "tags": [
         "iris",
@@ -1698,7 +1702,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisMessageRepository.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisMessageRepository.java",
       "purpose": "Spring Data repository for IrisMessage — findAllBySessionIdOrderByCreatedAtAsc loads a session's chronological transcript.",
       "tags": [
         "iris",
@@ -1710,7 +1714,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/CreateSessionRequest.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/CreateSessionRequest.java",
       "purpose": "Request body record for POST /sessions — carries the (nullable) wabaId a new Iris session is scoped to.",
       "tags": [
         "iris",
@@ -1722,7 +1726,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/SendMessageRequest.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/SendMessageRequest.java",
       "purpose": "Validated request body record for POST /sessions/{id}/messages — requires non-blank text.",
       "tags": [
         "iris",
@@ -1734,7 +1738,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/UpsertAiCredentialRequest.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/UpsertAiCredentialRequest.java",
       "purpose": "Validated request body record for PUT /credential — requires non-blank provider, model, and apiKey.",
       "tags": [
         "iris",
@@ -1747,7 +1751,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisController.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisController.java",
       "purpose": "REST controller for Iris under /api/v1/templates/iris — session create/list, message get/send, confirm/cancel pending tool action, and credential status/options/upsert endpoints.",
       "tags": [
         "iris",
@@ -1769,7 +1773,7 @@
       ]
     },
     {
-      "path": "backend/src/main/java/com/metaagent/platform/domain/templatestudio/iris/IrisConversationService.java",
+      "path": "backend/src/main/java/com/metaagent/platform/domain/iris/IrisConversationService.java",
       "purpose": "Iris's core tool-calling loop — builds system prompt with every WABA the account can see (2026-08-04: asks which one if 2+, uses the only one silently if 1, always names the resolved WABA back to the operator), dispatches to the account's configured AiProviderAdapter, enforces the fixed create/edit/list/send_test tool allowlist with confirm-before-submit for mutating tools (pending args persisted on IrisSession, replayed verbatim on confirm). Tenant isolation: hard-rejects any model-supplied wabaId not in the account's own WABA list BEFORE dispatching to TemplateStudioService/KarixMessagingClient — on top of, not instead of, those services' own access checks; the one chokepoint all Iris tool dispatch passes through. conversationHistory() is the single shared USER/ASSISTANT-filtered read path for both sendMessage()'s model-history-building and the getMessages() endpoint, deliberately factored out so the two can't drift on what counts as displayable conversation vs internal tool bookkeeping. 2026-08-12: added INFO logging at sendMessage/confirmPendingAction/executeTool (tool selected, wabaId, result keys) — was previously the single biggest logging gap in the codebase (zero log statements). Also fixed a real bug found by live-testing: system prompt now explicitly tells the model the app already handles confirmation via the tool call itself, since the model was asking \"shall I proceed?\" in prose instead of calling create_template, silently skipping the whole confirm flow.",
       "tags": [
         "iris",

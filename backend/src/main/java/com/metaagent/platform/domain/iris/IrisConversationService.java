@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
@@ -16,7 +16,8 @@ import java.util.stream.Collectors;
 /**
  * Iris's generic tool-calling engine. Tools/system-prompt-fragments/
  * execution are supplied by every registered {@link IrisToolProvider} bean
- * (today: only {@link TemplateStudioToolProvider}) — this class owns
+ * (today: only {@link com.metaagent.platform.domain.templatestudio.iris.TemplateStudioToolProvider})
+ * — this class owns
  * session/message persistence, the model round-trip, and the confirm-
  * before-submit mechanism, none of which are feature-specific.
  * Extracted 2026-08-12 (see wiki/decisions/2026-08-12-iris-generalization-

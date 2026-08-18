@@ -1,4 +1,4 @@
-package com.metaagent.platform.domain.templatestudio.iris;
+package com.metaagent.platform.domain.iris;
 
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.security.TenantDetails;

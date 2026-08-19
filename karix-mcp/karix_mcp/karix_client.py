@@ -158,18 +158,22 @@ class KarixClient:
         """POST /api/v1.0/template/{wabaId}/media (multipart) — returns a fileHandle
         to reference in a HEADER component's example.header_handle.
 
-        category must be 'image' | 'video' | 'document' (sent as file_type — NOT
-        the MIME type; an earlier attempt using the MIME type was confirmed wrong,
-        Karix's own layer rejected it before ever reaching Meta).
+        category must be 'image' | 'video' | 'document' -- used for the mediaType
+        query param and client-side validation only.
 
-        KNOWN OPEN BUG (filed with Karix support, unresolved as of the superagent
-        project that first hit this): the returned handle's embedded type marker
-        is malformed for images — decoding the base64 segment gives the literal
-        broken string "image=" instead of "image/png", causing Meta to reject
-        templates using this handle with error_subcode 2388084 ("File type not
-        supported"), even for genuinely valid files. NOT fixed here — surfacing
-        it via the tool's error path is honest; silently "fixing" it without a
-        confirmed working alternative would just hide the failure differently.
+        FIXED 2026-08-19 (was: KNOWN OPEN BUG, filed with Karix support): file_type
+        must be sent as the real MIME type (e.g. "image/jpeg"), NOT the bare
+        category ("image"). Karix's backend embeds whatever string is sent as
+        file_type verbatim into the returned handle's type marker -- sending the
+        bare category produced a handle that decoded to the literal broken string
+        "image" instead of "image/jpeg", which Meta then rejected at template
+        creation with error_subcode 2388084 ("File type not supported"), even for
+        genuinely valid files. An earlier attempt using the MIME type was recorded
+        as "confirmed wrong, rejected before reaching Meta" -- re-tested live
+        2026-08-19 with a real JPEG and it now works end-to-end (real Meta
+        template created, MEDIA_TEMPLATE/media_type=IMAGE, handle decodes to
+        "image/jpeg") -- that earlier finding either predates this behavior on
+        Karix's side or was testing a different symptom.
         """
         # EL-caught gap (2026-08-07 audit): case-sensitive check rejected the
         # caller's "IMAGE" (matching Meta's own uppercase HEADER format enum
@@ -180,7 +184,7 @@ class KarixClient:
         url = f"{self.template_base}/api/v1.0/template/{self.waba_id}/media"
         headers = {"Authentication": f"Bearer {self.api_key}", "Accept": "application/json"}
         files = {"file": (filename, file_bytes, mime_type)}
-        data = {"file_type": category}
+        data = {"file_type": mime_type}
         log_path = f"/api/v1.0/template/{self.waba_id}/media"
         # EM-caught: never put file_bytes in the audit log — binary blob into
         # a TEXT/JSON column is both a redaction risk and storage bloat. Log

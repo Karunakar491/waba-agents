@@ -144,3 +144,18 @@ class TestEndToEndLogging:
         assert logs[0]["request_body"] is not None
         assert "logo.png" in logs[0]["request_body"]
         assert secret_bytes.decode("latin1") not in logs[0]["request_body"]
+
+    def test_upload_media_sends_real_mime_type_as_file_type(self, mocker):
+        # 2026-08-19: sending the bare category ("image") as file_type produced a
+        # handle whose embedded type marker decoded to the literal broken string
+        # "image" instead of a real MIME type, which Meta then rejected at
+        # template creation with error_subcode 2388084 ("File type not
+        # supported") -- confirmed live with a real JPEG. Karix's backend embeds
+        # whatever we send verbatim, so this must be the actual MIME type.
+        from karix_mcp import credentials
+        credentials.set_request_credentials(api_key="k", waba_id="waba1", esme_addr="esme_mediatest2")
+
+        post = mocker.patch("requests.post", return_value=mocker.Mock(status_code=200, json=lambda: {"fileHandle": "abc"}))
+        self._client().upload_media(b"fake-jpeg-bytes", "photo.jpg", "image/jpeg", "image")
+
+        assert post.call_args.kwargs["data"]["file_type"] == "image/jpeg"

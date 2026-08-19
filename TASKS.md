@@ -9,10 +9,14 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 - **Why**: `TemplateStudioToolProvider.extractTemplatesList()` (new, for turning `list_templates` results into a readable chat summary) and the pre-existing `TemplateStudioClient.countTemplates()` both assume the shape `{result: {response: {templates: [...]}}}}` — sourced from an older code comment claiming "confirmed live 2026-08-12," not independently re-verified now. If that shape has drifted, both methods silently fall back to generic text rather than erroring, which could mask a real mismatch.
 - **Plan**: run one real Iris "list templates" request against staging Karix, confirm the JSON shape matches, and update both methods together if it doesn't. Not blocking the current fix — the fallback path was accepted as a deliberate, disclosed trade-off in exchange for not guessing at fields that might not exist.
 
-### 7. Run the Testcontainers suite for the 2026-08-19 Iris quality fixes before production
-- **Status**: Not started. EM's explicit condition when approving the `requireArgsPresent` behavior change.
-- **Why**: `requireArgsPresent()` is a new behavior change on every `sendMessage()` call across both Iris providers (Template Studio, Business Agents), not just template creation — verified only by `mvn compile`/`test-compile` in this sandbox (no Docker available for the real Testcontainers-based integration suite). Needs the actual suite green, specifically covering both providers' full tool sets, before this reaches production.
-- **Plan**: run `mvn test` (with Docker available) in CI/staging and confirm all `IrisTemplateCreationScenariosTest`, `ModuleAccessFilterTest`, and related Iris tests pass, not just compile.
+### 7. Run the Testcontainers suite for the 2026-08-19 Iris quality fixes
+- **Status**: Superseded by live production verification 2026-08-19 (see Resolved #8) — the specific behavior changes (`requireArgsPresent`, module-gate OR-check, `feature_key` defaulting) were confirmed working via real requests against the live deployed app. The full Testcontainers suite still surfaced 3 real, code-unrelated infra failures (Redis flakiness) when run locally — worth a clean CI run at some point, but no longer a production-readiness blocker for this specific set of changes since they're now live and verified.
+- **Why**: Original concern (EM's condition) was "does this behavior change work for both providers' full tool sets" — answered directly by live testing instead of the sandbox's integration suite.
+
+### 9. Root/admin MySQL credential unknown to both operator and this session
+- **Status**: Not started. Surfaced during the 2026-08-19 production deploy.
+- **Why**: The `meta_agent` DB user is correctly least-privileged (can't `CREATE DATABASE`), which is good security posture, but it means a full "restore-test into a scratch schema" backup verification isn't possible without either the root MySQL password or a temporary privilege grant — and neither the founder nor this session had it. Backup verification fell back to structural checks (dump completion marker, table/row counts) instead of an actual restore test.
+- **Plan**: locate or reset the root MySQL credential (via the RDS/EC2 console or however this instance's MySQL was originally provisioned) and store it somewhere both the founder and future sessions can reach securely, so future deploys can do a real restore-test rather than a structural-only check.
 
 ### 1. Render rich UI Skill messages (interactive/location) in the Inbox
 - **Status**: Not started. Sequenced deliberately: backend capture fix first, then wait for a real customer-triggered rich message to land in the Webhooks tab to verify the actual JSON shape, before writing frontend display logic.
@@ -43,6 +47,12 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 - **Plan**: needs PM/EM/UX scoping (real UI/validation-UX decisions, not mechanical) before a fix — likely split into: (a) wire existing-but-disconnected checks into `canSubmit`/inline messages, (b) add the missing length/format validations, (c) map backend rejection to field-level messages, (d) decide whether `ConsequenceLine` extends to the manual form or stays Iris/bulk-import-only.
 
 ## Resolved
+
+### 8. Deployed the Iris/Template-Studio separation + quality-fix work to production
+- **Status**: Resolved 2026-08-19. All 8 commits (Phases 0-6, 9 of the Iris separation plan; karix-mcp logging fix deliberately excluded, see below) deployed to `metaagent.service` and live-verified.
+- **Verification**: Flyway V52 applied cleanly (`success=1`), clean startup log, health check 200, zero new errors since restart. Live functional test via two throwaway `deploy-verify-*@example.invalid` test accounts (created through the app's real signup API, not direct DB access): a Business-Agents-only account got 200 on both `/api/v1/iris/sessions` and legacy `/api/v1/templates/iris/sessions` (confirms the Phase 0 entitlement fix live), and new sessions correctly defaulted `feature_key` to `"template_studio"` or stored an explicit `"agent_creation"` value (confirms the Phase 3 fix live).
+- **Deferred from this deploy**: the karix-mcp Python logging fix (`api_call_logger.py`) — separate systemd service, own untested code path (no Python interpreter in the sandbox that produced it), descoped to its own smaller deploy later rather than bundled in.
+- **Process note**: full backup-before-migration discipline followed (fresh `mysqldump`, copied off-server to local machine) but restore verification was structural-only (completion marker + table/row counts), not a true scratch-schema restore test, since neither the founder nor this session had the root MySQL credential — see open item #9.
 
 ### 3. `agent_onboarding` — confirmed not needed, closing
 - **Status**: Resolved 2026-08-16. Not implemented, not being added.

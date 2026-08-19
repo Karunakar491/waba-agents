@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -224,7 +226,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                         String.valueOf(args.get("templateName")),
                         String.valueOf(args.get("language")),
                         String.valueOf(args.get("category")),
-                        castComponents(args.get("components")),
+                        mergeStrayTopLevelComponents(args, castComponents(args.get("components"))),
                         args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))),
                         args.get("parameterFormat") == null ? null : String.valueOf(args.get("parameterFormat")));
                 validateOrThrow(request);
@@ -232,7 +234,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             }
             case "edit_template" -> {
                 EditTemplateRequest request = new EditTemplateRequest(
-                        castComponents(args.get("components")),
+                        mergeStrayTopLevelComponents(args, castComponents(args.get("components"))),
                         null, null, null,
                         args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
                 validateOrThrow(request);
@@ -314,11 +316,77 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             if (PLACEHOLDER_PATTERN.matcher(text).find() || !component.containsKey("example")) {
                 return component;
             }
-            Map<String, Object> withoutExample = new java.util.LinkedHashMap<>(component);
+            Map<String, Object> withoutExample = new LinkedHashMap<>(component);
             withoutExample.remove("example");
             log.info("stripExampleFromPlaceholderFreeBody: removed stray example key from a placeholder-free BODY");
             return withoutExample;
         }).toList();
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): the model can put HEADER/FOOTER/
+     * BUTTONS data as a stray top-level sibling key next to "components" instead of
+     * as a proper component object inside it -- e.g. a top-level "header":
+     * {"type":"IMAGE","example":{...}} instead of a components entry
+     * {"type":"HEADER","format":"IMAGE","example":{...}}. That stray key used to be
+     * silently dropped (execute() only reads known top-level args), so Karix created
+     * a template with NO header at all while Iris told the operator one was attached
+     * -- confirmed live: templateId 1072082308622182 was created with only a BODY
+     * component despite a real header_handle being supplied. This heals the shape
+     * into the correct component instead of losing the operator's requested content.
+     */
+    List<Map<String, Object>> mergeStrayTopLevelComponents(Map<String, Object> args, List<Map<String, Object>> components) {
+        List<Map<String, Object>> merged = new ArrayList<>(components);
+        mergeStrayHeader(args, merged);
+        mergeStraySimple(args, merged, "footer", "FOOTER");
+        mergeStrayButtons(args, merged);
+        return merged;
+    }
+
+    private boolean hasComponentType(List<Map<String, Object>> components, String type) {
+        return components.stream().anyMatch(c -> type.equals(c.get("type")));
+    }
+
+    private void mergeStrayHeader(Map<String, Object> args, List<Map<String, Object>> components) {
+        if (hasComponentType(components, "HEADER") || !(args.get("header") instanceof Map<?, ?> header)) {
+            return;
+        }
+        Map<String, Object> headerComponent = new LinkedHashMap<>();
+        headerComponent.put("type", "HEADER");
+        headerComponent.put("format", header.get("format") != null ? header.get("format") : header.get("type"));
+        header.forEach((k, v) -> {
+            if (!"type".equals(k) && !"format".equals(k)) {
+                headerComponent.put(String.valueOf(k), v);
+            }
+        });
+        components.add(0, headerComponent);
+        log.info("mergeStrayTopLevelComponents: healed a stray top-level 'header' key into a proper HEADER component");
+    }
+
+    private void mergeStraySimple(Map<String, Object> args, List<Map<String, Object>> components, String key, String type) {
+        if (hasComponentType(components, type) || !(args.get(key) instanceof Map<?, ?> value)) {
+            return;
+        }
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("type", type);
+        value.forEach((k, v) -> {
+            if (!"type".equals(k)) {
+                component.put(String.valueOf(k), v);
+            }
+        });
+        components.add(component);
+        log.info("mergeStrayTopLevelComponents: healed a stray top-level '{}' key into a proper {} component", key, type);
+    }
+
+    private void mergeStrayButtons(Map<String, Object> args, List<Map<String, Object>> components) {
+        if (hasComponentType(components, "BUTTONS") || !(args.get("buttons") instanceof List<?> buttonsList)) {
+            return;
+        }
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("type", "BUTTONS");
+        component.put("buttons", buttonsList);
+        components.add(component);
+        log.info("mergeStrayTopLevelComponents: healed a stray top-level 'buttons' key into a proper BUTTONS component");
     }
 
     private <T> void validateOrThrow(T request) {

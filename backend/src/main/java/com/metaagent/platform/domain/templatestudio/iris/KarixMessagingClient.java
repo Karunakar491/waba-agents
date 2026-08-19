@@ -90,7 +90,7 @@ public class KarixMessagingClient {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         wabaAccessGuard.requireAccess(wabaId, accountId);
 
-        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaId(wabaId)
+        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaIdOrderByIdAsc(wabaId)
                 .orElseThrow(() -> new BusinessException("No phone number on this WABA has a Karix credential configured yet — set one up in Settings."));
         KarixEsmeCredential credential = esmeCredentialRepository.findById(mapping.getEsmeCredentialId())
                 .orElseThrow(() -> new BusinessException("Karix credential not found for the mapped phone number."));

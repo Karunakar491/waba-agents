@@ -119,23 +119,25 @@ public class TemplateStudioService {
     /**
      * Template operations are approved by Meta at the WABA level, not per
      * phone number, so any phone's mapped esme_addr credential under this
-     * WABA is equally valid for a create/edit/list call — picks the first
-     * mapping found (2026-08-04, pragmatic default per founder: "try it and
-     * test" rather than a designed selection rule; revisit if real Karix
-     * behavior ever shows the choice matters).
+     * WABA is equally valid for a create/edit/list call — picks the
+     * earliest-configured mapping deterministically (2026-08-19: switched
+     * from unordered findFirstByWabaId, which could silently resolve a
+     * stale/mismatched esme credential when a WABA had more than one phone
+     * mapping, causing Karix to return an empty template list even though
+     * a valid credential existed on a different mapping for the same WABA).
      */
     public ResolvedCredential resolveCredential(Long wabaId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         wabaAccessGuard.requireAccess(wabaId, accountId);
         Waba waba = wabaRepository.findById(wabaId)
                 .orElseThrow(() -> new NotFoundException("WABA not found"));
-        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaId(wabaId)
+        PhoneEsmeMapping mapping = phoneEsmeMappingRepository.findFirstByWabaIdOrderByIdAsc(wabaId)
                 .orElseThrow(() -> new BusinessException(
                         "No phone number on this WABA has a Karix credential configured yet — set one up in Settings."));
         KarixEsmeCredential credential = esmeCredentialRepository.findById(mapping.getEsmeCredentialId())
                 .orElseThrow(() -> new BusinessException("Karix credential not found for the mapped phone number."));
 
-        log.info("resolveCredential: wabaId={} resolved esmeAddr={} via phoneEsmeMapping.id={} (first-found heuristic)",
+        log.info("resolveCredential: wabaId={} resolved esmeAddr={} via phoneEsmeMapping.id={} (deterministic, oldest mapping)",
                 wabaId, credential.getEsmeAddr(), mapping.getId());
         return new ResolvedCredential(
                 credential.getEsmeAddr(),

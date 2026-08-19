@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface PhoneEsmeMappingRepository extends JpaRepository<PhoneEsmeMapping, Long> {
     List<PhoneEsmeMapping> findAllByWabaId(Long wabaId);
-    Optional<PhoneEsmeMapping> findFirstByWabaId(Long wabaId);
+    Optional<PhoneEsmeMapping> findFirstByWabaIdOrderByIdAsc(Long wabaId);
     Optional<PhoneEsmeMapping> findByWabaIdAndPhoneNumberId(Long wabaId, String phoneNumberId);
 }

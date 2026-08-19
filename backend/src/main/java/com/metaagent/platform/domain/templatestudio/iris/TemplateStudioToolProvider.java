@@ -125,7 +125,13 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
 
                 Meta requires exact values on every template: category must be exactly MARKETING, UTILITY, or \
                 AUTHENTICATION (uppercase, no other categories exist) — never a lowercase guess. language must be a \
-                Meta locale code like en_US, never a bare language name like "English".""".formatted(wabaList);
+                Meta locale code like en_US, never a bare language name like "English".
+
+                Never call create_template, edit_template, or send_test_template unless the user has clearly asked \
+                for that specific action in this turn — a greeting, a vague message, or small talk gets a plain \
+                reply or a clarifying question, never a drafted action. Never invent a templateName, testPhoneNumber, \
+                or parameterValue the user didn't actually provide — ask for the missing value instead of guessing \
+                one, even a plausible-looking one.""".formatted(wabaList);
     }
 
     /**

@@ -170,7 +170,17 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
      */
     @Override
     public Map<String, Object> execute(String toolName, Map<String, Object> args, Long accountId) {
-        Long wabaId = Long.valueOf(String.valueOf(args.get("wabaId")));
+        // Defense-in-depth (2026-08-19, live-caught): a confused model can produce
+        // a non-numeric wabaId (e.g. the literal string "null") instead of asking
+        // which WABA the operator means. This used to crash with an uncaught
+        // NumberFormatException -> raw 500; now it's a clean, recoverable error.
+        Long wabaId;
+        try {
+            wabaId = Long.valueOf(String.valueOf(args.get("wabaId")));
+        } catch (NumberFormatException e) {
+            log.warn("execute rejected: tool={} wabaId arg was not a valid id: {}", toolName, args.get("wabaId"));
+            throw new BusinessException("I need to know which WABA this is for — please say which one you mean.");
+        }
         Set<Long> accountWabaIds = wabaService.listForAccount(accountId).stream().map(Waba::getId).collect(Collectors.toSet());
         if (!accountWabaIds.contains(wabaId)) {
             log.warn("execute rejected: tool={} wabaId={} not in caller's account WABAs {}", toolName, wabaId, accountWabaIds);

@@ -70,12 +70,21 @@ public class OpenAiAdapter implements AiProviderAdapter {
                         "name", t.name(), "description", t.description(), "parameters", t.inputSchema())))
                 .toList();
 
+        // 2026-08-19, live-caught: gpt-5.4-mini (and the whole GPT-5 series) rejects
+        // "max_tokens" outright -- "Unsupported parameter: 'max_tokens' is not
+        // supported with this model. Use 'max_completion_tokens' instead." This was
+        // never caught earlier because live testing only ever exercised gpt-4o-mini
+        // (not one of the two tier models), so the daily-budget tier switch never
+        // actually reached a real gpt-5.4-mini/gpt-5-mini API call until now.
+        // max_completion_tokens works on both the old and new model families
+        // (confirmed live against gpt-4o-mini too), so this is a single unified fix,
+        // not a per-model branch.
         Map<String, Object> payload = Map.of(
                 "model", model,
                 "messages", messages,
                 "tools", toolDefs,
                 "temperature", 0.2,
-                "max_tokens", 1024);
+                "max_completion_tokens", 1024);
 
         Map<?, ?> response;
         try {

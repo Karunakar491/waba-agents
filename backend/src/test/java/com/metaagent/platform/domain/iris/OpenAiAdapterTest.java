@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -34,6 +35,26 @@ class OpenAiAdapterTest {
                 .andExpect(method(org.springframework.http.HttpMethod.POST))
                 .andRespond(withSuccess(responseJson, MediaType.APPLICATION_JSON));
         return adapter;
+    }
+
+    @Test
+    void sends_max_completion_tokens_not_max_tokens() {
+        // 2026-08-19, live-caught: gpt-5.4-mini rejects "max_tokens" outright
+        // ("Unsupported parameter... Use 'max_completion_tokens' instead") --
+        // confirmed live against the real OpenAI API with the real tier model.
+        // Never caught earlier because live testing only ever exercised
+        // gpt-4o-mini, not one of the two actual tier models.
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        OpenAiAdapter adapter = new OpenAiAdapter(builder.build(), new ObjectMapper());
+        server.expect(requestTo("http://localhost/chat/completions"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andExpect(jsonPath("$.max_completion_tokens").exists())
+                .andExpect(jsonPath("$.max_tokens").doesNotExist())
+                .andRespond(withSuccess("""
+                        {"choices":[{"message":{"content":"Hi there!"}}]}""", MediaType.APPLICATION_JSON));
+
+        adapter.converse("sk-test-key", "gpt-5.4-mini", "system prompt", HISTORY, TOOLS);
     }
 
     @Test

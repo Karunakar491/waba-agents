@@ -63,7 +63,14 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP. " +
             "For category AUTHENTICATION specifically, the BUTTONS component's single button MUST be " +
             "{\"type\":\"OTP\",\"otp_type\":\"COPY_CODE\",\"example\":\"<sample one-time code, e.g. 123456>\"} — " +
-            "Meta rejects an AUTHENTICATION template missing otp_type or example on the OTP button (PM-caught gap, 2026-08-07 audit).";
+            "Meta rejects an AUTHENTICATION template missing otp_type or example on the OTP button (PM-caught gap, 2026-08-07 audit). " +
+            "CAROUSEL {type,cards:[...]} — optional, for a template that shows a swipeable set of cards alongside the " +
+            "normal top-level BODY (the top-level components list still needs its own BODY entry separately; CAROUSEL " +
+            "is an additional component, not a replacement for BODY). Each entry in \"cards\" is {components:[...]} — " +
+            "each card's own components list follows the SAME rules as above: a HEADER (format IMAGE/VIDEO, same " +
+            "REQUIRED \"example\":{\"header_handle\":[...]} rule), an optional card-level BODY, and at most one " +
+            "BUTTONS component (URL and/or QUICK_REPLY only — no PHONE_NUMBER or OTP buttons inside a card). Every " +
+            "card needs the same component shapes as every other card in the same carousel.";
 
     private static final List<AiToolSpec> TOOLS = List.of(
             new AiToolSpec("create_template", "Create a new WhatsApp template. Requires user confirmation before it is actually submitted. " +

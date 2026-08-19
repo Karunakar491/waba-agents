@@ -17,6 +17,7 @@ import { useSelectedWaba } from '../hooks/useSelectedWaba'
 // reply (DESIGN.md §6). No credential forms — Settings only.
 
 interface WabaEntry { id: string; label: string | null }
+interface ParsedSheetResponse { totalRows: number; parsedRows: number; truncated: boolean; rows: Array<Record<string, string>> }
 
 export default function TemplateIrisPage() {
   const credentialQuery = useQuery({
@@ -81,6 +82,19 @@ function rememberWabaFromArgs(args: Record<string, unknown> | undefined) {
   localStorage.setItem(TEMPLATE_STUDIO_WABA_KEY, String(args.wabaId))
 }
 
+// The bracketed tag is the ONLY channel carrying attachment data to the model
+// -- Iris reads plain message text, so these are deliberately machine-readable
+// prose rather than a separate request field. TemplateStudioToolProvider's
+// system prompt is written to recognize both exact tag shapes.
+function buildAttachmentTag(attachment: IrisAttachment): string {
+  if (attachment.kind === 'sheet' && attachment.sheetSummary) {
+    const { parsedRows, totalRows, truncated, rows } = attachment.sheetSummary
+    const rowCountLabel = truncated ? `${parsedRows} of ${totalRows}` : `${parsedRows}`
+    return `\n\n[Attached template sheet: ${attachment.fileName} — ${rowCountLabel} rows: ${JSON.stringify(rows)}]`
+  }
+  return `\n\n[Attached image: ${attachment.fileName} — file_handle: ${attachment.fileHandle}]`
+}
+
 function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boolean; usingPlatformDefault: boolean }) {
   const queryClient = useQueryClient()
   const location = useLocation()
@@ -126,8 +140,28 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
       setAttachment({ fileName: file.name, status: 'error', errorMessage: 'Pick a WABA on the Templates page first — image uploads need one.' })
       return
     }
-    setAttachment({ fileName: file.name, status: 'uploading' })
+    setAttachment({ fileName: file.name, status: 'uploading', kind: 'image' })
     uploadAttachment.mutate(file)
+  }
+
+  const uploadSheet = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await api.post(`/templates/${selectedWabaId}/sheet-upload`, form, { headers: { 'Content-Type': undefined } })
+      return res.data.data as ParsedSheetResponse
+    },
+    onSuccess: (summary, file) => setAttachment({ fileName: file.name, status: 'ready', kind: 'sheet', sheetSummary: summary }),
+    onError: (err, file) => setAttachment({ fileName: file.name, status: 'error', kind: 'sheet', errorMessage: extractErrorMessage(err) }),
+  })
+
+  function handleAttachSheet(file: File) {
+    if (!selectedWabaId) {
+      setAttachment({ fileName: file.name, status: 'error', kind: 'sheet', errorMessage: 'Pick a WABA on the Templates page first — sheet uploads need one.' })
+      return
+    }
+    setAttachment({ fileName: file.name, status: 'uploading', kind: 'sheet' })
+    uploadSheet.mutate(file)
   }
 
   useEffect(() => {
@@ -340,14 +374,12 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
     if ((!value && !readyAttachment) || pending || sendMessage.isPending) return
     setError(null)
     const entryId = newEntryId()
-    // The bracketed tag is the ONLY channel carrying the file_handle to the
-    // model -- Iris reads plain message text, so this is deliberately
-    // machine-readable prose rather than a separate request field. Its
-    // system prompt (IrisConversationService.SYSTEM_PROMPT) is written to
-    // recognize this exact tag and use the handle for a HEADER IMAGE
-    // component instead of asking the operator to attach differently.
-    const attachmentTag = readyAttachment ? `\n\n[Attached image: ${readyAttachment.fileName} — file_handle: ${readyAttachment.fileHandle}]` : ''
-    const displayText = value + (readyAttachment ? `\n\n📎 ${readyAttachment.fileName}` : '')
+    const attachmentTag = readyAttachment ? buildAttachmentTag(readyAttachment) : ''
+    const displayText = value + (readyAttachment
+      ? readyAttachment.kind === 'sheet'
+        ? `\n\n📄 ${readyAttachment.fileName}`
+        : `\n\n📎 ${readyAttachment.fileName}`
+      : '')
     setEntries((prev) => [...prev, { id: entryId, who: 'user', text: displayText, status: 'sending' }])
     setInput('')
     setAttachment(null)
@@ -393,6 +425,7 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
           onAbort={abortSend}
           attachment={attachment}
           onAttach={handleAttach}
+          onAttachSheet={handleAttachSheet}
           onRemoveAttachment={removeAttachment}
         />
         {pending && (

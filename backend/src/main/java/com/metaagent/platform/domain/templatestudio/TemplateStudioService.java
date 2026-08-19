@@ -10,6 +10,7 @@ import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialReposito
 import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
+import com.metaagent.platform.domain.templatestudio.iris.TemplateSheetParser;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class TemplateStudioService {
     private final KarixEsmeCredentialRepository esmeCredentialRepository;
     private final SecretEncryptor secretEncryptor;
     private final TemplateStudioClient templateStudioClient;
+    private final TemplateSheetParser sheetParser;
 
     /**
      * EM-caught gap (2026-08-07 audit): no health check existed for karix-mcp
@@ -110,6 +112,20 @@ public class TemplateStudioService {
         } catch (IOException e) {
             throw new BusinessException("Could not read the uploaded file: " + e.getMessage());
         }
+    }
+
+    /**
+     * Read-only: parses the uploaded sheet's rows back for the chat composer
+     * to embed into the operator's message as a tag (see IrisConversationService
+     * "[Attached template sheet: ...]" instructions) — no Karix credential
+     * needed, this never talks to karix-mcp. Still requires the caller's
+     * account to actually have access to the WABA, same as every other
+     * endpoint here, even though the WABA isn't otherwise used yet.
+     */
+    public TemplateSheetParser.ParsedSheet parseTemplateSheet(Long wabaId, MultipartFile file) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        wabaAccessGuard.requireAccess(wabaId, accountId);
+        return sheetParser.parse(file);
     }
 
     // -------------------------------------------------------------------------

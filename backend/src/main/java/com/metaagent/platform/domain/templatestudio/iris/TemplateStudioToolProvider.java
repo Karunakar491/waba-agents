@@ -157,7 +157,25 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                 for that specific action in this turn — a greeting, a vague message, or small talk gets a plain \
                 reply or a clarifying question, never a drafted action. Never invent a templateName, testPhoneNumber, \
                 or parameterValue the user didn't actually provide — ask for the missing value instead of guessing \
-                one, even a plausible-looking one.""".formatted(wabaList);
+                one, even a plausible-looking one.
+
+                If the operator's message contains a line like "[Attached template sheet: <fileName> — <N> rows: \
+                <rows as JSON>]", they've uploaded a spreadsheet of bare sample content — usually just a few loose \
+                columns like a product/offer name, price, or short description, with NO header/footer/button/category \
+                information at all. That is expected and is exactly why they're using you: for EACH row, recommend \
+                and draft a full, well-formed template yourself — pick whichever structure actually fits that row's \
+                content best (a plain TEXT body, a template with an IMAGE/VIDEO/DOCUMENT header, a CAROUSEL, or any \
+                other shape the components schema above supports), choose an appropriate category (MARKETING is the \
+                default for promotional content unless the row is clearly a transactional/utility message), and give \
+                it a clean snake_case templateName derived from the row's content. \
+                Go through the rows ONE AT A TIME, not all at once: present your recommendation for a row, then call \
+                create_template for it — the existing confirmation step still applies per template, so the operator \
+                sees and approves each one before it's created — then move to the next row. Never batch multiple \
+                rows into a single tool call, and never skip a row silently; if the total row count reported exceeds \
+                what's listed in the tag (truncated sheet), tell the operator only the first ones are shown before \
+                you proceed. If a row is missing an image/video/document you'd need for the header you chose, ask \
+                the operator to attach that media (see the attached-image tag instructions above) rather than \
+                inventing a header_handle.""".formatted(wabaList);
     }
 
     /**

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Paperclip, Send, Settings, Square, X } from 'lucide-react'
+import { FileSpreadsheet, Paperclip, Send, Settings, Square, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const MAX_COMPOSER_HEIGHT_PX = 200
@@ -8,7 +8,10 @@ const MAX_COMPOSER_HEIGHT_PX = 200
 export interface IrisAttachment {
   fileName: string
   status: 'uploading' | 'ready' | 'error'
+  kind?: 'image' | 'sheet'
   fileHandle?: string
+  /** Set when kind === 'sheet' — the parsed rows Iris will recommend templates from. */
+  sheetSummary?: { totalRows: number; parsedRows: number; truncated: boolean; rows: Array<Record<string, string>> }
   errorMessage?: string
 }
 
@@ -16,7 +19,7 @@ export interface IrisAttachment {
 // under the 200-line component ceiling.
 export function Composer({
   input, setInput, onSubmit, disabled, pending, thinking, onAbort,
-  attachment, onAttach, onRemoveAttachment,
+  attachment, onAttach, onAttachSheet, onRemoveAttachment,
 }: {
   input: string
   setInput: (v: string) => void
@@ -27,10 +30,12 @@ export function Composer({
   onAbort: () => void
   attachment: IrisAttachment | null
   onAttach: (file: File) => void
+  onAttachSheet: (file: File) => void
   onRemoveAttachment: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const sheetInputRef = useRef<HTMLInputElement>(null)
 
   // Sending clears `input` from the parent, outside any onChange on this
   // element -- without this, the textarea stayed tall after a multi-line
@@ -67,10 +72,14 @@ export function Composer({
         // only thing this handle feeds, and only IMAGE/VIDEO/DOCUMENT
         // headers use it. Video/document support is a straightforward
         // extension of this same chip once Iris's tool-call wiring for
-        // those formats is verified live.
+        // those formats is verified live. Sheet attachments (2026-08-19)
+        // reuse the same chip, showing row count instead of a handle.
         <div className="flex items-center gap-2 self-start rounded-lg border bg-muted px-3 py-1.5 text-xs">
           {attachment.status === 'uploading' && <span className="text-muted-foreground">Uploading {attachment.fileName}…</span>}
-          {attachment.status === 'ready' && <span className="text-foreground">📎 {attachment.fileName}</span>}
+          {attachment.status === 'ready' && attachment.kind === 'sheet' && (
+            <span className="text-foreground">📄 {attachment.fileName} ({attachment.sheetSummary?.parsedRows} rows{attachment.sheetSummary?.truncated ? ` of ${attachment.sheetSummary?.totalRows}` : ''})</span>
+          )}
+          {attachment.status === 'ready' && attachment.kind !== 'sheet' && <span className="text-foreground">📎 {attachment.fileName}</span>}
           {attachment.status === 'error' && <span className="text-destructive">{attachment.errorMessage || 'Upload failed'}</span>}
           <button type="button" onClick={onRemoveAttachment} aria-label="Remove attachment" className="text-muted-foreground hover:text-foreground">
             <X className="h-3 w-3" />
@@ -94,6 +103,23 @@ export function Composer({
         title="Attach an image for a template header"
       >
         <Paperclip className="h-4 w-4" />
+      </button>
+      <input
+        ref={sheetInputRef}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={(e) => { const file = e.target.files?.[0]; if (file) onAttachSheet(file); e.target.value = '' }}
+      />
+      <button
+        type="button"
+        onClick={() => sheetInputRef.current?.click()}
+        disabled={pending || disabled || attachment?.status === 'uploading'}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Attach a template sample sheet"
+        title="Upload sample content (.xlsx) — Iris recommends and drafts a full template per row"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
       </button>
       <textarea
         ref={textareaRef}

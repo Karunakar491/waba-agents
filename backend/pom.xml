@@ -91,6 +91,13 @@
             <version>${mapstruct.version}</version>
         </dependency>
 
+        <!-- Excel parsing (template-sheet upload) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
         <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

@@ -1,6 +1,7 @@
 package com.metaagent.platform.domain.templatestudio;
 
 import com.metaagent.platform.common.response.ApiResponse;
+import com.metaagent.platform.domain.templatestudio.iris.TemplateSheetParser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -68,6 +69,12 @@ public class TemplateStudioController {
                                                          @RequestParam("category") String category,
                                                          @RequestParam("file") MultipartFile file) {
         return ApiResponse.ok(templateStudioService.uploadMedia(wabaId, category, file));
+    }
+
+    @PostMapping(value = "/{wabaId}/sheet-upload", consumes = "multipart/form-data")
+    public ApiResponse<TemplateSheetParser.ParsedSheet> uploadTemplateSheet(
+            @PathVariable Long wabaId, @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(templateStudioService.parseTemplateSheet(wabaId, file));
     }
 
     @PostMapping(value = "/{wabaId}/bulk-import", consumes = "multipart/form-data")

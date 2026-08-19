@@ -51,6 +51,7 @@ export default function IrisChatPane({
   onAbort,
   attachment,
   onAttach,
+  onAttachSheet,
   onRemoveAttachment,
 }: {
   needsSetup: boolean
@@ -70,6 +71,7 @@ export default function IrisChatPane({
   onAbort: () => void
   attachment: IrisAttachment | null
   onAttach: (file: File) => void
+  onAttachSheet: (file: File) => void
   onRemoveAttachment: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -114,7 +116,7 @@ export default function IrisChatPane({
           <div className="w-full max-w-3xl space-y-2">
             {needsSetup && <SetupBanner />}
             {usingPlatformDefault && <DefaultKeyNotice />}
-            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
+            <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onAttachSheet={onAttachSheet} onRemoveAttachment={onRemoveAttachment} />
           </div>
           <div className="flex max-w-3xl flex-wrap items-center justify-center gap-2">
             {SUGGESTIONS.map((s) => (
@@ -211,7 +213,7 @@ export default function IrisChatPane({
         <div className="space-y-2 border-t bg-background px-6 py-4">
           {needsSetup && <SetupBanner />}
           {usingPlatformDefault && <DefaultKeyNotice />}
-          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
+          <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onAttachSheet={onAttachSheet} onRemoveAttachment={onRemoveAttachment} />
         </div>
       )}
     </div>

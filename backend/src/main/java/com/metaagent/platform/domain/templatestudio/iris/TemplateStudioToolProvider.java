@@ -50,6 +50,11 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             "include \"example\":{\"body_text\":[[\"<sample value for {{1}}>\",\"<sample for {{2}}>\",...]]} with one " +
             "sample string per placeholder, in order — Karix rejects a template with placeholders and no example block " +
             "(confirmed live 2026-08-07: \"BODY text has placeholders (1) but no example block\"). " +
+            "Conversely, if the body text has NO {{n}} placeholder at all, do NOT include an \"example\" key on BODY — " +
+            "Meta rejects a plain, variable-free body that still carries an example block (confirmed live 2026-08-19: " +
+            "\"components\" param is missing expected field(s)\" / error_subcode 2388043 when example.body_text was " +
+            "present with zero placeholders in the text). The example array's length must exactly match the number of " +
+            "{{n}} placeholders — zero placeholders means no example key at all, not an empty or unrelated one. " +
             "The \"example\" key goes INSIDE the same single BODY object as \"text\" — never as a second separate BODY " +
             "component, and never as a sibling of \"components\" at the top level of the tool call. There is EXACTLY " +
             "ONE BODY object in the whole components array, and it carries both text and example together, e.g.: " +

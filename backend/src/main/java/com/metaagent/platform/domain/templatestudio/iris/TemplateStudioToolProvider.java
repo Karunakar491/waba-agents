@@ -348,7 +348,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
         if (!(rawComponents instanceof List<?> list)) {
             throw new BusinessException("components must be a list.");
         }
-        return stripExampleFromPlaceholderFreeBody(normalizeMediaHeaderComponents((List<Map<String, Object>>) list));
+        return stripExampleFromPlaceholderFreeBody(flattenNestedButtonsArrays(normalizeMediaHeaderComponents((List<Map<String, Object>>) list)));
     }
 
     /**
@@ -425,6 +425,47 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                 }).toList());
             }
             return resolved;
+        }).toList();
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): the model wrapped a BUTTONS
+     * component's "buttons" array one level too deep -- {"buttons":[[{"type":
+     * "URL",...}]]} instead of {"buttons":[{"type":"URL",...}]} -- while building
+     * a CAROUSEL card on gpt-5.4-mini. Meta rejected it: "(#100) Unexpected key
+     * \"0\" on param \"...['buttons'][0]\"" (it read buttons[0] as an object and
+     * found a nested array/its numeric index instead). Flattens one level of
+     * nested lists inside "buttons" regardless of how it got there, recursing
+     * into CAROUSEL cards the same way resolveAttachmentReferences does.
+     */
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> flattenNestedButtonsArrays(List<Map<String, Object>> components) {
+        return components.stream().map(component -> {
+            Map<String, Object> result = component;
+            if (component.get("buttons") instanceof List<?> buttons && buttons.stream().anyMatch(b -> b instanceof List)) {
+                List<Object> flattened = buttons.stream()
+                        .flatMap(b -> b instanceof List<?> nested ? nested.stream() : java.util.stream.Stream.of(b))
+                        .map(b -> (Object) b)
+                        .toList();
+                result = new LinkedHashMap<>(component);
+                result.put("buttons", flattened);
+                log.info("flattenNestedButtonsArrays: flattened a doubly-nested buttons array");
+            }
+            if (result.get("cards") instanceof List<?> cards) {
+                List<Object> newCards = cards.stream().map(card -> {
+                    if (card instanceof Map<?, ?> cardMap && cardMap.get("components") instanceof List<?> cardComponents) {
+                        Map<String, Object> newCard = new LinkedHashMap<>((Map<String, Object>) cardMap);
+                        newCard.put("components", flattenNestedButtonsArrays((List<Map<String, Object>>) cardComponents));
+                        return (Object) newCard;
+                    }
+                    return (Object) card;
+                }).toList();
+                if (result == component) {
+                    result = new LinkedHashMap<>(component);
+                }
+                result.put("cards", newCards);
+            }
+            return result;
         }).toList();
     }
 

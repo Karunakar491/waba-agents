@@ -292,7 +292,33 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
         if (!(rawComponents instanceof List<?> list)) {
             throw new BusinessException("components must be a list.");
         }
-        return (List<Map<String, Object>>) list;
+        return stripExampleFromPlaceholderFreeBody((List<Map<String, Object>>) list);
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): prompt instructions alone did not
+     * reliably stop the model from attaching an "example" key to a BODY component
+     * with zero {{n}} placeholders -- across three live attempts it tried a
+     * populated example.body_text, then an empty example:{}, then a populated one
+     * again. Meta rejects ANY example key on a placeholder-free BODY regardless of
+     * value (error_subcode 2388043), so this strips it unconditionally rather than
+     * continuing to rely on the model reading the rule correctly every time.
+     */
+    private static final java.util.regex.Pattern PLACEHOLDER_PATTERN = java.util.regex.Pattern.compile("\\{\\{\\d+}}");
+
+    List<Map<String, Object>> stripExampleFromPlaceholderFreeBody(List<Map<String, Object>> components) {
+        return components.stream().map(component -> {
+            if (!"BODY".equals(component.get("type")) || !(component.get("text") instanceof String text)) {
+                return component;
+            }
+            if (PLACEHOLDER_PATTERN.matcher(text).find() || !component.containsKey("example")) {
+                return component;
+            }
+            Map<String, Object> withoutExample = new java.util.LinkedHashMap<>(component);
+            withoutExample.remove("example");
+            log.info("stripExampleFromPlaceholderFreeBody: removed stray example key from a placeholder-free BODY");
+            return withoutExample;
+        }).toList();
     }
 
     private <T> void validateOrThrow(T request) {

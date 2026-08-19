@@ -50,6 +50,32 @@ class TestLogCallNeverRaises:
         api_call_logger.log_call("POST", "/x", 200, 10)
 
 
+class TestErrorFieldPreservation:
+    """2026-08-19 fix: `if error` treated an empty-string error the same as
+    no error at all, silently storing NULL instead of the empty string."""
+
+    def test_empty_string_error_is_preserved_not_masked_as_none(self, mocker):
+        insert = mocker.patch("karix_mcp.db.insert_api_call_log")
+
+        api_call_logger.log_call("POST", "/x", 500, 10, error="")
+
+        assert insert.call_args.kwargs["error"] == ""
+
+    def test_none_error_is_still_stored_as_none(self, mocker):
+        insert = mocker.patch("karix_mcp.db.insert_api_call_log")
+
+        api_call_logger.log_call("POST", "/x", 200, 10)
+
+        assert insert.call_args.kwargs["error"] is None
+
+    def test_real_error_message_is_preserved(self, mocker):
+        insert = mocker.patch("karix_mcp.db.insert_api_call_log")
+
+        api_call_logger.log_call("POST", "/x", None, 10, error="Connection refused")
+
+        assert insert.call_args.kwargs["error"] == "Connection refused"
+
+
 class TestEndToEndLogging:
     """Exercises the real path: KarixClient -> _retry -> api_call_logger.log_call
     -> db.insert_api_call_log -> real MySQL."""

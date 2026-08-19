@@ -183,6 +183,43 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
         };
     }
 
+    /**
+     * 2026-08-19 fix: list_templates used to show its raw JSON result
+     * verbatim in chat — unreadable. Shape read here ({result: {response:
+     * {templates: [...]}}}) is NOT a fresh guess — it's the same structure
+     * TemplateStudioClient.countTemplates() already depends on in shipped,
+     * running code, per that method's own comment: "Real shape confirmed
+     * live 2026-08-12". This method has not been independently re-verified
+     * against a live Karix response by this change; if that shape has since
+     * drifted, both this and countTemplates() would need updating together.
+     * Falls back to a generic line for any other/unrecognized shape rather
+     * than guessing at fields that might not exist — never silently drops
+     * the fact that something didn't parse as expected.
+     */
+    @Override
+    public String summarizeResult(String toolName, Map<String, Object> result) {
+        if (!"list_templates".equals(toolName)) {
+            return IrisToolProvider.super.summarizeResult(toolName, result);
+        }
+        List<?> templates = extractTemplatesList(result);
+        if (templates == null) {
+            return "Here are the templates.";
+        }
+        if (templates.isEmpty()) {
+            return "No templates found for that filter.";
+        }
+        return "Found " + templates.size() + " template" + (templates.size() == 1 ? "" : "s") + ".";
+    }
+
+    private List<?> extractTemplatesList(Map<String, Object> result) {
+        if (result != null && result.get("result") instanceof Map<?, ?> r
+                && r.get("response") instanceof Map<?, ?> response
+                && response.get("templates") instanceof List<?> list) {
+            return list;
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> castComponents(Object rawComponents) {
         if (!(rawComponents instanceof List<?> list)) {

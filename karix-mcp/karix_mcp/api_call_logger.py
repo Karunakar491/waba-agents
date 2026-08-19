@@ -71,7 +71,10 @@ def log_call(method: str, path: str, status_code: int | None, duration_ms: int,
             duration_ms=duration_ms,
             request_body=_to_logged_string(request_body),
             response_body=_to_logged_string(response_body),
-            error=error[:2000] if error else None,
+            # 2026-08-19 fix: `if error` treated an empty-string error the same
+            # as no error at all, silently storing NULL — `is not None` keeps
+            # an explicit "" distinct from "no error was ever set".
+            error=error[:2000] if error is not None else None,
         )
     except Exception as exc:  # noqa: BLE001 — audit logging must never break the real call
         log.warning("api_call_log write failed (Karix call itself was unaffected): %s", exc)

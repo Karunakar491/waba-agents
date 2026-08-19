@@ -163,18 +163,20 @@ public class IrisConversationService {
         log.info("sendMessage: sessionId={} provider={} resultType={}", sessionId, cred.provider(), result.type());
 
         if (result.type() == AiTurnResult.Type.TEXT) {
-            messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT).content(result.text()).build());
-            return new TurnResponse(String.valueOf(sessionId), result.text(), false, null, null);
+            String text = appendUnconfirmedActionWarningIfNeeded(result.text());
+            messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.ASSISTANT).content(text).build());
+            return new TurnResponse(String.valueOf(sessionId), text, false, null, null);
         }
 
         AiToolSpec tool = tools.stream().filter(t -> t.name().equals(result.toolName())).findFirst()
                 .orElseThrow(() -> new BusinessException("Iris tried to use a tool that isn't allowed: " + result.toolName()));
         log.info("sendMessage: sessionId={} modelSelectedTool={} requiresConfirmation={}",
                 sessionId, tool.name(), tool.requiresConfirmation());
+        requireArgsPresent(tool, result.toolArguments());
 
         if (!tool.requiresConfirmation()) {
             Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), session.getAccountId());
-            String summary = "Tool " + tool.name() + " result: " + writeJson(toolResult);
+            String summary = summarizeToolResult(tool.name(), toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
             log.info("sendMessage: sessionId={} tool={} executed inline, resultKeys={}", sessionId, tool.name(),
@@ -214,8 +216,19 @@ public class IrisConversationService {
         return result;
     }
 
+    /**
+     * 2026-08-19 fix: used to unconditionally insert a "Cancelled — nothing
+     * was submitted." message even when there was nothing pending — a no-op
+     * call (safe to make defensively, e.g. after aborting a mid-flight send
+     * that might or might not have set a pending action server-side) used to
+     * leave visible garbage in the conversation history. Now a true no-op
+     * when there's nothing to cancel.
+     */
     public void cancelPendingAction(Long sessionId) {
         IrisSession session = requireOwnedSession(sessionId);
+        if (session.getPendingToolName() == null) {
+            return;
+        }
         session.setPendingToolName(null);
         session.setPendingToolArgsJson(null);
         sessionRepository.save(session);
@@ -223,12 +236,68 @@ public class IrisConversationService {
                 .content("Cancelled — nothing was submitted.").build());
     }
 
+    /**
+     * Closed set of phrases a model uses when it falsely claims to have
+     * already created/sent/submitted something in plain text instead of
+     * actually calling the tool (the exact failure the system prompt above
+     * already tells it not to do — this is the code-level backstop for when
+     * it ignores that anyway, since prompt wording alone isn't enforceable).
+     * Deliberately narrow and case-insensitive, not a general sentiment
+     * classifier — a false positive here just adds one harmless disclaimer
+     * line; a false negative leaves the original silent-confusion bug.
+     */
+    private static final java.util.regex.Pattern UNCONFIRMED_ACTION_CLAIM = java.util.regex.Pattern.compile(
+            "\\b(i'?ve|i have)\\s+(already\\s+)?(created|submitted|sent|drafted and submitted)\\b"
+                    + "|\\balready (created|submitted|sent)\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    private String appendUnconfirmedActionWarningIfNeeded(String text) {
+        if (!UNCONFIRMED_ACTION_CLAIM.matcher(text).find()) {
+            return text;
+        }
+        log.warn("sendMessage: model claimed an action in plain text with no tool call — appending correction");
+        return text + "\n\n⚠️ Nothing has actually been submitted yet — I can only act once you see and confirm a draft, not just from saying so in chat.";
+    }
+
+    /**
+     * 2026-08-19 fix: a model omitting a required field used to flow through
+     * silently as the literal string "null" (String.valueOf(null)) deep
+     * inside the provider's request-building code, only failing later —
+     * confusingly — in Meta/Karix validation. Checked here, generically,
+     * against the tool's own declared "required" list (the same schema the
+     * model was given), so every provider gets this for free instead of
+     * each one re-implementing its own null check.
+     */
+    private void requireArgsPresent(AiToolSpec tool, Map<String, Object> args) {
+        Object requiredObj = tool.inputSchema().get("required");
+        if (!(requiredObj instanceof List<?> required)) {
+            return;
+        }
+        for (Object entry : required) {
+            String key = String.valueOf(entry);
+            Object value = args.get(key);
+            if (value == null || (value instanceof String s && s.isBlank())) {
+                throw new BusinessException("Iris tried to use \"" + tool.name() + "\" without \"" + key
+                        + "\" — ask for that before proposing this action.");
+            }
+        }
+    }
+
     private Map<String, Object> executeTool(String toolName, Map<String, Object> args, Long accountId) {
-        IrisToolProvider owner = toolProviders.stream()
+        return ownerOf(toolName).execute(toolName, args, accountId);
+    }
+
+    /** Delegates to whichever provider declared the tool — never a raw JSON
+     * dump of the result (2026-08-19 fix; see IrisToolProvider.summarizeResult). */
+    private String summarizeToolResult(String toolName, Map<String, Object> result) {
+        return ownerOf(toolName).summarizeResult(toolName, result);
+    }
+
+    private IrisToolProvider ownerOf(String toolName) {
+        return toolProviders.stream()
                 .filter(p -> p.tools().stream().anyMatch(t -> t.name().equals(toolName)))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("Unknown tool: " + toolName));
-        return owner.execute(toolName, args, accountId);
     }
 
     /**

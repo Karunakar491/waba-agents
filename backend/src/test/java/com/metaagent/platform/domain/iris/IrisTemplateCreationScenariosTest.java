@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
@@ -187,12 +188,78 @@ class IrisTemplateCreationScenariosTest {
         String userAsk = "What templates do we already have approved?";
         Map<String, Object> modelArgs = Map.of("wabaId", String.valueOf(WABA_ID), "status", "APPROVED");
         when(adapter.converse(any(), any(), any(), any(), any())).thenReturn(AiTurnResult.toolCall("list_templates", modelArgs));
-        when(templateStudioService.listTemplates(WABA_ID, "APPROVED")).thenReturn(Map.of("data", List.of()));
+        when(templateStudioService.listTemplates(WABA_ID, "APPROVED")).thenReturn(Map.of(
+                "result", Map.of("response", Map.of("templates", List.of(Map.of("name", "summer_sale"))))));
 
         IrisConversationService.TurnResponse response = service.sendMessage(SESSION_ID, userAsk);
 
         assertThat(response.needsConfirmation()).isFalse();
+        // 2026-08-19 fix: this used to be a raw JSON dump of the tool result —
+        // now a readable summary, never the JSON itself.
+        assertThat(response.reply()).isEqualTo("Found 1 template.");
         verify(templateStudioService).listTemplates(WABA_ID, "APPROVED");
+    }
+
+    @Test
+    void listing_templates_with_no_results_gets_a_readable_empty_message() {
+        Map<String, Object> modelArgs = Map.of("wabaId", String.valueOf(WABA_ID), "status", "APPROVED");
+        when(adapter.converse(any(), any(), any(), any(), any())).thenReturn(AiTurnResult.toolCall("list_templates", modelArgs));
+        when(templateStudioService.listTemplates(WABA_ID, "APPROVED")).thenReturn(
+                Map.of("result", Map.of("response", Map.of("templates", List.of()))));
+
+        IrisConversationService.TurnResponse response = service.sendMessage(SESSION_ID, "list approved templates");
+
+        assertThat(response.reply()).isEqualTo("No templates found for that filter.");
+    }
+
+    @Test
+    void cancel_pending_action_is_a_true_no_op_when_nothing_is_pending() {
+        // 2026-08-19 fix: used to unconditionally save a "Cancelled" message
+        // even when there was nothing to cancel (e.g. a defensive cleanup
+        // call after aborting a send that never actually proposed an action).
+        service.cancelPendingAction(SESSION_ID);
+
+        verify(sessionRepository, never()).save(any());
+        verify(messageRepository, never()).save(any());
+    }
+
+    @Test
+    void model_omitting_a_required_field_is_rejected_with_a_clear_message_naming_it() {
+        // 2026-08-19 fix: this used to silently become the literal string
+        // "null" deep inside TemplateStudioToolProvider instead of failing
+        // clearly here, before any request was even built.
+        Map<String, Object> modelArgs = new java.util.HashMap<>();
+        modelArgs.put("wabaId", String.valueOf(WABA_ID));
+        modelArgs.put("language", "en_US");
+        modelArgs.put("category", "MARKETING");
+        modelArgs.put("components", List.of(Map.of("type", "BODY", "text", "Hello")));
+        // templateName deliberately omitted
+        when(adapter.converse(any(), any(), any(), any(), any())).thenReturn(AiTurnResult.toolCall("create_template", modelArgs));
+
+        assertThatThrownBy(() -> service.sendMessage(SESSION_ID, "make a template"))
+                .isInstanceOf(com.metaagent.platform.common.exception.BusinessException.class)
+                .hasMessageContaining("templateName");
+
+        verifyNoInteractions(templateStudioService);
+    }
+
+    @Test
+    void missing_required_field_is_also_rejected_on_the_inline_execute_no_confirmation_branch() {
+        // Same requireArgsPresent() check runs before EITHER branch (confirm-
+        // draft above, or inline-execute here for list_templates, which has
+        // requiresConfirmation=false) — this proves it's not only reachable
+        // on the confirm-draft path. Exception propagation itself is the
+        // same, already-proven mechanism as model_proposing_a_tool_outside_
+        // the_allowlist_is_hard_rejected below (a plain thrown
+        // BusinessException out of sendMessage, no branch-specific catch).
+        Map<String, Object> modelArgs = Map.of("status", "APPROVED"); // wabaId omitted
+        when(adapter.converse(any(), any(), any(), any(), any())).thenReturn(AiTurnResult.toolCall("list_templates", modelArgs));
+
+        assertThatThrownBy(() -> service.sendMessage(SESSION_ID, "list approved templates"))
+                .isInstanceOf(com.metaagent.platform.common.exception.BusinessException.class)
+                .hasMessageContaining("wabaId");
+
+        verifyNoInteractions(templateStudioService);
     }
 
     @Test
@@ -203,6 +270,30 @@ class IrisTemplateCreationScenariosTest {
         org.junit.jupiter.api.Assertions.assertThrows(
                 com.metaagent.platform.common.exception.BusinessException.class,
                 () -> service.sendMessage(SESSION_ID, "please wipe all templates"));
+    }
+
+    @Test
+    void model_replying_in_prose_that_it_already_created_something_gets_a_correction_appended() {
+        // The exact failure the system prompt already tells the model not to
+        // do (reply "I've created it" in prose instead of calling the tool) —
+        // this is the code-level backstop for when it ignores that anyway.
+        when(adapter.converse(any(), any(), any(), any(), any()))
+                .thenReturn(AiTurnResult.text("I've created the summer_sale template for you!"));
+
+        IrisConversationService.TurnResponse response = service.sendMessage(SESSION_ID, "create a summer sale template");
+
+        assertThat(response.needsConfirmation()).isFalse();
+        assertThat(response.reply()).contains("Nothing has actually been submitted yet");
+    }
+
+    @Test
+    void model_replying_in_plain_conversation_gets_no_correction_appended() {
+        when(adapter.converse(any(), any(), any(), any(), any()))
+                .thenReturn(AiTurnResult.text("Sure — what would you like the template to say?"));
+
+        IrisConversationService.TurnResponse response = service.sendMessage(SESSION_ID, "I want to make a template");
+
+        assertThat(response.reply()).doesNotContain("Nothing has actually been submitted yet");
     }
 
     @Test

@@ -265,6 +265,20 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
 
   function abortSend() {
     abortControllerRef.current?.abort()
+    // 2026-08-19 fix: aborting only cancelled the client's wait — the
+    // backend call kept running, and if the model happened to propose a
+    // create_template/edit_template tool call before the user aborted, the
+    // session was left with a pending action the UI never showed, silently
+    // blocking the next message with "confirm or cancel before continuing."
+    // Best-effort cleanup: ask the backend to clear any pending action this
+    // in-flight send might have set. Safe to call even if nothing was
+    // pending (now a true no-op, see IrisConversationService.cancelPendingAction).
+    if (sessionId) {
+      api.post(`/iris/sessions/${sessionId}/cancel`).catch(() => {
+        // Best-effort — if this fails there's nothing actionable to show the
+        // user; the next real send will surface any genuine problem.
+      })
+    }
   }
 
   const confirmAction = useMutation({

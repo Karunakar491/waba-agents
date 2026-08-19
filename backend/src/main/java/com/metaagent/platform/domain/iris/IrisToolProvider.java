@@ -26,4 +26,18 @@ public interface IrisToolProvider {
 
     /** Only called for a tool name this provider actually declared in tools(). */
     Map<String, Object> execute(String toolName, Map<String, Object> args, Long accountId);
+
+    /**
+     * Turns a non-mutating tool's raw result into what the chat actually
+     * shows the operator (2026-08-19) — the engine has no domain knowledge to
+     * summarize this itself, so it asks the provider that owns the tool.
+     * Only called for tools with requiresConfirmation=false, since a
+     * mutating tool's result is never shown directly (its confirm/execute
+     * flow already tells its own story). Default falls back to "Done." for
+     * providers that haven't implemented a specific summary yet — never a
+     * raw JSON dump, which is unreadable and was the exact bug this fixes.
+     */
+    default String summarizeResult(String toolName, Map<String, Object> result) {
+        return "Done.";
+    }
 }

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TemplateStudioToolProviderMergeStrayComponentsTest {
 
     private final TemplateStudioToolProvider provider =
-            new TemplateStudioToolProvider(null, null, null, null);
+            new TemplateStudioToolProvider(null, null, null, null, null);
 
     private Map<String, Object> body() {
         Map<String, Object> component = new LinkedHashMap<>();

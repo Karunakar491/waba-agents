@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TemplateStudioToolProviderExampleStripTest {
 
     private final TemplateStudioToolProvider provider =
-            new TemplateStudioToolProvider(null, null, null, null);
+            new TemplateStudioToolProvider(null, null, null, null, null);
 
     private Map<String, Object> body(String text, Object example) {
         Map<String, Object> component = new LinkedHashMap<>();

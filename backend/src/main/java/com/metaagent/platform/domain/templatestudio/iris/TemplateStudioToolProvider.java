@@ -1,5 +1,6 @@
 package com.metaagent.platform.domain.templatestudio.iris;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.domain.iris.AiToolSpec;
 import com.metaagent.platform.domain.iris.IrisToolProvider;
@@ -34,6 +35,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
 
     private final TemplateStudioService templateStudioService;
     private final KarixMessagingClient karixMessagingClient;
+    private final ObjectMapper objectMapper;
     private final WabaService wabaService;
     private final Validator validator;
 
@@ -282,6 +284,9 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
      */
     @Override
     public String summarizeResult(String toolName, Map<String, Object> result) {
+        if ("get_template".equals(toolName)) {
+            return summarizeGetTemplate(result);
+        }
         if (!"list_templates".equals(toolName)) {
             return IrisToolProvider.super.summarizeResult(toolName, result);
         }
@@ -293,6 +298,38 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             return "No templates found for that filter.";
         }
         return "Found " + templates.size() + " template" + (templates.size() == 1 ? "" : "s") + ".";
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): the default summarizeResult()
+     * returns a generic "Done." for any tool without its own override, and that
+     * summary string is the ONLY thing persisted into conversation history for an
+     * inline (no-confirmation) tool -- the raw tool result itself is never stored.
+     * With the default, get_template's whole current-components result vanished
+     * the instant the turn ended: the model had no memory of what it had just
+     * fetched, so every follow-up message re-called get_template instead of
+     * drafting the edit, live-caught looping 3 turns in a row. This serializes
+     * the actual components (plus template_name/category/language, needed to
+     * draft a correct edit_template call) as JSON so the model can read them
+     * back on its next turn instead of re-fetching or inventing them.
+     */
+    @SuppressWarnings("unchecked")
+    private String summarizeGetTemplate(Map<String, Object> result) {
+        if (!(result != null && result.get("result") instanceof Map<?, ?> r
+                && r.get("response") instanceof Map<?, ?> rawResponse)) {
+            return "Here is the template.";
+        }
+        Map<String, Object> response = (Map<String, Object>) rawResponse;
+        try {
+            Map<String, Object> essentials = Map.of(
+                    "template_name", String.valueOf(response.getOrDefault("template_name", "")),
+                    "category", String.valueOf(response.getOrDefault("category", "")),
+                    "language", String.valueOf(response.getOrDefault("language", "")),
+                    "components", response.getOrDefault("components", List.of()));
+            return "Current template state: " + objectMapper.writeValueAsString(essentials);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return "Here is the template.";
+        }
     }
 
     private List<?> extractTemplatesList(Map<String, Object> result) {

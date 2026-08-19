@@ -63,10 +63,11 @@ class AiCredentialServiceTest extends IntegrationTestBase {
         assertThat(status.provider()).isEqualTo("CLAUDE");
         assertThat(status.model()).isEqualTo("claude-3-5-sonnet-20241022");
         assertThat(status.usingPlatformDefault()).isFalse();
-        // CredentialStatus has exactly 4 fields (configured/provider/model/
-        // usingPlatformDefault) — no field exists to accidentally expose the
-        // key even if someone tried.
-        assertThat(AiCredentialService.CredentialStatus.class.getRecordComponents()).hasSize(4);
+        assertThat(status.actualModelInUse()).isEqualTo("claude-3-5-sonnet-20241022");
+        // CredentialStatus has exactly 5 fields (configured/provider/model/
+        // usingPlatformDefault/actualModelInUse) — no field exists to
+        // accidentally expose the key even if someone tried.
+        assertThat(AiCredentialService.CredentialStatus.class.getRecordComponents()).hasSize(5);
     }
 
     @Test

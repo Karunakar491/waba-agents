@@ -21,7 +21,12 @@ public enum AiProvider {
     NVIDIA_LLAMA(List.of("meta/llama-3.3-70b-instruct")),
     // Real api.openai.com only — not Azure OpenAI, not any other
     // OpenAI-compatible host. Closed-set model list, same discipline.
-    OPENAI(List.of("gpt-4o", "gpt-4o-mini"));
+    // gpt-5.4-mini/gpt-5-mini added 2026-08-19 for the daily-budget tier
+    // switch in AiCredentialService — confirmed real identifiers via the
+    // account's own OpenAI eligibility screen (first-party), not general
+    // model-name knowledge. Only these two added, not the full advanced-tier
+    // list, per the narrow-scope EM condition for this feature.
+    OPENAI(List.of("gpt-4o", "gpt-4o-mini", "gpt-5.4-mini", "gpt-5-mini"));
 
     private final List<String> allowedModels;
 

@@ -107,6 +107,8 @@ public class OpenAiAdapter implements AiProviderAdapter {
             throw new BusinessException("OpenAI returned an unrecognized response shape.");
         }
 
+        Integer totalTokens = extractTotalTokens(response);
+
         List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) message.get("tool_calls");
         if (toolCalls != null && !toolCalls.isEmpty()) {
             Map<String, Object> function = (Map<String, Object>) toolCalls.get(0).get("function");
@@ -118,13 +120,22 @@ public class OpenAiAdapter implements AiProviderAdapter {
             } catch (Exception e) {
                 throw new BusinessException("OpenAI returned malformed tool-call arguments.");
             }
-            return AiTurnResult.toolCall(name, arguments);
+            return AiTurnResult.toolCall(name, arguments, totalTokens);
         }
 
         Object content = message.get("content");
         if (content instanceof String text && !text.isBlank()) {
-            return AiTurnResult.text(text);
+            return AiTurnResult.text(text, totalTokens);
         }
         throw new BusinessException("OpenAI returned an unrecognized response shape.");
+    }
+
+    /** Null if the shape is ever missing/unexpected — the daily-budget tier switch treats a
+     * null totalTokens as "don't count this turn" rather than crashing on a malformed usage block. */
+    private Integer extractTotalTokens(Map<?, ?> response) {
+        Object usage = response.get("usage");
+        if (!(usage instanceof Map<?, ?> usageMap)) return null;
+        Object total = usageMap.get("total_tokens");
+        return total instanceof Number n ? n.intValue() : null;
     }
 }

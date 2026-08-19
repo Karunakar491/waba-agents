@@ -167,6 +167,10 @@ public class IrisConversationService {
 
         AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, tools);
         log.info("sendMessage: sessionId={} provider={} resultType={}", sessionId, cred.provider(), result.type());
+        // Daily-budget mini-tier switch (2026-08-19) — single choke point every
+        // real turn passes through, TEXT or TOOL_CALL alike. No-op for
+        // non-OPENAI providers or a null/zero token count.
+        aiCredentialService.recordUsage(cred.provider(), result.totalTokens());
 
         if (result.type() == AiTurnResult.Type.TEXT) {
             String text = appendUnconfirmedActionWarningIfNeeded(result.text());

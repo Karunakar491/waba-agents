@@ -107,7 +107,13 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
       form.append('file', file)
       form.append('category', 'image')
       const res = await api.post(`/templates/${selectedWabaId}/media`, form, { headers: { 'Content-Type': undefined } })
-      const handle = res.data?.data?.result?.fileHandle || res.data?.data?.result?.file_handle
+      // karix-mcp nests the real payload one level deeper than the outer envelope
+      // (data.result.response.fileHandle) — verified live 2026-08-19 against a real
+      // upload; the previous data.result.fileHandle check never matched, so every
+      // upload reported "no file handle was returned" despite succeeding server-side.
+      const result = res.data?.data?.result
+      const handle = result?.response?.fileHandle || result?.response?.file_handle
+        || result?.fileHandle || result?.file_handle
       if (!handle) throw new Error('Upload succeeded but no file handle was returned.')
       return handle as string
     },

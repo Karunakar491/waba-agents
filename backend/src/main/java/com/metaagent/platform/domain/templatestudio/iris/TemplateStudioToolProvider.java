@@ -36,6 +36,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
     private final TemplateStudioService templateStudioService;
     private final KarixMessagingClient karixMessagingClient;
     private final ObjectMapper objectMapper;
+    private final IrisAttachmentRegistry attachmentRegistry;
     private final WabaService wabaService;
     private final Validator validator;
 
@@ -71,9 +72,10 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             "before and after every placeholder. " +
             "HEADER {type,format} — optional. format TEXT needs a \"text\" field. format LOCATION needs nothing else " +
             "(the location itself is supplied when the message is sent, not at creation). format IMAGE/VIDEO/DOCUMENT " +
-            "REQUIRES \"example\":{\"header_handle\":[\"<handle>\"]} with a real uploaded-media handle — Meta rejects " +
-            "the template at creation without one, so never invent or omit this; if the operator hasn't attached a " +
-            "file yet (see the attached-image tag instructions above), ask them to attach one instead of guessing. " +
+            "REQUIRES \"example\":{\"header_handle\":[\"<filename>\"]} — put the attached file's FILENAME here, NEVER " +
+            "the long file_handle value itself (see the attached-file tag instructions above for why); the system " +
+            "resolves the filename to the real handle server-side. Never invent or omit this — if the operator " +
+            "hasn't attached a file yet, ask them to attach one instead of guessing. " +
             "FOOTER {type,text} — optional. " +
             "BUTTONS {type,buttons:[...]} — at most ONE such component wrapping ALL buttons in one nested array, " +
             "never one component per button; each entry in that array is {type,text,...} where type is URL/PHONE_NUMBER/QUICK_REPLY/OTP. " +
@@ -242,7 +244,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                         String.valueOf(args.get("templateName")),
                         String.valueOf(args.get("language")),
                         String.valueOf(args.get("category")),
-                        mergeStrayTopLevelComponents(args, castComponents(args.get("components"))),
+                        resolveAttachmentReferences(accountId, mergeStrayTopLevelComponents(args, castComponents(args.get("components")))),
                         args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))),
                         args.get("parameterFormat") == null ? null : String.valueOf(args.get("parameterFormat")));
                 validateOrThrow(request);
@@ -250,7 +252,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             }
             case "edit_template" -> {
                 EditTemplateRequest request = new EditTemplateRequest(
-                        mergeStrayTopLevelComponents(args, castComponents(args.get("components"))),
+                        resolveAttachmentReferences(accountId, mergeStrayTopLevelComponents(args, castComponents(args.get("components")))),
                         null, null, null,
                         args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
                 validateOrThrow(request);
@@ -381,6 +383,48 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             }
             log.info("normalizeMediaHeaderComponents: healed a top-level '{}' component into a proper HEADER component", typeStr);
             return healed;
+        }).toList();
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): asking Iris to retype a real
+     * ~150-character Meta media handle verbatim in its tool call is unreliable at
+     * any model tier -- gpt-5.4-mini corrupted a single character mid-handle (a
+     * Z/r transposition) while building a CAROUSEL card, and Meta rejected the
+     * whole template as "Uploaded media handle is invalid". No prompt wording
+     * fixes this: an LLM byte-for-byte copying a long random token is inherently
+     * unreliable. Instead, the model is taught to put the short, human-readable
+     * filename (already visible in the "[Attached image: ...]" tag) directly
+     * into example.header_handle, and this resolves it back to the real handle
+     * server-side via IrisAttachmentRegistry before the payload ever reaches
+     * Karix -- the model never sees or retypes the actual handle. Recurses into
+     * CAROUSEL cards, since each card carries its own HEADER component.
+     */
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> resolveAttachmentReferences(Long accountId, List<Map<String, Object>> components) {
+        return components.stream().map(component -> {
+            Map<String, Object> resolved = new LinkedHashMap<>(component);
+            if (resolved.get("example") instanceof Map<?, ?> example && example.get("header_handle") instanceof List<?> handles) {
+                List<Object> resolvedHandles = handles.stream()
+                        .map(h -> h instanceof String ref
+                                ? attachmentRegistry.resolve(accountId, ref).map(v -> (Object) v).orElse(ref)
+                                : h)
+                        .toList();
+                Map<String, Object> newExample = new LinkedHashMap<>((Map<String, Object>) example);
+                newExample.put("header_handle", resolvedHandles);
+                resolved.put("example", newExample);
+            }
+            if (resolved.get("cards") instanceof List<?> cards) {
+                resolved.put("cards", cards.stream().map(card -> {
+                    if (card instanceof Map<?, ?> cardMap && cardMap.get("components") instanceof List<?> cardComponents) {
+                        Map<String, Object> newCard = new LinkedHashMap<>((Map<String, Object>) cardMap);
+                        newCard.put("components", resolveAttachmentReferences(accountId, (List<Map<String, Object>>) cardComponents));
+                        return newCard;
+                    }
+                    return card;
+                }).toList());
+            }
+            return resolved;
         }).toList();
     }
 

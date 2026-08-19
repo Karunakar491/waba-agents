@@ -64,7 +64,8 @@ class IrisTemplateCreationScenariosTest {
         adapter = mock(AiProviderAdapter.class);
 
         TemplateStudioToolProvider templateStudioToolProvider = new TemplateStudioToolProvider(
-                templateStudioService, karixMessagingClient, new ObjectMapper(), wabaService,
+                templateStudioService, karixMessagingClient, new ObjectMapper(),
+                new com.metaagent.platform.domain.templatestudio.iris.IrisAttachmentRegistry(), wabaService,
                 Validation.buildDefaultValidatorFactory().getValidator());
 
         service = new IrisConversationService(

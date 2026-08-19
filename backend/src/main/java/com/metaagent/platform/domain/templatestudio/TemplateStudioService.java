@@ -10,6 +10,7 @@ import com.metaagent.platform.domain.waba.repository.KarixEsmeCredentialReposito
 import com.metaagent.platform.domain.waba.repository.PhoneEsmeMappingRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.domain.waba.repository.WabaRepository;
+import com.metaagent.platform.domain.templatestudio.iris.IrisAttachmentRegistry;
 import com.metaagent.platform.domain.templatestudio.iris.TemplateSheetParser;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class TemplateStudioService {
     private final SecretEncryptor secretEncryptor;
     private final TemplateStudioClient templateStudioClient;
     private final TemplateSheetParser sheetParser;
+    private final IrisAttachmentRegistry attachmentRegistry;
 
     /**
      * EM-caught gap (2026-08-07 audit): no health check existed for karix-mcp
@@ -106,12 +108,31 @@ public class TemplateStudioService {
 
     public Map<String, Object> uploadMedia(Long wabaId, String category, MultipartFile file) {
         ResolvedCredential cred = resolveCredential(wabaId);
+        Map<String, Object> result;
         try {
-            return templateStudioClient.uploadMedia(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(),
+            result = templateStudioClient.uploadMedia(cred.esmeAddr(), cred.apiKey(), cred.karixWabaId(),
                     file.getOriginalFilename(), file.getContentType(), category, file.getBytes());
         } catch (IOException e) {
             throw new BusinessException("Could not read the uploaded file: " + e.getMessage());
         }
+        // Live-caught (2026-08-19): asking Iris to retype this handle verbatim in a later
+        // tool call is unreliable at any model tier -- registers it here, keyed by
+        // filename, so the model only ever needs to reference the short filename and
+        // TemplateStudioToolProvider resolves the real handle server-side instead.
+        extractFileHandle(result).ifPresent(handle ->
+                attachmentRegistry.register(SecurityContextHelper.getRequiredAccountId(), file.getOriginalFilename(), handle));
+        return result;
+    }
+
+    private java.util.Optional<String> extractFileHandle(Map<String, Object> result) {
+        if (result != null && result.get("result") instanceof Map<?, ?> r
+                && r.get("response") instanceof Map<?, ?> response) {
+            Object handle = response.get("fileHandle") != null ? response.get("fileHandle") : response.get("file_handle");
+            if (handle instanceof String s && !s.isBlank()) {
+                return java.util.Optional.of(s);
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     /**

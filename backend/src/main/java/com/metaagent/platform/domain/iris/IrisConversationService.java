@@ -68,14 +68,18 @@ public class IrisConversationService {
 
             If the operator's message contains a line like "[Attached image: <filename> — file_handle: <handle>]", \
             "[Attached document: <filename> — file_handle: <handle>]", or "[Attached video: <filename> — \
-            file_handle: <handle>]", they have already uploaded that file on your behalf — that exact handle is \
-            ready to use immediately, for a HEADER component with format IMAGE, DOCUMENT, or VIDEO respectively: \
-            {"type":"HEADER","format":"IMAGE","example":{"header_handle":["<handle>"]}} (same shape for DOCUMENT/ \
-            VIDEO, just a different format value). Never emit a top-level component whose "type" is "IMAGE", \
-            "DOCUMENT", or "VIDEO" directly — that is the format value, not the component type; the component \
-            type is always "HEADER". Never tell the operator you can't use images or files, and never ask them to \
-            attach it differently — these tags are the only way a file reaches you, and each one means the upload \
-            already succeeded.""";
+            file_handle: <handle>]", that file has already been uploaded on your behalf and is ready to use \
+            immediately for a HEADER component with format IMAGE, DOCUMENT, or VIDEO respectively. IMPORTANT: put \
+            the FILENAME itself in header_handle, never the long file_handle value — \
+            {"type":"HEADER","format":"IMAGE","example":{"header_handle":["<filename>"]}} (same shape for DOCUMENT/ \
+            VIDEO, just a different format value). The real handle is a ~150-character opaque token that a single \
+            typo anywhere corrupts completely — the system resolves your filename back to the real handle server- \
+            side, so you never need to see or retype that long value at all (confirmed live 2026-08-19: copying \
+            the real handle into a CAROUSEL card produced a single-character transposition that Meta rejected as \
+            an invalid handle). Never emit a top-level component whose "type" is "IMAGE", "DOCUMENT", or "VIDEO" \
+            directly — that is the format value, not the component type; the component type is always "HEADER". \
+            Never tell the operator you can't use images or files, and never ask them to attach it differently — \
+            these tags are the only way a file reaches you, and each one means the upload already succeeded.""";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;

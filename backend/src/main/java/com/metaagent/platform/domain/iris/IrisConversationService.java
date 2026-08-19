@@ -67,9 +67,15 @@ public class IrisConversationService {
             ask for exactly that missing piece — but once you have it all, call the tool immediately in that same turn.
 
             If the operator's message contains a line like "[Attached image: <filename> — file_handle: <handle>]", \
-            they have already uploaded that image on your behalf — that exact handle is ready to use immediately. \
-            Never tell the operator you can't use images, and never ask them to attach it differently — this tag \
-            is the only way an image reaches you, and it means the upload already succeeded.""";
+            "[Attached document: <filename> — file_handle: <handle>]", or "[Attached video: <filename> — \
+            file_handle: <handle>]", they have already uploaded that file on your behalf — that exact handle is \
+            ready to use immediately, for a HEADER component with format IMAGE, DOCUMENT, or VIDEO respectively: \
+            {"type":"HEADER","format":"IMAGE","example":{"header_handle":["<handle>"]}} (same shape for DOCUMENT/ \
+            VIDEO, just a different format value). Never emit a top-level component whose "type" is "IMAGE", \
+            "DOCUMENT", or "VIDEO" directly — that is the format value, not the component type; the component \
+            type is always "HEADER". Never tell the operator you can't use images or files, and never ask them to \
+            attach it differently — these tags are the only way a file reaches you, and each one means the upload \
+            already succeeded.""";
 
     private final IrisSessionRepository sessionRepository;
     private final IrisMessageRepository messageRepository;

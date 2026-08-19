@@ -105,6 +105,12 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                             "required", List.of("wabaId", "templateName", "language", "category", "components")),
                     true),
             new AiToolSpec("edit_template", "Edit an existing WhatsApp template's components. Requires user confirmation. " +
+                    "This REPLACES the entire components array — it is not a partial patch. You MUST call get_template " +
+                    "first to see the template's current components, then pass back that full set with only the " +
+                    "requested change applied (e.g. adding one footer keeps the existing header/body/buttons exactly " +
+                    "as they were) — never reconstruct components from memory or invent what the template currently " +
+                    "has (live-caught 2026-08-19: doing so silently dropped an existing HEADER when only a FOOTER " +
+                    "was asked for). " +
                     "For an AUTHENTICATION template, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
@@ -118,6 +124,14 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                             "wabaId", Map.of("type", "string"),
                             "status", Map.of("type", "string")),
                             "required", List.of("wabaId")),
+                    false),
+            new AiToolSpec("get_template", "Fetch one template's full current components. Read-only, runs immediately. " +
+                    "ALWAYS call this before edit_template — you cannot know what the template already has (header, " +
+                    "footer, buttons) without it, and edit_template replaces the WHOLE components array, not just what you name.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "wabaId", Map.of("type", "string"),
+                            "templateId", Map.of("type", "string")),
+                            "required", List.of("wabaId", "templateId")),
                     false),
             new AiToolSpec("send_test_template", "Send an approved template to a single test phone number. Requires user confirmation. " +
                     "templateName MUST be the template's name field (e.g. from list_templates), NEVER its numeric fb_template_id — " +
@@ -241,6 +255,7 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                 yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), request.toKarixPayload());
             }
             case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
+            case "get_template" -> templateStudioService.getTemplate(wabaId, String.valueOf(args.get("templateId")));
             case "send_test_template" -> {
                 @SuppressWarnings("unchecked")
                 List<String> parameterValues = args.get("parameterValues") == null
@@ -294,7 +309,42 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
         if (!(rawComponents instanceof List<?> list)) {
             throw new BusinessException("components must be a list.");
         }
-        return stripExampleFromPlaceholderFreeBody((List<Map<String, Object>>) list);
+        return stripExampleFromPlaceholderFreeBody(normalizeMediaHeaderComponents((List<Map<String, Object>>) list));
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): the prompt only ever taught the
+     * model an "[Attached image: ...]" tag convention -- there was no equivalent
+     * for "[Attached document: ...]" or "[Attached video: ...]", so when an
+     * operator attached a document, the model guessed at a shape instead of
+     * following a known pattern: it emitted a top-level {"type":"DOCUMENT",
+     * "header_handle":[...]} component instead of the correct {"type":"HEADER",
+     * "format":"DOCUMENT","example":{"header_handle":[...]}}. Meta rejected it
+     * loud ("(#100) Unexpected key \"header_handle\" on param \"components[1]\"")
+     * -- no data was lost, but it's still a real gap. Heals a component whose
+     * "type" is IMAGE/VIDEO/DOCUMENT (the media format, mistakenly used as the
+     * component type) into a proper HEADER component with the handle correctly
+     * nested under example.header_handle, wherever the handle value came from.
+     */
+    private static final java.util.Set<String> MEDIA_HEADER_FORMATS = java.util.Set.of("IMAGE", "VIDEO", "DOCUMENT");
+
+    List<Map<String, Object>> normalizeMediaHeaderComponents(List<Map<String, Object>> components) {
+        return components.stream().map(component -> {
+            Object type = component.get("type");
+            if (!(type instanceof String typeStr) || !MEDIA_HEADER_FORMATS.contains(typeStr)) {
+                return component;
+            }
+            Object handle = component.containsKey("header_handle") ? component.get("header_handle")
+                    : component.get("example") instanceof Map<?, ?> ex ? ex.get("header_handle") : null;
+            Map<String, Object> healed = new LinkedHashMap<>();
+            healed.put("type", "HEADER");
+            healed.put("format", typeStr);
+            if (handle != null) {
+                healed.put("example", Map.of("header_handle", handle));
+            }
+            log.info("normalizeMediaHeaderComponents: healed a top-level '{}' component into a proper HEADER component", typeStr);
+            return healed;
+        }).toList();
     }
 
     /**

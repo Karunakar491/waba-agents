@@ -149,3 +149,20 @@ export function SetupBanner() {
     </div>
   )
 }
+
+/** Shown when an account has no BYOK key of its own and is running on the
+ * platform's shared default — a nudge, not a blocker (Composer stays enabled). */
+export function DefaultKeyNotice() {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <span>Using a shared default AI key for now — add your own in Settings for full control.</span>
+      <Link
+        to="/templates/settings"
+        className="flex shrink-0 items-center gap-1 font-medium text-foreground hover:underline"
+      >
+        <Settings className="h-3 w-3" />
+        Settings
+      </Link>
+    </div>
+  )
+}

@@ -66,6 +66,17 @@ claude:
     key: ${CLAUDE_API_KEY}
     model: claude-3-5-sonnet-20241022
 
+iris:
+  default-ai-provider:
+    # Fallback so Iris isn't dead for an account that hasn't added its own
+    # BYOK key yet (2026-08-19) — platform-funded stopgap, not a permanent
+    # per-account substitute. Optional: blank key means no fallback, accounts
+    # without their own credential get the existing "add a key" error.
+    # Set IRIS_DEFAULT_OPENAI_API_KEY in the environment to enable it.
+    provider: OPENAI
+    model: gpt-4o-mini
+    key: ${IRIS_DEFAULT_OPENAI_API_KEY:}
+
 security:
   bcrypt:
     cost: 12

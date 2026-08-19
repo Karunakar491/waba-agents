@@ -4,6 +4,7 @@ import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,13 +24,29 @@ public class AiCredentialService {
     private final AiProviderCredentialRepository repository;
     private final SecretEncryptor secretEncryptor;
 
-    public record CredentialStatus(boolean configured, String provider, String model) {}
+    @Value("${iris.default-ai-provider.provider}")
+    private String defaultProvider;
+
+    @Value("${iris.default-ai-provider.model}")
+    private String defaultModel;
+
+    /** Blank unless IRIS_DEFAULT_OPENAI_API_KEY is set on the server — never a literal key in source. */
+    @Value("${iris.default-ai-provider.key}")
+    private String defaultApiKey;
+
+    public record CredentialStatus(boolean configured, String provider, String model, boolean usingPlatformDefault) {}
 
     public CredentialStatus getStatus() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         return firstCredentialForAccount(accountId)
-                .map(c -> new CredentialStatus(true, c.getProvider(), c.getModel()))
-                .orElse(new CredentialStatus(false, null, null));
+                .map(c -> new CredentialStatus(true, c.getProvider(), c.getModel(), false))
+                .orElseGet(() -> hasPlatformDefault()
+                        ? new CredentialStatus(false, defaultProvider, defaultModel, true)
+                        : new CredentialStatus(false, null, null, false));
+    }
+
+    private boolean hasPlatformDefault() {
+        return defaultApiKey != null && !defaultApiKey.isBlank();
     }
 
     public Map<String, Object> listOptions() {
@@ -72,10 +89,14 @@ public class AiCredentialService {
     /** Decrypted key + model — only ever called from IrisConversationService, never returned via any GET endpoint. */
     ResolvedAiCredential resolveForConversation() {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        AiProviderCredential credential = firstCredentialForAccount(accountId)
-                .orElseThrow(() -> new BusinessException(
-                        "Iris needs an AI provider key configured first — set one up in Settings."));
-        return new ResolvedAiCredential(credential.getProvider(), credential.getModel(), secretEncryptor.decrypt(credential.getEncryptedApiKey()));
+        return firstCredentialForAccount(accountId)
+                .map(c -> new ResolvedAiCredential(c.getProvider(), c.getModel(), secretEncryptor.decrypt(c.getEncryptedApiKey()), false))
+                .orElseGet(() -> {
+                    if (!hasPlatformDefault()) {
+                        throw new BusinessException("Iris needs an AI provider key configured first — set one up in Settings.");
+                    }
+                    return new ResolvedAiCredential(defaultProvider, defaultModel, defaultApiKey, true);
+                });
     }
 
     private AiProvider parseProvider(String provider) {
@@ -98,5 +119,5 @@ public class AiCredentialService {
         return repository.findAllByAccountId(accountId).stream().findFirst();
     }
 
-    record ResolvedAiCredential(String provider, String model, String apiKey) {}
+    record ResolvedAiCredential(String provider, String model, String apiKey, boolean usingPlatformDefault) {}
 }

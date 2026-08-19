@@ -146,6 +146,12 @@ public class IrisConversationService {
         }
 
         AiCredentialService.ResolvedAiCredential cred = aiCredentialService.resolveForConversation();
+        if (cred.usingPlatformDefault()) {
+            // EM-required (2026-08-19 platform-default fallback review): no other
+            // signal exists to notice runaway usage of the shared default key
+            // before an OpenAI bill or rate-limit error surfaces it.
+            log.info("Iris turn using platform-default AI key: accountId={}", SecurityContextHelper.getRequiredAccountId());
+        }
         AiProviderAdapter adapter = adapters.stream()
                 .filter(a -> a.provider().name().equals(cred.provider()))
                 .findFirst()

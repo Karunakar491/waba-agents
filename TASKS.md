@@ -4,6 +4,12 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 
 ## Open
 
+### 9. Add a soft per-account usage cap on Iris's platform-default AI key
+- **Status**: Not started. Required by EM sign-off (2026-08-19) on the platform-default AI key fallback before that fallback stays live past its initial stopgap window — filed as a fast-follow, not blocking the fallback's ship.
+- **Why**: `AiCredentialService.resolveForConversation()` now falls back to a shared platform-owned OpenAI key (`IRIS_DEFAULT_OPENAI_API_KEY`, opt-in via env var) for any account that hasn't added its own BYOK key yet, per founder's explicit request that Iris "shouldn't be dead" before a client configures their own key. EM approved this as an acceptable MVP risk (reversible in seconds — unset the env var) but flagged that with no per-account cap, the blast radius is "every no-key tenant," bounded only by OpenAI's own account-level rate limit — a single noisy account (or many) could run up real cost with no internal circuit breaker.
+- **Mitigation already shipped**: `IrisConversationService.java` logs `accountId` every time a turn uses the platform-default key (`log.info("Iris turn using platform-default AI key...")`), so usage is at least visible in existing logs before it becomes an incident — this was EM's minimum bar for shipping without a cap.
+- **Plan**: needs its own scoping (soft daily/monthly turn cap per account on the default key, what happens on cap-exceeded — block vs warn vs force BYOK — copy/UX for that state) before implementation; not mechanical, treat as a real feature.
+
 ### 6. Confirm Karix's real `list_templates` response shape in staging
 - **Status**: Not started. Flagged by EL during review of the 2026-08-19 Iris quality fixes.
 - **Why**: `TemplateStudioToolProvider.extractTemplatesList()` (new, for turning `list_templates` results into a readable chat summary) and the pre-existing `TemplateStudioClient.countTemplates()` both assume the shape `{result: {response: {templates: [...]}}}}` — sourced from an older code comment claiming "confirmed live 2026-08-12," not independently re-verified now. If that shape has drifted, both methods silently fall back to generic text rather than erroring, which could mask a real mismatch.

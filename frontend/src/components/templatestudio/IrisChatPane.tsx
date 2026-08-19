@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils'
 import ErrorBanner from '../shared/ErrorBanner'
 import StatusIndicator from '../shared/StatusIndicator'
 import IrisDraftSnapshotCard from './IrisDraftSnapshotCard'
-import { Composer, SetupBanner, type IrisAttachment } from './IrisComposer'
+import { Composer, SetupBanner, DefaultKeyNotice, type IrisAttachment } from './IrisComposer'
 
 export interface IrisChatEntry {
   id: string
@@ -35,6 +35,7 @@ const SUGGESTIONS = [
 
 export default function IrisChatPane({
   needsSetup,
+  usingPlatformDefault,
   resuming,
   started,
   entries,
@@ -53,6 +54,7 @@ export default function IrisChatPane({
   onRemoveAttachment,
 }: {
   needsSetup: boolean
+  usingPlatformDefault: boolean
   resuming: boolean
   started: boolean
   entries: IrisChatEntry[]
@@ -111,6 +113,7 @@ export default function IrisChatPane({
           </div>
           <div className="w-full max-w-3xl space-y-2">
             {needsSetup && <SetupBanner />}
+            {usingPlatformDefault && <DefaultKeyNotice />}
             <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={false} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
           </div>
           <div className="flex max-w-3xl flex-wrap items-center justify-center gap-2">
@@ -207,6 +210,7 @@ export default function IrisChatPane({
       {started && (
         <div className="space-y-2 border-t bg-background px-6 py-4">
           {needsSetup && <SetupBanner />}
+          {usingPlatformDefault && <DefaultKeyNotice />}
           <Composer input={input} setInput={setInput} onSubmit={() => onSubmit()} disabled={thinking} pending={pending} thinking={thinking} onAbort={onAbort} attachment={attachment} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} />
         </div>
       )}

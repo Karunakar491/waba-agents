@@ -28,10 +28,16 @@ export default function TemplateIrisPage() {
     queryFn: () => api.get('/waba').then((r) => r.data.data),
   })
 
+  // A platform-default AI key (server-side fallback, see AiCredentialService)
+  // keeps Iris usable before an account adds its own BYOK key — only a
+  // missing WABA/Karix mapping or the total absence of any AI key (no
+  // account key AND no platform default configured) actually blocks Iris.
+  const hasWorkingAiKey = !!credentialQuery.data?.configured || !!credentialQuery.data?.usingPlatformDefault
   const needsSetup = !credentialQuery.isLoading && !wabasQuery.isLoading
-    && ((wabasQuery.data?.length ?? 0) === 0 || !credentialQuery.data?.configured)
+    && ((wabasQuery.data?.length ?? 0) === 0 || !hasWorkingAiKey)
+  const usingPlatformDefault = !needsSetup && !!credentialQuery.data?.usingPlatformDefault
 
-  return <IrisWorkspace needsSetup={needsSetup} />
+  return <IrisWorkspace needsSetup={needsSetup} usingPlatformDefault={usingPlatformDefault} />
 }
 
 interface TurnResponse {
@@ -75,7 +81,7 @@ function rememberWabaFromArgs(args: Record<string, unknown> | undefined) {
   localStorage.setItem(TEMPLATE_STUDIO_WABA_KEY, String(args.wabaId))
 }
 
-function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
+function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boolean; usingPlatformDefault: boolean }) {
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
@@ -365,6 +371,7 @@ function IrisWorkspace({ needsSetup }: { needsSetup: boolean }) {
       >
         <IrisChatPane
           needsSetup={needsSetup}
+          usingPlatformDefault={usingPlatformDefault}
           resuming={resuming}
           started={entries.length > 0}
           entries={entries}

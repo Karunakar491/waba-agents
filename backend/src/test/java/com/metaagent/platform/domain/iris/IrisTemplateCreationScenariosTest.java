@@ -73,7 +73,7 @@ class IrisTemplateCreationScenariosTest {
 
         when(adapter.provider()).thenReturn(AiProvider.CLAUDE);
         when(aiCredentialService.resolveForConversation())
-                .thenReturn(new AiCredentialService.ResolvedAiCredential("CLAUDE", "claude-3-5-sonnet-20241022", "sk-test"));
+                .thenReturn(new AiCredentialService.ResolvedAiCredential("CLAUDE", "claude-3-5-sonnet-20241022", "sk-test", false));
 
         Waba waba = mock(Waba.class);
         when(waba.getId()).thenReturn(WABA_ID);

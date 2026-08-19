@@ -48,7 +48,7 @@ export default function TemplateStudioPage() {
   return (
     <div className="w-full space-y-6 px-12 py-10">
       {view === 'list' && (
-        <>
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs text-muted-foreground">Template Studio &nbsp;›&nbsp; Templates</p>
             <h1 className="mt-2 text-2xl font-semibold text-foreground">Templates</h1>
@@ -57,7 +57,7 @@ export default function TemplateStudioPage() {
             </p>
           </div>
           <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
-        </>
+        </div>
       )}
 
       {selectedWabaId ? (

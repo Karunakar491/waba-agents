@@ -69,23 +69,25 @@ export default function TemplateDebugPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>Template Studio</span>
-          <ChevronRight className="h-3 w-3" />
-          <span>Debug</span>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Template Studio</span>
+            <ChevronRight className="h-3 w-3" />
+            <span>Debug</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold text-foreground">Debug</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Raw API activity across your WABAs — for troubleshooting, not day-to-day setup.
+          </p>
         </div>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground">Debug</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Raw API activity across your WABAs — for troubleshooting, not day-to-day setup.
-        </p>
-      </div>
 
-      {wabasLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      ) : (
-        <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
-      )}
+        {wabasLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <WabaPicker wabas={wabas} selectedWabaId={selectedWabaId} onChange={setSelectedWabaId} />
+        )}
+      </div>
 
       {!selectedWabaId && (
         <p className="text-sm text-muted-foreground">Select a WABA to view its API activity.</p>

@@ -50,6 +50,11 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             "include \"example\":{\"body_text\":[[\"<sample value for {{1}}>\",\"<sample for {{2}}>\",...]]} with one " +
             "sample string per placeholder, in order — Karix rejects a template with placeholders and no example block " +
             "(confirmed live 2026-08-07: \"BODY text has placeholders (1) but no example block\"). " +
+            "The \"example\" key goes INSIDE the same single BODY object as \"text\" — never as a second separate BODY " +
+            "component, and never as a sibling of \"components\" at the top level of the tool call. There is EXACTLY " +
+            "ONE BODY object in the whole components array, and it carries both text and example together, e.g.: " +
+            "{\"type\":\"BODY\",\"text\":\"Order {{1}} confirmed, arrives by {{2}}\",\"example\":{\"body_text\":[[\"12345\",\"2026-08-20\"]]}} " +
+            "(confirmed live 2026-08-19: a second BODY object or a top-level example both fail template creation). " +
             "Also: {{n}} must never be the very first or very last thing in the body text — Meta rejects leading/trailing " +
             "variables (confirmed live 2026-08-07: \"Leading or trailing params not allowed\"); always put real words " +
             "before and after every placeholder. " +
@@ -77,7 +82,13 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                     "For category AUTHENTICATION specifically, codeExpirationMinutes (1-90) is required by Meta — omit it for every other category.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
-                            "templateName", Map.of("type", "string"),
+                            "templateName", Map.of("type", "string", "description",
+                                    "lowercase letters, numbers, and underscores ONLY — snake_case, no spaces, no capital " +
+                                    "letters. Convert whatever name the operator says into this format yourself before " +
+                                    "calling the tool (e.g. \"Ramadan Sale\" becomes \"ramadan_sale\") — never pass a " +
+                                    "human-readable name through as-is. Meta rejects any other format (confirmed live " +
+                                    "2026-08-19: \"Name format is incorrect\" / \"template_name should typically be " +
+                                    "lowercase letters, numbers, and underscores only\")."),
                             "language", Map.of("type", "string"),
                             "category", Map.of("type", "string"),
                             "components", Map.of("type", "array", "description", COMPONENTS_SCHEMA_DESCRIPTION),

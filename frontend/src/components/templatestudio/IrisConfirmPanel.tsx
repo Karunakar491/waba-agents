@@ -5,6 +5,7 @@ import WhatsAppTemplatePreview from '../templatestudio/WhatsAppTemplatePreview'
 import {
   type ButtonDraft,
   type ButtonType,
+  type CarouselCardDraft,
   type HeaderFormat,
 } from '../templatestudio/templateModel'
 
@@ -13,6 +14,8 @@ interface PreviewComponent {
   format?: string
   text?: string
   buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string; example?: string | string[] }>
+  example?: { header_handle?: string[] }
+  cards?: Array<{ components: PreviewComponent[] }>
 }
 
 export function previewPropsFromArgs(args: Record<string, unknown>) {
@@ -36,6 +39,26 @@ export function previewPropsFromArgs(args: Record<string, unknown>) {
       code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
     }))
 
+  const carouselComponent = components.find((c) => c.type === 'CAROUSEL')
+  const cards: CarouselCardDraft[] = (carouselComponent?.cards ?? []).map((card) => {
+    const cardComponents = card.components ?? []
+    const cardHeader = cardComponents.find((cc) => cc.type === 'HEADER')
+    const cardBody = cardComponents.find((cc) => cc.type === 'BODY')
+    const cardButtonsComponent = cardComponents.find((cc) => cc.type === 'BUTTONS')
+    return {
+      headerHandle: cardHeader?.example?.header_handle?.[0] || '',
+      mediaError: null,
+      bodyText: cardBody?.text || '',
+      buttons: (cardButtonsComponent?.buttons || []).map((b) => ({
+        type: ((b.type || 'QUICK_REPLY').toUpperCase() as ButtonType),
+        text: b.text || '',
+        url: b.url || '',
+        phoneNumber: b.phone_number || '',
+        code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
+      })),
+    }
+  })
+
   return {
     headerFormat: (header?.format as HeaderFormat) || 'NONE',
     headerText: header?.text || '',
@@ -43,6 +66,8 @@ export function previewPropsFromArgs(args: Record<string, unknown>) {
     footerText: footer?.text || '',
     buttons: isAuthentication ? [] : buttons,
     isAuthentication,
+    carouselEnabled: !!carouselComponent,
+    cards,
   }
 }
 

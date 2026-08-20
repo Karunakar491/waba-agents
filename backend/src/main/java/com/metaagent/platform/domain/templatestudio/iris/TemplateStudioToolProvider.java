@@ -130,8 +130,11 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                             "required", List.of("wabaId")),
                     false),
             new AiToolSpec("get_template", "Fetch one template's full current components. Read-only, runs immediately. " +
-                    "ALWAYS call this before edit_template — you cannot know what the template already has (header, " +
-                    "footer, buttons) without it, and edit_template replaces the WHOLE components array, not just what you name.",
+                    "Call this ONCE before editing a template for the first time in this conversation — you cannot " +
+                    "know what it already has (header, footer, buttons) without it, and edit_template replaces the " +
+                    "WHOLE components array, not just what you name. Its result is shown to you as \"Current template " +
+                    "state: {...}\" earlier in this conversation — if you already see that for this exact templateId, " +
+                    "do NOT call get_template again; go straight to edit_template using that already-fetched state.",
                     Map.of("type", "object", "properties", Map.of(
                             "wabaId", Map.of("type", "string"),
                             "templateId", Map.of("type", "string")),

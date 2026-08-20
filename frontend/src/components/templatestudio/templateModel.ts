@@ -201,8 +201,8 @@ export function seedFromComponents(components: KarixComponent[]) {
             type: ((b.type || 'QUICK_REPLY').toUpperCase() as ButtonType),
             text: b.text || '',
             url: b.url || '',
-            phoneNumber: '',
-            code: '',
+            phoneNumber: b.phone_number || '',
+            code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
           })),
         }
       })

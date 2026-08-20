@@ -20,6 +20,7 @@ import {
 } from './templateModel'
 import { bodyLeadingTrailingVariable } from './builder/BodyEditor'
 import { FOOTER_MAX } from './builder/FooterEditor'
+import { BUTTON_TEXT_MAX, BUTTONS_MAX_COUNT } from './builder/ButtonsEditor'
 
 export function useTemplateBuilder({
   wabaId,
@@ -332,6 +333,10 @@ export function useTemplateBuilder({
   const bodyLenOk = isAuthentication || bodyText.length <= BODY_MAX
   const bodyVarPositionOk = isAuthentication || !bodyLeadingTrailingVariable(bodyText)
   const footerLenOk = footerText.length <= FOOTER_MAX
+  const buttonsOk = buttons.length <= BUTTONS_MAX_COUNT
+    && buttons.every((b) => b.text.length <= BUTTON_TEXT_MAX)
+    && buttons.every((b) => b.type !== 'URL' || /^https?:\/\//.test(b.url.trim()))
+    && buttons.every((b) => b.type !== 'PHONE_NUMBER' || b.phoneNumber.trim().startsWith('+'))
   // LOCATION needs no upload — the coordinates are supplied at send time,
   // not creation time (docs/meta-api/.../location_templates.md).
   const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT' || headerFormat === 'LOCATION'
@@ -346,7 +351,7 @@ export function useTemplateBuilder({
   // header which stays optional).
   const carouselReady = !carouselEnabled
     || (cards.length >= 2 && cards.length <= 10 && cards.every((c) => !!c.headerHandle))
-  const canSubmit = nameOk && bodyLenOk && bodyVarPositionOk && footerLenOk && ltoReady && carouselReady
+  const canSubmit = nameOk && bodyLenOk && bodyVarPositionOk && footerLenOk && buttonsOk && ltoReady && carouselReady
     && (isAuthentication ? !!otpExampleCode.trim() : bodyText.trim() && headerReady)
     && (!isEdit || seeded) && !submitMutation.isPending
 

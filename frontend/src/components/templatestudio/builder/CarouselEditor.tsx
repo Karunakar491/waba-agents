@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import ErrorBanner from '../../shared/ErrorBanner'
 import ButtonsEditor from './ButtonsEditor'
@@ -74,28 +74,29 @@ export default function CarouselEditor({
 
           {cards.map((card, i) => (
             <div key={i} className="rounded-lg border">
-              <button
-                type="button"
-                onClick={() => setOpenCard(openCard === i ? -1 : i)}
-                className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
-              >
-                <span>Card {i + 1}{card.headerHandle ? ' — media uploaded' : ''}</span>
-                <span className="flex items-center gap-2">
-                  {cards.length > 2 && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); onRemoveCard(i) }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRemoveCard(i) } }}
-                      aria-label={`Remove card ${i + 1}`}
-                      className="rounded p-1 text-muted-foreground hover:bg-muted"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </span>
-                  )}
-                  <span>{openCard === i ? '−' : '+'}</span>
-                </span>
-              </button>
+              <div className="flex w-full items-center justify-between px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenCard(openCard === i ? -1 : i)}
+                  className="flex flex-1 items-center justify-between text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+                >
+                  <span>Card {i + 1}{card.headerHandle ? ' — media uploaded' : ''}</span>
+                  {openCard === i ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+                {cards.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRemoveCard(i)
+                      setOpenCard((prev) => (prev === i ? -1 : prev > i ? prev - 1 : prev))
+                    }}
+                    aria-label={`Remove card ${i + 1}`}
+                    className="ml-2 rounded p-1 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               {openCard === i && (
                 <div className="space-y-2 border-t p-3">
                   <div className="space-y-1">

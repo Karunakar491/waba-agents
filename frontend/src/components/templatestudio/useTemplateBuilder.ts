@@ -18,6 +18,7 @@ import {
   type CarouselCardDraft,
   type CarouselHeaderFormat,
 } from './templateModel'
+import { bodyLeadingTrailingVariable } from './builder/BodyEditor'
 
 export function useTemplateBuilder({
   wabaId,
@@ -328,6 +329,7 @@ export function useTemplateBuilder({
 
   const nameOk = isEdit || (templateName.trim().length > 0 && templateName.length <= 512 && NAME_RE.test(templateName))
   const bodyLenOk = isAuthentication || bodyText.length <= BODY_MAX
+  const bodyVarPositionOk = isAuthentication || !bodyLeadingTrailingVariable(bodyText)
   // LOCATION needs no upload — the coordinates are supplied at send time,
   // not creation time (docs/meta-api/.../location_templates.md).
   const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT' || headerFormat === 'LOCATION'
@@ -342,7 +344,7 @@ export function useTemplateBuilder({
   // header which stays optional).
   const carouselReady = !carouselEnabled
     || (cards.length >= 2 && cards.length <= 10 && cards.every((c) => !!c.headerHandle))
-  const canSubmit = nameOk && bodyLenOk && ltoReady && carouselReady
+  const canSubmit = nameOk && bodyLenOk && bodyVarPositionOk && ltoReady && carouselReady
     && (isAuthentication ? !!otpExampleCode.trim() : bodyText.trim() && headerReady)
     && (!isEdit || seeded) && !submitMutation.isPending
 

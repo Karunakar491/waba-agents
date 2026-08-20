@@ -1,6 +1,13 @@
 import { cn } from '../../../lib/utils'
 import { BODY_MAX, extractVariables } from '../templateModel'
 
+export function bodyLeadingTrailingVariable(bodyText: string): boolean {
+  const trimmed = bodyText.trim()
+  const startsWithVar = /^\{\{\s*\w+\s*\}\}/.test(trimmed)
+  const endsWithVar = /\{\{\s*\w+\s*\}\}$/.test(trimmed)
+  return startsWithVar || endsWithVar
+}
+
 // Extracted from TemplateBuilderForm.tsx (V2 rebrand slice 7).
 export default function BodyEditor({ bodyText, setBodyText, bodyExamples, setBodyExamples }: {
   bodyText: string
@@ -8,9 +15,7 @@ export default function BodyEditor({ bodyText, setBodyText, bodyExamples, setBod
   bodyExamples: Record<string, string>
   setBodyExamples: (updater: (prev: Record<string, string>) => Record<string, string>) => void
 }) {
-  const trimmed = bodyText.trim()
-  const startsWithVar = /^\{\{\s*\w+\s*\}\}/.test(trimmed)
-  const endsWithVar = /\{\{\s*\w+\s*\}\}$/.test(trimmed)
+  const hasLeadingOrTrailingVar = bodyLeadingTrailingVariable(bodyText)
   const overMax = bodyText.length > BODY_MAX
 
   return (
@@ -26,9 +31,10 @@ export default function BodyEditor({ bodyText, setBodyText, bodyExamples, setBod
         value={bodyText}
         onChange={(e) => setBodyText(e.target.value)}
         placeholder="Hi {{1}}, your order has shipped."
+        maxLength={BODY_MAX}
         className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
       />
-      {(startsWithVar || endsWithVar) && (
+      {hasLeadingOrTrailingVar && (
         <p className="mt-1 text-xs text-warning">
           Meta rejects bodies that start or end with a variable — add real text before and after.
         </p>

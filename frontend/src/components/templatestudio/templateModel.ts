@@ -40,6 +40,16 @@ export interface KarixComponent {
   }
   buttons?: Array<{ type: string; text?: string; url?: string; phone_number?: string; example?: string | string[] }>
   limited_time_offer?: { text?: string; has_expiration?: boolean }
+  cards?: Array<{ components: KarixComponent[] }>
+}
+
+export type CarouselHeaderFormat = 'IMAGE' | 'VIDEO'
+
+export interface CarouselCardDraft {
+  headerHandle: string
+  mediaError: string | null
+  bodyText: string
+  buttons: ButtonDraft[]
 }
 
 export const AUTH_BODY_TEXT = '{{1}}'
@@ -137,6 +147,11 @@ export function seedFromComponents(components: KarixComponent[]) {
     ltoEnabled: false,
     ltoText: '',
     ltoHasExpiration: false,
+    carouselEnabled: false,
+    carouselHeaderFormat: 'IMAGE' as CarouselHeaderFormat,
+    carouselHasBody: true,
+    carouselHasButtons: true,
+    cards: [] as CarouselCardDraft[],
   }
   for (const c of components) {
     if (c.type === 'HEADER') {
@@ -166,6 +181,31 @@ export function seedFromComponents(components: KarixComponent[]) {
         phoneNumber: b.phone_number || '',
         code: typeof b.example === 'string' ? b.example : (b.example?.[0] || ''),
       }))
+    } else if (c.type === 'CAROUSEL') {
+      seed.carouselEnabled = true
+      const firstCardComponents = c.cards?.[0]?.components ?? []
+      const firstHeader = firstCardComponents.find((cc) => cc.type === 'HEADER')
+      seed.carouselHeaderFormat = (firstHeader?.format as CarouselHeaderFormat) || 'IMAGE'
+      seed.carouselHasBody = firstCardComponents.some((cc) => cc.type === 'BODY')
+      seed.carouselHasButtons = firstCardComponents.some((cc) => cc.type === 'BUTTONS')
+      seed.cards = (c.cards ?? []).map((card) => {
+        const cardComponents = card.components ?? []
+        const header = cardComponents.find((cc) => cc.type === 'HEADER')
+        const body = cardComponents.find((cc) => cc.type === 'BODY')
+        const buttonsComponent = cardComponents.find((cc) => cc.type === 'BUTTONS')
+        return {
+          headerHandle: header?.example?.header_handle?.[0] || '',
+          mediaError: null,
+          bodyText: body?.text || '',
+          buttons: (buttonsComponent?.buttons || []).map((b) => ({
+            type: ((b.type || 'QUICK_REPLY').toUpperCase() as ButtonType),
+            text: b.text || '',
+            url: b.url || '',
+            phoneNumber: '',
+            code: '',
+          })),
+        }
+      })
     }
   }
   return seed

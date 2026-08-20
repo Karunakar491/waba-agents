@@ -13,6 +13,7 @@ import AuthenticationEditor from './builder/AuthenticationEditor'
 import FooterEditor from './builder/FooterEditor'
 import LimitedTimeOfferEditor from './builder/LimitedTimeOfferEditor'
 import ButtonsEditor from './builder/ButtonsEditor'
+import CarouselEditor from './builder/CarouselEditor'
 import ReviewSummary from './builder/ReviewSummary'
 
 const CREATE_STEPS = ['Set up template', 'Edit template', 'Submit for Review']
@@ -79,12 +80,14 @@ export default function TemplateBuilderForm({
       )}
       {(b.isEdit || step === 2) && (!b.isEdit || b.seeded) && !b.isAuthentication && (
         <>
-          <HeaderEditor
-            headerFormat={b.headerFormat} setHeaderFormat={b.setHeaderFormat}
-            headerText={b.headerText} setHeaderText={b.setHeaderText}
-            headerHandle={b.headerHandle} setMediaError={b.setMediaError} mediaError={b.mediaError}
-            uploadMediaMutation={b.uploadMediaMutation}
-          />
+          {!b.carouselEnabled && (
+            <HeaderEditor
+              headerFormat={b.headerFormat} setHeaderFormat={b.setHeaderFormat}
+              headerText={b.headerText} setHeaderText={b.setHeaderText}
+              headerHandle={b.headerHandle} setMediaError={b.setMediaError} mediaError={b.mediaError}
+              uploadMediaMutation={b.uploadMediaMutation}
+            />
+          )}
           <BodyEditor bodyText={b.bodyText} setBodyText={b.setBodyText} bodyExamples={b.bodyExamples} setBodyExamples={b.setBodyExamples} />
           {b.category === 'MARKETING' ? (
             <LimitedTimeOfferEditor
@@ -95,7 +98,18 @@ export default function TemplateBuilderForm({
           ) : (
             <FooterEditor footerText={b.footerText} setFooterText={b.setFooterText} />
           )}
-          <ButtonsEditor buttons={b.buttons} setButtons={b.setButtons} />
+          {!b.carouselEnabled && (
+            <ButtonsEditor buttons={b.buttons} setButtons={b.setButtons} />
+          )}
+          <CarouselEditor
+            enabled={b.carouselEnabled} onEnabledChange={b.enableCarousel}
+            headerFormat={b.carouselHeaderFormat} onHeaderFormatChange={b.setCarouselHeaderFormat}
+            hasBody={b.carouselHasBody} onHasBodyChange={b.setCarouselHasBody}
+            hasButtons={b.carouselHasButtons} onHasButtonsChange={b.setCarouselHasButtons}
+            cards={b.cards} onAddCard={b.addCard} onRemoveCard={b.removeCard}
+            onCardBodyTextChange={b.setCardBodyText} onCardButtonsChange={b.setCardButtons}
+            uploadCardMediaMutation={b.uploadCardMediaMutation}
+          />
         </>
       )}
 

@@ -40,3 +40,6 @@ replay_pid*.log
 
 # Local Playwright test scaffold (audit tooling, not product code)
 /pw/
+
+# Git worktrees for isolated feature work (superpowers:using-git-worktrees)
+/.worktrees/

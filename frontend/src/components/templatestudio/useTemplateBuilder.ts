@@ -19,6 +19,7 @@ import {
   type CarouselHeaderFormat,
 } from './templateModel'
 import { bodyLeadingTrailingVariable } from './builder/BodyEditor'
+import { otpCodeLooksValid } from './builder/AuthenticationEditor'
 import { FOOTER_MAX } from './builder/FooterEditor'
 import { BUTTON_TEXT_MAX, BUTTONS_MAX_COUNT } from './builder/ButtonsEditor'
 
@@ -352,7 +353,7 @@ export function useTemplateBuilder({
   const carouselReady = !carouselEnabled
     || (cards.length >= 2 && cards.length <= 10 && cards.every((c) => !!c.headerHandle))
   const canSubmit = nameOk && bodyLenOk && bodyVarPositionOk && footerLenOk && buttonsOk && ltoReady && carouselReady
-    && (isAuthentication ? !!otpExampleCode.trim() : bodyText.trim() && headerReady)
+    && (isAuthentication ? (!!otpExampleCode.trim() && otpCodeLooksValid(otpExampleCode)) : bodyText.trim() && headerReady)
     && (!isEdit || seeded) && !submitMutation.isPending
 
   return {

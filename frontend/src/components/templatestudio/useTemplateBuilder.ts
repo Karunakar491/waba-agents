@@ -76,6 +76,11 @@ export function useTemplateBuilder({
   useEffect(() => {
     if (category !== 'MARKETING' && ltoEnabled) setLtoEnabled(false)
   }, [category, ltoEnabled])
+  // media_carousel.md: "carousel cards are only available for marketing
+  // template messages" — force off if category changes away from MARKETING.
+  useEffect(() => {
+    if (category !== 'MARKETING' && carouselEnabled) setCarouselEnabled(false)
+  }, [category, carouselEnabled])
   useEffect(() => {
     if (ltoEnabled && footerText) setFooterText('')
   }, [ltoEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,9 +226,11 @@ export function useTemplateBuilder({
           if (carouselHasButtons && card.buttons.length > 0) {
             cardComponents.push({
               type: 'BUTTONS',
-              buttons: card.buttons.map((b) => (b.type === 'URL'
-                ? { type: 'URL', text: b.text, url: b.url }
-                : { type: 'QUICK_REPLY', text: b.text })),
+              buttons: card.buttons.map((b) => {
+                if (b.type === 'URL') return { type: 'URL', text: b.text, url: b.url }
+                if (b.type === 'PHONE_NUMBER') return { type: 'PHONE_NUMBER', text: b.text, phone_number: b.phoneNumber }
+                return { type: 'QUICK_REPLY', text: b.text }
+              }),
             })
           }
           return { components: cardComponents }

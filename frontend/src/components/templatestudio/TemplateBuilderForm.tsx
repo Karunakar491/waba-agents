@@ -101,15 +101,17 @@ export default function TemplateBuilderForm({
           {!b.carouselEnabled && (
             <ButtonsEditor buttons={b.buttons} setButtons={b.setButtons} />
           )}
-          <CarouselEditor
-            enabled={b.carouselEnabled} onEnabledChange={b.enableCarousel}
-            headerFormat={b.carouselHeaderFormat} onHeaderFormatChange={b.setCarouselHeaderFormat}
-            hasBody={b.carouselHasBody} onHasBodyChange={b.setCarouselHasBody}
-            hasButtons={b.carouselHasButtons} onHasButtonsChange={b.setCarouselHasButtons}
-            cards={b.cards} onAddCard={b.addCard} onRemoveCard={b.removeCard}
-            onCardBodyTextChange={b.setCardBodyText} onCardButtonsChange={b.setCardButtons}
-            uploadCardMediaMutation={b.uploadCardMediaMutation}
-          />
+          {b.category === 'MARKETING' && (
+            <CarouselEditor
+              enabled={b.carouselEnabled} onEnabledChange={b.enableCarousel}
+              headerFormat={b.carouselHeaderFormat} onHeaderFormatChange={b.setCarouselHeaderFormat}
+              hasBody={b.carouselHasBody} onHasBodyChange={b.setCarouselHasBody}
+              hasButtons={b.carouselHasButtons} onHasButtonsChange={b.setCarouselHasButtons}
+              cards={b.cards} onAddCard={b.addCard} onRemoveCard={b.removeCard}
+              onCardBodyTextChange={b.setCardBodyText} onCardButtonsChange={b.setCardButtons}
+              uploadCardMediaMutation={b.uploadCardMediaMutation}
+            />
+          )}
         </>
       )}
 

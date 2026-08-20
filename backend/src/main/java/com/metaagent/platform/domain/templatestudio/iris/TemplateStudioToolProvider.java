@@ -334,7 +334,15 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                     "category", String.valueOf(response.getOrDefault("category", "")),
                     "language", String.valueOf(response.getOrDefault("language", "")),
                     "components", response.getOrDefault("components", List.of()));
-            return "Current template state: " + objectMapper.writeValueAsString(essentials);
+            // 2026-08-19, live-caught: the tool's own description telling the model
+            // "call this before editing" wasn't enough to stop it re-calling get_template
+            // repeatedly instead of ever reaching edit_template. The result text itself
+            // (re-read fresh every turn) is a much stronger signal than a static tool
+            // description read once at the start of the conversation.
+            return "Current template state: " + objectMapper.writeValueAsString(essentials)
+                    + " -- You now have everything needed. Do NOT call get_template again for this templateId. "
+                    + "Call edit_template next, in your very next turn, with the change requested plus everything "
+                    + "else unchanged.";
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return "Here is the template.";
         }

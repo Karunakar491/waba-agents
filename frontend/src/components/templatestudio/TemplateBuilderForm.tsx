@@ -153,6 +153,8 @@ export default function TemplateBuilderForm({
             footerText={b.category === 'MARKETING' && b.ltoEnabled ? '' : b.footerText}
             buttons={b.buttons}
             isAuthentication={b.isAuthentication}
+            carouselEnabled={b.carouselEnabled}
+            cards={b.cards}
           />
         </div>
       </div>

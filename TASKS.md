@@ -4,6 +4,11 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 
 ## Open
 
+### 12. Manual Template Studio editor has no CAROUSEL support at all
+- **Status**: Not started. Found 2026-08-19 while spot-checking `strawberry_carousel_v5` (created live via Iris) in the manual "Edit Template" UI — the form showed "Header: None" and no trace of the carousel's 2 cards or their images.
+- **Why**: This is a real feature gap, not a rendering bug. `KarixComponent` (`templateModel.ts`) has no `cards` field at all; `seedFromComponents()` (`useTemplateBuilder.ts`) has no branch for `type === 'CAROUSEL'` and silently drops it when loading an existing template; `TemplateBuilderForm.tsx` has no card-list UI; and `buildComponents()` (the save path) can't construct a CAROUSEL component either. **Critically: opening a CAROUSEL template in this editor and clicking Save would silently strip its carousel structure down to a flat template, permanently losing the cards** — this was caught before any save happened, but the risk is real for any operator who edits one manually.
+- **Plan**: needs its own scoping — new type/model fields for cards, a per-card editor UI (each card needs its own image upload, reusing `HeaderEditor`'s media-upload pattern but per-card), fetch/seed support, and build/submit support. Backend and Iris already handle CAROUSEL correctly; this is purely a manual-UI gap. Full frontend gate sequence (PM/EM/UX/Design Evaluator/EL) applies — this is a real feature build, not a quick patch.
+
 ### 10. Add a hard code-level guardrail against Iris fabricating tool arguments
 - **Status**: Not started. Flagged by EL (2026-08-19) as a non-blocking caveat on the prompt-only fix in commit `62bdc31`.
 - **Why**: A bare "hi" caused Iris to draft a `send_test_template` call with a fabricated `testPhoneNumber` ("1234567890") and a real template name pulled from context — the model hallucinated a mutating action from ambiguous input. `TemplateStudioToolProvider.systemPromptFragment()` now explicitly instructs the model not to do this, but that's prompt engineering, not enforcement — the model can still ignore it. `send_test_template` requiring user confirmation before executing contains the blast radius today, but that's the only backstop.

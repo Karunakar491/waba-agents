@@ -123,11 +123,11 @@ export default function TemplateBuilderForm({
         />
       )}
 
-      <ConsequenceLine>
-        {b.isEdit
-          ? 'This resubmits the template for Meta review — it won’t send until re-approved.'
-          : 'This submits the template to Meta for approval — it won’t be usable until approved.'}
-      </ConsequenceLine>
+      {b.isEdit && (
+        <ConsequenceLine>
+          This resubmits the template for Meta review — it won’t send until re-approved.
+        </ConsequenceLine>
+      )}
 
       {b.result && (
         <p className={cn('text-xs', b.result.ok ? 'text-accent-teal-solid' : 'text-destructive')}>{b.result.message}</p>
@@ -194,15 +194,20 @@ export default function TemplateBuilderForm({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              disabled={!b.canSubmit}
-              onClick={() => { b.setResult(null); b.submitMutation.mutate() }}
-              className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
-            >
-              {b.submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Submit for approval
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              <ConsequenceLine>
+                This submits the template to Meta for approval — it won’t be usable until approved.
+              </ConsequenceLine>
+              <button
+                type="button"
+                disabled={!b.canSubmit}
+                onClick={() => { b.setResult(null); b.submitMutation.mutate() }}
+                className="flex items-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+              >
+                {b.submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                Submit for approval
+              </button>
+            </div>
           )}
         </div>
       )}

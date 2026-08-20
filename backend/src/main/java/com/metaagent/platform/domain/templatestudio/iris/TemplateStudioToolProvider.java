@@ -251,12 +251,15 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
                 yield templateStudioService.createTemplate(wabaId, request.toKarixPayload());
             }
             case "edit_template" -> {
+                String templateId = String.valueOf(args.get("templateId"));
+                List<Map<String, Object>> submitted = resolveAttachmentReferences(accountId,
+                        mergeStrayTopLevelComponents(args, castComponents(args.get("components"))));
                 EditTemplateRequest request = new EditTemplateRequest(
-                        resolveAttachmentReferences(accountId, mergeStrayTopLevelComponents(args, castComponents(args.get("components")))),
+                        preventSilentButtonContactChanges(wabaId, templateId, submitted),
                         null, null, null,
                         args.get("codeExpirationMinutes") == null ? null : Integer.valueOf(String.valueOf(args.get("codeExpirationMinutes"))));
                 validateOrThrow(request);
-                yield templateStudioService.editTemplate(wabaId, String.valueOf(args.get("templateId")), request.toKarixPayload());
+                yield templateStudioService.editTemplate(wabaId, templateId, request.toKarixPayload());
             }
             case "list_templates" -> templateStudioService.listTemplates(wabaId, (String) args.get("status"));
             case "get_template" -> templateStudioService.getTemplate(wabaId, String.valueOf(args.get("templateId")));
@@ -349,6 +352,87 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
             throw new BusinessException("components must be a list.");
         }
         return stripExampleFromPlaceholderFreeBody(flattenNestedButtonsArrays(normalizeMediaHeaderComponents((List<Map<String, Object>>) list)));
+    }
+
+    /**
+     * Defense-in-depth (2026-08-19, live-caught): edit_template replaces the whole
+     * components array, and even with get_template + prompt instructions telling
+     * Iris to reuse existing content verbatim, it still fabricated a DIFFERENT
+     * phone number on a real APPROVED template when asked only to add a footer
+     * -- caught and cancelled before confirming, but that was luck, not a
+     * guarantee. Unlike the shape bugs above, this can't be fixed by teaching a
+     * better schema: the JSON was perfectly well-formed, just factually wrong.
+     * This always re-fetches the template's TRUE current state itself (never
+     * trusting anything the model claims about what "already exists"), and for
+     * any BUTTONS button whose type already existed, restores the ORIGINAL
+     * phone_number/url if the model's submission silently differs -- fails
+     * closed on business-critical contact info specifically. A model adding a
+     * brand-new button type is unaffected; only silent edits to a business's
+     * real phone number or link are blocked.
+     */
+    List<Map<String, Object>> preventSilentButtonContactChanges(Long wabaId, String templateId, List<Map<String, Object>> submittedComponents) {
+        Map<String, Map<String, Object>> originalButtonsByType;
+        try {
+            originalButtonsByType = extractButtonsByType(templateStudioService.getTemplate(wabaId, templateId));
+        } catch (RuntimeException e) {
+            log.warn("preventSilentButtonContactChanges: could not fetch original template state, skipping protection: {}", e.getMessage());
+            return submittedComponents;
+        }
+        if (originalButtonsByType.isEmpty()) {
+            return submittedComponents;
+        }
+        return submittedComponents.stream().map(component -> protectButtonsComponent(component, originalButtonsByType)).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> protectButtonsComponent(Map<String, Object> component, Map<String, Map<String, Object>> originalButtonsByType) {
+        if (!"BUTTONS".equals(component.get("type")) || !(component.get("buttons") instanceof List<?> buttons)) {
+            return component;
+        }
+        List<Object> protectedButtons = buttons.stream().map(buttonObj -> {
+            if (!(buttonObj instanceof Map<?, ?> button)) {
+                return buttonObj;
+            }
+            Map<String, Object> original = originalButtonsByType.get(String.valueOf(button.get("type")));
+            if (original == null) {
+                return buttonObj;
+            }
+            Map<String, Object> merged = new LinkedHashMap<>((Map<String, Object>) button);
+            for (String field : List.of("phone_number", "url")) {
+                Object originalValue = original.get(field);
+                Object submittedValue = button.get(field);
+                if (originalValue != null && submittedValue != null && !originalValue.equals(submittedValue)) {
+                    log.warn("preventSilentButtonContactChanges: blocked a silent {} change on an existing {} button (restored the real value)",
+                            field, button.get("type"));
+                    merged.put(field, originalValue);
+                }
+            }
+            return merged;
+        }).toList();
+        Map<String, Object> result = new LinkedHashMap<>(component);
+        result.put("buttons", protectedButtons);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> extractButtonsByType(Map<String, Object> getTemplateResult) {
+        Map<String, Map<String, Object>> byType = new LinkedHashMap<>();
+        if (!(getTemplateResult != null && getTemplateResult.get("result") instanceof Map<?, ?> r
+                && r.get("response") instanceof Map<?, ?> response
+                && response.get("components") instanceof List<?> components)) {
+            return byType;
+        }
+        for (Object c : components) {
+            if (c instanceof Map<?, ?> component && "BUTTONS".equals(component.get("type"))
+                    && component.get("buttons") instanceof List<?> buttons) {
+                for (Object b : buttons) {
+                    if (b instanceof Map<?, ?> button && button.get("type") != null) {
+                        byType.put(String.valueOf(button.get("type")), (Map<String, Object>) button);
+                    }
+                }
+            }
+        }
+        return byType;
     }
 
     /**

@@ -15,6 +15,7 @@ import LimitedTimeOfferEditor from './builder/LimitedTimeOfferEditor'
 import ButtonsEditor from './builder/ButtonsEditor'
 import CarouselEditor from './builder/CarouselEditor'
 import ReviewSummary from './builder/ReviewSummary'
+import ConsequenceLine from '../shared/ConsequenceLine'
 
 const CREATE_STEPS = ['Set up template', 'Edit template', 'Submit for Review']
 
@@ -121,6 +122,12 @@ export default function TemplateBuilderForm({
           bodyText={b.bodyText}
         />
       )}
+
+      <ConsequenceLine>
+        {b.isEdit
+          ? 'This resubmits the template for Meta review — it won’t send until re-approved.'
+          : 'This submits the template to Meta for approval — it won’t be usable until approved.'}
+      </ConsequenceLine>
 
       {b.result && (
         <p className={cn('text-xs', b.result.ok ? 'text-accent-teal-solid' : 'text-destructive')}>{b.result.message}</p>

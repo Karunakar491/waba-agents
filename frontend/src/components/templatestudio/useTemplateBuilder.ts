@@ -334,10 +334,11 @@ export function useTemplateBuilder({
   const bodyLenOk = isAuthentication || bodyText.length <= BODY_MAX
   const bodyVarPositionOk = isAuthentication || !bodyLeadingTrailingVariable(bodyText)
   const footerLenOk = footerText.length <= FOOTER_MAX
-  const buttonsOk = buttons.length <= BUTTONS_MAX_COUNT
-    && buttons.every((b) => b.text.length <= BUTTON_TEXT_MAX)
-    && buttons.every((b) => b.type !== 'URL' || /^https?:\/\//.test(b.url.trim()))
-    && buttons.every((b) => b.type !== 'PHONE_NUMBER' || b.phoneNumber.trim().startsWith('+'))
+  const buttonsOk = carouselEnabled
+    || (buttons.length <= BUTTONS_MAX_COUNT
+      && buttons.every((b) => b.text.length <= BUTTON_TEXT_MAX)
+      && buttons.every((b) => b.type !== 'URL' || /^https?:\/\//.test(b.url.trim()))
+      && buttons.every((b) => b.type !== 'PHONE_NUMBER' || b.phoneNumber.trim().startsWith('+')))
   // LOCATION needs no upload — the coordinates are supplied at send time,
   // not creation time (docs/meta-api/.../location_templates.md).
   const headerReady = headerFormat === 'NONE' || headerFormat === 'TEXT' || headerFormat === 'LOCATION'

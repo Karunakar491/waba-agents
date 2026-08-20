@@ -81,11 +81,12 @@ export default function WhatsAppTemplatePreview({
                   </div>
                   <div className="p-1.5">
                     {card.bodyText.trim() && <p className="line-clamp-2 text-[10px]">{card.bodyText}</p>}
-                    {card.buttons[0] && (
-                      <p className="mt-1 truncate text-center text-[10px] font-semibold text-whatsapp-header">
-                        {card.buttons[0].text || 'Button'}
+                    {card.buttons.map((btn, bi) => (
+                      <p key={bi} className="mt-1 flex items-center justify-center gap-1 truncate text-center text-[10px] font-semibold text-whatsapp-header">
+                        <ButtonIcon type={btn.type} />
+                        {btn.text || 'Button'}
                       </p>
-                    )}
+                    ))}
                   </div>
                 </div>
               ))}

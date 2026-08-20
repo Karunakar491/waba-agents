@@ -183,6 +183,9 @@ export function seedFromComponents(components: KarixComponent[]) {
       }))
     } else if (c.type === 'CAROUSEL') {
       seed.carouselEnabled = true
+      // Meta requires every card in a carousel to share the same component shape
+      // (header format, body presence, buttons presence), so deriving the shared
+      // shape from cards[0] alone is safe.
       const firstCardComponents = c.cards?.[0]?.components ?? []
       const firstHeader = firstCardComponents.find((cc) => cc.type === 'HEADER')
       seed.carouselHeaderFormat = (firstHeader?.format as CarouselHeaderFormat) || 'IMAGE'

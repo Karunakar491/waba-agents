@@ -41,6 +41,9 @@ import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
 import DeleteAgentModal from '../components/agent-detail/DeleteAgentModal'
 import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
+import UnpublishConfirmModal from '../components/agent-detail/UnpublishConfirmModal'
+import DraftsDisclosure from '../components/agent-detail/DraftsDisclosure'
+import { useUnpublishFlow } from '../components/agent-detail/useUnpublishFlow'
 
 // Lazy-loaded — each is a real, separate chunk not bundled into this page's
 // initial load; only one tab is ever mounted at a time (see the activeTab
@@ -53,6 +56,17 @@ const SkillsTab = lazy(() => import('../components/agent-detail/SkillsTab'))
 const EvalTab = lazy(() => import('../components/agent-detail/EvalTab'))
 import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
 import Modal from '../components/shared/Modal'
+import ToolParamsEditor from '../components/agent-detail/ToolParamsEditor'
+import ToolBodyEditor from '../components/agent-detail/ToolBodyEditor'
+import {
+  buildRequestDefinition,
+  parseRequestDefinition,
+  extractPathParamNames,
+  IncompleteRowError,
+  type RequestDefinition,
+  type ParamRow,
+  type BodyFieldRow,
+} from '../components/agent-detail/toolRequestDefinition'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,6 +98,7 @@ interface Faq {
   question: string
   answer: string
   metaSynced: boolean
+  status: 'published' | 'draft'
 }
 
 type DetailTab = 'knowledge' | 'skills' | 'connectors' | 'profile' | 'eval' | 'settings'
@@ -94,15 +109,8 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone; pulse?: b
   draft:  { label: 'Draft',  tone: 'neutral' },
 }
 
-const TONES = ['Friendly', 'Professional', 'Casual', 'Formal']
-
 const settingsSchema = z.object({
   displayName: z.string().min(2, 'At least 2 characters').max(80, 'Max 80 characters'),
-  systemPrompt: z.string().min(20, 'At least 20 characters').max(4000, 'Max 4000 characters'),
-  aboutLabel: z.string().max(255, 'Max 255 characters').optional(),
-  tone: z.string().optional(),
-  language: z.string().optional(),
-  behaviorRules: z.string().optional(),
   handoffEnabled: z.boolean(),
   handoffMessage: z.string().max(1000, 'Max 1000 characters').optional(),
 })
@@ -247,7 +255,7 @@ export default function AgentDetailPage() {
     { key: 'knowledge',  icon: BookOpen,      label: 'Knowledge Base'  },
     { key: 'skills',     icon: Zap,           label: 'Skills'          },
     { key: 'connectors', icon: Plug,          label: 'Connectors'      },
-    { key: 'profile',    icon: FileText,      label: 'Business Profile'},
+    { key: 'profile',    icon: FileText,      label: 'Business Persona'},
     { key: 'eval',       icon: ClipboardList, label: 'Eval'            },
     { key: 'settings',   icon: Settings2,     label: 'Settings'        },
   ]
@@ -536,10 +544,13 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
   const [answer, setAnswer] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
 
-  const { data: faqs = [], isLoading } = useQuery<Faq[]>({
+  const { data: allFaqs = [], isLoading } = useQuery<Faq[]>({
     queryKey: ['faqs', agentId],
     queryFn: () => api.get(`/agents/${agentId}/faq`).then((r) => r.data.data),
   })
+
+  const faqs = allFaqs.filter((f) => f.status !== 'draft')
+  const draftFaqs = allFaqs.filter((f) => f.status === 'draft')
 
   const addMutation = useMutation({
     mutationFn: (payload: { question: string; answer: string }) =>
@@ -558,6 +569,9 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
     mutationFn: (faqId: string) => api.delete(`/agents/${agentId}/faq/${faqId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['faqs', agentId] }),
   })
+
+  const { unpublishTarget, setUnpublishTarget, unpublishMutation, republishMutation } =
+    useUnpublishFlow<Faq>(`/agents/${agentId}/faq`, ['faqs', agentId])
 
   function handleAdd() {
     if (!question.trim() || !answer.trim()) return
@@ -667,19 +681,48 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">{faq.answer}</p>
                   </div>
-                  <button
-                    onClick={() => deleteMutation.mutate(faq.id)}
-                    disabled={deleteMutation.isPending}
-                    aria-label={`Delete FAQ: ${faq.question}`}
-                    className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => setUnpublishTarget(faq)}
+                      title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
+                      className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
+                        hover:text-foreground hover:bg-muted transition-colors
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      Unpublish
+                    </button>
+                    <button
+                      onClick={() => deleteMutation.mutate(faq.id)}
+                      disabled={deleteMutation.isPending}
+                      aria-label={`Delete FAQ: ${faq.question}`}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
+
+          <DraftsDisclosure
+            items={draftFaqs}
+            renderPrimary={(faq) => faq.question}
+            renderSecondary={(faq) => faq.answer}
+            onRepublish={(id) => republishMutation.mutate(id)}
+            isPending={republishMutation.isPending}
+          />
         </div>
+      )}
+
+      {unpublishTarget && (
+        <UnpublishConfirmModal
+          itemLabel={unpublishTarget.question}
+          isPending={unpublishMutation.isPending}
+          onConfirm={() => unpublishMutation.mutate(unpublishTarget.id)}
+          onClose={() => setUnpublishTarget(null)}
+        />
       )}
     </div>
   )
@@ -978,7 +1021,8 @@ interface ConnectorTool {
   id: string
   name: string
   description: string
-  request_definition: { method: string; path: string }
+  request_definition: RequestDefinition
+  user_auth_required: boolean
 }
 
 type AuthType = 'NONE' | 'API_KEY' | 'OAUTH2_CLIENT_CREDENTIALS'
@@ -1260,17 +1304,49 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
 interface AddToolModalProps {
   agentId: string
   connectorId: string
+  tool?: ConnectorTool
   onClose: () => void
   onCreated: () => void
 }
 
-function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModalProps) {
-  const [name, setName]       = useState('')
-  const [description, setDesc] = useState('')
-  const [method, setMethod]   = useState('GET')
-  const [path, setPath]       = useState('')
+function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToolModalProps) {
+  const isEditing = !!tool
+  const prefill = tool ? parseRequestDefinition(tool.request_definition) : null
+
+  const [name, setName]       = useState(tool?.name ?? '')
+  const [description, setDesc] = useState(tool?.description ?? '')
+  const [method, setMethod]   = useState(prefill?.method ?? 'GET')
+  const [path, setPath]       = useState(prefill?.path ?? '')
   const [error, setError]     = useState<string | null>(null)
   const [saving, setSaving]   = useState(false)
+
+  // Path-param rows are derived fresh from the Path field on every render — no useEffect
+  // syncing one piece of state into another (this codebase has a documented prior incident
+  // on exactly that shape). pathParamMeta holds only rows the operator has actually edited
+  // (type/description), keyed by token name; tokens with no entry fall back to a default.
+  const [pathParamMeta, setPathParamMeta] = useState<Record<string, ParamRow>>(() => {
+    const meta: Record<string, ParamRow> = {}
+    for (const row of prefill?.pathParams ?? []) meta[row.key] = row
+    return meta
+  })
+  const pathTokens = extractPathParamNames(path)
+  const pathParamRows: ParamRow[] = pathTokens.map((token) =>
+    pathParamMeta[token] ?? { key: token, type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' }
+  )
+  function setPathParamRows(updater: (prev: ParamRow[]) => ParamRow[]) {
+    const next = updater(pathParamRows)
+    setPathParamMeta((prevMeta) => {
+      const merged = { ...prevMeta }
+      for (const row of next) merged[row.key] = row
+      return merged
+    })
+  }
+
+  const [queryParams, setQueryParams] = useState<ParamRow[]>(prefill?.queryParams ?? [])
+  const [headerParams, setHeaderParams] = useState<ParamRow[]>(prefill?.headerParams ?? [])
+  const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(prefill?.bodyFields ?? [])
+
+  const bodyAllowed = method === 'POST' || method === 'PUT' || method === 'PATCH'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1278,15 +1354,30 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
     setSaving(true)
     setError(null)
     try {
-      await api.post(`/agents/${agentId}/connectors/${connectorId}/tools`, {
+      const requestDefinition = buildRequestDefinition({
+        method,
+        path: path.trim(),
+        pathParams: pathParamRows,
+        queryParams,
+        headerParams,
+        bodyFields,
+      })
+      const payload = {
         name: name.trim(),
         description: description.trim(),
         user_auth_required: false,
-        request_definition: { method, path: path.trim() },
-      })
+        request_definition: requestDefinition,
+      }
+      if (isEditing) {
+        await api.put(`/agents/${agentId}/connectors/${connectorId}/tools/${tool.id}`, payload)
+      } else {
+        await api.post(`/agents/${agentId}/connectors/${connectorId}/tools`, payload)
+      }
       onCreated()
     } catch (err) {
-      setError(extractErrorMessage(err))
+      // IncompleteRowError (blank-key row in any section) never reaches the network call —
+      // shown as a validation message instead, same banner as a real API error.
+      setError(err instanceof IncompleteRowError ? err.message : extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -1298,7 +1389,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
 
   return (
     <Modal
-      title="Add Tool"
+      title={isEditing ? `Edit tool "${tool.name}"` : 'Add Tool'}
       onClose={onClose}
       preventClose={saving}
       maxWidthClassName="max-w-md"
@@ -1366,6 +1457,23 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
             </p>
           </div>
 
+          {pathTokens.length > 0 && (
+            <ToolParamsEditor
+              label="Path parameters"
+              rows={pathParamRows}
+              setRows={setPathParamRows}
+              lockedKeys={pathTokens}
+              showAdd={false}
+            />
+          )}
+
+          <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} />
+          <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} />
+
+          {bodyAllowed && (
+            <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} />
+          )}
+
           <div className="flex gap-3 pt-1">
             <button
               type="submit"
@@ -1375,7 +1483,7 @@ function AddToolModal({ agentId, connectorId, onClose, onCreated }: AddToolModal
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Add
+              {isEditing ? 'Save' : 'Add'}
             </button>
             <button
               type="button"
@@ -1406,6 +1514,7 @@ function ToolsList({
   const [showAddTool, setShowAddTool] = useState(false)
   const [runningTool, setRunningTool] = useState<ConnectorTool | null>(null)
   const [deletingTool, setDeletingTool] = useState<ConnectorTool | null>(null)
+  const [editingTool, setEditingTool] = useState<ConnectorTool | null>(null)
 
   const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
     queryKey: ['tools', agentId, connectorId, refetchSignal],
@@ -1488,6 +1597,13 @@ function ToolsList({
                   <Play className="h-3.5 w-3.5" />
                 </button>
                 <button
+                  onClick={() => setEditingTool(tool)}
+                  aria-label={`Edit tool ${tool.name}`}
+                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-accent-teal-solid"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => setDeletingTool(tool)}
                   aria-label={`Delete tool ${tool.name}`}
                   className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
@@ -1500,14 +1616,16 @@ function ToolsList({
         </ul>
       )}
 
-      {showAddTool && (
+      {(showAddTool || editingTool) && (
         <AddToolModal
           agentId={agentId}
           connectorId={connectorId}
-          onClose={() => setShowAddTool(false)}
+          tool={editingTool ?? undefined}
+          onClose={() => { setShowAddTool(false); setEditingTool(null) }}
           onCreated={() => {
             queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
             setShowAddTool(false)
+            setEditingTool(null)
           }}
         />
       )}
@@ -1790,29 +1908,17 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       displayName: agent.displayName,
-      systemPrompt: agent.systemPrompt ?? '',
-      aboutLabel: agent.aboutLabel ?? '',
-      tone: agent.tone ?? '',
-      language: agent.language ?? '',
-      behaviorRules: agent.behaviorRules ?? '',
       handoffEnabled: agent.handoffEnabled,
       handoffMessage: agent.handoffMessage ?? '',
     },
   })
 
-  const promptLength = (watch('systemPrompt') ?? '').length
-  const toneValue = watch('tone') ?? ''
   const handoffEnabledValue = watch('handoffEnabled')
 
   const saveMutation = useMutation({
     mutationFn: (values: SettingsValues) =>
       api.put(`/agents/${agent.id}`, {
         displayName: values.displayName,
-        systemPrompt: values.systemPrompt,
-        aboutLabel: values.aboutLabel || null,
-        tone: values.tone || null,
-        language: values.language || null,
-        behaviorRules: values.behaviorRules || null,
         handoffEnabled: values.handoffEnabled,
         handoffMessage: values.handoffEnabled ? (values.handoffMessage || null) : null,
       }),
@@ -1867,105 +1973,6 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
             {errors.displayName && (
               <p className="text-xs text-destructive">{errors.displayName.message}</p>
             )}
-          </div>
-
-          {/* systemPrompt */}
-          <div className="space-y-1.5">
-            <label htmlFor="s-systemPrompt" className="block text-sm font-medium text-foreground">
-              What does your agent do?
-            </label>
-            <textarea
-              id="s-systemPrompt"
-              rows={6}
-              className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-              {...register('systemPrompt')}
-            />
-            <div className="flex items-start justify-between">
-              <div>
-                {errors.systemPrompt && (
-                  <p className="text-xs text-destructive">{errors.systemPrompt.message}</p>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground shrink-0 ml-4">{promptLength}/4000</p>
-            </div>
-          </div>
-
-          {/* aboutLabel — Figma 8.1 "About" column on the Agents list */}
-          <div className="space-y-1.5">
-            <label htmlFor="s-aboutLabel" className="block text-sm font-medium text-foreground">
-              Short label
-            </label>
-            <p className="text-xs text-muted-foreground">
-              A brief note shown in the Agents list (e.g. "Handles bulk grocery orders"). Optional.
-            </p>
-            <input
-              id="s-aboutLabel"
-              type="text"
-              maxLength={255}
-              placeholder="e.g. Handles bulk grocery orders"
-              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-              {...register('aboutLabel')}
-            />
-            {errors.aboutLabel && (
-              <p className="text-xs text-destructive">{errors.aboutLabel.message}</p>
-            )}
-          </div>
-
-          {/* tone */}
-          <div className="space-y-1.5">
-            <label htmlFor="s-tone" className="block text-sm font-medium text-foreground">
-              Tone
-            </label>
-            <select
-              id="s-tone"
-              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-              value={toneValue}
-              onChange={(e) => setValue('tone', e.target.value, { shouldDirty: true })}
-            >
-              <option value="">Select tone (optional)</option>
-              {TONES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* language */}
-          <div className="space-y-1.5">
-            <label htmlFor="s-language" className="block text-sm font-medium text-foreground">
-              Language
-            </label>
-            <input
-              id="s-language"
-              type="text"
-              placeholder="e.g. English"
-              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-              {...register('language')}
-            />
-          </div>
-
-          {/* behaviorRules */}
-          <div className="space-y-1.5">
-            <label htmlFor="s-behaviorRules" className="block text-sm font-medium text-foreground">
-              Behavior rules
-            </label>
-            <p className="text-xs text-muted-foreground">One rule per line.</p>
-            <textarea
-              id="s-behaviorRules"
-              rows={4}
-              className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-sm
-                placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition"
-              {...register('behaviorRules')}
-            />
           </div>
 
           {/* Human handoff */}

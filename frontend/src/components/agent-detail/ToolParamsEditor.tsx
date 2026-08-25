@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { ParamRow, ParamType, FillMode } from './toolRequestDefinition'
-import { inputCls, touchButtonCls, touchCheckboxCls } from './toolEditorStyles'
+import { inputCls, touchButtonCls, touchCheckboxCls, checkboxLabelCls, addButtonCls, idSlug } from './toolEditorStyles'
 
 const FILL_OPTIONS: { value: FillMode; label: string }[] = [
   { value: 'agent', label: 'The agent fills this in' },
@@ -49,7 +49,7 @@ export default function ToolParamsEditor({
             type="button"
             disabled={disabled}
             onClick={() => setRows((prev) => [...prev, { key: '', type: 'string', description: '', required: false, fill: 'agent', fixedValue: '' }])}
-            className="flex items-center gap-1 rounded text-xs text-accent-teal-solid hover:underline disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+            className={addButtonCls}
           >
             <Plus className="h-3.5 w-3.5" /> Add {singularize(label)}
           </button>
@@ -61,9 +61,9 @@ export default function ToolParamsEditor({
         return (
           <div key={i} className="space-y-2 rounded-lg border p-2">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="sr-only" htmlFor={`${label}-${i}-key`}>{label} name</label>
+              <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-key`}>{label} name</label>
               <input
-                id={`${label}-${i}-key`}
+                id={`${idSlug(label)}-${i}-key`}
                 type="text"
                 value={row.key}
                 disabled={locked || disabled}
@@ -89,7 +89,7 @@ export default function ToolParamsEditor({
                 // UI this task exists to eliminate. Static text only, no control.
                 <span className="text-xs text-muted-foreground">Always required (path parameter)</span>
               ) : (
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <label className={checkboxLabelCls}>
                   <input
                     type="checkbox"
                     checked={row.required}
@@ -112,9 +112,9 @@ export default function ToolParamsEditor({
                 </button>
               )}
             </div>
-            <label className="sr-only" htmlFor={`${label}-${i}-description`}>{label} description</label>
+            <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-description`}>{label} description</label>
             <input
-              id={`${label}-${i}-description`}
+              id={`${idSlug(label)}-${i}-description`}
               type="text"
               value={row.description}
               disabled={disabled}
@@ -123,9 +123,9 @@ export default function ToolParamsEditor({
               className={`${inputCls} w-full disabled:opacity-60`}
             />
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs text-muted-foreground" htmlFor={`${label}-${i}-fill`}>Who fills this in?</label>
+              <label className="text-xs text-muted-foreground" htmlFor={`${idSlug(label)}-${i}-fill`}>Who fills this in?</label>
               <select
-                id={`${label}-${i}-fill`}
+                id={`${idSlug(label)}-${i}-fill`}
                 value={row.fill}
                 disabled={disabled}
                 onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fill: e.target.value as FillMode } : r)))}
@@ -142,9 +142,9 @@ export default function ToolParamsEditor({
               </select>
               {row.fill === 'fixed' && (
                 <>
-                  <label className="sr-only" htmlFor={`${label}-${i}-fixedvalue`}>Fixed value</label>
+                  <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-fixedvalue`}>Fixed value</label>
                   <input
-                    id={`${label}-${i}-fixedvalue`}
+                    id={`${idSlug(label)}-${i}-fixedvalue`}
                     type="text"
                     value={row.fixedValue}
                     disabled={disabled}

@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { BodyFieldRow, ParamType } from './toolRequestDefinition'
-import { inputCls, touchButtonCls, touchCheckboxCls } from './toolEditorStyles'
+import { inputCls, touchButtonCls, touchCheckboxCls, checkboxLabelCls, addButtonCls } from './toolEditorStyles'
 
 export default function ToolBodyEditor({
   rows,
@@ -20,7 +20,7 @@ export default function ToolBodyEditor({
           type="button"
           disabled={disabled}
           onClick={() => setRows((prev) => [...prev, { key: '', type: 'string', description: '', required: false }])}
-          className="flex items-center gap-1 rounded text-xs text-accent-teal-solid hover:underline disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2"
+          className={addButtonCls}
         >
           <Plus className="h-3.5 w-3.5" /> Add body field
         </button>
@@ -63,7 +63,7 @@ export default function ToolBodyEditor({
               placeholder="Description"
               className={`${inputCls} min-w-[8rem] flex-1 disabled:opacity-60`}
             />
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <label className={checkboxLabelCls}>
               <input
                 type="checkbox"
                 checked={row.required}

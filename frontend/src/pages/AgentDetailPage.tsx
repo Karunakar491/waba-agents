@@ -1464,14 +1464,15 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
               setRows={setPathParamRows}
               lockedKeys={pathTokens}
               showAdd={false}
+              disabled={saving}
             />
           )}
 
-          <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} />
-          <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} />
+          <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} disabled={saving} />
+          <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} disabled={saving} />
 
           {bodyAllowed && (
-            <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} />
+            <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
           )}
 
           <div className="flex gap-3 pt-1">

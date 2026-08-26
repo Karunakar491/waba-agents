@@ -29,6 +29,7 @@ function ButtonRow({ buttons }: { buttons: ButtonDraft[] }) {
 export default function WhatsAppTemplatePreview({
   headerFormat,
   headerText,
+  headerPreviewUrl,
   bodyText,
   footerText,
   buttons,
@@ -38,6 +39,7 @@ export default function WhatsAppTemplatePreview({
 }: {
   headerFormat: HeaderFormat
   headerText: string
+  headerPreviewUrl?: string
   bodyText: string
   footerText: string
   buttons: ButtonDraft[]
@@ -61,7 +63,11 @@ export default function WhatsAppTemplatePreview({
           {headerFormat === 'TEXT' && headerText && !carouselEnabled && (
             <p className="mb-1 font-semibold">{headerText}</p>
           )}
-          {headerFormat !== 'NONE' && headerFormat !== 'TEXT' && !carouselEnabled && (
+          {headerFormat === 'IMAGE' && headerPreviewUrl && !carouselEnabled && (
+            <img src={headerPreviewUrl} alt="Header image preview" className="mb-1.5 h-32 w-full rounded-md object-cover" />
+          )}
+          {headerFormat !== 'NONE' && headerFormat !== 'TEXT' && !carouselEnabled
+            && !(headerFormat === 'IMAGE' && headerPreviewUrl) && (
             <p className="mb-1 text-xs italic text-whatsapp-ink/60">[{headerFormat.toLowerCase()} header]</p>
           )}
           <p>

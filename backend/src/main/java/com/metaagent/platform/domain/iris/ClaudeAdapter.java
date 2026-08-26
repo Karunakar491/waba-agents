@@ -54,6 +54,7 @@ public class ClaudeAdapter implements AiProviderAdapter {
         Map<String, Object> payload = Map.of(
                 "model", model,
                 "max_tokens", 1024,
+                "temperature", 0.7,
                 "system", systemPrompt,
                 "messages", messages,
                 "tools", toolDefs);

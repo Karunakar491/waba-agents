@@ -43,6 +43,7 @@ export function useTemplateBuilder({
   const [headerFormat, setHeaderFormat] = useState<HeaderFormat>('NONE')
   const [headerText, setHeaderText] = useState('')
   const [headerHandle, setHeaderHandle] = useState('')
+  const [headerPreviewUrl, setHeaderPreviewUrl] = useState('')
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [bodyText, setBodyText] = useState('')
   const [bodyExamples, setBodyExamples] = useState<Record<string, string>>({})
@@ -135,8 +136,16 @@ export function useTemplateBuilder({
     setSeeded(true)
   }, [isEdit, seeded, existingTemplateQuery.data])
 
+  // Revokes the previous object URL whenever it's replaced or the component unmounts,
+  // so we don't leak a blob URL per file the operator picks.
+  useEffect(() => {
+    return () => { if (headerPreviewUrl) URL.revokeObjectURL(headerPreviewUrl) }
+  }, [headerPreviewUrl])
+
   const uploadMediaMutation = useMutation({
     mutationFn: (file: File) => {
+      if (headerPreviewUrl) URL.revokeObjectURL(headerPreviewUrl)
+      setHeaderPreviewUrl(URL.createObjectURL(file))
       const form = new FormData()
       form.append('file', file)
       form.append('category', headerFormat.toLowerCase())
@@ -283,6 +292,7 @@ export function useTemplateBuilder({
     setHeaderFormat('NONE')
     setHeaderText('')
     setHeaderHandle('')
+    setHeaderPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return '' })
     setMediaError(null)
     setBodyText('')
     setBodyExamples({})
@@ -366,6 +376,7 @@ export function useTemplateBuilder({
     headerFormat, setHeaderFormat,
     headerText, setHeaderText,
     headerHandle,
+    headerPreviewUrl,
     mediaError, setMediaError,
     bodyText, setBodyText,
     bodyExamples, setBodyExamples,

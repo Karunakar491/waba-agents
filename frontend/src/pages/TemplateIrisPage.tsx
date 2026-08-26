@@ -114,9 +114,22 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
   // a separate, WABA-scoped karix-mcp call that must happen up front, so it
   // reuses whichever WABA the rest of Template Studio has remembered.
   const { selectedWabaId } = useSelectedWaba()
+  // Iris's system prompt tells the model to put the FILENAME (not the real handle) in
+  // header_handle, so the confirm panel can look a thumbnail up by filename here.
+  // Kept for the session's lifetime, not just the current attachment, since confirmation
+  // can happen turns after the file was attached and cleared from `attachment`.
+  const attachmentPreviewsRef = useRef<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    const previews = attachmentPreviewsRef.current
+    return () => { previews.forEach((url) => URL.revokeObjectURL(url)); previews.clear() }
+  }, [])
 
   const uploadAttachment = useMutation({
     mutationFn: async (file: File) => {
+      const prevPreviewUrl = attachmentPreviewsRef.current.get(file.name)
+      if (prevPreviewUrl) URL.revokeObjectURL(prevPreviewUrl)
+      attachmentPreviewsRef.current.set(file.name, URL.createObjectURL(file))
       const form = new FormData()
       form.append('file', file)
       form.append('category', 'image')
@@ -432,6 +445,7 @@ function IrisWorkspace({ needsSetup, usingPlatformDefault }: { needsSetup: boole
           <IrisConfirmPanel
             toolName={pending.toolName}
             args={pending.args}
+            attachmentPreviews={attachmentPreviewsRef.current}
             onConfirm={() => confirmAction.mutate()}
             onCancel={() => cancelAction.mutate()}
             confirming={confirmAction.isPending}

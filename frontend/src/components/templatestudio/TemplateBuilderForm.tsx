@@ -85,7 +85,8 @@ export default function TemplateBuilderForm({
             <HeaderEditor
               headerFormat={b.headerFormat} setHeaderFormat={b.setHeaderFormat}
               headerText={b.headerText} setHeaderText={b.setHeaderText}
-              headerHandle={b.headerHandle} setMediaError={b.setMediaError} mediaError={b.mediaError}
+              headerHandle={b.headerHandle} headerPreviewUrl={b.headerPreviewUrl}
+              setMediaError={b.setMediaError} mediaError={b.mediaError}
               uploadMediaMutation={b.uploadMediaMutation}
             />
           )}
@@ -158,6 +159,7 @@ export default function TemplateBuilderForm({
           <WhatsAppTemplatePreview
             headerFormat={b.headerFormat}
             headerText={b.headerText}
+            headerPreviewUrl={b.headerPreviewUrl}
             bodyText={b.bodyText}
             footerText={b.category === 'MARKETING' && b.ltoEnabled ? '' : b.footerText}
             buttons={b.buttons}

@@ -80,7 +80,7 @@ public class NvidiaLlamaAdapter implements AiProviderAdapter {
                 "model", model,
                 "messages", messages,
                 "tools", toolDefs,
-                "temperature", 0.2,
+                "temperature", 0.7,
                 "top_p", 0.7,
                 "max_tokens", 1024,
                 "stream", false);

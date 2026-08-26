@@ -83,7 +83,7 @@ public class OpenAiAdapter implements AiProviderAdapter {
                 "model", model,
                 "messages", messages,
                 "tools", toolDefs,
-                "temperature", 0.2,
+                "temperature", 0.7,
                 "max_completion_tokens", 1024);
 
         Map<?, ?> response;

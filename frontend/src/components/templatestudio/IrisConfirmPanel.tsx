@@ -62,6 +62,7 @@ export function previewPropsFromArgs(args: Record<string, unknown>) {
   return {
     headerFormat: (header?.format as HeaderFormat) || 'NONE',
     headerText: header?.text || '',
+    headerHandleFilename: header?.example?.header_handle?.[0] || '',
     bodyText: body?.text || '',
     footerText: footer?.text || '',
     buttons: isAuthentication ? [] : buttons,
@@ -122,6 +123,7 @@ function NonTemplateSummary({ toolName, args }: { toolName: string; args: Record
 export default function IrisConfirmPanel({
   toolName,
   args,
+  attachmentPreviews,
   onConfirm,
   onCancel,
   confirming,
@@ -129,6 +131,8 @@ export default function IrisConfirmPanel({
 }: {
   toolName: string
   args: Record<string, unknown>
+  /** filename -> local object URL, for rendering a real thumbnail instead of a placeholder. */
+  attachmentPreviews?: Map<string, string>
   onConfirm: () => void
   onCancel: () => void
   confirming: boolean
@@ -137,6 +141,9 @@ export default function IrisConfirmPanel({
   const isTemplateAction = toolName === 'create_template' || toolName === 'edit_template'
   const busy = confirming || cancelling
   const preview = isTemplateAction ? previewPropsFromArgs(args) : null
+  const headerPreviewUrl = preview?.headerHandleFilename
+    ? attachmentPreviews?.get(preview.headerHandleFilename)
+    : undefined
 
   return (
     <div className="flex h-full flex-col border-l bg-muted/20">
@@ -164,7 +171,7 @@ export default function IrisConfirmPanel({
                 <MetaChip label="Language" value={args.language} />
               )}
             </div>
-            <WhatsAppTemplatePreview {...preview} />
+            <WhatsAppTemplatePreview {...preview} headerPreviewUrl={headerPreviewUrl} />
           </>
         ) : (
           <NonTemplateSummary toolName={toolName} args={args} />

@@ -3,12 +3,13 @@ import ErrorBanner from '../../shared/ErrorBanner'
 import type { HeaderFormat } from '../templateModel'
 
 // Extracted from TemplateBuilderForm.tsx (V2 rebrand slice 7).
-export default function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText, headerHandle, mediaError, setMediaError, uploadMediaMutation }: {
+export default function HeaderEditor({ headerFormat, setHeaderFormat, headerText, setHeaderText, headerHandle, headerPreviewUrl, mediaError, setMediaError, uploadMediaMutation }: {
   headerFormat: HeaderFormat
   setHeaderFormat: (f: HeaderFormat) => void
   headerText: string
   setHeaderText: (t: string) => void
   headerHandle: string
+  headerPreviewUrl?: string
   mediaError: string | null
   setMediaError: (e: string | null) => void
   uploadMediaMutation: { mutate: (f: File) => void; isPending: boolean }
@@ -51,15 +52,11 @@ export default function HeaderEditor({ headerFormat, setHeaderFormat, headerText
             className="text-sm text-foreground"
           />
           {uploadMediaMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          {headerFormat === 'IMAGE' && headerPreviewUrl && (
+            <img src={headerPreviewUrl} alt="Header preview" className="h-20 w-20 rounded-md border object-cover" />
+          )}
           {headerHandle && <p className="text-xs text-accent-teal-solid">Media uploaded.</p>}
           {mediaError && <ErrorBanner error={mediaError} />}
-          {headerFormat === 'IMAGE' && (
-            <p className="text-xs text-warning">
-              Known Karix issue: image header handles can be rejected by Meta (error 2388084) due to a malformed
-              type marker on Karix&apos;s side. If submission fails on an image header, this is likely why — not a bug
-              in this form.
-            </p>
-          )}
         </div>
       )}
     </div>

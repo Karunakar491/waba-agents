@@ -10,6 +10,9 @@ export interface IrisAttachment {
   status: 'uploading' | 'ready' | 'error'
   kind?: 'image' | 'sheet'
   fileHandle?: string
+  /** Local object URL for the picked file, so the confirm-panel preview can render a real thumbnail
+   *  instead of a placeholder — Iris only ever gets the filename (see buildAttachmentTag), never this URL. */
+  previewUrl?: string
   /** Set when kind === 'sheet' — the parsed rows Iris will recommend templates from. */
   sheetSummary?: { totalRows: number; parsedRows: number; truncated: boolean; rows: Array<Record<string, string>> }
   errorMessage?: string

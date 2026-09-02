@@ -504,7 +504,7 @@ public class WabaService {
             // leading indicator before WhatsApp restricts/bans a number —
             // this app had zero visibility into it until now.
             phonesResponse = metaApiClient.graphGet(
-                    "/" + wabaId + "/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,messaging_limit_tier",
+                    "/" + wabaId + "/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,messaging_limit_tier,status",
                     Map.class);
         } catch (Exception e) {
             log.warn("WABA phone list failed: wabaId={} error={}", wabaId, e.getMessage());
@@ -536,7 +536,8 @@ public class WabaService {
                             boundName,
                             extractQualityRating(phone),
                             str(phone.get("name_status")),
-                            str(phone.get("messaging_limit_tier"))
+                            str(phone.get("messaging_limit_tier")),
+                            str(phone.get("status"))
                     ));
                 }
             }

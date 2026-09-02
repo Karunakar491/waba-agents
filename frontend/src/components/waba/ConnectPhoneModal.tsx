@@ -4,6 +4,7 @@ import { Loader2, ChevronDown, ChevronUp, Phone, CheckCircle2 } from 'lucide-rea
 import api from '../../lib/api'
 import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
+import { isPhoneSelectable, phoneStatusLabel, hasSelectablePhone } from './phoneSelection'
 
 interface PhoneNumber {
   phoneNumberId: string
@@ -11,6 +12,10 @@ interface PhoneNumber {
   verifiedName: string
   alreadyConnected: boolean
   connectedAgentName: string | null
+  // Meta's Cloud API connection state (e.g. CONNECTED, PENDING). Anything
+  // other than CONNECTED means Meta can't provision an agent on it yet —
+  // fail closed: only the exact string "CONNECTED" counts as selectable.
+  status: string
 }
 
 interface ValidateResponse {
@@ -209,18 +214,26 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
               </p>
             ) : (
               <div className="space-y-2">
+                {!hasSelectablePhone(validated.phoneNumbers) && (
+                  <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+                    None of this WABA's numbers are ready to connect yet — they're still finishing
+                    registration on WhatsApp. This can take a few minutes after adding a number in
+                    Meta Business Suite. Try again shortly.
+                  </p>
+                )}
                 {validated.phoneNumbers.map((p) => {
                   const selected = selectedPhone === p.phoneNumberId
+                  const disabled = !isPhoneSelectable(p)
                   return (
                     <button
                       key={p.phoneNumberId}
                       type="button"
-                      disabled={p.alreadyConnected}
+                      disabled={disabled}
                       aria-pressed={selected}
                       onClick={() => setSelectedPhone(p.phoneNumberId)}
                       className={[
                         'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
-                        p.alreadyConnected
+                        disabled
                           ? 'opacity-50 cursor-not-allowed bg-muted/40'
                           : selected
                             ? 'border-primary bg-primary/5'
@@ -231,9 +244,7 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{p.displayPhoneNumber}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {p.alreadyConnected
-                            ? `Already connected to ${p.connectedAgentName ?? 'another agent'}`
-                            : p.verifiedName}
+                          {phoneStatusLabel(p)}
                         </p>
                       </div>
                       {selected && <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />}

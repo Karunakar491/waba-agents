@@ -73,16 +73,20 @@ class WabaServiceTest extends IntegrationTestBase {
     // validate() — happy path
     // -------------------------------------------------------------------------
 
+    private static final String PHONE_FIELDS =
+            "id,display_phone_number,verified_name,quality_rating,name_status,messaging_limit_tier,status";
+
     @Test
     void validate_returns_waba_details_and_phone_list_when_meta_responds_ok() {
         String wabaId = "123456789";
-        when(metaApiClient.get(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
+        when(metaApiClient.graphGet(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
                 .thenReturn(Map.of("id", wabaId, "name", "Test WABA"));
-        when(metaApiClient.get(eq("/" + wabaId + "/phone_numbers"), eq(Map.class)))
+        when(metaApiClient.graphGet(eq("/" + wabaId + "/phone_numbers?fields=" + PHONE_FIELDS), eq(Map.class)))
                 .thenReturn(Map.of("data", List.of(
                         Map.of("id", "111222333",
                                "display_phone_number", "+1 555 0100",
-                               "verified_name", "Test Business")
+                               "verified_name", "Test Business",
+                               "status", "CONNECTED")
                 )));
 
         WabaDtos.ValidateResponse result = wabaService.validate(wabaId);
@@ -92,6 +96,7 @@ class WabaServiceTest extends IntegrationTestBase {
         assertThat(result.phoneNumbers()).hasSize(1);
         assertThat(result.phoneNumbers().get(0).phoneNumberId()).isEqualTo("111222333");
         assertThat(result.phoneNumbers().get(0).alreadyConnected()).isFalse();
+        assertThat(result.phoneNumbers().get(0).status()).isEqualTo("CONNECTED");
     }
 
     @Test
@@ -106,13 +111,14 @@ class WabaServiceTest extends IntegrationTestBase {
                 .status(Agent.Status.active)
                 .build());
 
-        when(metaApiClient.get(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
+        when(metaApiClient.graphGet(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
                 .thenReturn(Map.of("id", wabaId, "name", "Test WABA"));
-        when(metaApiClient.get(eq("/" + wabaId + "/phone_numbers"), eq(Map.class)))
+        when(metaApiClient.graphGet(eq("/" + wabaId + "/phone_numbers?fields=" + PHONE_FIELDS), eq(Map.class)))
                 .thenReturn(Map.of("data", List.of(
                         Map.of("id", "111222333",
                                "display_phone_number", "+1 555 0100",
-                               "verified_name", "Test Business")
+                               "verified_name", "Test Business",
+                               "status", "CONNECTED")
                 )));
 
         WabaDtos.ValidateResponse result = wabaService.validate(wabaId);
@@ -122,10 +128,53 @@ class WabaServiceTest extends IntegrationTestBase {
         assertThat(phone.connectedAgentName()).isEqualTo("Bound Agent");
     }
 
+    // Root cause of the 2026-08-25..09-01 production incident: a phone number
+    // still PENDING registration on Meta's side was shown as a normal,
+    // selectable option, and provisioning a BizAI agent on it always failed
+    // server-side on Meta's end with a raw 500. This asserts the fix threads
+    // Meta's real status through untouched, so the frontend can fail closed.
+    @Test
+    void validate_threads_through_pending_status_for_a_not_yet_connected_number() {
+        String wabaId = "123456789";
+        when(metaApiClient.graphGet(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
+                .thenReturn(Map.of("id", wabaId, "name", "Test WABA"));
+        when(metaApiClient.graphGet(eq("/" + wabaId + "/phone_numbers?fields=" + PHONE_FIELDS), eq(Map.class)))
+                .thenReturn(Map.of("data", List.of(
+                        Map.of("id", "111222333",
+                               "display_phone_number", "+1 555 0100",
+                               "verified_name", "Test Business",
+                               "status", "PENDING")
+                )));
+
+        WabaDtos.ValidateResponse result = wabaService.validate(wabaId);
+
+        assertThat(result.phoneNumbers().get(0).status()).isEqualTo("PENDING");
+    }
+
+    // Meta omitting the field entirely must fail closed the same way a
+    // recognized non-CONNECTED value does — never default to something that
+    // could be misread as ready.
+    @Test
+    void validate_defaults_status_to_empty_string_when_meta_omits_the_field() {
+        String wabaId = "123456789";
+        when(metaApiClient.graphGet(eq("/" + wabaId + "?fields=id,name"), eq(Map.class)))
+                .thenReturn(Map.of("id", wabaId, "name", "Test WABA"));
+        when(metaApiClient.graphGet(eq("/" + wabaId + "/phone_numbers?fields=" + PHONE_FIELDS), eq(Map.class)))
+                .thenReturn(Map.of("data", List.of(
+                        Map.of("id", "111222333",
+                               "display_phone_number", "+1 555 0100",
+                               "verified_name", "Test Business")
+                )));
+
+        WabaDtos.ValidateResponse result = wabaService.validate(wabaId);
+
+        assertThat(result.phoneNumbers().get(0).status()).isEqualTo("");
+    }
+
     @Test
     void validate_throws_BusinessException_when_meta_returns_404() {
         String wabaId = "nonexistent";
-        when(metaApiClient.get(contains("/" + wabaId), eq(Map.class)))
+        when(metaApiClient.graphGet(contains("/" + wabaId), eq(Map.class)))
                 .thenThrow(new MetaApiException(404));
 
         assertThatThrownBy(() -> wabaService.validate(wabaId))
@@ -136,7 +185,7 @@ class WabaServiceTest extends IntegrationTestBase {
     @Test
     void validate_throws_BusinessException_when_meta_returns_403() {
         String wabaId = "forbidden";
-        when(metaApiClient.get(contains("/" + wabaId), eq(Map.class)))
+        when(metaApiClient.graphGet(contains("/" + wabaId), eq(Map.class)))
                 .thenThrow(new MetaApiException(403));
 
         assertThatThrownBy(() -> wabaService.validate(wabaId))

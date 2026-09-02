@@ -35,7 +35,12 @@ public final class WabaDtos {
             // wasn't previously requesting from Meta at all.
             String qualityRating,
             String nameStatus,
-            String messagingLimitTier
+            String messagingLimitTier,
+            // Meta's Cloud API connection state (e.g. CONNECTED, PENDING) — a
+            // PENDING number isn't actually live yet, and provisioning a BizAI
+            // agent on one always fails server-side on Meta's end. Frontend
+            // must treat anything other than "CONNECTED" as not-selectable.
+            String status
     ) {}
 
     public record ValidateResponse(

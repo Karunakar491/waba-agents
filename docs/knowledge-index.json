@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-08-19 (Iris separation Phase 7 descoped)",
+    "lastUpdated": "2026-09-02 (WABA phone-status fail-closed fix)",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -418,7 +418,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/entity/Message.java",
-      "purpose": "Message entity — direction, type (text/media), status, external Meta message id (idempotency)"
+      "purpose": "Message entity — direction, type (text/media), status, external Meta message id (idempotency). 2026-08-20: added nullable webhookRawId (V55) — the webhook_raw row that originated this message; null for pre-existing rows and never derivable retroactively."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/model/InboundMessage.java",
@@ -446,7 +446,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/ConversationStore.java",
-      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content; 2026-08-05: now also stamps lastMessageAt in the same tx as the message insert, mirroring saveInbound — was previously relying on Conversation's now-removed @PrePersist stamp), updateMessageStatus, markNeedsHuman (scaffold, provisional)"
+      "purpose": "All DB reads/writes for conversations and messages — findOrCreate, saveInbound (contentType+contentJson, lastMessageAt in same tx), saveOutbound (nullable content; 2026-08-05: now also stamps lastMessageAt in the same tx as the message insert, mirroring saveInbound — was previously relying on Conversation's now-removed @PrePersist stamp), updateMessageStatus, markNeedsHuman (scaffold, provisional). 2026-08-20: saveInbound/saveOutbound/upsertOutboundEcho now take a webhookRawId param, stamped onto Message.webhookRawId (V55) — backs the Inbox thread's per-message \"jump to originating webhook\" icon. upsertOutboundEcho never overwrites an already-set webhookRawId when it's just filling in text on a row saveOutbound already created."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/conversation/service/InboundMessageParser.java",
@@ -554,7 +554,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/dto/WabaDtos.java",
-      "purpose": "WABA DTOs — validate/create requests, phone list, WabaResponse (id serialized as String for JS safety). TASK-061: PhoneNumber and AccountPhoneNumber both gained qualityRating/nameStatus/messagingLimitTier — previously never requested from Meta at all."
+      "purpose": "WABA DTOs — validate/create requests, phone list, WabaResponse (id serialized as String for JS safety). TASK-061: PhoneNumber and AccountPhoneNumber both gained qualityRating/nameStatus/messagingLimitTier — previously never requested from Meta at all. 2026-09-02: PhoneNumber gained status (Meta's Cloud API connection state, e.g. CONNECTED/PENDING/MIGRATED) — root-cause fix for the 2026-08-25..09-01 incident where the picker offered not-yet-connected numbers as normal choices and provisioning a BizAI agent on one always failed server-side on Meta's end. AccountPhoneNumber deliberately NOT extended (Dashboard's phone inventory is read-only display, no selection action exists there — filed as a follow-up, not bundled in)."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/entity/Waba.java",
@@ -622,7 +622,7 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/waba/service/WabaService.java",
-      "purpose": "Validate WABA against Meta (spec 5.4 error messages); create()/list() now dedup to one canonical Waba row per external ID across accounts + grant waba_account_access (2026-07-28 decoupling — known simplification: per-account label nicknames not supported, shared row); getPhones() triggers WabaAgentReconciliationService. listForAccount/listAllPhonesForAccountId (TASK-055): explicit-accountId variants of list()/listAllPhonesForAccount() for use by the @Async login-sync job (no request-scoped SecurityContext on a background thread). getCachedOrLivePhonesForAccount(): cache-first read of phone_number_snapshot, falls back to the original live per-WABA Meta call only if the cache is empty — that live path is kept, not removed. TASK-061: fetchPhonesFromMeta now requests fields=...,quality_rating,name_status,messaging_limit_tier explicitly (was previously omitted entirely, so Meta only returned its default field set) — extractQualityRating() defensively handles both a flat string and a nested {quality_score:{score:...}} shape since neither is documented in docs/meta-api/. 2026-08-12: listForAccount() now filters out any WABA with status=disconnected (V39) — the single choke point every caller (Iris, Template Studio, WABA picker) goes through, so a soft-deactivated WABA actually disappears everywhere rather than just flipping an unused DB column."
+      "purpose": "Validate WABA against Meta (spec 5.4 error messages); create()/list() now dedup to one canonical Waba row per external ID across accounts + grant waba_account_access (2026-07-28 decoupling — known simplification: per-account label nicknames not supported, shared row); getPhones() triggers WabaAgentReconciliationService. listForAccount/listAllPhonesForAccountId (TASK-055): explicit-accountId variants of list()/listAllPhonesForAccount() for use by the @Async login-sync job (no request-scoped SecurityContext on a background thread). getCachedOrLivePhonesForAccount(): cache-first read of phone_number_snapshot, falls back to the original live per-WABA Meta call only if the cache is empty — that live path is kept, not removed. TASK-061: fetchPhonesFromMeta now requests fields=...,quality_rating,name_status,messaging_limit_tier explicitly (was previously omitted entirely, so Meta only returned its default field set) — extractQualityRating() defensively handles both a flat string and a nested {quality_score:{score:...}} shape since neither is documented in docs/meta-api/. 2026-09-02: fields= extended with ,status — same class of bug as TASK-061 (a field silently never requested at all). Confirmed live against production Meta data (waba_id 414197280460198) that phone numbers can sit in PENDING (or MIGRATED, seen on a different WABA) indefinitely; provisioning a BizAI agent via AgentService.bindPhone()'s PUT agent_config/settings on a non-CONNECTED number always fails server-side on Meta's end with a raw 500 (Meta's own error: 'Could not update settings for channel') — this was the root cause of the 2026-08-25..09-01 agent-creation incident. status now flows through to ConnectPhoneModal.tsx so the picker can fail-closed disable anything other than CONNECTED. 2026-08-12: listForAccount() now filters out any WABA with status=disconnected (V39) — the single choke point every caller (Iris, Template Studio, WABA picker) goes through, so a soft-deactivated WABA actually disappears everywhere rather than just flipping an unused DB column."
     },
     {
       "path": "backend/src/main/resources/db/migration/V23__create_phone_number_snapshot.sql",
@@ -878,11 +878,19 @@
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/controller/WebhookController.java",
-      "purpose": "REST controller for /api/v1/webhook (single URL per Meta App, no accountId in path) — GET (hub challenge), POST (inbound payload). Verifies X-Hub-Signature-256 via HMAC-SHA256 + MessageDigest.isEqual (constant-time) — always enforced as of 2026-08-05 (Phase 7 item 43): meta.webhook.app-secret has no default, missing value crashes Spring context startup instead of silently disabling verification (EM decision: no new profile machinery, application-test.yml supplies a synthetic secret for tests, local-run scripts must export META_WEBHOOK_APP_SECRET). Tenant resolved from payload phone_number_id -> AgentRepository.findByPhoneNumberId -> account; unattributable payloads dropped with 200. Persists to webhook_raw, publishes RabbitMQ event."
+      "purpose": "REST controller for /api/v1/webhook (single URL per Meta App, no accountId in path) — GET (hub challenge), POST (inbound payload). Verifies X-Hub-Signature-256 via HMAC-SHA256 + MessageDigest.isEqual (constant-time) — always enforced as of 2026-08-05 (Phase 7 item 43): meta.webhook.app-secret has no default, missing value crashes Spring context startup instead of silently disabling verification (EM decision: no new profile machinery, application-test.yml supplies a synthetic secret for tests, local-run scripts must export META_WEBHOOK_APP_SECRET). Tenant resolved from payload phone_number_id -> AgentRepository.findByPhoneNumberId -> account; unattributable payloads dropped with 200. Persists to webhook_raw, publishes RabbitMQ event. 2026-08-20: isExternalOriginStatusPayload() drops (no persist, no queue) status-only payloads (no \"messages\" node) carrying a non-blank biz_opaque_callback_data — same WABA/phone number is shared with Karix's separate marketing-campaign product (one webhook URL per Meta app), and this platform never sets that field on anything it sends, so its presence reliably marks an externally-originated campaign send. Deliberately NOT filtered by pricing.category (marketing/utility/etc.) — this platform's own Template Studio lets agents legitimately send utility-category templates too, so category alone can't distinguish origin. See wiki webhook-campaign-filter memory."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/entity/WebhookRaw.java",
       "purpose": "Raw webhook payload entity — stored before parsing, subject to retention job"
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/dto/WebhookRawFilter.java",
+      "purpose": "Filter record for GET /api/v1/webhooks/raw — phoneNumberId/agentId/status/from/to, all optional, scoped to the caller's own accountId. 2026-08-20: added optional id equality filter, backing the Inbox thread's message→webhook deep link (fetch one specific row regardless of the panel's current filters)."
+    },
+    {
+      "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/controller/WebhookLogController.java",
+      "purpose": "GET /api/v1/webhooks/raw — authenticated, account-scoped read view of webhook_raw (distinct trust boundary from WebhookController's public Meta receiver). Delegates filtering to WebhookRawFilter.toSpecification. 2026-08-20: id query param passed through for single-row deep-link fetch."
     },
     {
       "path": "backend/src/main/java/com/metaagent/platform/domain/webhook/listener/WebhookListener.java",
@@ -1839,7 +1847,15 @@
     },
     {
       "path": "frontend/src/components/waba/ConnectPhoneModal.tsx",
-      "purpose": "Two-step WABA connect modal — validate WABA ID, pick phone (bound ones disabled), persist WABA + bind to agent. 2026-08-05: retrofitted onto the shared Modal primitive; preventClose={connectMutation.isPending || validateMutation.isPending || preflightChecking} — was previously only guarded by connectMutation.isPending, missing two other in-flight states."
+      "purpose": "Two-step WABA connect modal — validate WABA ID, pick phone, persist WABA + bind to agent. 2026-08-05: retrofitted onto the shared Modal primitive; preventClose={connectMutation.isPending || validateMutation.isPending || preflightChecking} — was previously only guarded by connectMutation.isPending, missing two other in-flight states. 2026-09-02: picker now disables a number whenever isPhoneSelectable() (phoneSelection.ts) is false — bound-to-another-agent OR status !== 'CONNECTED' (fail-closed: PENDING/MIGRATED/unrecognized/missing all disable, only the exact string CONNECTED is selectable), with a per-row reason label and an all-disabled empty-state banner. Selection/label logic delegated to phoneSelection.ts, not inline — this file no longer computes alreadyConnected/status logic itself."
+    },
+    {
+      "path": "frontend/src/components/waba/phoneSelection.ts",
+      "purpose": "2026-09-02 — pure selection/label logic for ConnectPhoneModal.tsx's phone picker, extracted for testability (this repo's jest.config.cjs is testEnvironment 'node', testMatch only *.test.ts, no @testing-library/react installed — a component-render test isn't available without a separate tooling change; matches the toolRequestDefinition.ts pure-logic-extraction precedent). isPhoneConnected/isPhoneSelectable/phoneStatusLabel/hasSelectablePhone — fail-closed throughout: only the exact string 'CONNECTED' counts as ready."
+    },
+    {
+      "path": "frontend/src/components/waba/phoneSelection.test.ts",
+      "purpose": "2026-09-02 — 16 cases for phoneSelection.ts: fail-closed on PENDING/unrecognized/missing status, already-connected label takes priority over not-ready, empty-list and all-disabled cases for hasSelectablePhone. Run via `npx jest phoneSelection`."
     },
     {
       "path": "frontend/src/components/connectors/ConnectorsTable.tsx",
@@ -1955,7 +1971,7 @@
     },
     {
       "path": "frontend/src/pages/InboxPage.tsx",
-      "purpose": "Conversation Audit Log — 2-panel read-only viewer. Left: conversation list (GET /conversations?accountId=). Right: message thread (GET /conversations/:id/messages). conversationId in URL param. accountId from auth store. 2026-08-05 triage fix: conversations sort open-before-closed (stable sort, relies on API already returning recency order within a status group); ConversationRow renders status via shared StatusIndicator (open→positive, closed→neutral) instead of plain capitalized text; added an All/Open/Closed filter chip row and an 'Open (N)' count in the header — previously every row was visually identical regardless of urgency. 2026-08-05 roadmap item 41: ConversationEmptyState (no-conversations-yet state) got a 'Go to Agents' CTA (navigate('/agents')) — it named the fix in its own copy but had no button; icon dropped too since it was a bare centered icon, not paired with the tinted-square anti-pattern. 2026-08-05: Conversation.lastMessageAt type widened to string | null (backend can now genuinely return null, not just for legacy rows); ConversationRow renders '—' when null instead of new Date(null) producing Invalid Date. 2026-08-05: Message interface's createdAt renamed to receivedAt to match the actual backend field (was always wrong — masked by the sort-field 500, see ConversationService.java note)."
+      "purpose": "Conversation Audit Log — 2-panel read-only viewer. Left: conversation list (GET /conversations?accountId=). Right: message thread (GET /conversations/:id/messages). conversationId in URL param. accountId from auth store. 2026-08-05 triage fix: conversations sort open-before-closed (stable sort, relies on API already returning recency order within a status group); ConversationRow renders status via shared StatusIndicator (open→positive, closed→neutral) instead of plain capitalized text; added an All/Open/Closed filter chip row and an 'Open (N)' count in the header — previously every row was visually identical regardless of urgency. 2026-08-05 roadmap item 41: ConversationEmptyState (no-conversations-yet state) got a 'Go to Agents' CTA (navigate('/agents')) — it named the fix in its own copy but had no button; icon dropped too since it was a bare centered icon, not paired with the tinted-square anti-pattern. 2026-08-05: Conversation.lastMessageAt type widened to string | null (backend can now genuinely return null, not just for legacy rows); ConversationRow renders '—' when null instead of new Date(null) producing Invalid Date. 2026-08-05: Message interface's createdAt renamed to receivedAt to match the actual backend field (was always wrong — masked by the sort-field 500, see ConversationService.java note). 2026-08-20: Message gained webhookRawId (nullable); MessageBubble renders a hover-revealed webhook icon (next to the existing CopyButton) when present — click sets focusWebhookId + switches to the Webhooks tab, which WebhookLogPanel consumes to auto-open that row's detail modal."
     },
     {
       "path": "frontend/src/pages/LoginPage.tsx",
@@ -2087,7 +2103,11 @@
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/domain/waba/service/WabaServiceTest.java",
-      "purpose": "Integration test WabaService - validate happy path, phone connected flag, persistence with caller accountId, error paths"
+      "purpose": "Integration test WabaService (Testcontainers MySQL) - validate happy path, phone connected flag, persistence with caller accountId, error paths. 2026-09-02: fixed stale metaApiClient.get(...) stubs that didn't match validate()'s real metaApiClient.graphGet(...) calls (dead assertions, EL-caught on review); added PENDING-status and missing-status(defaults to \"\") cases for the new status field."
+    },
+    {
+      "path": "backend/src/test/java/com/metaagent/platform/domain/waba/service/WabaServiceValidateStatusTest.java",
+      "purpose": "2026-09-02 — plain Mockito unit test for WabaService.validate()'s Meta-mapping logic, deliberately NOT extending IntegrationTestBase (no Spring context, no Testcontainers/Docker/MySQL). Added because Docker isn't available in every dev environment and this fix's fail-closed status-field logic needed coverage that could actually be executed there. Covers: CONNECTED/PENDING status threading, missing-status defaults to \"\" (fail-closed), and the exact fields= query string sent to Meta includes status."
     },
     {
       "path": "backend/src/test/java/com/metaagent/platform/domain/conversation/service/StatusUpdateParserTest.java",

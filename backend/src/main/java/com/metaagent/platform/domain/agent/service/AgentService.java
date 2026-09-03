@@ -173,6 +173,57 @@ public class AgentService {
                 throw new BusinessException("Meta isn't responding. Wait a moment and try again.");
             }
 
+            // 1.5. First-time provisioning requires an explicit onboarding call.
+            // Root cause of the 2026-08-25..09-01 "can't create an agent"
+            // incident: agent_config/settings' documented "create-or-fetch"
+            // behavior (settings.md) no longer reliably creates the BizAI
+            // agent entity on Meta's side for a phone number that's never had
+            // one — confirmed live via direct reproduction (raw 500,
+            // "Could not update settings for channel") on multiple real
+            // numbers, including fully CONNECTED/eligible ones, regardless of
+            // payload shape. docs/meta-api/agent-onboarding.md's POST
+            // agent_onboarding ("creates the necessary entities") was flagged
+            // 2026-08-04 as a maybe-required precursor and closed as "not
+            // needed" 2026-08-16 because the settings-first flow worked at
+            // the time — that call is now stale. Confirmed live 2026-09-03:
+            // calling this first, then retrying the exact same settings PUT
+            // that was 500ing, succeeds. Only needed once per agent — gated
+            // on metaAgentId being unset, matching the write-once capture
+            // pattern AgentDeployService.putSettings already uses.
+            // EM review (2026-09-03): the metaAgentId gate is per-Agent-row,
+            // not per-phone — a rebind to a DIFFERENT number on an agent that
+            // already has a metaAgentId would skip onboarding and scope the
+            // settings call to the OLD phone's agent entity via scopedPath().
+            // No unbind-first guard exists yet to prevent this (pre-existing
+            // gap, out of scope for this incident hotfix — tracked in
+            // TASKS.md). Never fail silently if it happens: log loud enough
+            // to catch before the real fix lands.
+            if (agent.getMetaAgentId() != null && agent.getPhoneNumberId() != null
+                    && !agent.getPhoneNumberId().equals(phoneNumberId)) {
+                log.warn("bindPhone: agent={} already has metaAgentId={} bound to phoneNumberId={}, "
+                        + "now binding to a DIFFERENT phoneNumberId={} — onboarding will be skipped and "
+                        + "the settings call will be scoped to the OLD agent_id. See TASKS.md.",
+                        agentId, agent.getMetaAgentId(), agent.getPhoneNumberId(), phoneNumberId);
+            }
+
+            if (agent.getMetaAgentId() == null) {
+                String onboardingPath = String.format("/%s/agent_onboarding?channel=whatsapp", phoneNumberId);
+                Map<String, Object> onboarding;
+                try {
+                    onboarding = metaApiClient.post(onboardingPath, Map.of(), Map.class);
+                } catch (Exception e) {
+                    // MetaApiException extends BusinessException — caught here
+                    // generically (not as BusinessException first) so its raw
+                    // "Meta API error: 500" message never leaks past this
+                    // wrapper unwrapped.
+                    throw new BusinessException("Meta agent onboarding failed: " + e.getMessage());
+                }
+                if (onboarding == null || onboarding.get("agent_id") == null) {
+                    throw new BusinessException("Meta didn't return an agent ID during onboarding. Try again.");
+                }
+                agent.setMetaAgentId(onboarding.get("agent_id").toString());
+            }
+
             // 2. Provision on Meta — disabled until user activates.
             // Settings PUT is a full replace (settings.md) — an imported/pre-
             // existing Meta-side number may already have a real followup
@@ -184,7 +235,8 @@ public class AgentService {
             // (a fresh local Agent row has never seen this), and carry
             // followup/ai_audience through unchanged. Same fix as
             // AgentDeployService.putSettings — see Wave 1a.
-            String settingsPath = String.format("/%s/agent_config/settings", phoneNumberId);
+            String settingsPath = MetaApiClient.scopedPath(
+                    String.format("/%s/agent_config/settings", phoneNumberId), agent.getMetaAgentId());
             Map<String, Object> live;
             try {
                 List<?> currentSettings = metaApiClient.get(settingsPath, List.class);

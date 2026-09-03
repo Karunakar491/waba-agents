@@ -127,6 +127,8 @@ class AgentServiceTest extends IntegrationTestBase {
         stubPhoneList("100200300", "777888999");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
                 .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.post(contains("/agent_onboarding"), any(), eq(Map.class)))
+                .thenReturn(Map.of("agent_id", "test-agent-id-1"));
         when(metaApiClient.put(contains("/agent_config/settings"), anyMap(), eq(Map.class)))
                 .thenReturn(Map.of("success", true));
 
@@ -134,6 +136,77 @@ class AgentServiceTest extends IntegrationTestBase {
 
         assertThat(bound.getPhoneNumberId()).isEqualTo("777888999");
         assertThat(bound.getWabaId()).isEqualTo(waba.getId());
+    }
+
+    // Root cause of the 2026-08-25..09-01 "can't create an agent" incident:
+    // agent_config/settings' documented create-or-fetch behavior no longer
+    // reliably creates the BizAI entity for a phone number that's never had
+    // one — confirmed live via direct Meta reproduction. First-time bind must
+    // now call agent_onboarding first, capture the real agent_id, and use it
+    // (via MetaApiClient.scopedPath) on the settings call.
+    @Test
+    void should_call_agent_onboarding_before_settings_on_first_time_bind_and_persist_the_returned_agent_id() {
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
+        assertThat(agent.getMetaAgentId()).isNull();
+        Waba waba = ownedWaba("100200303");
+        stubPhoneList("100200303", "777888333");
+        when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
+                .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.post(eq("/777888333/agent_onboarding?channel=whatsapp"), any(), eq(Map.class)))
+                .thenReturn(Map.of("agent_id", "onboarded-agent-id-42"));
+        ArgumentCaptor<String> settingsPathCaptor = ArgumentCaptor.forClass(String.class);
+        when(metaApiClient.put(settingsPathCaptor.capture(), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        Agent bound = agentService.bindPhone(agent.getId(), "777888333", waba.getId());
+
+        assertThat(bound.getMetaAgentId()).isEqualTo("onboarded-agent-id-42");
+        assertThat(agentRepository.findById(agent.getId()).orElseThrow().getMetaAgentId())
+                .isEqualTo("onboarded-agent-id-42");
+        // Settings call must be scoped to the agent_id onboarding just returned.
+        assertThat(settingsPathCaptor.getValue()).contains("agent_id=onboarded-agent-id-42");
+        verify(metaApiClient).post(eq("/777888333/agent_onboarding?channel=whatsapp"), any(), eq(Map.class));
+    }
+
+    // Fail closed, don't silently proceed to a settings PUT that would just
+    // 500 the same way — this is the exact failure mode the fix exists for.
+    @Test
+    void should_throw_when_agent_onboarding_fails_rather_than_attempting_settings_anyway() {
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
+        Waba waba = ownedWaba("100200304");
+        stubPhoneList("100200304", "777888334");
+        when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
+                .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.post(contains("/agent_onboarding"), any(), eq(Map.class)))
+                .thenThrow(new com.metaagent.platform.infrastructure.meta.MetaApiException(500));
+
+        assertThatThrownBy(() -> agentService.bindPhone(agent.getId(), "777888334", waba.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("onboarding failed");
+
+        assertThat(agentRepository.findById(agent.getId()).orElseThrow().getPhoneNumberId()).isNull();
+        verify(metaApiClient, never()).put(anyString(), anyMap(), any());
+    }
+
+    // A number that already has an agent (re-bind, or a locally-untracked
+    // already-provisioned number) must not re-onboard — onboarding is
+    // write-once, gated on metaAgentId being unset, same pattern
+    // AgentDeployService.putSettings already uses.
+    @Test
+    void should_not_call_agent_onboarding_when_agent_already_has_a_meta_agent_id() {
+        Agent agent = agentService.createAgent(new AgentRequest("Bind Agent", null, null, null, null, null, null, null, null, false, null));
+        agent.setMetaAgentId("already-onboarded-id");
+        agentRepository.saveAndFlush(agent);
+        Waba waba = ownedWaba("100200305");
+        stubPhoneList("100200305", "777888335");
+        when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
+                .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.put(contains("/agent_config/settings"), anyMap(), eq(Map.class)))
+                .thenReturn(Map.of("success", true));
+
+        agentService.bindPhone(agent.getId(), "777888335", waba.getId());
+
+        verify(metaApiClient, never()).post(contains("/agent_onboarding"), any(), any());
     }
 
     // Wave 1a, 2026-08-03: bindPhone's settings PUT is a full replace
@@ -148,6 +221,8 @@ class AgentServiceTest extends IntegrationTestBase {
         stubPhoneList("100200301", "777888111");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
                 .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.post(contains("/agent_onboarding"), any(), eq(Map.class)))
+                .thenReturn(Map.of("agent_id", "test-agent-id-2"));
         when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))
                 .thenReturn(List.of(Map.of(
                         "channel", "whatsapp",
@@ -187,6 +262,8 @@ class AgentServiceTest extends IntegrationTestBase {
         stubPhoneList("100200302", "777888222");
         when(metaApiClient.get(contains("/agent_eligibility"), eq(Map.class)))
                 .thenReturn(Map.of("is_eligible", true));
+        when(metaApiClient.post(contains("/agent_onboarding"), any(), eq(Map.class)))
+                .thenReturn(Map.of("agent_id", "test-agent-id-3"));
         // Live entry has handoff.enabled=true but no message — legal per
         // settings.md (message is optional).
         when(metaApiClient.get(contains("/agent_config/settings"), eq(List.class)))

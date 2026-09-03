@@ -17,6 +17,20 @@ calls. The gap is specifically that Iris never calls any of them. This spec cove
 existing, already-working capabilities into Iris's tool-calling layer for the Business
 Agent creation flow — not building new backend capability.
 
+**Coverage accounting — this spec does NOT cover all ~45 documented operations, and that's
+deliberate.** Roughly:
+- **~24 operations → covered here**: Basics, Business Persona, Knowledge Base (websites),
+  FAQ, Skills, UI Skills, and Connectors (create/list/get/update/delete + tools), all listed
+  in the Scope table below.
+- **~15 operations → deliberately excluded**, listed under Non-goals: post-creation
+  management (allowlist, thread-control, business-info, eval, delete-agent, agent-event,
+  agent-test), file uploads, and connector credential rotation (safety reason, see below).
+- **~6 operations → Template Studio**, excluded entirely per the founder's instruction —
+  a different product, not touched by this spec at all.
+An earlier draft of this spec undercounted its own scope (dropped FAQ and UI Skills
+entirely, and proposed including connector credential rotation without checking whether it
+was safe to). Both are corrected below.
+
 ## Non-goals
 
 - **Template Studio is untouched.** Founder: "leave that template related stuff, it's a
@@ -40,6 +54,11 @@ Agent creation flow — not building new backend capability.
   the same structured fields (method, path, params, headers, body, auth shape) the manual
   UI already collects. Revisit the curl-paste UX as a follow-on once the structured version
   is live and used.
+- **Connector credential rotation** (`upsertApiKey`, `upsertCertificate`, `upsertOAuth`) —
+  same reason as the curl-paste exclusion above: these endpoints exist specifically to carry
+  a real secret value, which has no safe way to travel through an LLM's context today. See
+  the "Connector credential handling" note under Scope below for the full reasoning and how
+  `create_connector`/`update_connector` are scoped to avoid the same problem.
 - **Rich template *send* parameters, `limited_time_offer`/`call_permission_request`
   component types.** Found during the audit to be genuine gaps (nothing in this codebase
   supports them, not just Iris) — but they're Template Studio concerns, excluded per the
@@ -64,10 +83,16 @@ founder: "yeah it's ok, let it be").
 | Basics | `update_agent_basics` | `AgentService.updateAgent()` (displayName, customerFacingName) | Y |
 | Business Persona | `update_business_persona` | `AgentService.updateAgent()` (tone, language, behaviorRules, systemPrompt, personaSampleReply) | Y |
 | Knowledge Base | `add_knowledge_website`, `list_knowledge_websites`, `update_knowledge_website`, `delete_knowledge_website` | `AgentService.addWebsite/getWebsites/updateWebsite/deleteWebsite` | add/update/delete: Y |
+| FAQ | `create_faq`, `list_faqs`, `get_faq`, `update_faq`, `delete_faq` | `AgentService.addFaq/getFaqs/getFaq/updateFaq/deleteFaq` | create/update/delete: Y |
 | Skills | `list_skills`, `get_skill`, `update_skill`, `delete_skill` (rounds out the existing `create_skill`) | `AgentService.getSkills/getSkill/updateSkill/deleteSkill` | update/delete: Y |
+| UI Skills | `create_ui_skill`, `list_ui_skills`, `get_ui_skill`, `update_ui_skill`, `delete_ui_skill` | `AgentService.addUiSkill/getUiSkills/getUiSkill/updateUiSkill/deleteUiSkill` | create/update/delete: Y |
 | Connectors | `create_connector`, `list_connectors`, `get_connector`, `update_connector`, `delete_connector`, `create_connector_tool`, `run_connector_tool` | `AgentDeployService.createConnector/listConnectors/getConnector/updateConnector/deleteConnector/createTool/runTool` | create/update/delete: Y; `run_connector_tool` executes a live call — treat as mutating for confirmation purposes even though it doesn't change state, since it hits a real external system |
 
 `create_skill` (existing) is unchanged.
+
+**Connector credential handling — corrected 2026-09-03, before this spec's first review.** Meta's `POST/PUT agent_connectors` body (`BizAIOmniChannelConnectorRequest`) can carry a literal secret in `auth_config` — a real API key value for `API_KEY` auth, a real `client_secret` for OAuth2. If `create_connector`/`update_connector` accepted these as normal tool arguments, an operator would have to type the actual secret into the Iris chat, which goes straight into the LLM's context and out to whichever third-party provider is configured via BYOK — the same leak the curl-paste idea was excluded for above.
+
+**Fix:** `create_connector`/`update_connector` only accept the non-secret shape — `name`, `description`, `base_url`, `auth_type`, and (for API-key auth) the header/query/body **field names** the connector expects, never values. This matches `ConnectorDefinitionEditor.tsx`'s existing pattern exactly ("deliberately has NO field to type a secret into"). Supplying the actual key/certificate/client-secret stays a manual step in the existing `ConnectorDeployModal.tsx` UI, never through chat — same "Iris configures the draft, a human handles the sensitive final step" boundary already established for deploy() elsewhere in this spec. `upsertApiKey`/`upsertCertificate`/`upsertOAuth` (credential rotation) are excluded from this spec entirely for the same reason, grouped with the curl-paste exclusion above.
 
 ## Confirm-gating
 
@@ -85,8 +110,8 @@ unfixed here: `IrisConversationService.sendMessage()` builds the tool list as
 being persisted per session specifically to distinguish these two surfaces. Today this is
 low-risk (Template Studio's chat can technically call `create_skill`, the wizard's IrisRail
 can technically call `create_template` — harmless in practice since neither surface's UI
-prompts for the other's use case). Once this spec's ~14 new tools land, Template Studio's
-chat would gain the same 14 agent-creation tools with zero relevance to what a user there is
+prompts for the other's use case). Once this spec's ~24 new tools land, Template Studio's
+chat would gain the same 24 agent-creation tools with zero relevance to what a user there is
 doing — real confusion risk, not just theoretical.
 
 **Recommendation:** fix `featureKey`-based filtering as part of this implementation, before

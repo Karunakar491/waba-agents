@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Trash2, LayoutGrid } from 'lucide-react'
 import api from '../../lib/api'
 import UiSkillEditorModal, { type UiSkill } from './UiSkillEditorModal'
 import StatusIndicator from '../shared/StatusIndicator'
+import UnpublishConfirmModal from './UnpublishConfirmModal'
+import DraftsDisclosure from './DraftsDisclosure'
+import { useUnpublishFlow } from './useUnpublishFlow'
 
 const COMPONENT_LABELS: Record<string, string> = {
   carousel_quick_reply: 'Carousel (quick reply)',
@@ -24,7 +27,7 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
   const [showEditor, setShowEditor] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const { data: skills = [], isLoading } = useQuery<UiSkill[]>({
+  const { data: allSkills = [], isLoading } = useQuery<UiSkill[]>({
     queryKey: ['ui-skills', agentId],
     queryFn: () => api.get(`/agents/${agentId}/ui-skills`).then((r) =>
       (r.data.data ?? []).map((s: Record<string, unknown>) => ({
@@ -33,9 +36,13 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
         componentType: s.componentType,
         status: s.status,
         instruction: s.instruction,
+        publishStatus: s.publishStatus,
       })),
     ),
   })
+
+  const skills = useMemo(() => allSkills.filter((s) => s.publishStatus !== 'draft'), [allSkills])
+  const draftSkills = useMemo(() => allSkills.filter((s) => s.publishStatus === 'draft'), [allSkills])
 
   const deleteMutation = useMutation({
     mutationFn: (skillId: string) => api.delete(`/agents/${agentId}/ui-skills/${skillId}`),
@@ -43,6 +50,9 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
     onSettled: () => setDeletingId(null),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ui-skills', agentId] }),
   })
+
+  const { unpublishTarget, setUnpublishTarget, unpublishMutation, republishMutation } =
+    useUnpublishFlow<UiSkill>(`/agents/${agentId}/ui-skills`, ['ui-skills', agentId])
 
   function openNew() {
     setEditingSkill(null)
@@ -104,28 +114,57 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
                   {COMPONENT_LABELS[skill.componentType] ?? skill.componentType} — {skill.instruction}
                 </p>
               </button>
-              <button
-                onClick={() => deleteMutation.mutate(skill.id)}
-                disabled={deletingId === skill.id}
-                aria-label={`Delete UI skill ${skill.title}`}
-                className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-              >
-                {deletingId === skill.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => setUnpublishTarget(skill)}
+                  title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
+                  className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
+                    hover:text-foreground hover:bg-muted transition-colors
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  Unpublish
+                </button>
+                <button
+                  onClick={() => deleteMutation.mutate(skill.id)}
+                  disabled={deletingId === skill.id}
+                  aria-label={`Delete UI skill ${skill.title}`}
+                  className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  {deletingId === skill.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      <DraftsDisclosure
+        items={draftSkills}
+        renderPrimary={(skill) => skill.title}
+        renderSecondary={(skill) => COMPONENT_LABELS[skill.componentType] ?? skill.componentType}
+        onRepublish={(id) => republishMutation.mutate(id)}
+        isPending={republishMutation.isPending}
+      />
 
       {showEditor && (
         <UiSkillEditorModal
           agentId={agentId}
           skill={editingSkill}
           onClose={() => setShowEditor(false)}
+        />
+      )}
+
+      {unpublishTarget && (
+        <UnpublishConfirmModal
+          itemLabel={unpublishTarget.title}
+          isPending={unpublishMutation.isPending}
+          onConfirm={() => unpublishMutation.mutate(unpublishTarget.id)}
+          onClose={() => setUnpublishTarget(null)}
         />
       )}
     </div>

@@ -10,6 +10,10 @@ interface PhoneEntry {
   phoneNumberId: string
   displayPhoneNumber: string
   verifiedName: string | null
+  // True when an agent is bound to this number. The business-profile
+  // endpoints authorise on that binding, so an unbound number 400s — see
+  // profiledPhones below.
+  alreadyConnected?: boolean
 }
 
 interface WabaEntry {
@@ -53,8 +57,23 @@ export function usePersonaData() {
     queryFn: () => api.get('/business-profiles/drafts').then((r) => r.data.data ?? []),
   })
 
+  // Only numbers with an agent bound to them. /business-profiles/live and
+  // /history authorise via that binding and return 400 "You don't have access
+  // to this phone number" otherwise — so asking for every number on the WABA
+  // fired two guaranteed-failing requests per unbound number, and because the
+  // failures were never surfaced the page just rendered an empty panel with no
+  // explanation (founder-reported 2026-09-03; on this account the number was
+  // +91 90100 82954, which the app's own phone list had offered).
+  //
+  // A persona reaches a number through an agent, so an unbound number cannot
+  // have one to show. Nothing is lost by not asking.
+  const profiledPhones = useMemo(
+    () => phones.filter((p) => p.alreadyConnected !== false),
+    [phones]
+  )
+
   const liveAndHistoryQueries = useQueries({
-    queries: phones.map((p) => ({
+    queries: profiledPhones.map((p) => ({
       queryKey: ['business-profile-live-and-history', p.phoneNumberId],
       queryFn: async () => {
         const [liveRes, historyRes] = await Promise.all([
@@ -71,7 +90,11 @@ export function usePersonaData() {
     })),
   })
 
-  const perNumberLoading = phones.length > 0 && liveAndHistoryQueries.some((q) => q.isLoading)
+  // Gated on profiledPhones, not phones: an account whose numbers are all
+  // unbound issues no per-number queries at all, and must not sit on a
+  // spinner waiting for requests that were never made.
+  const perNumberLoading =
+    profiledPhones.length > 0 && liveAndHistoryQueries.some((q) => q.isLoading)
 
   const rows: PersonaRow[] = useMemo(() => {
     const result: PersonaRow[] = []

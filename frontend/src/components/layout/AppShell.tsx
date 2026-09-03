@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -84,6 +84,29 @@ export default function AppShell() {
   // content (doesn't reflow main) — like Notion/Linear/VS Code's activity bar.
   const [railHover, setRailHover] = useState(false)
   const activeNav = location.pathname.startsWith('/templates') ? TEMPLATE_STUDIO_NAV : NAV
+
+  // The header used to end in `?? activeNav[0]?.label`, so every route absent
+  // from the main nav claimed to be the first nav item — the library pages and
+  // the skill editor all sat under a breadcrumb reading "Dashboard", which is
+  // worse than no breadcrumb at all (founder-reported 2026-09-03).
+  //
+  // The library routes live in AGENT_SUB_NAV, not NAV, which is why they fell
+  // through. Longest matching prefix wins, so /library/skills/:id/edit resolves
+  // to Skills rather than to whatever happens to be listed first.
+  const headerLabel = useMemo(() => {
+    const candidates = [
+      ...activeNav.map((n) => ({ to: n.to, label: n.label })),
+      ...AGENT_SUB_NAV.map((n) => ({ to: n.to, label: n.label })),
+    ]
+    const exact = candidates.find((c) => location.pathname === c.to)
+    if (exact) return exact.label
+    const prefixed = candidates
+      .filter((c) => location.pathname.startsWith(c.to + '/'))
+      .sort((a, b) => b.to.length - a.to.length)[0]
+    if (prefixed) return prefixed.label
+    // Nothing matched: say nothing rather than name the wrong page.
+    return ''
+  }, [activeNav, location.pathname])
   // Iris's chat history/New-chat/search render INLINE inside this same navy
   // nav (as the "Iris" item's sub-nav, same shape as Agents' AGENT_SUB_NAV)
   // instead of a separate light sidebar next to it — one merged sidebar, per
@@ -430,11 +453,7 @@ export default function AppShell() {
               <PanelLeft className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {activeNav.find((n) => location.pathname === n.to)?.label
-                  ?? activeNav.find((n) => location.pathname.startsWith(n.to + '/'))?.label
-                  ?? activeNav[0]?.label}
-              </span>
+              <span className="font-medium text-foreground">{headerLabel}</span>
               <ChevronRight className="h-3.5 w-3.5" />
             </div>
           </div>

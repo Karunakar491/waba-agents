@@ -28,6 +28,7 @@ public class Conversation {
     private Long accountId;
 
     @Column(name = "agent_id", nullable = false)
+    @JsonSerialize(using = ToStringSerializer.class) // same reason as above — missed here until 2026-09-04
     private Long agentId;
 
     @Column(name = "external_id", nullable = false, length = 128)

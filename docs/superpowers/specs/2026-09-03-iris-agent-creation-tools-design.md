@@ -1,6 +1,35 @@
-# Iris: Business-Agent Creation Tool Expansion
+# Iris: Platform Agent-Building Roadmap
 
 Status: Brainstormed and approved by founder 2026-09-03. Pending implementation plan.
+
+## Phased roadmap
+
+Three phases, in this order, each a hard prerequisite for the one after it:
+
+1. **Phase 0 — Meta API documentation verification.** Before building anything on top of
+   `docs/meta-api/`, verify it's actually accurate. Two of the ~19 doc files were already
+   found stale this session (`agent-onboarding.md`, `ui-skills.md`) just from incidental
+   cross-checking — the rest haven't been systematically verified. This is the direct lesson
+   from the agent-creation outage debugged earlier this same session: a stale doc note
+   ("not needed") sat unquestioned for weeks while the underlying Meta behavior changed
+   under it. Building 24+ new tools on unverified documentation risks repeating that
+   exact failure mode at a much larger scale. See "Phase 0" section below.
+2. **Phase 1 — Business-agent creation tools.** The original scope of this spec: ~24 new
+   Iris tools covering Basics, Business Persona, Knowledge Base, FAQ, Skills, UI Skills,
+   and Connectors, scoped to the creation wizard (`IrisRail.tsx`), stopping before actual
+   deployment. Depends on Phase 0 being done for the doc files it touches (settings.md,
+   skills.md, ui-skills.md, faq.md, websites.md, connectors.md, connector-tools.md,
+   agent-onboarding.md, eligibility.md). See "Phase 1" sections below — this is the bulk of
+   the document, largely unchanged from the original brainstorm plus corrections already
+   made during review.
+3. **Phase 2 — Edit an existing (already-deployed) agent.** Extending Iris to a new UI
+   surface on `AgentDetailPage.tsx`, so an operator can ask Iris to change an agent that's
+   already live and talking to real customers — not just one still being built. Explicitly
+   NOT scoped in detail here; captured as a named follow-on with its own safety
+   considerations, to be brainstormed properly (its own clarifying-questions pass) once
+   Phase 1 has shipped and proven the tool-calling pattern works in the lower-stakes
+   pre-deploy context first. See "Phase 2" section below for what's already known and what
+   still needs deciding.
 
 ## Problem
 
@@ -30,6 +59,43 @@ deliberate.** Roughly:
 An earlier draft of this spec undercounted its own scope (dropped FAQ and UI Skills
 entirely, and proposed including connector credential rotation without checking whether it
 was safe to). Both are corrected below.
+
+## Phase 0: Meta API documentation verification
+
+**Goal:** every `docs/meta-api/*.md` file that Phase 1's tools depend on is confirmed
+accurate against current live behavior — not just "read and trusted" — before any tool
+schema gets written from it.
+
+**Why this is Phase 0, not a nice-to-have:** the entire agent-creation outage debugged
+earlier this session traced back to exactly this failure mode — `agent-onboarding.md`
+documented a real precursor call, someone closed it as "not needed" based on behavior that
+was true *at the time*, and nobody re-verified it when Meta's behavior changed weeks later.
+`ui-skills.md` had the same shape of staleness (claimed "not implemented" for a feature that
+shipped a month earlier). Both were caught by accident during unrelated work, not by any
+systematic check. Building ~24 new tools whose entire correctness depends on these docs
+being right is the same risk at a much larger blast radius if this isn't done first.
+
+**In scope for Phase 0** — the doc files Phase 1's tools are built from:
+`settings.md`, `skills.md`, `ui-skills.md`, `faq.md`, `websites.md`, `connectors.md`,
+`connector-tools.md`, `agent-onboarding.md`, `eligibility.md`.
+
+**What "verified" means, per doc:**
+1. Every documented request/response field cross-checked against the actual DTO/entity
+   Java class it maps to — do the field names, types, and required/optional status still
+   match?
+2. Every documented "not supported" / "not implemented" / "TODO" note re-checked against
+   current code — is it still true, or stale like the two already found?
+3. Where practical, one real live call per endpoint group (matching this session's own
+   discipline: real curl reproductions, not just static reading) to confirm the documented
+   shape matches what Meta actually returns today, not just what it returned when the doc
+   was written.
+4. Any staleness found gets fixed in the doc itself as part of this phase, with a dated
+   note (matching how `agent-onboarding.md` was corrected earlier this session) — not just
+   flagged and left.
+
+**Out of scope for Phase 0:** the doc files Phase 1 doesn't touch (allowlist, thread-control,
+business-info, eval, delete-agent, agent-event, agent-test, webhook-standby-handoff, and all
+Template API docs) — verify those if/when a future phase actually depends on them.
 
 ## Non-goals
 
@@ -200,3 +266,46 @@ handling philosophy:
   in its schema — the audit found these are "defined but NOT currently supported" per
   `connectors.md`. Likely answer: schema should only offer whatever Meta actually accepts
   today; confirm exact supported set before drafting the schema, don't assume.
+- Whether the tool-execution wrapper's exception handling covers Jakarta Bean Validation
+  failures (e.g. a skill body over its length limit) as gracefully as it covers
+  `BusinessException`/`MetaApiException` — checked for Meta-facing errors, not yet checked
+  for plain request-validation errors on the ~24 new tools.
+- Whether 24 simultaneously-active tools creates real tool-selection accuracy problems for
+  the model (too many similar-sounding options to reliably pick from) — worth watching
+  during implementation; possible mitigation is scoping which tools are exposed to the
+  wizard's *current step* rather than all 24 always-on, but that's a bigger change than
+  this spec assumes and shouldn't be built preemptively without evidence it's needed.
+- Whether Iris-created records should carry any distinguishing marker (vs. a human's manual
+  UI action) for audit/debugging purposes — not currently planned, flagging as a possible
+  small addition, not a requirement.
+
+## Phase 2: Edit an existing (already-deployed) agent
+
+**Status: named, not brainstormed.** This section captures what's already known from the
+Phase 1 discussion; it is explicitly not a committed design and needs its own clarifying-
+questions pass (same rigor Phase 1 got) before implementation — most importantly because
+the safety boundary that made Phase 1 straightforward doesn't carry over automatically.
+
+**Why this isn't just "reuse the Phase 1 tools on a different page":**
+- **No UI surface exists yet.** Confirmed via `grep` — `IrisRail.tsx` is imported nowhere
+  except `CreateAgentPage.tsx`. Adding Iris to `AgentDetailPage.tsx` is new frontend work,
+  not a reuse of what Phase 1 builds.
+- **The safety boundary changes completely.** Phase 1's "Iris configures a draft, a human
+  clicks deploy" boundary works because nothing is live yet — a bad tool call before deploy
+  is cheap to fix, nobody's seen it. On an agent that's already deployed and answering real
+  customers, there is no equivalent "before it matters" step: editing a skill or the
+  business persona via chat has immediate, live consequences the moment it's confirmed.
+  Phase 1's confirm-gating (human approves before execution) still applies and still helps,
+  but it's no longer backstopped by "and even if this is wrong, nothing's live yet."
+- **New questions Phase 1 never had to answer:** should every Phase-1-style tool
+  (list/get/create/update/delete for skills/FAQ/websites/UI-skills) be available here
+  unchanged, or does "editing a live agent" need different tools (e.g. should deleting a
+  live, in-use skill require stronger confirmation than deleting one on a still-draft
+  agent)? Should Iris be able to see recent conversation/performance data before suggesting
+  an edit, so it's not proposing changes blind to how the agent is actually performing?
+  Does this reopen the "should Iris ever call deploy()/pause() itself" question Phase 1
+  closed — an already-live agent has a pause() available that a draft agent doesn't?
+
+**Recommended sequencing:** ship and prove Phase 1 first (lower-stakes, pre-deploy context),
+then brainstorm Phase 2 properly with real usage data from Phase 1 informing the questions
+above, rather than guessing at both simultaneously.

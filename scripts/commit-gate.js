@@ -105,7 +105,12 @@ const BANNED = [
   {
     name: 'raw internal id rendered in JSX',
     files: /frontend[\\/].*\.tsx$/,
-    re: /\{\s*\w+\.(id|wabaId|phoneNumberId|agentId)\s*\}/,
+    // Must be a rendered child, not an attribute value. `key={item.id}`,
+    // `to={row.id}` and `value={agent.id}` are plumbing and always fine; only
+    // `>{agent.id}<` puts the identifier in front of a human. Hence the
+    // requirement that the brace NOT be preceded by `=` (attribute) or `$`
+    // (template-literal interpolation, e.g. a route path).
+    re: /(^|[^=$])\{\s*\w+\.(id|wabaId|phoneNumberId|agentId)\s*\}/,
     why:
       'A user-facing screen should not display an internal identifier. ' +
       'This is the AgentsPage.tsx:492 defect. If an operator genuinely needs ' +

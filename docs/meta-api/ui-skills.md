@@ -69,8 +69,16 @@ Same fields as Create, all optional (partial update). **Flow skills cannot be en
 ### Paging / Cursors
 Standard Meta cursor pagination — `paging.cursors.{before,after}`, `paging.{previous,next}`. Stop paging when `next` is absent.
 
-## Implementation Note (2026-08-04)
-Not implemented anywhere in this codebase yet — genuinely new capability, not previously documented or built. Distinct domain from the existing agent_skill (plain Skills API) table/entity; would need its own entity/table if built (e.g. `agent_ui_skill`), not a column added to the existing Skills flow.
+## Implementation Note (verified 2026-09-03)
+Shipped. Platform: `AgentController` `/api/v1/agents/{id}/ui-skills` → `AgentService.addUiSkill` / `getUiSkills` / `getUiSkill` / `updateUiSkill` / `deleteUiSkill`. Table `agent_ui_skill` (`AgentUiSkill`).
+
+Platform vs this Meta doc (do not "fix" Meta; document our mapping):
+- `component_type=flow` and `flow_id` are **excluded** from `AgentUiSkill.ComponentType` (intentional).
+- Platform never proxies Meta's paginated GET list; reads local DB only.
+- Platform PUT is a **full replace** of title/componentType/status/instruction, not Meta's partial-update semantics.
+- UI-skill Meta paths are **not** `agent_id`-scoped (unlike `agent_config/skills`).
+
+Live GET skipped 2026-09-03 — no sandbox token in this environment.
 
 ## Error Codes
 400 Bad request | 401 Unauthorized | 403 Forbidden | 404 Not found | 429 Rate limited | 500 Server error

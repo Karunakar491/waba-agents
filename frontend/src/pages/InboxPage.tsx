@@ -7,7 +7,7 @@ import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
-import { formatTimeIST } from '../lib/dateFormat'
+import { formatTimeIST, formatListTimestampIST, formatDateTimeIST } from '../lib/dateFormat'
 import WebhookLogPanel from '../components/debug/WebhookLogPanel'
 import { describeMessage } from '../components/inbox/describeMessage'
 
@@ -15,7 +15,12 @@ type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
 interface Conversation {
   id: string
-  agentId: number
+  // String, like every other TSID here. It was serialized as a JSON number
+  // until 2026-09-04, which silently truncated it past
+  // Number.MAX_SAFE_INTEGER — 882515538725572608 arrived as ...600. Nothing
+  // read it, so nothing was visibly broken; it was a trap for whoever wired
+  // up "jump to this agent".
+  agentId: string
   externalId: string
   status: 'open' | 'closed'
   lastMessageAt: string | null
@@ -245,7 +250,9 @@ function ConversationRow({
   isSelected: boolean
   onClick: () => void
 }) {
-  const time = conv.lastMessageAt ? formatTimeIST(conv.lastMessageAt) : '—'
+  // Not formatTimeIST: a bare time made a thread from last month look like it
+  // arrived an hour ago (founder-reported 2026-09-03).
+  const time = conv.lastMessageAt ? formatListTimestampIST(conv.lastMessageAt) : '—'
 
   return (
     <button
@@ -261,7 +268,12 @@ function ConversationRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
-          <span className="text-xs text-muted-foreground shrink-0">{time}</span>
+          <span
+            className="text-xs text-muted-foreground shrink-0"
+            title={conv.lastMessageAt ? formatDateTimeIST(conv.lastMessageAt) : undefined}
+          >
+            {time}
+          </span>
         </div>
         {/* Which of the account's several numbers this came in on (2026-08-13
             founder ask) — "to" makes the direction unambiguous next to the
@@ -326,10 +338,15 @@ function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook
             {described.detail}
           </p>
         )}
-        <p className={cn(
-          'mt-1 text-[10px]',
-          isOutbound ? 'text-white/50' : 'text-muted-foreground'
-        )}>
+        {/* Bare time inside the thread is the convention, but a thread can
+            span weeks — so the full IST date is on hover. */}
+        <p
+          title={formatDateTimeIST(msg.receivedAt)}
+          className={cn(
+            'mt-1 text-[10px]',
+            isOutbound ? 'text-white/50' : 'text-muted-foreground'
+          )}
+        >
           {time}
         </p>
       </div>

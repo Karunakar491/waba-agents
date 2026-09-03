@@ -74,3 +74,46 @@ export function istStartOfDayMs(instant: Date): number {
   const [year, month, day] = ymd.split('-').map(Number)
   return Date.UTC(year, month - 1, day) - IST_OFFSET_MS
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Timestamp for a list row, where the reader needs to know *when* before they
+ * need to know the exact minute.
+ *
+ * The Inbox showed bare times, so a conversation last touched on 27 August
+ * read "01:08 pm" and was indistinguishable from one an hour old. The list was
+ * sorted correctly the whole time; the display threw away the only part that
+ * would have shown it (founder-reported 2026-09-03).
+ *
+ * Follows the convention every messaging app uses, because operators already
+ * know how to read it: time today, "Yesterday", weekday within the last week,
+ * then the date.
+ *
+ * `now` is injectable so this is testable without freezing the clock.
+ */
+export function formatListTimestampIST(iso: string, now: Date = new Date()): string {
+  const instant = parseAsUtc(iso)
+  if (Number.isNaN(instant.getTime())) return '—'
+
+  const today = istStartOfDayMs(now)
+  const thatDay = istStartOfDayMs(instant)
+  const daysAgo = Math.round((today - thatDay) / DAY_MS)
+
+  if (daysAgo === 0) return formatTimeIST(iso)
+  if (daysAgo === 1) return 'Yesterday'
+  // Inside the last week a weekday name is easier to place than a date.
+  if (daysAgo > 1 && daysAgo < 7) {
+    return instant.toLocaleDateString('en-IN', { weekday: 'short', timeZone: IST_TIME_ZONE })
+  }
+  // Anything older, including future-dated rows from clock skew, gets a date.
+  return instant.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    // Only bother with the year when it isn't the current one.
+    ...(thatDay < istStartOfDayMs(new Date(Date.UTC(now.getUTCFullYear(), 0, 1)))
+      ? { year: 'numeric' }
+      : {}),
+    timeZone: IST_TIME_ZONE,
+  })
+}

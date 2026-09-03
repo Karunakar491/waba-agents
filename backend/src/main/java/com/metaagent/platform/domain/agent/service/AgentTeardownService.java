@@ -67,7 +67,17 @@ public class AgentTeardownService {
             // Guardrail, backend-enforced rather than left to the UI: from here
             // on we mutate a real client's live WhatsApp number. It must have
             // already stopped responding before we start emptying it.
-            if (agent.getStatus() != Agent.Status.paused) {
+            //
+            // A draft is exempt, and must be: the create wizard binds the phone
+            // number on its very first step, so an abandoned wizard leaves a
+            // draft that has a phoneNumberId but has never answered anyone.
+            // Requiring a pause there deadlocked it permanently — pause rejects
+            // drafts with "Agent is not currently active", so the agent could
+            // be neither paused nor deleted, and it held its phone number
+            // hostage against every future attempt. Testing this on the
+            // deployed app took the last free number on the account and made
+            // creating any new agent impossible (2026-09-03).
+            if (agent.getStatus() != Agent.Status.paused && agent.getStatus() != Agent.Status.draft) {
                 throw new BusinessException(
                         "Pause this agent before deleting it — deleting clears its configuration on Meta, "
                                 + "and that must not happen while it is still answering customers.");

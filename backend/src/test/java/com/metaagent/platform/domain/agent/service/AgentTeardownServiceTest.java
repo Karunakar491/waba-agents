@@ -129,6 +129,35 @@ class AgentTeardownServiceTest {
         verify(agentDeployService, never()).deleteFromMeta(anyLong());
     }
 
+    /**
+     * The create wizard binds the phone number on its first step, so abandoning
+     * it leaves a draft that HAS a phoneNumberId and has still never answered a
+     * customer. Requiring a pause here deadlocked such a draft permanently:
+     * pause refuses drafts ("Agent is not currently active"), so it could be
+     * neither paused nor deleted, and it held its phone number hostage against
+     * every later attempt to create an agent on that number.
+     */
+    @Test
+    void draftAgentThatAlreadyClaimedAPhoneNumber_isStillDeletable() {
+        Agent draft = Agent.builder()
+                .id(AGENT_ID)
+                .displayName("Abandoned in the wizard")
+                .phoneNumberId(PHONE_NUMBER_ID)
+                .status(Agent.Status.draft)
+                .build();
+        when(agentService.getAgent(AGENT_ID)).thenReturn(draft);
+        when(agentDeployService.listConnectors(AGENT_ID)).thenReturn(List.of());
+        when(agentService.getSkills(AGENT_ID)).thenReturn(List.of());
+        when(agentService.getUiSkills(AGENT_ID)).thenReturn(List.of());
+
+        AgentDeleteResult result = teardownService.deleteEverywhere(AGENT_ID);
+
+        // Meta teardown still runs — the wizard may already have provisioned an
+        // agent there — but the pause requirement must not block the delete.
+        assertThat(result.metaFullyCleaned()).isTrue();
+        verify(agentService).deleteAgent(AGENT_ID);
+    }
+
     @Test
     void liveAgent_isRefusedBeforeAnythingIsTouched() {
         Agent live = pausedAgent();

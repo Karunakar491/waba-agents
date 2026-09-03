@@ -46,15 +46,24 @@ export default function StepBasics({
 
   // Numbers already bound to another agent can't be bound again — the unique
   // index on agent.phone_number_id rejects it server-side, so say so here
-  // rather than let the operator find out at the end of the wizard.
-  const { data: agents = [] } = useQuery<{ phoneNumberId: string | null }[]>({
+  // rather than let the operator find out at the end of the wizard. Excludes
+  // the agent being edited itself, otherwise going Back after binding a
+  // number (or resuming a draft) makes the wizard flag your own number as
+  // taken by "another" agent.
+  const { data: agents = [] } = useQuery<
+    { id: string; displayName: string; phoneNumberId: string | null }[]
+  >({
     queryKey: ['agents'],
     queryFn: () => api.get('/agents').then((r) => r.data.data),
   })
-  const takenNumbers = useMemo(
-    () => new Set(agents.map((a) => a.phoneNumberId).filter(Boolean) as string[]),
-    [agents],
-  )
+  const ownerNameByPhone = useMemo(() => {
+    const m = new Map<string, string>()
+    agents.forEach((a) => {
+      if (a.phoneNumberId && a.id !== state.agentId) m.set(a.phoneNumberId, a.displayName)
+    })
+    return m
+  }, [agents, state.agentId])
+  const takenNumbers = useMemo(() => new Set(ownerNameByPhone.keys()), [ownerNameByPhone])
 
   const options = useMemo(
     () =>
@@ -107,7 +116,7 @@ export default function StepBasics({
           ) : (
             <p className="flex items-center gap-3 rounded-lg bg-muted px-4 py-3 text-sm text-foreground">
               <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-              This number already belongs to another agent. Pick a different one.
+              {`This number is already used by "${ownerNameByPhone.get(state.phoneNumberId) ?? 'another agent'}". Pick a different one.`}
             </p>
           ))}
 

@@ -4,6 +4,11 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 
 ## Open
 
+### 17. Deleted agents still occupy phoneNumberId, now surfaced by name in the Basics step
+- **Status**: Not started. EL-flagged 2026-09-03 during review of the Basics-step "number already used" fix.
+- **Why**: `GET /agents` (`AgentAccessService.listAccessible`) doesn't filter out `status=deleted` agents, and the `agent.phone_number_id` unique index has no status scoping — so a deleted agent's old phone number stays permanently unpickable, and `StepBasics.tsx`'s ineligible message now names that agent by its (stale) `displayName` instead of a generic string. Pre-existing behavior, not a regression from the Basics fix, but the new message makes it more visible/confusing.
+- **Plan**: decide whether a deleted agent should release its `phoneNumberId` (needs an EM call — could affect Meta-side state if the number wasn't properly unbound from Meta on delete) before treating this as a quick fix.
+
 ### 16. bindPhone's onboarding gate is per-Agent-row, not per-phone — rebind to a different number reuses the wrong agent_id
 - **Status**: Not started. EM-flagged 2026-09-03 during review of the agent_onboarding root-cause fix (see item below, and `AgentService.java`'s `bindPhone()`).
 - **Why**: The new onboarding-before-settings fix gates on `agent.getMetaAgentId() == null`. If an agent that's already bound to phone A (and so already has `metaAgentId` set) gets rebound to a *different* phone B — nothing in `bindPhone()` or the controller blocks this (`ConnectPhoneModal.tsx`'s own comment: "Soft-warn, never a hard block") — onboarding is skipped, and the settings call for phone B gets scoped via `MetaApiClient.scopedPath()` using phone A's `agent_id`. Untested whether Meta's `agent_onboarding` endpoint is itself idempotent/safe to call again on an already-provisioned phone, so this isn't a trivial "just always call onboarding" fix. Currently only logs a `WARN` (`AgentService.java`, right before the onboarding gate) rather than blocking — never fails silently, but doesn't prevent the mis-scoped call either.

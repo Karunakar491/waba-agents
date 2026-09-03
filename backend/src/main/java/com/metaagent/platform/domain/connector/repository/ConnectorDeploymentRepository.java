@@ -21,6 +21,8 @@ public interface ConnectorDeploymentRepository extends JpaRepository<ConnectorDe
 
     List<ConnectorDeployment> findAllByConnectorId(Long connectorId);
 
+    Optional<ConnectorDeployment> findByAgentIdAndMetaConnectorId(Long agentId, String metaConnectorId);
+
     @Modifying
     void deleteAllByAgentId(Long agentId);
 }

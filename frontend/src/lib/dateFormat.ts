@@ -33,6 +33,11 @@ export function formatDateTimeIST(iso: string): string {
   })
 }
 
+// Meta sends webhook timestamps as epoch seconds in a string (e.g. "1786677901").
+export function formatEpochSecondsIST(epochSeconds: string): string {
+  return formatTimeIST(new Date(Number(epochSeconds) * 1000).toISOString())
+}
+
 // Inverse of the above, for filter inputs: an HTML <input type="datetime-local">
 // value ("YYYY-MM-DDTHH:mm") carries NO timezone at all — it's whatever the
 // operator typed, read literally. Labeling the field "(IST)" only means

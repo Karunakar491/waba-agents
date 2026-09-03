@@ -23,6 +23,12 @@ public class AgentUiSkill {
 
     public enum Status { enabled, disabled }
 
+    /** Separate from {@link Status} (enabled/disabled), which is a Meta-side
+     * toggle that keeps the record live but inactive. published/draft instead
+     * tracks whether the record exists on Meta at all — draft means it was
+     * Unpublished (deleted from Meta) and only survives locally. */
+    public enum PublishStatus { published, draft }
+
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
@@ -53,6 +59,17 @@ public class AgentUiSkill {
 
     @Column(nullable = false, length = 1024)
     private String instruction;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "publish_status", nullable = false, length = 16)
+    @Builder.Default
+    private PublishStatus publishStatus = PublishStatus.published;
+
+    @Column(name = "previous_meta_ui_skill_id")
+    private String previousMetaUiSkillId;
+
+    @Column(name = "unpublished_at")
+    private LocalDateTime unpublishedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

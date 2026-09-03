@@ -55,5 +55,13 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 | created_at | integer | | Unix timestamp |
 | metadata | object (string values) | | Key-value pairs |
 
+## Platform mapping (verified 2026-09-03)
+- Platform never sends `metadata`.
+- GET-by-id is local `AgentFaq` only.
+- `agent_id` query param: omit on FAQ GET (Meta 500 if added — existing comment in `AgentService`); PUT may include it via `scopedPath`.
+- Add/update is best-effort Meta: failure saves locally with `metaSynced=false`.
+
+Live GET skipped 2026-09-03 — no sandbox token in this environment.
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 404 Not found | 429 Rate limited | 500 Server error

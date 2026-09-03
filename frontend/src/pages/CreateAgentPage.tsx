@@ -258,7 +258,14 @@ export default function CreateAgentPage() {
         )}
       </div>
 
-      {!(step === 4 && skillsDrawerOpen) && <IrisRail step={step} wabaId={state.wabaId} />}
+      {!(step === 4 && skillsDrawerOpen) && (
+        <IrisRail
+          step={step}
+          wabaId={state.wabaId}
+          agentId={state.agentId}
+          onWizardPatch={onChange}
+        />
+      )}
     </div>
   )
 }

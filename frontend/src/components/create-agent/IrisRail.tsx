@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Send, Sparkles } from 'lucide-react'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
-import type { StepNumber } from './wizardTypes'
+import { queryKeysForIrisTool } from './irisQueryKeys'
+import IrisRailConfirmCard from './IrisRailConfirmCard'
+import { wizardPatchFromIris } from './wizardPatchFromIris'
+import type { StepNumber, WizardState } from './wizardTypes'
 
 /**
  * Figma 8.3–8.9 right rail — "Iris · Building this agent with you".
  *
  * This is the real Iris conversation service (POST /api/v1/iris/sessions),
  * the same one Template Studio uses, opened against the WABA the operator
- * picked in Basics. Iris genuinely can act here: AgentCreationToolProvider
- * gives it create_skill against this account's agents.
- *
- * When a session can't be opened — no BYOK credential is configured — the
- * rail keeps the step's opening line and says plainly that chat is
- * unavailable, instead of drawing a composer that does nothing.
+ * picked in Basics. Mutating tools pause for a rail-local confirm card;
+ * after confirm we invalidate wizard queries and patch Basics/Persona state.
  */
 
 const OPENING_LINES: Record<StepNumber, string[]> = {
@@ -49,12 +49,45 @@ interface RailMessage {
   content: string
 }
 
-export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: string }) {
+interface TurnResponse {
+  sessionId: string
+  reply: string
+  needsConfirmation: boolean
+  pendingToolName: string | null
+  pendingToolArgs: Record<string, unknown> | null
+}
+
+interface PendingAction {
+  toolName: string
+  args: Record<string, unknown>
+}
+
+function inlineToolName(res: TurnResponse): string | null {
+  if (res.needsConfirmation) return null
+  if (res.pendingToolName) return res.pendingToolName
+  return null
+}
+
+export default function IrisRail({
+  step,
+  wabaId,
+  agentId,
+  onWizardPatch,
+}: {
+  step: StepNumber
+  wabaId: string
+  agentId: string | null
+  onWizardPatch: (patch: Partial<WizardState>) => void
+}) {
+  const queryClient = useQueryClient()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [unavailable, setUnavailable] = useState<string | null>(null)
   const [messages, setMessages] = useState<RailMessage[]>([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [pending, setPending] = useState<PendingAction | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -75,17 +108,34 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [messages, step])
+  }, [messages, step, pending])
+
+  function applyToolSideEffects(toolName: string, args: Record<string, unknown>) {
+    if (agentId) {
+      for (const key of queryKeysForIrisTool(toolName, agentId, wabaId)) {
+        void queryClient.invalidateQueries({ queryKey: key })
+      }
+    }
+    onWizardPatch(wizardPatchFromIris(toolName, args))
+  }
 
   async function send() {
     const text = draft.trim()
-    if (!text || !sessionId || sending) return
+    if (!text || !sessionId || sending || pending || confirming || cancelling) return
     setDraft('')
     setMessages((m) => [...m, { role: 'user', content: text }])
     setSending(true)
     try {
       const r = await api.post(`/iris/sessions/${sessionId}/messages`, { text })
-      setMessages((m) => [...m, { role: 'assistant', content: r.data.data.reply }])
+      const data = r.data.data as TurnResponse
+      setMessages((m) => [...m, { role: 'assistant', content: data.reply }])
+      if (data.needsConfirmation && data.pendingToolName && data.pendingToolArgs) {
+        setPending({ toolName: data.pendingToolName, args: data.pendingToolArgs })
+      } else {
+        setPending(null)
+        const toolName = inlineToolName(data)
+        if (toolName) applyToolSideEffects(toolName, data.pendingToolArgs ?? {})
+      }
     } catch (err) {
       setMessages((m) => [...m, { role: 'assistant', content: extractErrorMessage(err) }])
     } finally {
@@ -93,7 +143,38 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
     }
   }
 
+  async function confirmPending() {
+    if (!sessionId || !pending || confirming || cancelling) return
+    const { toolName, args } = pending
+    setConfirming(true)
+    try {
+      await api.post(`/iris/sessions/${sessionId}/confirm`)
+      applyToolSideEffects(toolName, args)
+      setPending(null)
+      setMessages((m) => [...m, { role: 'assistant', content: 'Confirmed and submitted.' }])
+    } catch (err) {
+      setMessages((m) => [...m, { role: 'assistant', content: extractErrorMessage(err) }])
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  async function cancelPending() {
+    if (!sessionId || !pending || confirming || cancelling) return
+    setCancelling(true)
+    try {
+      await api.post(`/iris/sessions/${sessionId}/cancel`)
+      setPending(null)
+      setMessages((m) => [...m, { role: 'assistant', content: 'Cancelled — nothing was submitted.' }])
+    } catch (err) {
+      setMessages((m) => [...m, { role: 'assistant', content: extractErrorMessage(err) }])
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   const canChat = !!sessionId && !unavailable
+  const composerLocked = !!pending || sending || confirming || cancelling
 
   return (
     <aside
@@ -135,34 +216,52 @@ export default function IrisRail({ step, wabaId }: { step: StepNumber; wabaId: s
             Thinking…
           </p>
         )}
+        {pending && (
+          <IrisRailConfirmCard
+            toolName={pending.toolName}
+            args={pending.args}
+            onConfirm={() => void confirmPending()}
+            onCancel={() => void cancelPending()}
+            confirming={confirming}
+            cancelling={cancelling}
+          />
+        )}
       </div>
 
       <div className="border-t px-5 py-4">
         {canChat ? (
-          <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void send()
-                }
-              }}
-              placeholder="Type your answer…"
-              aria-label="Message Iris"
-              className="h-8 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={!draft.trim() || sending}
-              aria-label="Send to Iris"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-teal-solid text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
+          <>
+            {pending && (
+              <p className="mb-3 text-xs text-muted-foreground">
+                Confirm or cancel the pending action before sending another message.
+              </p>
+            )}
+            <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2">
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void send()
+                  }
+                }}
+                placeholder={pending ? 'Confirm or cancel the pending action…' : 'Type your answer…'}
+                aria-label="Message Iris"
+                disabled={composerLocked}
+                className="h-8 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => void send()}
+                disabled={!draft.trim() || composerLocked}
+                aria-label="Send to Iris"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-teal-solid text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </>
         ) : (
           <p className="text-xs text-muted-foreground">
             {wabaId

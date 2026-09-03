@@ -68,5 +68,13 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 | followup_interval_in_seconds | integer | | One of: 0, 300, 900, 1800, 3600, 7200, 28800, 86400. 0 = disabled |
 | message | string | | Followup message sent after inactivity |
 
+## Platform mapping (verified 2026-09-03)
+- `rollout.enabled` ↔ `Agent.status` active/paused via `deploy()` / `pause()`. Iris Phase 1 must never call these.
+- `ai_audience` ↔ `PUT /api/v1/agents/{id}/settings/audience`. Not an Iris Phase 1 tool.
+- `handoff.enabled`: this Meta doc (Correction 2026-08-04) says the flag controls the custom handoff *message*, not whether handoff is on. Platform UI (`AgentDetailPage`) still labels `handoffEnabled` as "Human handoff". **Unresolved product copy vs Meta semantics — do not change Java in Phase 0.**
+- `followup`: preserved on RMW; no platform editor.
+
+Live GET skipped 2026-09-03 — no sandbox token in this environment.
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 403 Forbidden | 404 Not found | 429 Rate limited | 500 Server error

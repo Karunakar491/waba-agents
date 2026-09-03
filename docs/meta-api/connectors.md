@@ -127,5 +127,12 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 - `data` — array of log entries or failure patterns
 - `stats` (when include_stats=true): `start_count`, `success_count`, `exception_count`, `success_rate`, `avg_latency_s`, `p95_latency_s`, `p99_latency_s`, `time_window_seconds`
 
+## Platform mapping (verified 2026-09-03)
+- No typed Java DTO; `Map<String,Object>` passthrough to Meta.
+- `auth_config` must be nested (`api_key` / `oauth2_client_credentials`). Empty `auth_config: {}` required for `NONE`.
+- Connector `name` is slugified before Meta POST in the library deploy path (`toMetaConnectorName`).
+- Secret **values** (`value`, `client_secret`, cert PEM) are deploy-time only — never Iris tool args.
+- Live auth_type values observed: Live GET skipped 2026-09-03 — no sandbox token. Phase 1 `create_connector` enum defaults to `API_KEY` | `OAUTH2_CLIENT_CREDENTIALS` | `NONE` matching ConnectorDefinitionEditor / library deploy, not BASIC/CUSTOM/OAUTH2 unless a later live GET proves otherwise.
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 403 Forbidden | 404 Not found | 429 Rate limited | 500 Server error

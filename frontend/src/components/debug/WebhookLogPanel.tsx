@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { Search, SlidersHorizontal, UserCheck, X } from 'lucide-react'
 import api from '../../lib/api'
+import { cn } from '../../lib/utils'
 import StatusIndicator from '../shared/StatusIndicator'
 import ErrorBanner from '../shared/ErrorBanner'
 import WebhookDetailModal from './WebhookDetailModal'
@@ -34,6 +35,14 @@ export interface WebhookRawEntry {
   errorMessage: string | null
   receivedAt: string
   processedAt: string | null
+  /**
+   * Derived server-side from the payload's standby wrapper, not stored.
+   * NEEDS_HUMAN is the moment Meta's AI stopped handling the conversation and
+   * handed it to us — the signal the separate live-chat tool has to act on, so
+   * it is called out rather than left to be spotted in a wall of rows
+   * (founder ask, 2026-09-03). Optional so an older backend still renders.
+   */
+  handoffSignal?: 'BIZAI_ACTIVE' | 'NEEDS_HUMAN' | 'STATUS_UPDATE' | 'UNRECOGNIZED'
 }
 
 const WEBHOOK_STATUS_TONE: Record<WebhookRawEntry['status'], 'positive' | 'negative' | 'neutral'> = {
@@ -98,6 +107,7 @@ export default function WebhookLogPanel({
   const [phoneNumberId, setPhoneNumberId] = useState('')
   const [agentId, setAgentId] = useState('')
   const [status, setStatus] = useState<typeof WEBHOOK_STATUS_FILTERS[number]>('ALL')
+  const [handoffOnly, setHandoffOnly] = useState(false)
   const [fromTime, setFromTime] = useState('')
   const [toTime, setToTime] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -124,7 +134,7 @@ export default function WebhookLogPanel({
   })
 
   const { data: webhooks = [], isLoading, isError, error, refetch } = useQuery<WebhookRawEntry[]>({
-    queryKey: ['webhooks-raw', phoneNumberId, agentId, status, fromTime, toTime],
+    queryKey: ['webhooks-raw', phoneNumberId, agentId, status, handoffOnly, fromTime, toTime],
     queryFn: () =>
       api
         .get('/webhooks/raw', {
@@ -132,6 +142,7 @@ export default function WebhookLogPanel({
             phoneNumberId: phoneNumberId.trim() || undefined,
             agentId: agentId.trim() || undefined,
             status: status === 'ALL' ? undefined : status,
+            handoffSignal: handoffOnly ? 'NEEDS_HUMAN' : undefined,
             from: istInputToUtcNaiveIso(fromTime),
             to: istInputToUtcNaiveIso(toTime),
           },
@@ -142,10 +153,13 @@ export default function WebhookLogPanel({
 
   const advancedFilterCount = [agentId.trim() !== '', status !== 'ALL', Boolean(fromTime), Boolean(toTime)]
     .filter(Boolean).length
-  const hasActiveFilter = Boolean(phoneNumberId.trim()) || advancedFilterCount > 0
+  // handoffOnly lives outside advancedFilterCount because it has its own
+  // visible button, but it still counts as "filtered" so Clear all clears it.
+  const hasActiveFilter = Boolean(phoneNumberId.trim()) || advancedFilterCount > 0 || handoffOnly
 
   const clearAll = () => {
     setPhoneNumberId(''); setAgentId(''); setStatus('ALL'); setFromTime(''); setToTime('')
+    setHandoffOnly(false)
   }
 
   return (
@@ -167,6 +181,22 @@ export default function WebhookLogPanel({
               className={`${inputClass} pl-9`}
             />
           </div>
+          {/* Top-level, not hidden behind Filters: "which chats went to a
+              human" is the question this log gets asked most, now that a
+              separate tool handles live chat. */}
+          <button
+            onClick={() => setHandoffOnly((v) => !v)}
+            aria-pressed={handoffOnly}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition',
+              handoffOnly
+                ? 'border-warning bg-warning/10 text-warning'
+                : 'bg-background text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <UserCheck className="h-4 w-4" />
+            Handoffs only
+          </button>
           <button
             onClick={() => setFiltersOpen((v) => !v)}
             aria-expanded={filtersOpen}
@@ -270,11 +300,34 @@ export default function WebhookLogPanel({
             <tbody className="divide-y">
               {webhooks.map((w) => {
                 const summary = summarizeWebhookPayload(w.payload)
+                const isHandoff = w.handoffSignal === 'NEEDS_HUMAN'
                 return (
-                  <tr key={w.id} className="hover:bg-muted/60">
-                    <td className="whitespace-nowrap p-3 text-muted-foreground">{formatTimeIST(w.receivedAt)}</td>
+                  <tr
+                    key={w.id}
+                    className={cn(
+                      'hover:bg-muted/60',
+                      // A handoff is the one row in this log somebody has to act
+                      // on, so it gets a standing tint and an edge marker rather
+                      // than only a badge that scrolls past unnoticed.
+                      isHandoff && 'bg-warning/10 hover:bg-warning/20'
+                    )}
+                  >
+                    <td
+                      className={cn(
+                        'whitespace-nowrap p-3 text-muted-foreground',
+                        isHandoff && 'border-l-2 border-warning font-medium text-foreground'
+                      )}
+                    >
+                      {formatTimeIST(w.receivedAt)}
+                    </td>
                     <td className="whitespace-nowrap p-3">
                       <StatusIndicator label={KIND_LABEL[summary.kind]} tone={KIND_TONE[summary.kind]} />
+                      {isHandoff && (
+                        <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-warning">
+                          <UserCheck className="h-3 w-3 shrink-0" />
+                          Handed to a human
+                        </p>
+                      )}
                     </td>
                     <td className="whitespace-nowrap p-3 font-mono text-muted-foreground">
                       {summary.customerNumber ?? '—'}

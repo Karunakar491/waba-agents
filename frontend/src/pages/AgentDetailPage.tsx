@@ -2125,15 +2125,22 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Publish
+              Save changes
             </button>
+            {/* "Save changes", not "Publish". This submit is a local
+                PUT /agents/{id} and reaches nothing on Meta — while two other
+                controls on this same screen use the word Publish to mean
+                exactly that: "Publish & Test" starts answering real customers
+                immediately, and "Publish handoff to Meta" pushes config to
+                Meta. Renaming a paused agent should not require pressing the
+                word that means "go live" (2026-09-03 audit). */}
             {/* Per-tab draft indicator, not a global one (2026-08-13 founder
                 decision — see wiki/decisions/). isDirty here is react-hook-form's
                 own dirty tracking against defaultValues, which already IS the
                 draft-vs-live comparison for this tab: nothing is written to
-                /agents/{id} until Publish is clicked. */}
-            {isDirty && !saved && <StatusIndicator label="Draft — not yet published" tone="warning" />}
-            {saved && <span className="text-sm font-medium text-brand-green">Published!</span>}
+                /agents/{id} until this is clicked. */}
+            {isDirty && !saved && <StatusIndicator label="Unsaved changes" tone="warning" />}
+            {saved && <span className="text-sm font-medium text-brand-green">Saved</span>}
           </div>
         </form>
       </div>

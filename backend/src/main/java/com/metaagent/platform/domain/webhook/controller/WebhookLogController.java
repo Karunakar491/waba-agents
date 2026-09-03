@@ -2,7 +2,10 @@ package com.metaagent.platform.domain.webhook.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.common.security.SecurityContextHelper;
+import com.metaagent.platform.domain.conversation.model.HandoffSignal;
+import com.metaagent.platform.domain.conversation.service.HandoffClassifier;
 import com.metaagent.platform.domain.webhook.dto.WebhookRawFilter;
+import com.metaagent.platform.domain.webhook.dto.WebhookRawView;
 import com.metaagent.platform.domain.webhook.entity.WebhookRaw;
 import com.metaagent.platform.domain.webhook.repository.WebhookRawRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,20 +37,33 @@ import java.util.List;
 public class WebhookLogController {
 
     private final WebhookRawRepository webhookRawRepository;
+    private final HandoffClassifier handoffClassifier;
 
     /** Unfiltered default — matches the founder's "every webhook related to the WABA should be displayed" ask; filters below narrow it further. */
     @GetMapping("/raw")
-    public ApiResponse<List<WebhookRaw>> listRecent(
+    public ApiResponse<List<WebhookRawView>> listRecent(
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(required = false) Long id,
             @RequestParam(required = false) String phoneNumberId,
             @RequestParam(required = false) Long agentId,
             @RequestParam(required = false) WebhookRaw.Status status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) HandoffSignal handoffSignal) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         var spec = WebhookRawFilter.toSpecification(accountId, new WebhookRawFilter(id, phoneNumberId, agentId, status, from, to));
-        return ApiResponse.ok(webhookRawRepository.findAll(spec,
-                PageRequest.of(0, Math.min(limit, 300), Sort.by("receivedAt").descending())).getContent());
+        // Classified here rather than in the query: the signal is derived from
+        // the payload, so it cannot be a SQL predicate without a stored column.
+        // Fetching a wider page and filtering after keeps "show me the
+        // handoffs" honest instead of returning a short page that looks empty.
+        int pageSize = handoffSignal == null ? Math.min(limit, 300) : 300;
+        var rows = webhookRawRepository.findAll(spec,
+                PageRequest.of(0, pageSize, Sort.by("receivedAt").descending())).getContent();
+
+        return ApiResponse.ok(rows.stream()
+                .map(row -> new WebhookRawView(row, handoffClassifier.classify(row.getPayload()).name()))
+                .filter(view -> handoffSignal == null || view.handoffSignal().equals(handoffSignal.name()))
+                .limit(Math.min(limit, 300))
+                .toList());
     }
 }

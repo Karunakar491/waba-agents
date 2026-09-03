@@ -94,6 +94,44 @@ founder: "yeah it's ok, let it be").
 
 **Fix:** `create_connector`/`update_connector` only accept the non-secret shape — `name`, `description`, `base_url`, `auth_type`, and (for API-key auth) the header/query/body **field names** the connector expects, never values. This matches `ConnectorDefinitionEditor.tsx`'s existing pattern exactly ("deliberately has NO field to type a secret into"). Supplying the actual key/certificate/client-secret stays a manual step in the existing `ConnectorDeployModal.tsx` UI, never through chat — same "Iris configures the draft, a human handles the sensitive final step" boundary already established for deploy() elsewhere in this spec. `upsertApiKey`/`upsertCertificate`/`upsertOAuth` (credential rotation) are excluded from this spec entirely for the same reason, grouped with the curl-paste exclusion above.
 
+## UI reactivity — the wizard must reflect what Iris just did, live
+
+**Found while reviewing this spec, not part of the original brainstorm — a real,
+pre-existing gap, not hypothetical.** Checked the current `create_skill` tool (the only
+mutating tool Iris has today): `IrisRail.tsx` doesn't import `useQueryClient` at all, and
+has zero query-invalidation calls anywhere. Meanwhile the step components it sits next to
+(`StepSkills.tsx`, `StepKnowledgeBase.tsx`, etc.) only refresh their own TanStack Query
+caches (`agent-skills-view`, `agent-faqs`, `agent-websites`, `agent-ui-skills`, ...) in
+response to *their own* manual mutations — never in response to Iris. Right now, if an
+operator asks Iris to create a skill, it's created on the backend but the Skills list
+sitting in the same wizard step does not update until something unrelated happens to
+trigger a refetch. Adding ~23 more mutating tools without fixing this makes the problem
+24x worse, not just present — the entire pitch of "watch the wizard fill itself in as you
+talk to Iris" depends on this working.
+
+**The fix is small and doesn't require new backend work.** `IrisConversationService`
+already returns `toolName` on every `MessageDto` (`IrisConversationService.java:108`) — the
+frontend already knows which tool ran on every message, it just never acts on it.
+`IrisRail.tsx` needs to:
+1. Import `useQueryClient`.
+2. After a message exchange completes, if the response includes a `toolName` for a
+   successfully-executed mutating tool, invalidate the query key(s) that tool affects.
+3. A small `toolName → queryKey[]` map, e.g.:
+   `create_skill/update_skill/delete_skill` → `['agent-skills-view', agentId]`,
+   `['skills', wabaId]`; `create_ui_skill/update_ui_skill/delete_ui_skill` →
+   `['agent-ui-skills', agentId]`; `create_faq/update_faq/delete_faq` →
+   `['agent-faqs', agentId]`; `add_knowledge_website/update_knowledge_website/
+   delete_knowledge_website` → `['agent-websites', agentId]`; `update_agent_basics/
+   update_business_persona` → `['agent', agentId]` (or whatever query key the relevant step
+   reads the base Agent fields from — confirm exact key in the plan);
+   `create_connector/update_connector/delete_connector` → the connector list query key
+   `StepConnectors.tsx` uses (not yet checked — confirm in the plan).
+4. Read-only tools (`list_*`/`get_*`) need no invalidation — they don't change state.
+
+This belongs in the implementation plan as a first-class task, not an afterthought bolted
+on at the end — it's the difference between this feature actually working and it silently
+looking broken.
+
 ## Confirm-gating
 
 No new pattern needed. Every tool marked "Mutating? Y" above sets `requiresConfirmation=true`,
@@ -148,6 +186,10 @@ handling philosophy:
   earlier this session) — the underlying service methods are already live-proven via the
   existing UI paths that call them today. The new work is the tool-calling wrapper, not
   the Meta integration itself.
+- UI reactivity (above) needs its own explicit test: after Iris executes a mutating tool,
+  the corresponding query key must be invalidated — a frontend test asserting
+  `invalidateQueries` was called with the right key for each `toolName`, not just a manual
+  "looked fine when I tried it" check.
 
 ## Open questions for the implementation plan
 

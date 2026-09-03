@@ -1,9 +1,9 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { ParamRow, ParamType, FillMode } from './toolRequestDefinition'
-import { inputCls, touchButtonCls, touchCheckboxCls, checkboxLabelCls, addButtonCls, idSlug } from './toolEditorStyles'
+import { inputCls, touchButtonCls, addButtonCls, idSlug } from './toolEditorStyles'
 
 const FILL_OPTIONS: { value: FillMode; label: string }[] = [
-  { value: 'agent', label: 'The agent fills this in' },
+  { value: 'agent', label: 'Agent fills this in' },
   { value: 'fixed', label: 'Fixed value' },
 ]
 const ADVANCED_FILL_OPTIONS: { value: FillMode; label: string }[] = [
@@ -55,109 +55,132 @@ export default function ToolParamsEditor({
           </button>
         )}
       </div>
-      {rows.map((row, i) => {
-        const locked = lockedKeys.includes(row.key)
-        const rowDescriptor = row.key.trim() || `row ${i + 1}`
-        return (
-          <div key={i} className="space-y-2 rounded-lg border p-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-key`}>{label} name</label>
-              <input
-                id={`${idSlug(label)}-${i}-key`}
-                type="text"
-                value={row.key}
-                disabled={locked || disabled}
-                onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))}
-                placeholder="name"
-                className={`${inputCls} min-w-[7rem] flex-1 disabled:opacity-60`}
-              />
-              <select
-                aria-label={`${label} type`}
-                value={row.type}
-                disabled={disabled}
-                onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, type: e.target.value as ParamType } : r)))}
-                className={inputCls}
-              >
-                {(['string', 'integer', 'number', 'boolean'] as ParamType[]).map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              {locked ? (
-                // Path parameters are always required — connector-tools.md: "Ignored for path
-                // params (always required)." Showing a checkbox here would let the operator
-                // toggle a control Meta silently ignores, which is exactly the class of lying
-                // UI this task exists to eliminate. Static text only, no control.
-                <span className="text-xs text-muted-foreground">Always required (path parameter)</span>
-              ) : (
-                <label className={checkboxLabelCls}>
-                  <input
-                    type="checkbox"
-                    checked={row.required}
-                    disabled={disabled}
-                    onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, required: e.target.checked } : r)))}
-                    className={touchCheckboxCls}
-                  />
-                  Required
-                </label>
-              )}
-              {!locked && (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
-                  className={touchButtonCls}
-                  aria-label={`Remove ${singularize(label)} ${rowDescriptor}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-description`}>{label} description</label>
-            <input
-              id={`${idSlug(label)}-${i}-description`}
-              type="text"
-              value={row.description}
-              disabled={disabled}
-              onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)))}
-              placeholder="Description — the agent reads this to know what to put here"
-              className={`${inputCls} w-full disabled:opacity-60`}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs text-muted-foreground" htmlFor={`${idSlug(label)}-${i}-fill`}>Who fills this in?</label>
-              <select
-                id={`${idSlug(label)}-${i}-fill`}
-                value={row.fill}
-                disabled={disabled}
-                onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fill: e.target.value as FillMode } : r)))}
-                className={inputCls}
-              >
-                {FILL_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-                <optgroup label="Advanced (rarely needed)">
-                  {ADVANCED_FILL_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </optgroup>
-              </select>
-              {row.fill === 'fixed' && (
-                <>
-                  <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-fixedvalue`}>Fixed value</label>
-                  <input
-                    id={`${idSlug(label)}-${i}-fixedvalue`}
-                    type="text"
-                    value={row.fixedValue}
-                    disabled={disabled}
-                    onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fixedValue: e.target.value } : r)))}
-                    placeholder="Fixed value"
-                    className={`${inputCls} flex-1 disabled:opacity-60`}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-        )
-      })}
+
+      {rows.length > 0 && (
+        <div className="overflow-hidden rounded-lg border">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+                <th className="w-1/4 px-3 py-2 font-medium">Key</th>
+                <th className="w-1/3 px-3 py-2 font-medium">Value</th>
+                <th className="px-3 py-2 font-medium">Description</th>
+                <th className="w-11 px-2 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const locked = lockedKeys.includes(row.key)
+                const rowDescriptor = row.key.trim() || `row ${i + 1}`
+                return (
+                  <tr key={i} className="border-b align-top last:border-b-0">
+                    <td className="px-3 py-2">
+                      <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-key`}>{label} name</label>
+                      <input
+                        id={`${idSlug(label)}-${i}-key`}
+                        type="text"
+                        value={row.key}
+                        disabled={locked || disabled}
+                        onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))}
+                        placeholder="Key"
+                        className={`${inputCls} w-full disabled:opacity-60`}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-fill`}>Who fills in {rowDescriptor}</label>
+                      <select
+                        id={`${idSlug(label)}-${i}-fill`}
+                        value={row.fill}
+                        disabled={disabled}
+                        onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fill: e.target.value as FillMode } : r)))}
+                        className={`${inputCls} w-full`}
+                      >
+                        {FILL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                        <optgroup label="Advanced (rarely needed)">
+                          {ADVANCED_FILL_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      {row.fill === 'fixed' && (
+                        <>
+                          <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-fixedvalue`}>Fixed value for {rowDescriptor}</label>
+                          <input
+                            id={`${idSlug(label)}-${i}-fixedvalue`}
+                            type="text"
+                            value={row.fixedValue}
+                            disabled={disabled}
+                            onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fixedValue: e.target.value } : r)))}
+                            placeholder="Value"
+                            className={`${inputCls} mt-1.5 w-full disabled:opacity-60`}
+                          />
+                        </>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <label className="sr-only" htmlFor={`${idSlug(label)}-${i}-description`}>{label} description</label>
+                      <input
+                        id={`${idSlug(label)}-${i}-description`}
+                        type="text"
+                        value={row.description}
+                        disabled={disabled}
+                        onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)))}
+                        placeholder="Description — the agent reads this to know what to put here"
+                        className={`${inputCls} w-full disabled:opacity-60`}
+                      />
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                        <label htmlFor={`${idSlug(label)}-${i}-type`} className="sr-only">{label} type</label>
+                        <select
+                          id={`${idSlug(label)}-${i}-type`}
+                          value={row.type}
+                          disabled={disabled}
+                          onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, type: e.target.value as ParamType } : r)))}
+                          className={`${inputCls} px-2 py-1`}
+                        >
+                          {(['string', 'integer', 'number', 'boolean'] as ParamType[]).map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                        {locked ? (
+                          // Path parameters are always required — connector-tools.md: "Ignored for path
+                          // params (always required)." Showing a checkbox here would let the operator
+                          // toggle a control Meta silently ignores.
+                          <span>Always required (path parameter)</span>
+                        ) : (
+                          <label className="flex min-h-11 items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={row.required}
+                              disabled={disabled}
+                              onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, required: e.target.checked } : r)))}
+                              className="h-4 w-4 shrink-0"
+                            />
+                            Required
+                          </label>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">
+                      {!locked && (
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+                          className={touchButtonCls}
+                          aria-label={`Remove ${singularize(label)} ${rowDescriptor}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

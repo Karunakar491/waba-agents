@@ -19,6 +19,7 @@ tags: [index, root]
 | [[frontend/INDEX\|Frontend]] | Stack, design system, Karix brand, component library |
 | [[deployment/INDEX\|Deployment]] | Server config, runbooks, hard-won lessons |
 | [[bugs-violations/INDEX\|Bugs & Violations]] | All CLAUDE.md violations, bug post-mortems |
+| [[lessons/INDEX\|Lessons]] | Durable reusable rules — verification, production safety, process, frontend and backend traps |
 | [[docs/INDEX\|Docs]] | Product spec, API surface, Meta API reference |
 | [[api/INDEX\|API]] | Backend API endpoints, request/response contracts |
 | [[sessions/INDEX\|Sessions]] | What was built each session — running changelog |

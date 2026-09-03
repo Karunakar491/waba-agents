@@ -259,7 +259,8 @@ public class SkillLibraryService {
                     legacy.getBody(),
                     "LIVE", // legacy path still writes through to Meta immediately
                     true,
-                    null
+                    null,
+                    legacy.getStatus().name()
             ));
         }
 
@@ -275,7 +276,8 @@ public class SkillLibraryService {
                     skill.getBody(),
                     live ? "LIVE" : "OUT_OF_SYNC",
                     false,
-                    String.valueOf(skill.getId())
+                    String.valueOf(skill.getId()),
+                    "published" // Library-attached skills have their own promote/detach lifecycle, not this one
             ));
         }
         return views;

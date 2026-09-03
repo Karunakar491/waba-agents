@@ -90,7 +90,11 @@ public final class SkillDtos {
             String body,
             String status, // "LIVE" | "OUT_OF_SYNC"
             boolean canPromote,
-            String librarySkillId // set only when source = LIBRARY
+            String librarySkillId, // set only when source = LIBRARY
+            /** "published" | "draft" — Unpublish/Draft only applies to source=AGENT rows
+             * today; LIBRARY-attached skills always report "published" here (out of scope,
+             * they have their own promote/detach lifecycle). */
+            String publishStatus
     ) {}
 
     public record SyncItemResult(

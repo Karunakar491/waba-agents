@@ -46,6 +46,7 @@ public class AgentDeployService {
     private final MetaApiClient metaApiClient;
     private final ThreadControlClient threadControlClient;
     private final ConnectorMirrorService connectorMirrorService;
+    private final com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository connectorDeploymentRepository;
 
     // Per-agentId lock — two accounts on a shared WABA could otherwise call
     // deploy/pause/deleteFromMeta on the same Agent concurrently. Copy of the
@@ -373,11 +374,20 @@ public class AgentDeployService {
         return metaApiClient.post(path, payload, Map.class);
     }
 
+    /**
+     * Deletes a connector from Meta AND clears its Connector Library
+     * deployment-tracking row (if any) — the legacy per-agent delete used to
+     * leave that row stale, reporting a deployment as still LIVE after it was
+     * actually removed, which blocked re-deploying or deleting the Library
+     * definition. See wiki/bugs-violations for the incident this fixes.
+     */
     public void deleteConnector(Long agentId, String connectorId) {
         Agent agent = loadOwnedAgent(agentId);
         requirePhoneNumberId(agent);
         String path = MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_connectors/" + connectorId, agent.getMetaAgentId());
         metaApiClient.delete(path);
+        connectorDeploymentRepository.findByAgentIdAndMetaConnectorId(agentId, connectorId)
+                .ifPresent(connectorDeploymentRepository::delete);
     }
 
     @SuppressWarnings("unchecked")

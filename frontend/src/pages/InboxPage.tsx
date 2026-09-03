@@ -9,6 +9,7 @@ import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
 import { formatTimeIST } from '../lib/dateFormat'
 import WebhookLogPanel from '../components/debug/WebhookLogPanel'
+import { describeMessage } from '../components/inbox/describeMessage'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
@@ -281,7 +282,10 @@ function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook
   const isOutbound = msg.direction === 'outbound'
   const time = formatTimeIST(msg.receivedAt)
 
-  const content = msg.content ?? (msg.contentJson ? `[${msg.contentType}]` : '—')
+  // Not `[${contentType}]` any more: that rendered 21 real messages on this
+  // account as the literal text "[interactive]", hiding what the customer had
+  // actually picked from a list (founder-reported 2026-09-03).
+  const described = describeMessage(msg.contentType, msg.content, msg.contentJson)
   const copyValue = msg.content ?? msg.contentJson ?? ''
 
   return (
@@ -303,7 +307,25 @@ function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook
           ? 'rounded-br-sm bg-accent-teal-solid text-white'
           : 'rounded-bl-sm bg-white border text-foreground'
       )}>
-        <p className="text-sm leading-relaxed">{content}</p>
+        {/* Caption first: it tells the operator the customer tapped a control
+            rather than typing, which changes how the reply below reads. */}
+        {described.kind && (
+          <p className={cn(
+            'text-[10px] font-medium uppercase tracking-wide',
+            isOutbound ? 'text-white/60' : 'text-muted-foreground'
+          )}>
+            {described.kind}
+          </p>
+        )}
+        <p className={cn('text-sm leading-relaxed', described.kind && 'mt-0.5')}>{described.text}</p>
+        {described.detail && (
+          <p className={cn(
+            'mt-0.5 text-xs leading-relaxed',
+            isOutbound ? 'text-white/70' : 'text-muted-foreground'
+          )}>
+            {described.detail}
+          </p>
+        )}
         <p className={cn(
           'mt-1 text-[10px]',
           isOutbound ? 'text-white/50' : 'text-muted-foreground'

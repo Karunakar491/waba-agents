@@ -32,5 +32,7 @@ Flagged 2026-08-04 as a possibly-required precursor to `agent_config/settings`, 
 
 **Now implemented**: `AgentService.bindPhone()` calls this endpoint first, gated on `agent.getMetaAgentId() == null` (i.e. only on genuinely first-time provisioning), and uses the returned `agent_id` for the subsequent `agent_config/settings` call via `MetaApiClient.scopedPath()`. This was the root-cause fix for the 2026-08-25..09-01 "can't create an agent" incident — `agent_config/settings`' create-or-fetch stopped reliably creating the entity on its own; confirmed live that calling this first resolves it. See TASKS.md #15/#16 for the fix and a known follow-up gap.
 
+Verified still accurate 2026-09-03 against AgentService.bindPhone (eligibility GET + onboarding POST when metaAgentId is null).
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 429 Rate limited | 500 Server error

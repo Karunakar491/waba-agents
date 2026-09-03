@@ -47,6 +47,17 @@ public class WebhookController {
     @Value("${meta.webhook.routing-key:webhook.received}")
     private String routingKey;
 
+    // Kill switch: flip to false + restart to fall back to "persist everything" if the
+    // biz_opaque_callback_data filter ever misfires (e.g. Karix's campaign tool stops
+    // setting it, or starts appearing on real agent traffic) — no redeploy required.
+    @Value("${webhook.campaign-filter.enabled:true}")
+    private boolean campaignFilterEnabled;
+
+    // Kill switch for the unattributed-webhook drop: set true + restart to go back to
+    // persisting payloads that match no agent, if their absence ever blocks a diagnosis.
+    @Value("${webhook.persist-unattributed:false}")
+    private boolean persistUnattributed;
+
     /**
      * Meta Hub challenge verification endpoint (GET).
      * One callback URL per Meta App — tenant routing happens per-payload in POST.
@@ -101,8 +112,9 @@ public class WebhookController {
         // 2. Resolve tenant from payload: phone_number_id -> agent -> account
         String phoneNumberId = null;
         Agent agent = null;
+        JsonNode root = null;
         try {
-            JsonNode root = objectMapper.readTree(rawPayload);
+            root = objectMapper.readTree(rawPayload);
             phoneNumberId = extractPhoneNumberId(root);
             if (phoneNumberId != null) {
                 agent = agentRepository.findByPhoneNumberId(phoneNumberId).orElse(null);
@@ -111,21 +123,54 @@ public class WebhookController {
             log.error("Failed to parse incoming webhook payload: {}", e.getMessage());
         }
 
+        // Same WABA/phone number is also used by Karix's separate marketing-campaign
+        // product (Meta allows only one webhook callback URL per app, so this endpoint
+        // receives every event on the WABA, not just AI-agent traffic). This platform
+        // never sets biz_opaque_callback_data on anything it sends (grep-verified), but
+        // the campaign tool tags its own sends with it — so a status-only webhook
+        // (no "messages") carrying that field is reliably an external campaign event,
+        // not an AI-agent conversational reply. Dropped here, before persistence, so it
+        // never clutters webhook_raw or creates a spurious Message/Conversation row via
+        // ConversationService.processStatusUpdate. Category (marketing/utility/etc.) was
+        // considered and rejected as the filter signal — this platform's own Template
+        // Studio lets agents legitimately send utility-category templates too.
+        if (campaignFilterEnabled && root != null && isExternalOriginStatusPayload(root)) {
+            log.debug("Dropping externally-originated status webhook (biz_opaque_callback_data present, no messages) for phone_number_id={}", phoneNumberId);
+            return ResponseEntity.ok("OK");
+        }
+
         if (agent == null) {
-            // No tenant to attribute this payload to — still persisted (V50 made
-            // account_id nullable for exactly this case), just never queued for
-            // processing (nothing downstream knows which account/agent to use).
-            // Always 200 — Meta retry-loops on errors.
-            log.warn("Webhook unattributable — no agent for phone_number_id={}. Persisted, not processed.", phoneNumberId);
-            webhookRawRepository.save(WebhookRaw.builder()
-                    .accountId(null)
-                    .agentId(null)
-                    .phoneNumberId(phoneNumberId)
-                    .payload(rawPayload)
-                    .signature(signatureHeader)
-                    .status(WebhookRaw.Status.FAILED)
-                    .errorMessage("No agent found for phone_number_id=" + phoneNumberId)
-                    .build());
+            // Dropped without persisting (founder decision 2026-09-03: "I want only
+            // AI/conversation related webhooks"). Meta allows one callback URL per app,
+            // so this endpoint receives every event on a shared WABA — other Karix
+            // products' numbers, template/account events, campaign traffic. None of it
+            // belongs to an agent on this platform and none of it can be processed.
+            //
+            // Measured before deciding: 4,882 of 5,434 rows (90%) were unattributed —
+            // 3,213 with no extractable phone_number_id and containing neither a
+            // "messages" nor a "statuses" node, 1,606 real messages for numbers that
+            // belong to no agent here, and 79 that merely predated their agent's
+            // creation. Those 4,882 were dumped and deleted; this stops them recurring.
+            //
+            // Trade-off accepted knowingly: webhooks arriving BEFORE a number is bound
+            // to an agent are now invisible, so "I created an agent and its first
+            // messages are missing" loses its paper trail. Kept behind a flag so it can
+            // be switched back on without a redeploy if that debugging need bites.
+            // Always 200 — Meta retry-loops on anything else.
+            if (persistUnattributed) {
+                log.warn("Webhook unattributable — no agent for phone_number_id={}. Persisted (flag on), not processed.", phoneNumberId);
+                webhookRawRepository.save(WebhookRaw.builder()
+                        .accountId(null)
+                        .agentId(null)
+                        .phoneNumberId(phoneNumberId)
+                        .payload(rawPayload)
+                        .signature(signatureHeader)
+                        .status(WebhookRaw.Status.FAILED)
+                        .errorMessage("No agent found for phone_number_id=" + phoneNumberId)
+                        .build());
+            } else {
+                log.debug("Dropping unattributable webhook — no agent for phone_number_id={}", phoneNumberId);
+            }
             return ResponseEntity.ok("OK");
         }
 
@@ -200,6 +245,43 @@ public class WebhookController {
             data[i / 2] = (byte) ((high << 4) + low);
         }
         return data;
+    }
+
+    /**
+     * True when this payload is a pure status update (no "messages" node — i.e. not a
+     * real customer message) AND at least one status entry carries a non-blank
+     * biz_opaque_callback_data — a field this platform never sets when sending, but
+     * which Karix's separate marketing-campaign product tags its own sends with on the
+     * same shared WABA/phone number.
+     */
+    private boolean isExternalOriginStatusPayload(JsonNode root) {
+        if (!root.has("entry") || !root.get("entry").isArray()) {
+            return false;
+        }
+        boolean sawTaggedStatus = false;
+        for (JsonNode entryNode : root.get("entry")) {
+            if (!entryNode.has("changes") || !entryNode.get("changes").isArray()) {
+                continue;
+            }
+            for (JsonNode change : entryNode.get("changes")) {
+                JsonNode value = change.get("value");
+                if (value == null) {
+                    continue;
+                }
+                if (value.has("messages") && value.get("messages").isArray() && value.get("messages").size() > 0) {
+                    return false;
+                }
+                if (value.has("statuses") && value.get("statuses").isArray()) {
+                    for (JsonNode status : value.get("statuses")) {
+                        JsonNode tag = status.get("biz_opaque_callback_data");
+                        if (tag != null && !tag.isNull() && !tag.asText().isBlank()) {
+                            sawTaggedStatus = true;
+                        }
+                    }
+                }
+            }
+        }
+        return sawTaggedStatus;
     }
 
     private String extractPhoneNumberId(JsonNode root) {

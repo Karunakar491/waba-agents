@@ -1,6 +1,7 @@
 # Iris: Platform Agent-Building Roadmap
 
-Status: Brainstormed and approved by founder 2026-09-03. Pending implementation plan.
+Status: Brainstormed and approved by founder 2026-09-03, all three phases scoped. Pending
+implementation plan.
 
 ## Phased roadmap
 
@@ -24,12 +25,12 @@ Three phases, in this order, each a hard prerequisite for the one after it:
    made during review.
 3. **Phase 2 — Edit an existing (already-deployed) agent.** Extending Iris to a new UI
    surface on `AgentDetailPage.tsx`, so an operator can ask Iris to change an agent that's
-   already live and talking to real customers — not just one still being built. Explicitly
-   NOT scoped in detail here; captured as a named follow-on with its own safety
-   considerations, to be brainstormed properly (its own clarifying-questions pass) once
-   Phase 1 has shipped and proven the tool-calling pattern works in the lower-stakes
-   pre-deploy context first. See "Phase 2" section below for what's already known and what
-   still needs deciding.
+   already live and talking to real customers — not just one still being built. Scoped
+   2026-09-03: reuses every Phase 1 tool unchanged, extends Phase 1's "Iris never touches
+   rollout state" rule with no exceptions (deploy/pause both stay human-only on every
+   agent), no new confirm-gating tier. One open, deliberately undecided question — whether
+   Iris should see agent performance data before proposing edits — left for the
+   implementation plan. See "Phase 2" section below.
 
 ## Problem
 
@@ -281,31 +282,50 @@ handling philosophy:
 
 ## Phase 2: Edit an existing (already-deployed) agent
 
-**Status: named, not brainstormed.** This section captures what's already known from the
-Phase 1 discussion; it is explicitly not a committed design and needs its own clarifying-
-questions pass (same rigor Phase 1 got) before implementation — most importantly because
-the safety boundary that made Phase 1 straightforward doesn't carry over automatically.
+**Status: scoped 2026-09-03, ready for planning alongside Phase 0/1.** Extends Iris to a
+new UI surface so an operator can ask Iris to change an agent that's already live and
+talking to real customers — not just one still being built in the wizard.
 
 **Why this isn't just "reuse the Phase 1 tools on a different page":**
 - **No UI surface exists yet.** Confirmed via `grep` — `IrisRail.tsx` is imported nowhere
-  except `CreateAgentPage.tsx`. Adding Iris to `AgentDetailPage.tsx` is new frontend work,
-  not a reuse of what Phase 1 builds.
-- **The safety boundary changes completely.** Phase 1's "Iris configures a draft, a human
-  clicks deploy" boundary works because nothing is live yet — a bad tool call before deploy
-  is cheap to fix, nobody's seen it. On an agent that's already deployed and answering real
-  customers, there is no equivalent "before it matters" step: editing a skill or the
-  business persona via chat has immediate, live consequences the moment it's confirmed.
-  Phase 1's confirm-gating (human approves before execution) still applies and still helps,
-  but it's no longer backstopped by "and even if this is wrong, nothing's live yet."
-- **New questions Phase 1 never had to answer:** should every Phase-1-style tool
-  (list/get/create/update/delete for skills/FAQ/websites/UI-skills) be available here
-  unchanged, or does "editing a live agent" need different tools (e.g. should deleting a
-  live, in-use skill require stronger confirmation than deleting one on a still-draft
-  agent)? Should Iris be able to see recent conversation/performance data before suggesting
-  an edit, so it's not proposing changes blind to how the agent is actually performing?
-  Does this reopen the "should Iris ever call deploy()/pause() itself" question Phase 1
-  closed — an already-live agent has a pause() available that a draft agent doesn't?
+  except `CreateAgentPage.tsx`. Adding an Iris chat surface to `AgentDetailPage.tsx` is new
+  frontend work.
+- **The safety context changes.** Phase 1's "Iris configures a draft, a human clicks
+  deploy" boundary works because nothing is live yet — a bad tool call before deploy is
+  cheap to fix, nobody's seen it. On an agent that's already deployed, editing a skill or
+  the business persona via chat has immediate, live consequences the moment it's confirmed.
+  Confirm-gating (human approves before execution) still applies and still helps, but it's
+  no longer backstopped by "nothing's live yet."
 
-**Recommended sequencing:** ship and prove Phase 1 first (lower-stakes, pre-deploy context),
-then brainstorm Phase 2 properly with real usage data from Phase 1 informing the questions
-above, rather than guessing at both simultaneously.
+**Safety boundary — resolved 2026-09-03:** Iris never calls `deploy()` or `pause()` on any
+agent, draft or live. This is not a new rule for Phase 2 — it's Phase 1's existing boundary
+("Iris never touches rollout state") carried over unchanged. Considered allowing Iris to
+`pause()` a live agent specifically (pausing is the reversible, risk-reducing direction, so
+there was a real argument for it) — founder decided against it: no exceptions, rollout
+state stays 100% human-only on every agent regardless of context. Simpler rule, nothing
+conditional to get wrong.
+
+**Tool reuse:** every Phase 1 tool (Basics, Business Persona, Knowledge Base, FAQ, Skills,
+UI Skills, Connectors) is reused unchanged here — same `AgentCreationToolProvider`
+registrations, same `featureKey="agent_creation"` (no new featureKey needed; it's the same
+tool set, just reachable from a second UI surface now). No tool needs a "live agent"
+variant — the underlying service methods (`AgentService.updateSkill()`, etc.) don't
+distinguish draft from live agents today, and there's no reason to invent that distinction
+here. Confirm-gating is identical to Phase 1 — no extra confirmation tier for live-agent
+edits; if real usage after shipping shows that's insufficient (e.g. deleting an in-use
+skill needs a stronger warning than deleting a draft one), that's a follow-up informed by
+actual behavior, not a guess made now.
+
+**Genuinely new capability, not just a Phase-1 tool relocated — optional, not required for
+v1 of this phase:** should Iris be able to see recent conversation volume / performance
+signals for the agent before proposing an edit, so it isn't suggesting changes blind to how
+the agent is actually doing? This would need a new read-only tool pulling from
+`agent-eval.md`/analytics data — explicitly excluded from Phase 1 as "post-creation
+management," but directly relevant once Iris is operating on a live agent. Worth a real
+product decision, not a default: ship Phase 2 without it first, or build the visibility
+tool alongside it? Flagging for the implementation plan to decide, not deciding here.
+
+**UI surface design** (exact placement/layout on `AgentDetailPage.tsx` — persistent side
+rail matching `IrisRail.tsx`'s pattern vs. a drawer/modal, default open or closed) is an
+implementation-plan-level decision, not resolved here — same treatment Phase 1 gave its own
+tool-schema details.

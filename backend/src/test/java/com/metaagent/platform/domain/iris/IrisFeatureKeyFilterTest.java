@@ -64,7 +64,8 @@ class IrisFeatureKeyFilterTest {
                 new com.metaagent.platform.domain.templatestudio.iris.IrisAttachmentRegistry(), wabaService,
                 Validation.buildDefaultValidatorFactory().getValidator());
         AgentCreationToolProvider agentCreationToolProvider = new AgentCreationToolProvider(
-                agentService, businessProfileRepository, skillLibraryService);
+                agentService, businessProfileRepository, skillLibraryService,
+                Validation.buildDefaultValidatorFactory().getValidator());
 
         service = new IrisConversationService(
                 sessionRepository, messageRepository, aiCredentialService,

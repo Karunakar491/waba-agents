@@ -43,6 +43,13 @@ public class Message {
     @Column(name = "meta_message_id", length = 128)
     private String metaMessageId;
 
+    /** The webhook_raw row that originated this message — null for historical rows
+     * predating this column, and never overwritten after creation (e.g. by an
+     * outbound-echo webhook enriching an existing outbound message's content). */
+    @Column(name = "webhook_raw_id")
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long webhookRawId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "content_type", nullable = false)
     private ContentType contentType;

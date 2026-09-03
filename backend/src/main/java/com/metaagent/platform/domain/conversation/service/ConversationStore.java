@@ -39,7 +39,8 @@ public class ConversationStore {
     @Transactional
     public Message saveInbound(Long accountId, Long conversationId, Long agentId,
                                String metaMessageId, String textBody,
-                               Message.ContentType contentType, String contentJson) {
+                               Message.ContentType contentType, String contentJson,
+                               Long webhookRawId) {
         // Update lastMessageAt in the same transaction — no separate round-trip
         conversationRepository.findById(conversationId).ifPresent(c -> {
             c.setLastMessageAt(LocalDateTime.now());
@@ -56,6 +57,7 @@ public class ConversationStore {
                         .content(textBody)
                         .contentJson(contentJson)
                         .status(Message.Status.received)
+                        .webhookRawId(webhookRawId)
                         .build()
         );
     }
@@ -66,7 +68,7 @@ public class ConversationStore {
      */
     @Transactional
     public Message saveOutbound(Long accountId, Long conversationId, Long agentId,
-                                String metaMessageId, String replyText) {
+                                String metaMessageId, String replyText, Long webhookRawId) {
         conversationRepository.findById(conversationId).ifPresent(c -> {
             c.setLastMessageAt(LocalDateTime.now());
             conversationRepository.save(c);
@@ -82,6 +84,7 @@ public class ConversationStore {
                         .content(replyText) // nullable — unknown when created from status webhook
                         .status(Message.Status.sent)
                         .sentAt(LocalDateTime.now())
+                        .webhookRawId(webhookRawId)
                         .build()
         );
     }
@@ -89,12 +92,14 @@ public class ConversationStore {
     /**
      * The "sent" status webhook and the message_echoes webhook both describe the same
      * outbound BizAI reply but can arrive in either order. If the status webhook already
-     * created the row (with null content), fill in the text now. If the echo arrives first,
-     * create the row here instead — same as saveOutbound's "sent" path.
+     * created the row (with null content), fill in the text now — its webhookRawId (set
+     * by whichever webhook created the row first) is never touched here. If the echo
+     * arrives first, create the row here instead — same as saveOutbound's "sent" path,
+     * originated by this echo webhook.
      */
     @Transactional
     public Message upsertOutboundEcho(Long accountId, Long agentId, Long conversationId,
-                                       String metaMessageId, String textBody) {
+                                       String metaMessageId, String textBody, Long webhookRawId) {
         return messageRepository.findByMetaMessageId(metaMessageId)
                 .map(message -> {
                     if (message.getContent() == null) {
@@ -103,7 +108,7 @@ public class ConversationStore {
                     }
                     return message;
                 })
-                .orElseGet(() -> saveOutbound(accountId, conversationId, agentId, metaMessageId, textBody));
+                .orElseGet(() -> saveOutbound(accountId, conversationId, agentId, metaMessageId, textBody, webhookRawId));
     }
 
     @Transactional

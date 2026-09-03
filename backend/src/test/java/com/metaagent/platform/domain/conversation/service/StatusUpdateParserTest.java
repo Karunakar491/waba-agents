@@ -71,6 +71,25 @@ class StatusUpdateParserTest {
     }
 
     // -------------------------------------------------------------------------
+    // standby-nested (BizAI-owned conversations) — found live 2026-08-14
+    // -------------------------------------------------------------------------
+
+    @Test
+    void should_parse_status_nested_under_standby() {
+        String standbyPayload = "{\"entry\":[{\"changes\":[{\"field\":\"standby\",\"value\":{\"standby\":{"
+                + "\"statuses\":[{\"id\":\"wamid.standby1\",\"status\":\"delivered\",\"recipient_id\":\"919348168186\"}]"
+                + "}}}]}]}";
+
+        Optional<StatusUpdate> result = parser.parse(standbyPayload);
+
+        assertThat(result).isPresent();
+        StatusUpdate update = result.get();
+        assertThat(update.metaMessageId()).isEqualTo("wamid.standby1");
+        assertThat(update.status()).isEqualTo("delivered");
+        assertThat(update.recipientPhone()).isEqualTo("919348168186");
+    }
+
+    // -------------------------------------------------------------------------
     // Missing or wrong structure
     // -------------------------------------------------------------------------
 

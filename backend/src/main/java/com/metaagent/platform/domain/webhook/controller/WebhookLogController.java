@@ -39,13 +39,14 @@ public class WebhookLogController {
     @GetMapping("/raw")
     public ApiResponse<List<WebhookRaw>> listRecent(
             @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) Long id,
             @RequestParam(required = false) String phoneNumberId,
             @RequestParam(required = false) Long agentId,
             @RequestParam(required = false) WebhookRaw.Status status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
-        var spec = WebhookRawFilter.toSpecification(accountId, new WebhookRawFilter(phoneNumberId, agentId, status, from, to));
+        var spec = WebhookRawFilter.toSpecification(accountId, new WebhookRawFilter(id, phoneNumberId, agentId, status, from, to));
         return ApiResponse.ok(webhookRawRepository.findAll(spec,
                 PageRequest.of(0, Math.min(limit, 300), Sort.by("receivedAt").descending())).getContent());
     }

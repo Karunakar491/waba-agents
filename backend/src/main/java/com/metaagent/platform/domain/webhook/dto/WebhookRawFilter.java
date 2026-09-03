@@ -9,14 +9,13 @@ import java.time.LocalDateTime;
  * Webhooks view filter bar (2026-08-13, founder: "log ALL webhooks... have a
  * filter for webhooks... phone number, agent id etc"). Every field optional.
  *
- * Scope note: includes the caller's own accountId rows AND every row with a
- * null accountId (unattributable payloads — unknown phone_number_id, or
- * failed signature verification, per V50/WebhookController). Those rows
- * belong to no tenant, so excluding them would just recreate the exact
- * "logged but nobody can ever see it" problem this filter exists to fix —
- * any authenticated operator can see them, same as a shared "System" bucket.
+ * Scope note (2026-08-14, founder correction): strictly the caller's own
+ * accountId. Unattributed rows (null accountId — unknown phone_number_id or
+ * failed signature verification) are never returned here; a phone number not
+ * linked to this account has no business showing up in this account's log.
  */
 public record WebhookRawFilter(
+        Long id,
         String phoneNumberId,
         Long agentId,
         WebhookRaw.Status status,
@@ -25,8 +24,14 @@ public record WebhookRawFilter(
 ) {
     public static Specification<WebhookRaw> toSpecification(Long accountId, WebhookRawFilter filter) {
         return (root, query, cb) -> {
-            var predicates = cb.or(cb.equal(root.get("accountId"), accountId), cb.isNull(root.get("accountId")));
+            var predicates = cb.equal(root.get("accountId"), accountId);
 
+            // Message-to-webhook deep link (Inbox thread "jump to webhook" icon) — id
+            // alone is sufficient, but still account-scoped above so a message can never
+            // leak another account's webhook row through this endpoint.
+            if (filter.id() != null) {
+                predicates = cb.and(predicates, cb.equal(root.get("id"), filter.id()));
+            }
             if (filter.phoneNumberId() != null && !filter.phoneNumberId().isBlank()) {
                 predicates = cb.and(predicates, cb.equal(root.get("phoneNumberId"), filter.phoneNumberId()));
             }

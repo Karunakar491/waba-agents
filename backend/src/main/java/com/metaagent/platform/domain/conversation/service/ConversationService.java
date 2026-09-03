@@ -79,11 +79,11 @@ public class ConversationService {
                 // Not an inbound message — check if it's a status update or BizAI's own echo
                 Optional<StatusUpdate> statusUpdate = statusUpdateParser.parse(raw.getPayload());
                 if (statusUpdate.isPresent()) {
-                    processStatusUpdate(statusUpdate.get(), accountId, agentId);
+                    processStatusUpdate(statusUpdate.get(), accountId, agentId, webhookRawId);
                 }
                 Optional<OutboundEcho> echo = outboundEchoParser.parse(raw.getPayload());
                 if (echo.isPresent()) {
-                    processOutboundEcho(echo.get(), accountId, agentId);
+                    processOutboundEcho(echo.get(), accountId, agentId, webhookRawId);
                 }
                 markProcessed(raw);
                 return;
@@ -94,7 +94,8 @@ public class ConversationService {
             Conversation conversation = conversationStore.findOrCreate(accountId, agentId, inbound.customerPhone());
             Message.ContentType contentType = resolveContentType(inbound.messageType());
             conversationStore.saveInbound(accountId, conversation.getId(), agentId,
-                    inbound.metaMessageId(), inbound.textBody(), contentType, inbound.contentJson());
+                    inbound.metaMessageId(), inbound.textBody(), contentType, inbound.contentJson(),
+                    webhookRawId);
 
             if (signal == HandoffSignal.NEEDS_HUMAN) {
                 conversationStore.markNeedsHuman(conversation.getId());
@@ -199,19 +200,23 @@ public class ConversationService {
         };
     }
 
-    private void processStatusUpdate(StatusUpdate su, Long accountId, Long agentId) {
+    private void processStatusUpdate(StatusUpdate su, Long accountId, Long agentId, Long webhookRawId) {
         Message.Status newStatus = resolveMessageStatus(su.status());
         if (newStatus == null) {
             return; // unknown status from Meta — logged inside resolveMessageStatus
         }
         if (newStatus == Message.Status.sent) {
+            if (su.recipientPhone() == null || su.recipientPhone().isBlank()) {
+                log.warn("Status webhook missing recipient_id, skipping: metaMessageId={}", su.metaMessageId());
+                return;
+            }
             // Decision D1: create outbound record on first 'sent' status receipt.
             // Meta sends the AI reply directly — we learn about it only via this status webhook.
             // recipientPhone is the customer — findOrCreate gets or creates the conversation.
             // Content is null: we have no access to the message text from a status event.
             Conversation conversation = conversationStore.findOrCreate(accountId, agentId, su.recipientPhone());
             conversationStore.saveOutbound(accountId, conversation.getId(), agentId,
-                    su.metaMessageId(), null);
+                    su.metaMessageId(), null, webhookRawId);
             log.info("Outbound record created: metaMessageId={} conversationId={}",
                     su.metaMessageId(), conversation.getId());
         } else {
@@ -220,13 +225,17 @@ public class ConversationService {
         }
     }
 
-    private void processOutboundEcho(OutboundEcho echo, Long accountId, Long agentId) {
+    private void processOutboundEcho(OutboundEcho echo, Long accountId, Long agentId, Long webhookRawId) {
         if (echo.textBody() == null) {
             return; // rich/template reply with no plain-text body — nothing to fill in
         }
+        if (echo.recipientPhone() == null || echo.recipientPhone().isBlank()) {
+            log.warn("Outbound echo missing recipient phone, skipping: metaMessageId={}", echo.metaMessageId());
+            return;
+        }
         Conversation conversation = conversationStore.findOrCreate(accountId, agentId, echo.recipientPhone());
         conversationStore.upsertOutboundEcho(accountId, agentId, conversation.getId(),
-                echo.metaMessageId(), echo.textBody());
+                echo.metaMessageId(), echo.textBody(), webhookRawId);
         log.info("Outbound echo applied: metaMessageId={} conversationId={}",
                 echo.metaMessageId(), conversation.getId());
     }

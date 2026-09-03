@@ -49,7 +49,7 @@ public class OutboundEchoParser {
             JsonNode messageNode = echoNode.path("message");
             JsonNode contentNode = messageNode.isMissingNode() ? echoNode : messageNode;
             // Echo is outbound — "to" is the customer, mirroring "from" on an inbound message.
-            String recipientPhone = contentNode.path("to").asText();
+            String recipientPhone = contentNode.path("to").asText(null);
             String type = contentNode.path("type").asText("unknown");
             String textBody = "text".equals(type) ? contentNode.path("text").path("body").asText(null) : null;
 

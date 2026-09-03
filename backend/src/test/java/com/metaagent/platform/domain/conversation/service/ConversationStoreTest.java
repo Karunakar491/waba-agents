@@ -88,7 +88,8 @@ class ConversationStoreTest extends IntegrationTestBase {
                 "wamid.inbound001",
                 "Hello from customer",
                 Message.ContentType.text,
-                null
+                null,
+                42L
         );
 
         assertThat(saved.getId()).isNotNull();
@@ -102,6 +103,7 @@ class ConversationStoreTest extends IntegrationTestBase {
         assertThat(saved.getConversationId()).isEqualTo(conversation.getId());
         assertThat(saved.getReceivedAt()).isNotNull();
         assertThat(saved.getSentAt()).isNull();
+        assertThat(saved.getWebhookRawId()).isEqualTo(42L);
 
         List<Message> all = messageRepository.findAllByConversationId(conversation.getId());
         assertThat(all).hasSize(1);
@@ -120,7 +122,8 @@ class ConversationStoreTest extends IntegrationTestBase {
                 conversation.getId(),
                 AGENT_ID,
                 "wamid.outbound001",
-                "Hello from agent"
+                "Hello from agent",
+                99L
         );
 
         assertThat(saved.getId()).isNotNull();
@@ -133,6 +136,7 @@ class ConversationStoreTest extends IntegrationTestBase {
         assertThat(saved.getAccountId()).isEqualTo(ACCOUNT_ID);
         assertThat(saved.getAgentId()).isEqualTo(AGENT_ID);
         assertThat(saved.getConversationId()).isEqualTo(conversation.getId());
+        assertThat(saved.getWebhookRawId()).isEqualTo(99L);
 
         List<Message> all = messageRepository.findAllByConversationId(conversation.getId());
         assertThat(all).hasSize(1);

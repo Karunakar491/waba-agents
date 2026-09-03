@@ -467,6 +467,34 @@ class AgentDeployServiceTest extends IntegrationTestBase {
         verifyNoInteractions(threadControlClient);
     }
 
+    /**
+     * A draft has never answered a customer, so the "already stopped
+     * responding" premise behind the pause requirement doesn't apply to it.
+     * Missing this exemption meant deleting an abandoned draft removed our own
+     * row but left its agent configuration behind on Meta: the delete returned
+     * 200 with the "Agent configuration" step FAILED and the pause message
+     * attached (seen in production 2026-09-03).
+     */
+    @Test
+    void should_remove_a_draft_from_meta_without_requiring_a_pause_first() {
+        Agent saved = agentRepository.save(draftAgent("909090901"));
+
+        agentDeployService.deleteFromMeta(saved.getId());
+
+        verify(metaApiClient).delete("/909090901/delete_agent");
+    }
+
+    @Test
+    void should_still_refuse_to_remove_an_active_agent_from_meta() {
+        Agent saved = agentRepository.save(activeAgent("909090902"));
+
+        assertThatThrownBy(() -> agentDeployService.deleteFromMeta(saved.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Pause the agent");
+
+        verifyNoInteractions(metaApiClient);
+    }
+
     @Test
     void should_throw_not_found_when_agent_belongs_to_different_account() {
         // Agent belongs to accountId (the main test account)

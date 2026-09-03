@@ -607,7 +607,14 @@ public class AgentDeployService {
         synchronized (lockFor(agentId)) {
             Agent agent = loadOwnedAgent(agentId);
 
-            if (agent.getStatus() != Agent.Status.paused) {
+            // A draft is exempt for the same reason as in AgentTeardownService:
+            // it has never answered a customer, so "already stopped responding"
+            // is trivially true. Missing it here meant a deleted draft still
+            // left its agent configuration behind on Meta — the local delete
+            // succeeded and this step came back FAILED with the pause message
+            // (observed in production 2026-09-03, immediately after fixing the
+            // first guard).
+            if (agent.getStatus() != Agent.Status.paused && agent.getStatus() != Agent.Status.draft) {
                 throw new BusinessException("Pause the agent before removing it from Meta.");
             }
             if (agent.getPhoneNumberId() == null) {

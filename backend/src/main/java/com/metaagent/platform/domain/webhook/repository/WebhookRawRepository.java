@@ -30,23 +30,11 @@ public interface WebhookRawRepository extends JpaRepository<WebhookRaw, Long>, J
     int claimForProcessing(@Param("id") Long id);
 
     /**
-     * Retention cleanup — account-attributed rows, PROCESSED/FAILED, older than the
-     * given cutoff (30 days). Keyed on processedAt since these always pass through
-     * markProcessed/markFailed, which set it.
+     * Retention cleanup — delete PROCESSED/FAILED rows older than the given cutoff.
      */
     @Modifying
-    @Query("DELETE FROM WebhookRaw w WHERE w.accountId IS NOT NULL AND w.status IN ('PROCESSED', 'FAILED') AND w.processedAt < :cutoff")
-    int deleteAttributedBefore(@Param("cutoff") LocalDateTime cutoff);
-
-    /**
-     * Retention cleanup — unattributed rows (no matching agent, or signature
-     * verification failure), older than the given cutoff (48 hours). Keyed on
-     * receivedAt, not processedAt: these never go through the processing pipeline,
-     * so processedAt is always null for them.
-     */
-    @Modifying
-    @Query("DELETE FROM WebhookRaw w WHERE w.accountId IS NULL AND w.receivedAt < :cutoff")
-    int deleteUnattributedBefore(@Param("cutoff") LocalDateTime cutoff);
+    @Query("DELETE FROM WebhookRaw w WHERE w.status IN ('PROCESSED', 'FAILED') AND w.processedAt < :cutoff")
+    int deleteProcessedBefore(@Param("cutoff") LocalDateTime cutoff);
 
     /** Bulk delete for agent deletion cascade — agentId is nullable on this table but always set once an agent is bound. */
     @Modifying

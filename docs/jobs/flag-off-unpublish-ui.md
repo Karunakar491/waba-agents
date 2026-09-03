@@ -13,15 +13,32 @@ for the first time since 2026-08-25.
 
 ## Proof
 
-Live bundle string counts on `app.karix.online`, before and after:
+**The proof method written here first was wrong** and is kept for the record. I
+planned to show `grep -oh 'Unpublish' assets/*.js | wc -l` → 0 after the
+deploy. It returns **12**: the flag is a runtime guard, so the button markup and
+label strings still ship in the bundle — they are simply never rendered. A
+string count cannot distinguish "absent" from "present but dark".
 
-- Before: `grep -oh 'Unpublish' /var/www/metaagent/assets/*.js | wc -l` → **0**
-  (the hand-applied strip)
-- After: the same command must still return **0**, now because the flag is off
-  rather than because the code is missing.
+The real proof is the compiled constant, read out of the **bytes actually being
+served** from `app.karix.online`:
 
-Recorded in `docs/e2e-test-runs/2026-09-03-master-deploy.md` with md5 of the
-served asset against the local build.
+```
+function Am(e){return e===`true`}
+var jm=Am(void 0);
+...
+children:[jm&&(0,Y.jsx)(`button`,{onClick:()=>y(e),title:`Unpublish — pull it off Meta …
+```
+
+`jm = (undefined === 'true')` → `false`, and every Unpublish button is guarded
+by `jm &&`. Definitive, not inferred.
+
+Served-asset md5 `c6bafc7c62a8c34fc7db51d1ef04fe3e` — exact match to the local
+build. Full transcript in
+[docs/e2e-test-runs/2026-09-03-master-deploy.md](../e2e-test-runs/2026-09-03-master-deploy.md).
+
+Still not proven: nobody has loaded the page in a browser. Byte-level proof
+shows the guard is false; it does not show the app renders correctly. That gap
+closes only with Playwright or a human look.
 
 ## Notes
 

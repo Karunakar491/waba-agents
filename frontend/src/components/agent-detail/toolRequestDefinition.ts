@@ -146,6 +146,89 @@ export function parseRequestDefinition(def: RequestDefinition): ToolFormState {
   }
 }
 
+/** One line per param showing what actually gets sent — value literal if fixed, macro name if
+ * bound to one, or "<agent fills in>" if the agent decides at conversation time. Lets an operator
+ * see the real request shape without reading JSON. */
+function previewValue(row: ParamRow): string {
+  if (row.fill === 'fixed') return row.fixedValue.trim() || '(empty)'
+  if (row.fill === 'agent') return '<agent fills in>'
+  return `<${row.fill}>`
+}
+
+export function buildPreviewUrl(method: string, path: string, pathParams: ParamRow[], queryParams: ParamRow[]): string {
+  let resolvedPath = path.trim()
+  for (const row of pathParams) {
+    resolvedPath = resolvedPath.replace(`{${row.key}}`, previewValue(row))
+  }
+  const query = queryParams
+    .filter((row) => row.key.trim())
+    .map((row) => `${row.key.trim()}=${previewValue(row)}`)
+    .join('&')
+  return `${method} ${resolvedPath}${query ? `?${query}` : ''}`
+}
+
+/**
+ * Parses a flat example JSON object into body field rows, inferring type from each value's JS
+ * type. Nested objects/arrays are rejected — the whole body-field model (and Meta's own schema:
+ * body.params is a flat map, not a nested schema) is flat-fields-only, so a nested value here
+ * would silently need to collapse to something wrong. Existing rows are reused by key so
+ * descriptions/required flags typed in before aren't lost when the JSON is tweaked.
+ */
+export class InvalidBodyJsonError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InvalidBodyJsonError'
+  }
+}
+
+function inferParamType(value: unknown): ParamType {
+  if (typeof value === 'boolean') return 'boolean'
+  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number'
+  return 'string'
+}
+
+export function parseBodyJson(jsonText: string, existingRows: BodyFieldRow[]): BodyFieldRow[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonText)
+  } catch {
+    throw new InvalidBodyJsonError('Not valid JSON — check for a missing quote, brace, or comma.')
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new InvalidBodyJsonError('The body must be a flat JSON object, e.g. {"query": "TMT Bars"}.')
+  }
+  const existingByKey = new Map(existingRows.map((r) => [r.key, r]))
+  return Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
+    if (typeof value === 'object' && value !== null) {
+      throw new InvalidBodyJsonError(`"${key}" is a nested object or list — flat fields only. For a nested shape, contact engineering.`)
+    }
+    const existing = existingByKey.get(key)
+    return {
+      key,
+      type: inferParamType(value),
+      description: existing?.description ?? '',
+      required: existing?.required ?? false,
+    }
+  })
+}
+
+/** A non-empty example value per field, not a blank/zero placeholder — the operator should see
+ * something submittable, not "{}" or {"query": ""} with no hint of what belongs there. */
+function exampleValueFor(row: BodyFieldRow): unknown {
+  if (row.type === 'boolean') return true
+  if (row.type === 'integer') return 1
+  if (row.type === 'number') return 1.5
+  return 'TMT Bars'
+}
+
+export function bodyRowsToJson(rows: BodyFieldRow[]): string {
+  const example: Record<string, unknown> = {}
+  for (const row of rows) {
+    example[row.key] = exampleValueFor(row)
+  }
+  return JSON.stringify(example, null, 2)
+}
+
 export function extractPathParamNames(path: string): string[] {
   const matches = path.matchAll(/\{([^}]+)\}/g)
   // Deduped: a duplicate placeholder like /orders/{id}/items/{id} must yield one row, not

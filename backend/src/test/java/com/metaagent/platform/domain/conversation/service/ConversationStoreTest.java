@@ -21,11 +21,30 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ConversationStoreTest extends IntegrationTestBase {
 
-    private static final Long ACCOUNT_ID = 1001L;
-    private static final Long AGENT_ID   = 2001L;
+    /**
+     * Seeded too, for the same reason as the agent: `agent.account_id` has its own
+     * FK to `business_account` (fk_agent_account), so a hardcoded 1001L only
+     * resolved while another class had left a matching row in the reused container.
+     */
+    private Long accountId;
+
+    /**
+     * Seeded per test rather than hardcoded. `conversations.agent_id` has a real
+     * FK to `agent` (fk_conv_agent, since V2), so a fixed literal only worked
+     * while some other test class happened to run first and leave a matching row
+     * behind in the reused Testcontainers MySQL — order-dependent, and it fails
+     * the moment this class runs alone.
+     */
+    private Long agentId;
 
     @Autowired
     private ConversationStore conversationStore;
+
+    @Autowired
+    private com.metaagent.platform.domain.agent.repository.AgentRepository agentRepository;
+
+    @Autowired
+    private com.metaagent.platform.domain.user.repository.BusinessAccountRepository businessAccountRepository;
 
     @Autowired
     private ConversationRepository conversationRepository;
@@ -37,10 +56,37 @@ class ConversationStoreTest extends IntegrationTestBase {
     // DB cleanup — FK child → parent
     // -------------------------------------------------------------------------
 
+    @org.junit.jupiter.api.BeforeEach
+    void seedAgent() {
+        accountId = businessAccountRepository.save(
+                com.metaagent.platform.domain.user.entity.BusinessAccount.builder()
+                        .name("Conversation Store Test Co")
+                        .email("conv-store-" + java.util.UUID.randomUUID() + "@example.com")
+                        .passwordHash("hashed")
+                        .build()).getId();
+
+        agentId = agentRepository.save(com.metaagent.platform.domain.agent.entity.Agent.builder()
+                .accountId(accountId)
+                .phoneNumberId("conv-store-test")
+                .displayName("Conversation Store Test Agent")
+                .enabled(false)
+                .status(com.metaagent.platform.domain.agent.entity.Agent.Status.draft)
+                .build()).getId();
+    }
+
     @AfterEach
     void cleanUp() {
         messageRepository.deleteAll();
         conversationRepository.deleteAll();
+        // Only the agent this class seeded. A blanket deleteAll() here would strip
+        // rows other test classes currently depend on finding in the reused
+        // container — the same order-coupling this fix exists to stop relying on.
+        if (agentId != null) {
+            agentRepository.deleteById(agentId);
+        }
+        if (accountId != null) {
+            businessAccountRepository.deleteById(accountId);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -51,12 +97,12 @@ class ConversationStoreTest extends IntegrationTestBase {
     void should_create_conversation_when_none_exists() {
         String customerPhone = "919876543210";
 
-        Conversation result = conversationStore.findOrCreate(ACCOUNT_ID, AGENT_ID, customerPhone);
+        Conversation result = conversationStore.findOrCreate(accountId, agentId, customerPhone);
 
         assertThat(result.getId()).isNotNull();
         assertThat(result.getExternalId()).isEqualTo(customerPhone);
-        assertThat(result.getAgentId()).isEqualTo(AGENT_ID);
-        assertThat(result.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(result.getAgentId()).isEqualTo(agentId);
+        assertThat(result.getAccountId()).isEqualTo(accountId);
         assertThat(result.getChannel()).isEqualTo(Conversation.Channel.whatsapp);
         assertThat(result.getStatus()).isEqualTo(Conversation.Status.open);
         assertThat(conversationRepository.findAll()).hasSize(1);
@@ -66,8 +112,8 @@ class ConversationStoreTest extends IntegrationTestBase {
     void should_return_existing_conversation_when_already_exists() {
         String customerPhone = "919876543210";
 
-        Conversation first  = conversationStore.findOrCreate(ACCOUNT_ID, AGENT_ID, customerPhone);
-        Conversation second = conversationStore.findOrCreate(ACCOUNT_ID, AGENT_ID, customerPhone);
+        Conversation first  = conversationStore.findOrCreate(accountId, agentId, customerPhone);
+        Conversation second = conversationStore.findOrCreate(accountId, agentId, customerPhone);
 
         assertThat(second.getId()).isEqualTo(first.getId());
         assertThat(conversationRepository.findAll()).hasSize(1);
@@ -79,12 +125,12 @@ class ConversationStoreTest extends IntegrationTestBase {
 
     @Test
     void should_save_inbound_message_with_correct_fields() {
-        Conversation conversation = conversationStore.findOrCreate(ACCOUNT_ID, AGENT_ID, "919876543210");
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, "919876543210");
 
         Message saved = conversationStore.saveInbound(
-                ACCOUNT_ID,
+                accountId,
                 conversation.getId(),
-                AGENT_ID,
+                agentId,
                 "wamid.inbound001",
                 "Hello from customer",
                 Message.ContentType.text,
@@ -98,8 +144,8 @@ class ConversationStoreTest extends IntegrationTestBase {
         assertThat(saved.getMetaMessageId()).isEqualTo("wamid.inbound001");
         assertThat(saved.getStatus()).isEqualTo(Message.Status.received);
         assertThat(saved.getContentType()).isEqualTo(Message.ContentType.text);
-        assertThat(saved.getAccountId()).isEqualTo(ACCOUNT_ID);
-        assertThat(saved.getAgentId()).isEqualTo(AGENT_ID);
+        assertThat(saved.getAccountId()).isEqualTo(accountId);
+        assertThat(saved.getAgentId()).isEqualTo(agentId);
         assertThat(saved.getConversationId()).isEqualTo(conversation.getId());
         assertThat(saved.getReceivedAt()).isNotNull();
         assertThat(saved.getSentAt()).isNull();
@@ -115,12 +161,12 @@ class ConversationStoreTest extends IntegrationTestBase {
 
     @Test
     void should_save_outbound_message_with_sent_status_and_sentAt() {
-        Conversation conversation = conversationStore.findOrCreate(ACCOUNT_ID, AGENT_ID, "919876543210");
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, "919876543210");
 
         Message saved = conversationStore.saveOutbound(
-                ACCOUNT_ID,
+                accountId,
                 conversation.getId(),
-                AGENT_ID,
+                agentId,
                 "wamid.outbound001",
                 "Hello from agent",
                 99L
@@ -133,8 +179,8 @@ class ConversationStoreTest extends IntegrationTestBase {
         assertThat(saved.getStatus()).isEqualTo(Message.Status.sent);
         assertThat(saved.getContentType()).isEqualTo(Message.ContentType.text);
         assertThat(saved.getSentAt()).isNotNull();
-        assertThat(saved.getAccountId()).isEqualTo(ACCOUNT_ID);
-        assertThat(saved.getAgentId()).isEqualTo(AGENT_ID);
+        assertThat(saved.getAccountId()).isEqualTo(accountId);
+        assertThat(saved.getAgentId()).isEqualTo(agentId);
         assertThat(saved.getConversationId()).isEqualTo(conversation.getId());
         assertThat(saved.getWebhookRawId()).isEqualTo(99L);
 

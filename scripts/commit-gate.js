@@ -18,7 +18,20 @@ const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
-const REPO = process.cwd()
+// Resolve the repo root, never process.cwd(): the hook inherits whatever
+// directory the shell happens to be sitting in, so a prior `cd backend` made
+// the gate look for .jobs/current in the wrong place and report "no active
+// job" for a job that existed.
+function repoRoot() {
+  if (process.env.CLAUDE_PROJECT_DIR) return process.env.CLAUDE_PROJECT_DIR
+  try {
+    return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim()
+  } catch {
+    return process.cwd()
+  }
+}
+
+const REPO = repoRoot()
 const DIFF_CAP = 400
 
 function deny(reason) {

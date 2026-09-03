@@ -155,6 +155,11 @@ public class TemplateStudioToolProvider implements IrisToolProvider {
     );
 
     @Override
+    public String featureKey() {
+        return "template_studio";
+    }
+
+    @Override
     public List<AiToolSpec> tools() {
         return TOOLS;
     }

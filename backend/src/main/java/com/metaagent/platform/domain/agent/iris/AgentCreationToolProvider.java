@@ -54,6 +54,11 @@ public class AgentCreationToolProvider implements IrisToolProvider {
     );
 
     @Override
+    public String featureKey() {
+        return "agent_creation";
+    }
+
+    @Override
     public List<AiToolSpec> tools() {
         return TOOLS;
     }

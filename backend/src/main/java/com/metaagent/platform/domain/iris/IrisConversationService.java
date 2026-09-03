@@ -15,8 +15,9 @@ import java.util.stream.Collectors;
 
 /**
  * Iris's generic tool-calling engine. Tools/system-prompt-fragments/
- * execution are supplied by every registered {@link IrisToolProvider} bean
- * (today: only {@link com.metaagent.platform.domain.templatestudio.iris.TemplateStudioToolProvider})
+ * execution are supplied by registered {@link IrisToolProvider} beans
+ * filtered to the session's featureKey
+ * (Template Studio and Agent creation each have their own provider)
  * — this class owns
  * session/message persistence, the model round-trip, and the confirm-
  * before-submit mechanism, none of which are feature-specific.
@@ -175,8 +176,9 @@ public class IrisConversationService {
                 .map(m -> new AiMessage(m.getRole() == IrisMessage.Role.USER ? AiMessage.Role.USER : AiMessage.Role.ASSISTANT, m.getContent()))
                 .toList();
 
-        List<AiToolSpec> tools = toolProviders.stream().flatMap(p -> p.tools().stream()).toList();
-        String fragments = toolProviders.stream().map(p -> p.systemPromptFragment(session.getAccountId())).collect(Collectors.joining("\n\n"));
+        List<IrisToolProvider> providers = providersFor(session);
+        List<AiToolSpec> tools = providers.stream().flatMap(p -> p.tools().stream()).toList();
+        String fragments = providers.stream().map(p -> p.systemPromptFragment(session.getAccountId())).collect(Collectors.joining("\n\n"));
         String systemPrompt = SYSTEM_PROMPT_BASE.formatted(fragments);
 
         AiTurnResult result = adapter.converse(cred.apiKey(), cred.model(), systemPrompt, history, tools);
@@ -199,8 +201,8 @@ public class IrisConversationService {
         requireArgsPresent(tool, result.toolArguments());
 
         if (!tool.requiresConfirmation()) {
-            Map<String, Object> toolResult = executeTool(tool.name(), result.toolArguments(), session.getAccountId());
-            String summary = summarizeToolResult(tool.name(), toolResult);
+            Map<String, Object> toolResult = executeTool(session, tool.name(), result.toolArguments(), session.getAccountId());
+            String summary = summarizeToolResult(session, tool.name(), toolResult);
             messageRepository.save(IrisMessage.builder().sessionId(sessionId).role(IrisMessage.Role.TOOL)
                     .content(summary).toolName(tool.name()).toolArgsJson(writeJson(result.toolArguments())).build());
             log.info("sendMessage: sessionId={} tool={} executed inline, resultKeys={}", sessionId, tool.name(),
@@ -227,7 +229,7 @@ public class IrisConversationService {
         Map<String, Object> args = readJson(session.getPendingToolArgsJson());
         log.info("confirmPendingAction: sessionId={} tool={}", sessionId, toolName);
 
-        Map<String, Object> result = executeTool(toolName, args, session.getAccountId());
+        Map<String, Object> result = executeTool(session, toolName, args, session.getAccountId());
         log.info("confirmPendingAction: sessionId={} tool={} executed, resultKeys={}", sessionId, toolName,
                 result != null ? result.keySet() : null);
 
@@ -307,18 +309,29 @@ public class IrisConversationService {
         }
     }
 
-    private Map<String, Object> executeTool(String toolName, Map<String, Object> args, Long accountId) {
-        return ownerOf(toolName).execute(toolName, args, accountId);
+    private Map<String, Object> executeTool(IrisSession session, String toolName, Map<String, Object> args, Long accountId) {
+        return ownerOf(session, toolName).execute(toolName, args, accountId);
     }
 
     /** Delegates to whichever provider declared the tool — never a raw JSON
      * dump of the result (2026-08-19 fix; see IrisToolProvider.summarizeResult). */
-    private String summarizeToolResult(String toolName, Map<String, Object> result) {
-        return ownerOf(toolName).summarizeResult(toolName, result);
+    private String summarizeToolResult(IrisSession session, String toolName, Map<String, Object> result) {
+        return ownerOf(session, toolName).summarizeResult(toolName, result);
     }
 
-    private IrisToolProvider ownerOf(String toolName) {
-        return toolProviders.stream()
+    private List<IrisToolProvider> providersFor(IrisSession session) {
+        String key = session.getFeatureKey() == null || session.getFeatureKey().isBlank()
+                ? DEFAULT_FEATURE_KEY
+                : session.getFeatureKey();
+        List<IrisToolProvider> providers = toolProviders.stream().filter(p -> key.equals(p.featureKey())).toList();
+        if (providers.isEmpty()) {
+            throw new BusinessException("Iris is not configured for this chat.");
+        }
+        return providers;
+    }
+
+    private IrisToolProvider ownerOf(IrisSession session, String toolName) {
+        return providersFor(session).stream()
                 .filter(p -> p.tools().stream().anyMatch(t -> t.name().equals(toolName)))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("Unknown tool: " + toolName));

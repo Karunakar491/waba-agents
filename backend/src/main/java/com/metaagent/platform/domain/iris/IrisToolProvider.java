@@ -6,9 +6,10 @@ import java.util.Map;
 /**
  * One feature's contribution to Iris's tool-calling loop — its tools, the
  * system-prompt fragment describing them, and how to actually execute one.
- * {@link IrisConversationService} asks every registered provider for its
- * tools/fragment and combines them, so adding a second Iris use case (e.g.
- * Business Agent creation) never means touching the generic engine.
+ * {@link IrisConversationService} filters registered providers by
+ * {@link #featureKey()} against the session's featureKey, then combines
+ * only that product's tools/fragment — adding a second Iris use case
+ * (e.g. Business Agent creation) never means mixing tools across products.
  *
  * Extracted 2026-08-12 (see wiki/decisions/2026-08-12-iris-generalization-
  * plan.md) — {@link com.metaagent.platform.domain.templatestudio.iris.TemplateStudioToolProvider}
@@ -17,6 +18,9 @@ import java.util.Map;
  * provider's args mean (wabaId, agentId, or anything else).
  */
 public interface IrisToolProvider {
+
+    /** Session featureKey this provider serves. Must match IrisSession.featureKey values. */
+    String featureKey();
 
     /** Combined tools from every provider must have unique names across the whole set. */
     List<AiToolSpec> tools();

@@ -1,8 +1,10 @@
 package com.metaagent.platform.domain.agent.iris;
 
 import com.metaagent.platform.common.exception.BusinessException;
+import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
 import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.entity.AgentFaq;
 import com.metaagent.platform.domain.agent.entity.AgentSkill;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.persona.entity.BusinessProfile;
@@ -81,6 +83,43 @@ public class AgentCreationToolProvider implements IrisToolProvider {
                             "agentId", Map.of("type", "string"),
                             "skillId", Map.of("type", "string")),
                             "required", List.of("agentId", "skillId")),
+                    true),
+            new AiToolSpec("create_faq",
+                    "Add an FAQ to one Business Agent. Writes to Meta when a phone is bound. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "question", Map.of("type", "string", "description", "Max 512 characters."),
+                            "answer", Map.of("type", "string")),
+                            "required", List.of("agentId", "question", "answer")),
+                    true),
+            new AiToolSpec("list_faqs",
+                    "List FAQs already saved on one Business Agent.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string")),
+                            "required", List.of("agentId")),
+                    false),
+            new AiToolSpec("get_faq",
+                    "Get one FAQ by id.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "faqId", Map.of("type", "string")),
+                            "required", List.of("agentId", "faqId")),
+                    false),
+            new AiToolSpec("update_faq",
+                    "Replace an FAQ's question and answer. Writes to Meta when a phone is bound. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "faqId", Map.of("type", "string"),
+                            "question", Map.of("type", "string", "description", "Max 512 characters."),
+                            "answer", Map.of("type", "string")),
+                            "required", List.of("agentId", "faqId", "question", "answer")),
+                    true),
+            new AiToolSpec("delete_faq",
+                    "Delete an FAQ. Writes to Meta when a phone is bound. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "faqId", Map.of("type", "string")),
+                            "required", List.of("agentId", "faqId")),
                     true)
     );
 
@@ -146,6 +185,11 @@ public class AgentCreationToolProvider implements IrisToolProvider {
             case "get_skill" -> getOnAgentSkill(parseAgentId(args), parseSkillId(args));
             case "update_skill" -> updateOnAgentSkill(parseAgentId(args), parseSkillId(args), args);
             case "delete_skill" -> deleteOnAgentSkill(parseAgentId(args), parseSkillId(args));
+            case "create_faq" -> createFaq(parseAgentId(args), args);
+            case "list_faqs" -> listFaqs(parseAgentId(args));
+            case "get_faq" -> getFaq(parseAgentId(args), parseId(args, "faqId"));
+            case "update_faq" -> updateFaq(parseAgentId(args), parseId(args, "faqId"), args);
+            case "delete_faq" -> deleteFaq(parseAgentId(args), parseId(args, "faqId"));
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };
     }
@@ -155,6 +199,10 @@ public class AgentCreationToolProvider implements IrisToolProvider {
         if ("list_skills".equals(toolName)) {
             int n = result.get("count") instanceof Number num ? num.intValue() : 0;
             return n == 0 ? "No skills on this agent yet." : "Found " + n + " skills.";
+        }
+        if ("list_faqs".equals(toolName)) {
+            int n = result.get("count") instanceof Number num ? num.intValue() : 0;
+            return n == 0 ? "No FAQs on this agent yet." : "Found " + n + " FAQs.";
         }
         if ("get_skill".equals(toolName)) {
             Object title = result.get("title");
@@ -215,7 +263,54 @@ public class AgentCreationToolProvider implements IrisToolProvider {
     }
 
     private static Long parseSkillId(Map<String, Object> args) {
-        return Long.valueOf(String.valueOf(args.get("skillId")));
+        return parseId(args, "skillId");
+    }
+
+    private static Long parseId(Map<String, Object> args, String key) {
+        return Long.valueOf(String.valueOf(args.get(key)));
+    }
+
+    private Map<String, Object> createFaq(Long agentId, Map<String, Object> args) {
+        agentService.getAgent(agentId);
+        FaqRequest request = faqRequest(args);
+        validateOrThrow(request);
+        return toFaqView(agentService.addFaq(agentId, request));
+    }
+
+    private Map<String, Object> listFaqs(Long agentId) {
+        agentService.getAgent(agentId);
+        List<Map<String, Object>> faqs = agentService.getFaqs(agentId).stream().map(this::toFaqView).toList();
+        return Map.of("faqs", faqs, "count", faqs.size());
+    }
+
+    private Map<String, Object> getFaq(Long agentId, Long faqId) {
+        agentService.getAgent(agentId);
+        return toFaqView(agentService.getFaq(agentId, faqId));
+    }
+
+    private Map<String, Object> updateFaq(Long agentId, Long faqId, Map<String, Object> args) {
+        agentService.getAgent(agentId);
+        FaqRequest request = faqRequest(args);
+        validateOrThrow(request);
+        return toFaqView(agentService.updateFaq(agentId, faqId, request));
+    }
+
+    private Map<String, Object> deleteFaq(Long agentId, Long faqId) {
+        agentService.getAgent(agentId);
+        agentService.deleteFaq(agentId, faqId);
+        return Map.of("deleted", true, "faqId", String.valueOf(faqId));
+    }
+
+    private static FaqRequest faqRequest(Map<String, Object> args) {
+        return new FaqRequest(String.valueOf(args.get("question")), String.valueOf(args.get("answer")));
+    }
+
+    private Map<String, Object> toFaqView(AgentFaq faq) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", String.valueOf(faq.getId()));
+        view.put("question", faq.getQuestion());
+        view.put("answer", faq.getAnswer());
+        return view;
     }
 
     private Map<String, Object> toSkillView(AgentSkill skill) {

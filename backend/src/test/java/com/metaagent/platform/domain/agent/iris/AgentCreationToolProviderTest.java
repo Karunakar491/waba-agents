@@ -1,8 +1,10 @@
 package com.metaagent.platform.domain.agent.iris;
 
 import com.metaagent.platform.common.exception.BusinessException;
+import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
 import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.entity.AgentFaq;
 import com.metaagent.platform.domain.agent.entity.AgentSkill;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.iris.AiToolSpec;
@@ -48,14 +50,20 @@ class AgentCreationToolProviderTest {
     void tools_includesCreateSkillAndOnAgentSkillCrudWithCorrectConfirmation() {
         List<AiToolSpec> tools = provider.tools();
 
-        assertThat(tools).hasSize(5);
         assertThat(tools).extracting(AiToolSpec::name)
-                .containsExactly("create_skill", "list_skills", "get_skill", "update_skill", "delete_skill");
+                .contains(
+                        "create_skill", "list_skills", "get_skill", "update_skill", "delete_skill",
+                        "create_faq", "list_faqs", "get_faq", "update_faq", "delete_faq");
         assertThat(named(tools, "create_skill").requiresConfirmation()).isTrue();
         assertThat(named(tools, "list_skills").requiresConfirmation()).isFalse();
         assertThat(named(tools, "get_skill").requiresConfirmation()).isFalse();
         assertThat(named(tools, "update_skill").requiresConfirmation()).isTrue();
         assertThat(named(tools, "delete_skill").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "create_faq").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "list_faqs").requiresConfirmation()).isFalse();
+        assertThat(named(tools, "get_faq").requiresConfirmation()).isFalse();
+        assertThat(named(tools, "update_faq").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "delete_faq").requiresConfirmation()).isTrue();
         assertThat(named(tools, "create_skill").description()).containsIgnoringCase("library");
     }
 
@@ -203,6 +211,60 @@ class AgentCreationToolProviderTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("WABA")
                 .hasMessageContaining("connect");
+    }
+
+    @Test
+    void execute_createFaq_validatesAndCallsAddFaq() {
+        Long agentId = 42L;
+        when(agentService.getAgent(agentId)).thenReturn(Agent.builder().id(agentId).build());
+        AgentFaq saved = AgentFaq.builder().id(8L).agentId(agentId).question("Hours?").answer("9-5").build();
+        when(agentService.addFaq(eq(agentId), any())).thenReturn(saved);
+
+        Map<String, Object> result = provider.execute("create_faq", Map.of(
+                "agentId", "42",
+                "question", "Hours?",
+                "answer", "9-5"
+        ), 1L);
+
+        InOrder order = inOrder(agentService);
+        order.verify(agentService).getAgent(agentId);
+        ArgumentCaptor<FaqRequest> captor = ArgumentCaptor.forClass(FaqRequest.class);
+        order.verify(agentService).addFaq(eq(agentId), captor.capture());
+        assertThat(captor.getValue().question()).isEqualTo("Hours?");
+        assertThat(captor.getValue().answer()).isEqualTo("9-5");
+        assertThat(result.get("id")).isEqualTo("8");
+    }
+
+    @Test
+    void execute_listFaqs_summarizes() {
+        Long agentId = 42L;
+        when(agentService.getAgent(agentId)).thenReturn(Agent.builder().id(agentId).build());
+        when(agentService.getFaqs(agentId)).thenReturn(List.of(
+                AgentFaq.builder().id(1L).question("Q").answer("A").build()));
+
+        Map<String, Object> result = provider.execute("list_faqs", Map.of("agentId", "42"), 1L);
+
+        assertThat(result.get("count")).isEqualTo(1);
+        assertThat(provider.summarizeResult("list_faqs", result)).isEqualTo("Found 1 FAQs.");
+    }
+
+    @Test
+    void execute_getUpdateDeleteFaq() {
+        Long agentId = 42L;
+        Long faqId = 8L;
+        when(agentService.getAgent(agentId)).thenReturn(Agent.builder().id(agentId).build());
+        AgentFaq faq = AgentFaq.builder().id(faqId).question("Q").answer("A").build();
+        when(agentService.getFaq(agentId, faqId)).thenReturn(faq);
+        when(agentService.updateFaq(eq(agentId), eq(faqId), any())).thenReturn(faq);
+
+        assertThat(provider.execute("get_faq", Map.of("agentId", "42", "faqId", "8"), 1L).get("question"))
+                .isEqualTo("Q");
+        provider.execute("update_faq", Map.of("agentId", "42", "faqId", "8", "question", "Q2", "answer", "A2"), 1L);
+        provider.execute("delete_faq", Map.of("agentId", "42", "faqId", "8"), 1L);
+
+        verify(agentService).getFaq(agentId, faqId);
+        verify(agentService).updateFaq(eq(agentId), eq(faqId), any());
+        verify(agentService).deleteFaq(agentId, faqId);
     }
 
     private static AiToolSpec named(List<AiToolSpec> tools, String name) {

@@ -15,6 +15,8 @@ export interface BodyFieldRow {
   type: ParamType
   description: string
   required: boolean
+  fill: FillMode
+  fixedValue: string // used only when fill === 'fixed'
 }
 
 export interface ToolFormState {
@@ -48,16 +50,36 @@ export class IncompleteRowError extends Error {
   }
 }
 
+/**
+ * The `binding` half of a node, shared by path/query/header params and body fields alike.
+ * Meta models both with the same ParameterBinding (`docs/meta-api/connector-tools.md`), so
+ * they get one implementation here rather than two that can drift apart.
+ * Returns undefined for an agent-filled field — Meta's rule is to omit `binding` entirely
+ * rather than send a null one.
+ */
+function bindingFor(fill: FillMode, fixedValue: string): Record<string, unknown> | undefined {
+  if (fill === 'fixed') return { kind: 'default', value: fixedValue.trim() }
+  if (fill !== 'agent') return { kind: 'macro', macro: fill }
+  return undefined
+}
+
 function buildParamNode(row: ParamRow): Record<string, unknown> {
   const node: Record<string, unknown> = { type: row.type }
   if (row.description.trim()) node.description = row.description.trim()
   if (row.required) node.required = true
-  if (row.fill === 'fixed') {
-    node.binding = { kind: 'default', value: row.fixedValue.trim() }
-  } else if (row.fill !== 'agent') {
-    node.binding = { kind: 'macro', macro: row.fill }
-  }
+  const binding = bindingFor(row.fill, row.fixedValue)
+  if (binding) node.binding = binding
   return node
+}
+
+/** The inverse of bindingFor, for prefilling the editor from a tool already saved on Meta. */
+function fillFromBinding(binding?: { kind?: string; value?: string; macro?: string }): {
+  fill: FillMode
+  fixedValue: string
+} {
+  if (binding?.kind === 'default') return { fill: 'fixed', fixedValue: binding.value ?? '' }
+  if (binding?.kind === 'macro' && binding.macro) return { fill: binding.macro as FillMode, fixedValue: '' }
+  return { fill: 'agent', fixedValue: '' }
 }
 
 function rowsToRecord(rows: ParamRow[], section: string): Record<string, unknown> | undefined {
@@ -88,9 +110,14 @@ export function buildRequestDefinition(form: ToolFormState): RequestDefinition {
     const required: string[] = []
     for (const field of form.bodyFields) {
       const key = field.key.trim()
+      const binding = bindingFor(field.fill, field.fixedValue)
       params[key] = {
         type: field.type,
         ...(field.description.trim() ? { description: field.description.trim() } : {}),
+        // `required` is deliberately NOT set on the node here — for a body it belongs in
+        // body.required below as a string[]. Putting it on the node is the exact defect
+        // this editor exists to prevent.
+        ...(binding ? { binding } : {}),
       }
       if (field.required) required.push(key)
     }
@@ -108,21 +135,12 @@ function recordToRows(record: Record<string, unknown> | undefined): ParamRow[] {
   if (!record) return []
   return Object.entries(record).map(([key, raw]) => {
     const node = raw as { type?: ParamType; description?: string; required?: boolean; binding?: { kind: string; value?: string; macro?: string } }
-    let fill: FillMode = 'agent'
-    let fixedValue = ''
-    if (node.binding?.kind === 'default') {
-      fill = 'fixed'
-      fixedValue = node.binding.value ?? ''
-    } else if (node.binding?.kind === 'macro' && node.binding.macro) {
-      fill = node.binding.macro as FillMode
-    }
     return {
       key,
       type: node.type ?? 'string',
       description: node.description ?? '',
       required: node.required ?? false,
-      fill,
-      fixedValue,
+      ...fillFromBinding(node.binding),
     }
   })
 }
@@ -131,8 +149,14 @@ export function parseRequestDefinition(def: RequestDefinition): ToolFormState {
   const requiredSet = new Set(def.body?.required ?? [])
   const bodyFields: BodyFieldRow[] = def.body
     ? Object.entries(def.body.params).map(([key, raw]) => {
-        const node = raw as { type?: ParamType; description?: string }
-        return { key, type: node.type ?? 'string', description: node.description ?? '', required: requiredSet.has(key) }
+        const node = raw as { type?: ParamType; description?: string; binding?: { kind: string; value?: string; macro?: string } }
+        return {
+          key,
+          type: node.type ?? 'string',
+          description: node.description ?? '',
+          required: requiredSet.has(key),
+          ...fillFromBinding(node.binding),
+        }
       })
     : []
 
@@ -208,13 +232,31 @@ export function parseBodyJson(jsonText: string, existingRows: BodyFieldRow[]): B
       type: inferParamType(value),
       description: existing?.description ?? '',
       required: existing?.required ?? false,
+      // Carried over for the same reason as description/required: retyping the example JSON
+      // must not silently revert a field from "Fixed value" back to agent-filled.
+      fill: existing?.fill ?? 'agent',
+      fixedValue: existing?.fixedValue ?? '',
     }
   })
 }
 
 /** A non-empty example value per field, not a blank/zero placeholder — the operator should see
- * something submittable, not "{}" or {"query": ""} with no hint of what belongs there. */
+ * something submittable, not "{}" or {"query": ""} with no hint of what belongs there.
+ * A fixed field shows its actual value, coerced to the field's type, because that is literally
+ * what gets sent — a generic placeholder there would misrepresent the request. */
 function exampleValueFor(row: BodyFieldRow): unknown {
+  if (row.fill === 'fixed' && row.fixedValue.trim()) {
+    const raw = row.fixedValue.trim()
+    if (row.type === 'boolean') return raw === 'true'
+    if (row.type === 'integer' || row.type === 'number') {
+      const n = Number(raw)
+      return Number.isNaN(n) ? raw : n
+    }
+    return raw
+  }
+  // Tested explicitly rather than as "not fixed and not agent": that negative form turned a
+  // row arriving without a `fill` into the literal string "<undefined>" in the example JSON.
+  if (row.fill && row.fill.startsWith('WHATSAPP_')) return `<${row.fill}>`
   if (row.type === 'boolean') return true
   if (row.type === 'integer') return 1
   if (row.type === 'number') return 1.5

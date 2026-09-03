@@ -1,16 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { ParamRow, ParamType, FillMode } from './toolRequestDefinition'
 import { inputCls, touchButtonCls, addButtonCls, idSlug } from './toolEditorStyles'
-
-const FILL_OPTIONS: { value: FillMode; label: string }[] = [
-  { value: 'agent', label: 'Agent fills this in' },
-  { value: 'fixed', label: 'Fixed value' },
-]
-const ADVANCED_FILL_OPTIONS: { value: FillMode; label: string }[] = [
-  { value: 'WHATSAPP_PHONE_NUMBER', label: "Customer's WhatsApp number" },
-  { value: 'WHATSAPP_IDENTITY_HASH', label: 'WhatsApp identity hash (advanced)' },
-  { value: 'WHATSAPP_CURRENT_STATUS_ID', label: 'Current conversation status ID (advanced)' },
-]
+import { FILL_OPTIONS, ADVANCED_FILL_OPTIONS } from './toolFillOptions'
 
 /** "Query parameters" -> "query parameter", "Headers" -> "header" — singular for the Add-row button copy. */
 function singularize(label: string): string {

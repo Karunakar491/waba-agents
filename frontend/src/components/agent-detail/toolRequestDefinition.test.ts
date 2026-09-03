@@ -9,7 +9,7 @@ import {
   InvalidBodyJsonError,
   bodyRowsToJson,
 } from './toolRequestDefinition'
-import type { ToolFormState } from './toolRequestDefinition'
+import type { ToolFormState, BodyFieldRow } from './toolRequestDefinition'
 
 describe('buildRequestDefinition', () => {
   it('omits query_parameters, headers, and body entirely when their row lists are empty', () => {
@@ -36,14 +36,59 @@ describe('buildRequestDefinition', () => {
       queryParams: [],
       headerParams: [],
       bodyFields: [
-        { key: 'query', type: 'string', description: 'search text', required: true },
-        { key: 'limit', type: 'integer', description: '', required: false },
+        { key: 'query', type: 'string', description: 'search text', required: true, fill: 'agent' as const, fixedValue: '' },
+        { key: 'limit', type: 'integer', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
       ],
     }
     const result = buildRequestDefinition(form)
     expect(result.body?.required).toEqual(['query'])
     expect(result.body?.params.query).not.toHaveProperty('required')
     expect(result.body?.params.limit).not.toHaveProperty('required')
+  })
+
+  /**
+   * The shape this control exists for. IndiaMART's product-search returns
+   * 404 {"success":false,"message":"Missing action parameter"} unless `action` is sent
+   * (verified against the live endpoint 2026-09-04), and it must be a constant, not
+   * something the agent decides per conversation.
+   */
+  it('binds a fixed body field to kind default, and a macro body field to kind macro', () => {
+    const form: ToolFormState = {
+      method: 'POST',
+      path: '/',
+      pathParams: [],
+      queryParams: [],
+      headerParams: [],
+      bodyFields: [
+        { key: 'action', type: 'string', description: '', required: true, fill: 'fixed', fixedValue: 'product-search' },
+        { key: 'query', type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' },
+        { key: 'from', type: 'string', description: '', required: false, fill: 'WHATSAPP_PHONE_NUMBER', fixedValue: '' },
+      ],
+    }
+    const result = buildRequestDefinition(form)
+    expect(result.body?.params.action).toMatchObject({ binding: { kind: 'default', value: 'product-search' } })
+    expect(result.body?.params.from).toMatchObject({ binding: { kind: 'macro', macro: 'WHATSAPP_PHONE_NUMBER' } })
+    // An agent-filled field carries no binding at all — Meta's rule is omit, not null.
+    expect(result.body?.params.query).not.toHaveProperty('binding')
+    // Fixed-ness must not leak into required-ness, which still lives on body.required.
+    expect(result.body?.required).toEqual(['action', 'query'])
+    expect(result.body?.params.action).not.toHaveProperty('required')
+  })
+
+  it('round-trips a fixed body field through parseRequestDefinition without losing it', () => {
+    const original: ToolFormState = {
+      method: 'POST',
+      path: '/',
+      pathParams: [],
+      queryParams: [],
+      headerParams: [],
+      bodyFields: [
+        { key: 'action', type: 'string', description: 'Fixed selector', required: true, fill: 'fixed', fixedValue: 'product-search' },
+        { key: 'city', type: 'string', description: 'Buyer city', required: false, fill: 'agent', fixedValue: '' },
+      ],
+    }
+    const parsed = parseRequestDefinition(buildRequestDefinition(original))
+    expect(parsed.bodyFields).toEqual(original.bodyFields)
   })
 
   it('never emits body for GET or DELETE even if bodyFields is populated', () => {
@@ -53,7 +98,7 @@ describe('buildRequestDefinition', () => {
       pathParams: [],
       queryParams: [],
       headerParams: [],
-      bodyFields: [{ key: 'query', type: 'string', description: '', required: true }],
+      bodyFields: [{ key: 'query', type: 'string', description: '', required: true, fill: 'agent' as const, fixedValue: '' }],
     }
     expect(buildRequestDefinition(form).body).toBeUndefined()
   })
@@ -81,7 +126,7 @@ describe('buildRequestDefinition', () => {
 
     expect(() => buildRequestDefinition({ ...baseForm, queryParams: [blankRow] })).toThrow(IncompleteRowError)
     expect(() => buildRequestDefinition({ ...baseForm, headerParams: [blankRow] })).toThrow(IncompleteRowError)
-    expect(() => buildRequestDefinition({ ...baseForm, bodyFields: [{ key: '', type: 'string', description: '', required: false }] })).toThrow(IncompleteRowError)
+    expect(() => buildRequestDefinition({ ...baseForm, bodyFields: [{ key: '', type: 'string', description: '', required: false, fill: 'agent' as const, fixedValue: '' }] })).toThrow(IncompleteRowError)
     // a fully-filled row alongside one blank row still throws — partial success is not an option
     expect(() =>
       buildRequestDefinition({ ...baseForm, queryParams: [{ ...blankRow, key: 'ok' }, blankRow] }),
@@ -95,7 +140,7 @@ describe('buildRequestDefinition', () => {
       pathParams: [{ key: 'order_id', type: 'string', description: 'Order ID', required: true, fill: 'agent', fixedValue: '' }],
       queryParams: [{ key: 'action', type: 'string', description: '', required: false, fill: 'fixed', fixedValue: 'lookup' }],
       headerParams: [],
-      bodyFields: [{ key: 'note', type: 'string', description: 'Optional note', required: false }],
+      bodyFields: [{ key: 'note', type: 'string', description: 'Optional note', required: false, fill: 'agent' as const, fixedValue: '' }],
     }
     const def = buildRequestDefinition(original)
     const parsed = parseRequestDefinition(def)
@@ -136,17 +181,28 @@ describe('parseBodyJson', () => {
   it('infers string/integer/number/boolean from a flat example object', () => {
     const rows = parseBodyJson('{"query": "TMT Bars", "limit": 5, "score": 4.5, "urgent": true}', [])
     expect(rows).toEqual([
-      { key: 'query', type: 'string', description: '', required: false },
-      { key: 'limit', type: 'integer', description: '', required: false },
-      { key: 'score', type: 'number', description: '', required: false },
-      { key: 'urgent', type: 'boolean', description: '', required: false },
+      { key: 'query', type: 'string', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
+      { key: 'limit', type: 'integer', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
+      { key: 'score', type: 'number', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
+      { key: 'urgent', type: 'boolean', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
     ])
   })
 
   it('preserves description and required from an existing row with the same key', () => {
-    const existing = [{ key: 'query', type: 'string' as const, description: 'search text', required: true }]
+    const existing = [{ key: 'query', type: 'string' as const, description: 'search text', required: true, fill: 'agent' as const, fixedValue: '' }]
     const rows = parseBodyJson('{"query": "anything"}', existing)
-    expect(rows).toEqual([{ key: 'query', type: 'string', description: 'search text', required: true }])
+    expect(rows).toEqual([{ key: 'query', type: 'string', description: 'search text', required: true, fill: 'agent' as const, fixedValue: '' }])
+  })
+
+  it('preserves a fixed fill and its value when the example JSON is retyped', () => {
+    const existing = [
+      { key: 'action', type: 'string' as const, description: '', required: true, fill: 'fixed' as const, fixedValue: 'product-search' },
+    ]
+    // The operator edits the JSON to add a field; `action` must not silently revert to
+    // agent-filled, which would drop the constant the endpoint requires.
+    const rows = parseBodyJson('{"action": "product-search", "city": "Delhi"}', existing)
+    expect(rows[0]).toEqual({ key: 'action', type: 'string', description: '', required: true, fill: 'fixed', fixedValue: 'product-search' })
+    expect(rows[1]).toEqual({ key: 'city', type: 'string', description: '', required: false, fill: 'agent', fixedValue: '' })
   })
 
   it('throws InvalidBodyJsonError on malformed JSON', () => {
@@ -167,11 +223,27 @@ describe('parseBodyJson', () => {
 describe('bodyRowsToJson', () => {
   it('fills each field with a non-empty example value instead of a blank/zero placeholder', () => {
     const json = bodyRowsToJson([
-      { key: 'query', type: 'string', description: '', required: true },
-      { key: 'limit', type: 'integer', description: '', required: false },
-      { key: 'score', type: 'number', description: '', required: false },
-      { key: 'urgent', type: 'boolean', description: '', required: false },
+      { key: 'query', type: 'string', description: '', required: true, fill: 'agent' as const, fixedValue: '' },
+      { key: 'limit', type: 'integer', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
+      { key: 'score', type: 'number', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
+      { key: 'urgent', type: 'boolean', description: '', required: false, fill: 'agent' as const, fixedValue: '' },
     ])
     expect(JSON.parse(json)).toEqual({ query: 'TMT Bars', limit: 1, score: 1.5, urgent: true })
+  })
+
+  it('shows a fixed field its real value, coerced to the field type, not a generic placeholder', () => {
+    const json = bodyRowsToJson([
+      { key: 'action', type: 'string', description: '', required: true, fill: 'fixed', fixedValue: 'product-search' },
+      { key: 'limit', type: 'integer', description: '', required: false, fill: 'fixed', fixedValue: '5' },
+      { key: 'from', type: 'string', description: '', required: false, fill: 'WHATSAPP_PHONE_NUMBER', fixedValue: '' },
+    ])
+    expect(JSON.parse(json)).toEqual({ action: 'product-search', limit: 5, from: '<WHATSAPP_PHONE_NUMBER>' })
+  })
+
+  it('falls back to a type example rather than "<undefined>" when a row carries no fill', () => {
+    // Regression: the macro branch was written as "not fixed and not agent", so a row
+    // constructed without a fill rendered the literal string "<undefined>" as its example.
+    const row = { key: 'query', type: 'string' as const, description: '', required: false } as BodyFieldRow
+    expect(JSON.parse(bodyRowsToJson([row]))).toEqual({ query: 'TMT Bars' })
   })
 })

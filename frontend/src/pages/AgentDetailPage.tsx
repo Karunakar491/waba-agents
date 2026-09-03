@@ -1352,7 +1352,7 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
   // staring at "{}" has no idea what to type; a real example is both a hint and something
   // they can submit as-is (renaming the key/value to match their actual API).
   const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(
-    prefill?.bodyFields ?? [{ key: 'query', type: 'string', description: '', required: true }]
+    prefill?.bodyFields ?? [{ key: 'query', type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' }]
   )
 
   const bodyAllowed = method === 'POST' || method === 'PUT' || method === 'PATCH'

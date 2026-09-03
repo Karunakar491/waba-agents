@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { BodyFieldRow } from './toolRequestDefinition'
+import type { BodyFieldRow, FillMode } from './toolRequestDefinition'
 import { parseBodyJson, bodyRowsToJson, InvalidBodyJsonError } from './toolRequestDefinition'
 import { inputCls } from './toolEditorStyles'
+import { FILL_OPTIONS, ADVANCED_FILL_OPTIONS } from './toolFillOptions'
 
 const jsonBoxCls =
   'w-full rounded-lg border bg-background px-3 py-2.5 font-mono text-xs placeholder:text-muted-foreground ' +
@@ -44,8 +45,9 @@ export default function ToolBodyEditor({
     <div className="space-y-2">
       <span className="block text-xs font-medium text-foreground">Request body</span>
       <p className="text-xs text-muted-foreground">
-        Type an example of what the agent should send, e.g. <code>{'{"query": "TMT Bars"}'}</code>. Flat fields only —
-        for a nested object or list, contact engineering.
+        Type an example of the JSON this endpoint expects, e.g. <code>{'{"query": "TMT Bars"}'}</code>. Each field then
+        gets a row below where you choose whether the agent fills it in or it always sends the same value. Flat fields
+        only — for a nested object or list, contact engineering.
       </p>
       <textarea
         rows={5}
@@ -65,6 +67,37 @@ export default function ToolBodyEditor({
             <div key={row.key} className="flex flex-wrap items-center gap-2">
               <span className="min-w-[6rem] rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">{row.key}</span>
               <span className="text-xs text-muted-foreground">{row.type}</span>
+              <label className="sr-only" htmlFor={`body-${i}-fill`}>Who fills in {row.key}</label>
+              <select
+                id={`body-${i}-fill`}
+                value={row.fill}
+                disabled={disabled}
+                onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fill: e.target.value as FillMode } : r)))}
+                className={`${inputCls} disabled:opacity-60`}
+              >
+                {FILL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+                <optgroup label="Advanced (rarely needed)">
+                  {ADVANCED_FILL_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+              {row.fill === 'fixed' && (
+                <>
+                  <label className="sr-only" htmlFor={`body-${i}-fixedvalue`}>Fixed value for {row.key}</label>
+                  <input
+                    id={`body-${i}-fixedvalue`}
+                    type="text"
+                    value={row.fixedValue}
+                    disabled={disabled}
+                    onChange={(e) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, fixedValue: e.target.value } : r)))}
+                    placeholder="Value"
+                    className={`${inputCls} min-w-[7rem] disabled:opacity-60`}
+                  />
+                </>
+              )}
               <label className="sr-only" htmlFor={`body-${i}-description`}>Description for {row.key}</label>
               <input
                 id={`body-${i}-description`}

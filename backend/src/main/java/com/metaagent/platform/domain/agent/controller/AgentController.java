@@ -235,6 +235,16 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @PostMapping("/{id}/skills/{skillId}/unpublish")
+    public ApiResponse<AgentSkill> unpublishSkill(@PathVariable Long id, @PathVariable Long skillId) {
+        return ApiResponse.ok(agentService.unpublishSkill(id, skillId));
+    }
+
+    @PostMapping("/{id}/skills/{skillId}/republish")
+    public ApiResponse<AgentSkill> republishSkill(@PathVariable Long id, @PathVariable Long skillId) {
+        return ApiResponse.ok(agentService.republishSkill(id, skillId));
+    }
+
     // --- UI Skills (F22) — rich-message component skills, distinct from plain text-instruction skills above ---
 
     @GetMapping("/{id}/ui-skills")
@@ -263,6 +273,16 @@ public class AgentController {
         return ApiResponse.ok();
     }
 
+    @PostMapping("/{id}/ui-skills/{uiSkillId}/unpublish")
+    public ApiResponse<AgentUiSkill> unpublishUiSkill(@PathVariable Long id, @PathVariable Long uiSkillId) {
+        return ApiResponse.ok(agentService.unpublishUiSkill(id, uiSkillId));
+    }
+
+    @PostMapping("/{id}/ui-skills/{uiSkillId}/republish")
+    public ApiResponse<AgentUiSkill> republishUiSkill(@PathVariable Long id, @PathVariable Long uiSkillId) {
+        return ApiResponse.ok(agentService.republishUiSkill(id, uiSkillId));
+    }
+
     @GetMapping("/{id}/faq")
     public ApiResponse<List<AgentFaq>> getFaqs(@PathVariable Long id) {
         return ApiResponse.ok(agentService.getFaqs(id));
@@ -288,6 +308,16 @@ public class AgentController {
     public ApiResponse<Void> deleteFaq(@PathVariable Long id, @PathVariable Long faqId) {
         agentService.deleteFaq(id, faqId);
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/{id}/faq/{faqId}/unpublish")
+    public ApiResponse<AgentFaq> unpublishFaq(@PathVariable Long id, @PathVariable Long faqId) {
+        return ApiResponse.ok(agentService.unpublishFaq(id, faqId));
+    }
+
+    @PostMapping("/{id}/faq/{faqId}/republish")
+    public ApiResponse<AgentFaq> republishFaq(@PathVariable Long id, @PathVariable Long faqId) {
+        return ApiResponse.ok(agentService.republishFaq(id, faqId));
     }
 
     @GetMapping("/{id}/files")

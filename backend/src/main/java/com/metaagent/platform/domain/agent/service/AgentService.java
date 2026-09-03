@@ -511,6 +511,70 @@ public class AgentService {
         return agentSkillRepository.save(skill);
     }
 
+    /**
+     * Soft-transition unpublish: flips to draft and stamps unpublishedAt
+     * immediately (stops BizAI being told about it from this point on) but
+     * does NOT touch Meta here — {@link SkillUnpublishSweepJob} deletes the
+     * real Meta record only once the grace window has passed, so a
+     * conversation turn already in flight can't lose a skill mid-response.
+     */
+    @Transactional
+    public AgentSkill unpublishSkill(Long agentId, Long skillId) {
+        getAgent(agentId);
+        AgentSkill skill = agentSkillRepository.findByIdAndAgentId(skillId, agentId)
+                .orElseThrow(() -> new NotFoundException("Skill not found"));
+        if (skill.getStatus() == AgentSkill.Status.draft) {
+            return skill;
+        }
+        skill.setStatus(AgentSkill.Status.draft);
+        skill.setUnpublishedAt(LocalDateTime.now());
+        return agentSkillRepository.save(skill);
+    }
+
+    /**
+     * If the sweep job hasn't deleted the Meta record yet, this is a cheap
+     * cancel (nothing was ever removed from Meta). If it already ran,
+     * Meta has no "undo delete" for a skill id, so this creates a genuinely
+     * new Meta record — the old id is preserved only as an audit trail on
+     * previousMetaSkillId, never resurrected.
+     */
+    @Transactional
+    public AgentSkill republishSkill(Long agentId, Long skillId) {
+        Agent agent = getAgent(agentId);
+        AgentSkill skill = agentSkillRepository.findByIdAndAgentId(skillId, agentId)
+                .orElseThrow(() -> new NotFoundException("Skill not found"));
+        if (skill.getStatus() == AgentSkill.Status.published) {
+            return skill;
+        }
+
+        if (skill.getMetaSkillId() == null) {
+            String syncPath = MetaApiClient.scopedPath(String.format("/%s/agent_config/skills", agent.getPhoneNumberId()), agent.getMetaAgentId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("title", skill.getTitle());
+            payload.put("description", skill.getDescription());
+            payload.put("skill", skill.getBody());
+            String newMetaSkillId;
+            try {
+                Map<?, ?> response = metaApiClient.post(syncPath, payload, Map.class);
+                newMetaSkillId = response != null ? (String) response.get("id") : null;
+            } catch (Exception e) {
+                throw new BusinessException("Failed to republish skill to Meta: " + e.getMessage());
+            }
+            if (newMetaSkillId == null) {
+                // 2xx with a useless body — same severity as a thrown failure above:
+                // never flip to published without a real Meta id, or this row becomes
+                // permanently invisible to the sweep job (its queries all require
+                // metaSkillId IS NOT NULL) while BizAI keeps telling users it's live.
+                throw new BusinessException("Meta accepted the republish request but returned no skill id.");
+            }
+            skill.setMetaSkillId(newMetaSkillId);
+        }
+
+        skill.setStatus(AgentSkill.Status.published);
+        skill.setUnpublishedAt(null);
+        return agentSkillRepository.save(skill);
+    }
+
     // --- UI Skills Management (F22) ---
     // Distinct Meta surface from agent_config/skills above -- a UI skill
     // tells the agent WHEN/HOW to send a rich-message component (carousel,
@@ -610,6 +674,56 @@ public class AgentService {
         agentUiSkillRepository.delete(skill);
     }
 
+    /** Same soft-transition shape as {@link #unpublishSkill}, kept separate from
+     * the existing enabled/disabled Status — that toggle is a Meta-side "still
+     * present but inactive" flag; publishStatus tracks whether the record
+     * exists on Meta at all. */
+    @Transactional
+    public AgentUiSkill unpublishUiSkill(Long agentId, Long uiSkillId) {
+        getAgent(agentId);
+        AgentUiSkill skill = agentUiSkillRepository.findByIdAndAgentId(uiSkillId, agentId)
+                .orElseThrow(() -> new NotFoundException("UI skill not found"));
+        if (skill.getPublishStatus() == AgentUiSkill.PublishStatus.draft) {
+            return skill;
+        }
+        skill.setPublishStatus(AgentUiSkill.PublishStatus.draft);
+        skill.setUnpublishedAt(LocalDateTime.now());
+        return agentUiSkillRepository.save(skill);
+    }
+
+    @Transactional
+    public AgentUiSkill republishUiSkill(Long agentId, Long uiSkillId) {
+        Agent agent = getAgent(agentId);
+        AgentUiSkill skill = agentUiSkillRepository.findByIdAndAgentId(uiSkillId, agentId)
+                .orElseThrow(() -> new NotFoundException("UI skill not found"));
+        if (skill.getPublishStatus() == AgentUiSkill.PublishStatus.published) {
+            return skill;
+        }
+
+        if (skill.getMetaUiSkillId() == null) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("title", skill.getTitle());
+            payload.put("component_type", skill.getComponentType().name());
+            payload.put("status", skill.getStatus().name());
+            payload.put("instruction", skill.getInstruction());
+            String newMetaUiSkillId;
+            try {
+                Map<?, ?> response = metaApiClient.post(uiSkillPath(agent), payload, Map.class);
+                newMetaUiSkillId = response != null ? (String) response.get("id") : null;
+            } catch (Exception e) {
+                throw new BusinessException("Failed to republish UI skill to Meta: " + e.getMessage());
+            }
+            if (newMetaUiSkillId == null) {
+                throw new BusinessException("Meta accepted the republish request but returned no UI skill id.");
+            }
+            skill.setMetaUiSkillId(newMetaUiSkillId);
+        }
+
+        skill.setPublishStatus(AgentUiSkill.PublishStatus.published);
+        skill.setUnpublishedAt(null);
+        return agentUiSkillRepository.save(skill);
+    }
+
     // --- FAQ Management ---
 
     private static final long META_RECONCILE_TTL_MINUTES = 10;
@@ -694,6 +808,61 @@ public class AgentService {
 
         // 2. Always delete from DB
         agentFaqRepository.delete(faq);
+    }
+
+    /** Same soft-transition shape as {@link #unpublishSkill}. Also doubles as the
+     * "pending delete" tombstone that deleteFaq's own known-gap note above asked
+     * for — Unpublish is the safe way to remove a live FAQ now. */
+    @Transactional
+    public AgentFaq unpublishFaq(Long agentId, Long faqId) {
+        getAgent(agentId);
+        AgentFaq faq = agentFaqRepository.findByIdAndAgentId(faqId, agentId)
+                .orElseThrow(() -> new NotFoundException("FAQ not found"));
+        if (faq.getStatus() == AgentFaq.Status.draft) {
+            return faq;
+        }
+        faq.setStatus(AgentFaq.Status.draft);
+        faq.setUnpublishedAt(LocalDateTime.now());
+        return agentFaqRepository.save(faq);
+    }
+
+    @Transactional
+    public AgentFaq republishFaq(Long agentId, Long faqId) {
+        Agent agent = getAgent(agentId);
+        AgentFaq faq = agentFaqRepository.findByIdAndAgentId(faqId, agentId)
+                .orElseThrow(() -> new NotFoundException("FAQ not found"));
+        if (faq.getStatus() == AgentFaq.Status.published) {
+            return faq;
+        }
+
+        // metaFaqId still set = sweep job hasn't deleted it from Meta yet — cheap
+        // cancel, nothing was ever removed. Null = actually gone, needs recreating.
+        if (faq.getMetaFaqId() == null && agent.getPhoneNumberId() != null) {
+            String syncPath = String.format("/%s/agent_config/faq", agent.getPhoneNumberId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("question", faq.getQuestion());
+            payload.put("answer", faq.getAnswer());
+            try {
+                Map<?, ?> response = metaApiClient.post(syncPath, payload, Map.class);
+                if (response == null || response.get("id") == null) {
+                    // Same rule as republishSkill/republishUiSkill: a 2xx with no id is
+                    // treated as a failure, not a silent success — otherwise this row
+                    // ends up "published" with no metaFaqId, invisible to the sweep
+                    // job's MetaFaqIdIsNotNull queries forever.
+                    throw new BusinessException("Meta accepted the republish request but returned no FAQ id.");
+                }
+                faq.setMetaFaqId((String) response.get("id"));
+                faq.setMetaSynced(true);
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new BusinessException("Failed to republish FAQ to Meta: " + e.getMessage());
+            }
+        }
+
+        faq.setStatus(AgentFaq.Status.published);
+        faq.setUnpublishedAt(null);
+        return agentFaqRepository.save(faq);
     }
 
     @Transactional

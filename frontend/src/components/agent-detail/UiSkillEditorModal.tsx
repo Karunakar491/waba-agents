@@ -13,6 +13,9 @@ export interface UiSkill {
   componentType: string
   status: 'enabled' | 'disabled'
   instruction: string
+  /** Separate from `status` above (a Meta-side enabled/disabled toggle) — this
+   * tracks whether the record exists on Meta at all. "draft" = Unpublished. */
+  publishStatus: 'published' | 'draft'
 }
 
 // F22 — UI Skills API (docs/meta-api/ui-skills.md). `flow` component_type is
@@ -71,7 +74,7 @@ export default function UiSkillEditorModal({
       title={isEditing ? 'Edit UI skill' : 'Add UI skill'}
       onClose={onClose}
       preventClose={mutation.isPending}
-      maxWidthClassName="max-w-lg"
+      maxWidthClassName="max-w-2xl"
     >
       <div className="flex flex-col">
         <div>

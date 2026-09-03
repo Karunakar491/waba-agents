@@ -4,6 +4,9 @@ import { Library, Loader2, Plus, RefreshCw, Search, Trash2, Zap } from 'lucide-r
 import api from '../../lib/api'
 import SkillEditorModal from './SkillEditorModal'
 import UiSkillsPanel from './UiSkillsPanel'
+import UnpublishConfirmModal from './UnpublishConfirmModal'
+import DraftsDisclosure from './DraftsDisclosure'
+import { useUnpublishFlow } from './useUnpublishFlow'
 
 interface AgentSkillView {
   id: string
@@ -14,6 +17,8 @@ interface AgentSkillView {
   status: 'LIVE' | 'OUT_OF_SYNC'
   canPromote: boolean
   librarySkillId: string | null
+  /** Unpublish/Draft only applies to source=AGENT rows — LIBRARY rows always report "published". */
+  publishStatus: 'published' | 'draft'
 }
 
 interface SyncResult {
@@ -36,10 +41,13 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
   const [syncResults, setSyncResults] = useState<SyncResult[] | null>(null)
   const [search, setSearch] = useState('')
 
-  const { data: skills = [], isLoading } = useQuery<AgentSkillView[]>({
+  const { data: allSkills = [], isLoading } = useQuery<AgentSkillView[]>({
     queryKey: ['skills-view', agentId],
     queryFn: () => api.get(`/agents/${agentId}/skills-view`).then((r) => r.data.data ?? []),
   })
+
+  const skills = useMemo(() => allSkills.filter((s) => s.publishStatus !== 'draft'), [allSkills])
+  const draftSkills = useMemo(() => allSkills.filter((s) => s.publishStatus === 'draft'), [allSkills])
 
   const outOfSyncCount = skills.filter((s) => s.status === 'OUT_OF_SYNC').length
 
@@ -50,6 +58,9 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
       (s) => s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q),
     )
   }, [skills, search])
+
+  const { unpublishTarget, setUnpublishTarget, unpublishMutation, republishMutation } =
+    useUnpublishFlow<AgentSkillView>(`/agents/${agentId}/skills`, ['skills-view', agentId])
 
   const deleteMutation = useMutation({
     mutationFn: (skillId: string) => api.delete(`/agents/${agentId}/skills/${skillId}`),
@@ -207,10 +218,22 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
                   )}
                   {skill.source === 'AGENT' && (
                     <button
+                      onClick={() => setUnpublishTarget(skill)}
+                      title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
+                      className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
+                        hover:text-foreground hover:bg-muted transition-colors
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      Unpublish
+                    </button>
+                  )}
+                  {skill.source === 'AGENT' && (
+                    <button
                       onClick={() => deleteMutation.mutate(skill.id)}
                       disabled={deletingId === skill.id}
                       aria-label={`Delete skill ${skill.title}`}
-                      className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                      className="rounded p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       {deletingId === skill.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -227,12 +250,29 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
         </>
       )}
 
+      <DraftsDisclosure
+        items={draftSkills}
+        renderPrimary={(skill) => skill.title}
+        renderSecondary={(skill) => skill.description}
+        onRepublish={(id) => republishMutation.mutate(id)}
+        isPending={republishMutation.isPending}
+      />
+
       {showEditor && (
         <SkillEditorModal
           agentId={agentId}
           skill={editingSkill}
           librarySkillId={editingSkill?.source === 'LIBRARY' ? editingSkill.librarySkillId ?? undefined : undefined}
           onClose={() => setShowEditor(false)}
+        />
+      )}
+
+      {unpublishTarget && (
+        <UnpublishConfirmModal
+          itemLabel={unpublishTarget.title}
+          isPending={unpublishMutation.isPending}
+          onConfirm={() => unpublishMutation.mutate(unpublishTarget.id)}
+          onClose={() => setUnpublishTarget(null)}
         />
       )}
 

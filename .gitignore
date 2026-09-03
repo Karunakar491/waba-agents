@@ -26,6 +26,10 @@ Thumbs.db
 
 # Claude internal
 .claude/
+# ...except the enforcement config. Hooks must be tracked so that weakening
+# one shows up as a reviewable diff rather than a silent local change.
+!.claude/settings.json
+
 .superpowers/
 
 # Postman (contains tokens)

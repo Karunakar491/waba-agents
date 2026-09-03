@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AgentFaq {
 
+    public enum Status { published, draft }
+
     @Id
     @GenericGenerator(name = "tsid", type = TsidGenerator.class)
     @GeneratedValue(generator = "tsid")
@@ -56,6 +58,17 @@ public class AgentFaq {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String answer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    @Builder.Default
+    private Status status = Status.published;
+
+    @Column(name = "previous_meta_faq_id")
+    private String previousMetaFaqId;
+
+    @Column(name = "unpublished_at")
+    private LocalDateTime unpublishedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

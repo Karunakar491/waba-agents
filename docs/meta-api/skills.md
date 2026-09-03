@@ -65,5 +65,13 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 - Agent cannot resolve conflicts → duplicate/inconsistent responses
 - If multiple actions on same trigger → one skill, explicit sequence of steps
 
+## Platform mapping (verified 2026-09-03)
+- Create/update body: Java `SkillRequest.body` sent to Meta as `"skill"`.
+- Platform GET-by-id reads the local `agent_skill` row; there is no live Meta GET `/{skill_id}` in `AgentService.getSkill`.
+- Writes use `MetaApiClient.scopedPath()` (`?agent_id=`).
+- Title format (slug) is not validated server-side (TASK-043). Iris schemas should still describe "plain identifier" in the tool description without inventing a backend regex.
+
+Live GET skipped 2026-09-03 — no sandbox token in this environment.
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 404 Not found | 429 Rate limited | 500 Server error

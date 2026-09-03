@@ -1,4 +1,9 @@
-import type { WizardState } from './wizardTypes'
+import { PERSONA_PRESETS, type WizardState } from './wizardTypes'
+
+function personaPresetTitleFromTone(tone: string): string | undefined {
+  const preset = PERSONA_PRESETS.find((p) => p.id === tone || p.title === tone)
+  return preset?.title
+}
 
 export function wizardPatchFromIris(
   toolName: string,
@@ -11,7 +16,10 @@ export function wizardPatchFromIris(
   }
   if (toolName === 'update_business_persona') {
     const patch: Partial<WizardState> = {}
-    if (typeof args.tone === 'string') patch.personaPreset = args.tone
+    if (typeof args.tone === 'string') {
+      const title = personaPresetTitleFromTone(args.tone)
+      if (title !== undefined) patch.personaPreset = title
+    }
     if (typeof args.personaSampleReply === 'string') patch.personaSampleReply = args.personaSampleReply
     return patch
   }

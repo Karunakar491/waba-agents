@@ -49,6 +49,12 @@ test('create_connector invalidates connectors and library', () => {
   ])
 })
 
+test('run_connector_tool invalidates connectors only', () => {
+  expect(queryKeysForIrisTool('run_connector_tool', 'agent-1', 'waba-1')).toEqual([
+    ['agent-connectors', 'agent-1'],
+  ])
+})
+
 test('update_business_persona does not invalidate', () => {
   expect(queryKeysForIrisTool('update_business_persona', 'agent-1', 'waba-1')).toEqual([])
 })

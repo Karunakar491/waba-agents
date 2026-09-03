@@ -29,11 +29,12 @@ export function queryKeysForIrisTool(
     case 'update_connector':
     case 'delete_connector':
     case 'create_connector_tool':
-    case 'run_connector_tool':
       return [
         ['agent-connectors', agentId],
         ['connector-library', wabaId],
       ]
+    case 'run_connector_tool':
+      return [['agent-connectors', agentId]]
     default:
       return []
   }

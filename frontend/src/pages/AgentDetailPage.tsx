@@ -63,6 +63,7 @@ import {
   buildRequestDefinition,
   parseRequestDefinition,
   extractPathParamNames,
+  buildPreviewUrl,
   IncompleteRowError,
   type RequestDefinition,
   type ParamRow,
@@ -482,7 +483,7 @@ function ThreadControlModal({
       title="Release thread control?"
       onClose={onClose}
       preventClose={releaseMutation.isPending}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
         <p className="text-sm text-muted-foreground">
           This hands active conversations on <strong className="font-semibold text-foreground">
@@ -1144,7 +1145,7 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
       title={isEditing ? `Edit connector "${editingConnector.name}"` : 'Add Connector'}
       onClose={onClose}
       preventClose={saving}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
         {error && (
           <div className="mb-3">
@@ -1347,9 +1348,22 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
 
   const [queryParams, setQueryParams] = useState<ParamRow[]>(prefill?.queryParams ?? [])
   const [headerParams, setHeaderParams] = useState<ParamRow[]>(prefill?.headerParams ?? [])
-  const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(prefill?.bodyFields ?? [])
+  // A brand-new tool starts with one example field instead of an empty body — an operator
+  // staring at "{}" has no idea what to type; a real example is both a hint and something
+  // they can submit as-is (renaming the key/value to match their actual API).
+  const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(
+    prefill?.bodyFields ?? [{ key: 'query', type: 'string', description: '', required: true }]
+  )
 
   const bodyAllowed = method === 'POST' || method === 'PUT' || method === 'PATCH'
+
+  type TabKey = 'params' | 'headers' | 'body'
+  const [activeTab, setActiveTab] = useState<TabKey>('params')
+  const tabs: { key: TabKey; label: string; count: number }[] = [
+    { key: 'params', label: 'Params', count: pathTokens.length + queryParams.length },
+    { key: 'headers', label: 'Headers', count: headerParams.length },
+    ...(bodyAllowed ? [{ key: 'body' as TabKey, label: 'Body', count: bodyFields.length }] : []),
+  ]
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1395,7 +1409,7 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
       title={isEditing ? `Edit tool "${tool.name}"` : 'Add Tool'}
       onClose={onClose}
       preventClose={saving}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-4xl"
     >
         {error && (
           <div className="mb-3">
@@ -1460,23 +1474,63 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
             </p>
           </div>
 
-          {pathTokens.length > 0 && (
-            <ToolParamsEditor
-              label="Path parameters"
-              rows={pathParamRows}
-              setRows={setPathParamRows}
-              lockedKeys={pathTokens}
-              showAdd={false}
-              disabled={saving}
-            />
-          )}
+          <div className="rounded-lg border bg-muted/30 px-3 py-2">
+            <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Request preview — what actually gets called
+            </span>
+            <code className="block break-all text-xs text-foreground">
+              {buildPreviewUrl(method, path.trim() || '/', pathParamRows, queryParams)}
+            </code>
+          </div>
 
-          <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} disabled={saving} />
-          <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} disabled={saving} />
+          <div>
+            <div className="flex gap-1 border-b">
+              {tabs.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setActiveTab(t.key)}
+                  className={cn(
+                    'flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+                    activeTab === t.key
+                      ? 'border-accent-teal-solid text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {t.label}
+                  {t.count > 0 && (
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+                      {t.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
 
-          {bodyAllowed && (
-            <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
-          )}
+            <div className="space-y-4 pt-3">
+              {activeTab === 'params' && (
+                <>
+                  {pathTokens.length > 0 && (
+                    <ToolParamsEditor
+                      label="Path parameters"
+                      rows={pathParamRows}
+                      setRows={setPathParamRows}
+                      lockedKeys={pathTokens}
+                      showAdd={false}
+                      disabled={saving}
+                    />
+                  )}
+                  <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} disabled={saving} />
+                </>
+              )}
+              {activeTab === 'headers' && (
+                <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} disabled={saving} />
+              )}
+              {activeTab === 'body' && bodyAllowed && (
+                <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
+              )}
+            </div>
+          </div>
 
           <div className="flex gap-3 pt-1">
             <button

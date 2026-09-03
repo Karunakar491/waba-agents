@@ -35,6 +35,10 @@ interface Message {
   content: string | null
   contentJson: string | null
   receivedAt: string
+  // Null for messages that predate this linkage, or whose originating webhook
+  // couldn't be determined (e.g. a delivered/read status update, which only
+  // touches an existing row rather than creating one).
+  webhookRawId: string | null
 }
 
 export default function InboxPage() {
@@ -49,6 +53,14 @@ export default function InboxPage() {
   const [view, setView] = useState<'conversations' | 'webhooks'>(
     searchParams.get('view') === 'webhooks' ? 'webhooks' : 'conversations'
   )
+  // Set when a message's webhook icon is clicked — tells WebhookLogPanel which
+  // row to open automatically once the Webhooks tab is showing.
+  const [focusWebhookId, setFocusWebhookId] = useState<string | null>(null)
+
+  function jumpToWebhook(webhookRawId: string) {
+    setFocusWebhookId(webhookRawId)
+    setView('webhooks')
+  }
 
   const {
     data: conversations = [],
@@ -122,7 +134,7 @@ export default function InboxPage() {
       </div>
 
       {view === 'webhooks' ? (
-        <WebhookLogPanel />
+        <WebhookLogPanel focusWebhookId={focusWebhookId} onFocusHandled={() => setFocusWebhookId(null)} />
       ) : (
     <div className="flex flex-1 gap-0 overflow-hidden">
       {/* Left panel — conversation list */}
@@ -210,7 +222,7 @@ export default function InboxPage() {
                 <p className="text-center text-sm text-muted-foreground py-10">No messages yet.</p>
               ) : (
                 messages.map((msg) => (
-                  <MessageBubble key={msg.id} msg={msg} />
+                  <MessageBubble key={msg.id} msg={msg} onJumpToWebhook={jumpToWebhook} />
                 ))
               )}
             </div>
@@ -265,7 +277,7 @@ function ConversationRow({
   )
 }
 
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook: (webhookRawId: string) => void }) {
   const isOutbound = msg.direction === 'outbound'
   const time = formatTimeIST(msg.receivedAt)
 
@@ -305,6 +317,20 @@ function MessageBubble({ msg }: { msg: Message }) {
         size="icon"
         className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
       />
+      {msg.webhookRawId && (
+        <button
+          type="button"
+          onClick={() => onJumpToWebhook(msg.webhookRawId!)}
+          title="View the raw webhook that produced this message"
+          aria-label="View originating webhook"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground
+            opacity-0 transition-opacity hover:bg-muted hover:text-foreground
+            group-hover:opacity-100 focus-visible:opacity-100
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
+          <Webhook className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   )
 }

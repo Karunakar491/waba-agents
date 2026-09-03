@@ -73,7 +73,7 @@ entity_id: WhatsApp Business Phone Number ID
 ---
 
 ## Still Missing (paste when available)
-- [x] Onboarding API — see `agent-onboarding.md` (2026-08-04). Not implemented anywhere in this codebase yet — flagged for EM review on whether it's a required precursor to the current settings-first createAgent() flow.
+- [x] Onboarding API — see `agent-onboarding.md`. Implemented in `AgentService.bindPhone()` when `metaAgentId == null` (verified 2026-09-03). Bind order: eligibility GET → onboarding POST → settings PUT.
 - [x] Business Info API — see `business_info.md` (2026-08-04; implementation already existed via BusinessProfileDeployService, doc was just never backfilled until now)
-- [x] UI Skills API — see `ui-skills.md` (2026-08-04; genuinely new, not yet implemented)
+- [x] UI Skills API — see `ui-skills.md`. Implemented 2026-08; see `ui-skills.md` Implementation Note (2026-09-03).
 - [x] Webhook payload schemas (messages, standby) — see `webhook-standby-handoff.md`. No `messaging_handovers` field observed in real traffic; handoff signal is standby-wrapper presence/absence instead.

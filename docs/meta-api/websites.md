@@ -54,5 +54,10 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 | last_crawled_at | integer | | Unix timestamp |
 | created_at | integer | | Unix timestamp |
 
+## Platform mapping (verified 2026-09-03)
+- Only writable field from the platform is `url`.
+- GET-by-id is local `AgentWebsite`.
+- Meta owns crawling; `crawlStatus` / `pagesCrawled` come from Meta responses when present.
+
 ## Error Codes
 400 Bad request | 401 Unauthorized | 403 Forbidden | 404 Not found | 429 Rate limited | 500 Server error

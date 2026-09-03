@@ -4,6 +4,11 @@ Running backlog of known gaps and follow-ups. Not a sprint board — just so not
 
 ## Open
 
+### 18. master HEAD doesn't build — dangling unpublish imports in AgentDetailPage.tsx (blocks clean deploys)
+- **Status**: Not started. Found 2026-09-03 while deploying the StepBasics fix. Full writeup: `wiki/bugs-violations/master-head-unbuildable-2026-09-03.md`.
+- **Why**: `e5ba0ba` (2026-08-25) committed 3 imports (`UnpublishConfirmModal`, `DraftsDisclosure`, `useUnpublishFlow`) whose files were never committed — verified absent via `git cat-file -e master:<path>`. 22 commits have landed since; none can build from a clean checkout. Every frontend deploy since has needed a hand-applied uncommitted strip (5 occurrences so far), which means **what's in production maps to no exact commit**. Went unnoticed because the founder's own tree has the untracked files, so local builds pass.
+- **Plan**: EM decision between (1) revert the 3 dangling imports on master (smallest, unblocks builds now, unpublish stays untracked WIP), or (2) take the unpublish feature through the normal gates and commit it whole (imports + 3 components + `V54__unpublish_draft_status.sql`). Note option 2 must address the PM/UX/EL findings already raised against that feature (unsafe Delete asymmetry, no feature flag, wrong button styling, diff-size violation). Must be resolved before the next frontend deploy so traceability is restored.
+
 ### 17. Deleted agents still occupy phoneNumberId, now surfaced by name in the Basics step
 - **Status**: Not started. EL-flagged 2026-09-03 during review of the Basics-step "number already used" fix.
 - **Why**: `GET /agents` (`AgentAccessService.listAccessible`) doesn't filter out `status=deleted` agents, and the `agent.phone_number_id` unique index has no status scoping — so a deleted agent's old phone number stays permanently unpickable, and `StepBasics.tsx`'s ineligible message now names that agent by its (stale) `displayName` instead of a generic string. Pre-existing behavior, not a regression from the Basics fix, but the new message makes it more visible/confusing.

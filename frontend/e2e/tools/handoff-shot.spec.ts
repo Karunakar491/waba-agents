@@ -1,8 +1,8 @@
 /**
- * Screenshots of the screens a user lives in, for judging by eye rather than
- * by character count. Read-only.
+ * Screenshot of the Webhooks tab with the handoff highlight, and of the
+ * handoffs-only filter. Read-only; clicks tabs and one toggle.
  *
- * Run: npx playwright test --grep @shots
+ * Run: npx playwright test --grep @handoffshot
  */
 import { chromium, expect, test, type Page } from '@playwright/test'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
@@ -29,30 +29,34 @@ async function login(page: Page) {
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 30_000 })
 }
 
-test(`screenshot the daily screens @shots`, async () => {
+test(`handoff highlight and filter @handoffshot`, async () => {
   test.setTimeout(300_000)
   mkdirSync(dir, { recursive: true })
   const browser = await chromium.launch()
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   await login(page)
 
-  const shots: [string, string][] = [
-    ['/agents', 'agents-list'],
-    ['/dashboard', 'dashboard'],
-    ['/agents/new', 'create-wizard-step1'],
-    ['/library/persona', 'persona-library'],
-    ['/library/skills', 'skills-library'],
-    ['/library/connectors', 'connectors-library'],
-    ['/inbox', 'inbox-list'],
-    ['/debug', 'webhooks-handoff'],
-  ]
-  for (const [route, name] of shots) {
-    await page.goto(`${BASE}${route}`)
-    await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
-    await page.waitForTimeout(3000)
-    await page.screenshot({ path: resolve(dir, `${name}.png`), fullPage: true })
-    console.log(`shot ${name}`)
-  }
+  await page.goto(`${BASE}/debug`)
+  await page.getByRole('button', { name: /^webhooks$/i }).first().click()
+  await page.waitForTimeout(6000)
+  await page.screenshot({ path: resolve(dir, 'handoff-01-webhooks-tab.png'), fullPage: false })
+
+  // The badge must actually be on screen — not just in the API response.
+  const badge = page.getByText(/handed to a human/i).first()
+  await expect(badge, 'the handoff badge should render on at least one row').toBeVisible({
+    timeout: 20_000,
+  })
+
+  const toggle = page.getByRole('button', { name: /handoffs only/i })
+  await expect(toggle).toBeVisible()
+  await toggle.click()
+  await page.waitForTimeout(6000)
+  await page.screenshot({ path: resolve(dir, 'handoff-02-filtered.png'), fullPage: false })
+
+  const rows = page.locator('tbody tr')
+  const count = await rows.count()
+  console.log(`handoffs-only shows ${count} rows`)
+  expect(count, 'the filter should return the handoff rows, not an empty table').toBeGreaterThan(0)
+
   await browser.close()
-  expect(true).toBe(true)
 })

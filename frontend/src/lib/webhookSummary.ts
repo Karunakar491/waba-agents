@@ -6,6 +6,8 @@
 // exposes the raw payload string (no pre-parsed fields), so this duplicates
 // the *paths*, not the persistence logic, purely for read-only display.
 
+import { describeMessage } from '../components/inbox/describeMessage'
+
 export interface WebhookMetaError {
   code: number
   title: string
@@ -35,7 +37,14 @@ function messageContentPreview(message: any): string {
   if (message?.type === 'text') {
     return message.text?.body || '(empty text)'
   }
-  return `[${message?.type ?? 'unknown'}]`
+  // Was `[${type}]`, which printed "[interactive]" in the webhook log's
+  // Summary column — the same placeholder the Inbox used to show, in a second
+  // place I missed on the first pass (spotted 2026-09-04 in a screenshot of
+  // the deployed handoff filter). describeMessage already reads these
+  // payloads and is unit-tested against real ones, so it is reused here
+  // rather than reimplemented.
+  const described = describeMessage(message?.type ?? 'unknown', null, JSON.stringify(message ?? {}))
+  return described.detail ? `${described.text} — ${described.detail}` : described.text
 }
 
 function capitalize(s: string): string {

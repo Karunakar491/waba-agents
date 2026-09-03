@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.2.0",
-    "lastUpdated": "2026-09-02 (WABA phone-status fail-closed fix)",
+    "lastUpdated": "2026-09-03 Phase 0 doc verification",
     "description": "Flat codebase index. Query this before reading any file. One entry per file. Update after every approved change.",
     "howToQuery": "Filter by domain or name, or by tags/usedBy for cross-reference tracing. Navigate to path. Read only that file.",
     "howToUpdate": "After approved change: update summary and lastUpdated for affected entries. Add new entry for new files. Remove entry for deleted files. Add tags (domain keywords) and usedBy (confirmed callers, from actually reading imports/call-sites — never guessed) where the file is a shared utility/guard/adapter.",
@@ -1243,7 +1243,7 @@
     },
     {
       "path": "docs/meta-api/agent-onboarding.md",
-      "purpose": "POST /agent_onboarding — trigger AI agent onboarding for entity+channel, schedules async data-prep jobs. Added 2026-08-04, closed as 'not needed' 2026-08-16 (settings-first create-or-fetch was working fine at the time) — that closure is now STALE. 2026-09-03: root-cause fix for the 2026-08-25..09-01 agent-creation incident — now called from AgentService.bindPhone() on first-time provisioning (metaAgentId == null), confirmed live to turn agent_config/settings' 500 into a 200. See AgentService.java's bindPhone() for the real call site."
+      "purpose": "POST /agent_onboarding?channel=whatsapp — first-time BizAI entity creation. AgentService.bindPhone() POSTs here when metaAgentId is null (after eligibility GET), captures agent_id for scopedPath settings PUT. Verified 2026-09-03 against bindPhone."
     },
     {
       "path": "docs/meta-api/business_info.md",
@@ -1251,7 +1251,7 @@
     },
     {
       "path": "docs/meta-api/ui-skills.md",
-      "purpose": "GET/POST/PUT/DELETE /agent-ui-skills — rich-message components (carousel/CTA/flow/image/list/location), separate surface from plain text-instruction Skills. Added 2026-08-04, genuinely new capability, NOT implemented anywhere in this codebase yet."
+      "purpose": "GET/POST/PUT/DELETE /agent-ui-skills — rich-message components (carousel/CTA/flow/image/list/location). Shipped: AgentController /ui-skills → AgentService; local DB reads, flow type excluded. Platform mapping verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/delete-agent.md",
@@ -1267,19 +1267,19 @@
     },
     {
       "path": "docs/meta-api/connector-tools.md",
-      "purpose": "CRUD + run /agent_connectors/{id}/tools — individual operations per connector"
+      "purpose": "CRUD + run /agent_connectors/{id}/tools — platform proxies Meta with no server-side schema validation; run body input is JSON-encoded string. scopedPath on all writes. Verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/connectors.md",
-      "purpose": "CRUD /agent_connectors — external API integrations, auth upserts, logs"
+      "purpose": "CRUD /agent_connectors — Map passthrough, nested auth_config (api_key/oauth2_client_credentials/empty for NONE), name slugified via toMetaConnectorName on library deploy. Phase 1 enum: API_KEY | OAUTH2_CLIENT_CREDENTIALS | NONE. Verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/eligibility.md",
-      "purpose": "GET /agent_eligibility — check if phone number can use Meta Business Agent"
+      "purpose": "GET /agent_eligibility — bindPhone always GETs before provisioning; throws if is_eligible is false. No separate platform endpoint. Verified 2026-09-03 against bindPhone."
     },
     {
       "path": "docs/meta-api/faq.md",
-      "purpose": "CRUD /agent_config/faq — Q&A knowledge base"
+      "purpose": "CRUD /agent_config/faq — GET-by-id local AgentFaq; omit agent_id on FAQ GET (Meta 500 if added); best-effort Meta sync on write. Verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/files.md",
@@ -1287,11 +1287,11 @@
     },
     {
       "path": "docs/meta-api/settings.md",
-      "purpose": "GET/PUT /agent_config/settings — enable/disable agent (rollout.enabled), handoff, followup, audience"
+      "purpose": "GET/PUT /agent_config/settings — rollout.enabled ↔ Agent.status via deploy/pause; ai_audience via separate platform endpoint; handoff copy vs Meta semantics unresolved. Verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/skills.md",
-      "purpose": "CRUD /agent_config/skills — agent behavior instructions (tone, triggers, flows)"
+      "purpose": "CRUD /agent_config/skills — body field sent as skill; GET-by-id local agent_skill row; writes use scopedPath. Verified 2026-09-03."
     },
     {
       "path": "docs/meta-api/thread-control.md",
@@ -1303,7 +1303,7 @@
     },
     {
       "path": "docs/meta-api/websites.md",
-      "purpose": "CRUD /agent_config/websites — URLs for Meta to crawl natively"
+      "purpose": "CRUD /agent_config/websites — only writable field url; GET-by-id local AgentWebsite; Meta owns crawl_status/pages_crawled. Verified 2026-09-03."
     },
     {
       "path": "docs/specs/2026-07-18-architecture.md",

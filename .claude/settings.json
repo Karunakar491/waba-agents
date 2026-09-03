@@ -1,0 +1,57 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Figma__get_design_context",
+      "Bash(echo \"grep exit: $?\")",
+      "Bash(awk -F: '{print $NF}')",
+      "Bash(echo \"TSC:$?\")",
+      "Bash(node -e ' *)",
+      "Bash(mvn -q -o compile -DskipTests)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('docs/knowledge-index.json','utf8'\\)\\); console.log\\('VALID'\\)\")",
+      "Bash(echo \"SCP_EXIT:$?\")",
+      "Bash(mvn -q -o clean compile -DskipTests)",
+      "Bash(stat -c%s /tmp/dist.tar.gz)",
+      "Bash(echo LOCAL_SIZE:__TRACKED_VAR__)",
+      "Bash(cd \"d:/Meta business agents/backend/src/main/java/com/metaagent/platform/domain/templatestudio\" && wc -l iris/IrisController.java iris/IrisConversationService.java TemplateStudioController.java TemplateStudioService.java TemplateStudioClient.java 2>&1 *)",
+      "Read(//d//**)",
+      "Bash(echo \"M1:$?\")",
+      "Bash(echo \"M2:$?\")",
+      "Bash(mvn -o clean compile -DskipTests)",
+      "Bash(tar -czf /tmp/dist2.tar.gz -C dist .)",
+      "Bash(stat -c%s /tmp/dist2.tar.gz)",
+      "Bash(tar -czf /tmp/dist3.tar.gz -C dist .)",
+      "Bash(stat -c%s /tmp/dist3.tar.gz)",
+      "Bash(echo \"LOCAL_SIZE:$\\(stat -c%s /tmp/dist3.tar.gz\\)\")",
+      "Bash(tar -czf /tmp/dist4.tar.gz -C dist .)",
+      "Bash(stat -c%s /tmp/dist4.tar.gz)",
+      "Bash(echo \"LOCAL_SIZE:$\\(stat -c%s /tmp/dist4.tar.gz\\)\")",
+      "Bash(tar -czf /tmp/dist5.tar.gz -C dist .)",
+      "Bash(stat -c%s /tmp/dist5.tar.gz)",
+      "Bash(echo \"LOCAL_SIZE:$\\(stat -c%s /tmp/dist5.tar.gz\\)\")",
+      "Bash(md5sum \"D:/Meta business agents/backend/src/main/java/com/metaagent/platform/domain/templatestudio/TemplateStudioClient.java\")",
+      "Bash(tar -czf /tmp/dist6.tar.gz -C dist .)",
+      "Bash(stat -c%s /tmp/dist6.tar.gz)",
+      "Bash(echo \"LOCAL_SIZE:$\\(stat -c%s /tmp/dist6.tar.gz\\)\")",
+      "Bash(cp ~/.ssh/karix-custom-app-dev.pem \"/tmp/kcad.pem\")",
+      "Bash(chmod 600 /tmp/kcad.pem)",
+      "PowerShell(ssh -i \"$HOME\\\\.ssh\\\\karix-custom-app-dev.pem\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ubuntu@13.127.221.54 \"echo connected\")",
+      "Bash(awk '{print $1}')",
+      "Bash(chmod 600 /d/karix-mcp/karix-interna-AI-POC.pem)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/commit-gate.js\"",
+            "timeout": 30,
+            "statusMessage": "Checking commit gate (job + proof + diff)..."
+          }
+        ]
+      }
+    ]
+  }
+}

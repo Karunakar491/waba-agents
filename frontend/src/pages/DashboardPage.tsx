@@ -176,22 +176,34 @@ export default function DashboardPage() {
 }
 
 function MetricsRow({ summary }: { summary: DashboardSummary }) {
-  const numbersWithAgent = summary.phoneNumbers.filter((p) => p.hasAgent).length
+  // "Agents deployed" counted every number with an agent attached, including
+  // paused ones — it read 6 while exactly 2 agents were answering customers.
+  // The number an operator opens this page for is how many are live, so that
+  // is the headline, with the rest as supporting text (founder-reported
+  // 2026-09-03).
+  const live = summary.phoneNumbers.filter((p) => p.agentStatus === 'active').length
+  const withAgent = summary.phoneNumbers.filter((p) => p.hasAgent).length
   const cards = [
-    { label: 'Total conversations', value: summary.totalConversations, icon: MessageSquare },
-    { label: 'Active conversations', value: summary.activeConversations, icon: Circle },
-    { label: 'Phone numbers', value: summary.phoneNumbers.length, icon: Phone },
-    { label: 'Agents deployed', value: numbersWithAgent, icon: Bot },
+    { label: 'Total conversations', value: summary.totalConversations, icon: MessageSquare, note: null },
+    { label: 'Active conversations', value: summary.activeConversations, icon: Circle, note: null },
+    { label: 'Phone numbers', value: summary.phoneNumbers.length, icon: Phone, note: null },
+    {
+      label: 'Agents live',
+      value: live,
+      icon: Bot,
+      note: withAgent > live ? `${withAgent - live} set up but not live` : null,
+    },
   ]
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {cards.map(({ label, value, icon: Icon }) => (
+      {cards.map(({ label, value, icon: Icon, note }) => (
         <div key={label} className="rounded-xl border bg-card p-4 shadow-surface-resting">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Icon className="h-4 w-4" />
             <p className="text-xs font-medium">{label}</p>
           </div>
           <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+          {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
         </div>
       ))}
     </div>
@@ -269,9 +281,8 @@ function PhoneNumbersTable({
               <tr className="border-b text-left text-xs font-medium text-muted-foreground">
                 <th className="px-4 py-3">Phone number</th>
                 <th className="px-4 py-3">Display name</th>
-                <th className="px-4 py-3">WABA ID</th>
-                <th className="px-4 py-3">Agent status</th>
-                <th className="px-4 py-3">Agent ID</th>
+                <th className="px-4 py-3">WABA</th>
+                <th className="px-4 py-3">Agent</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -290,30 +301,34 @@ function PhoneNumbersTable({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{phone.verifiedName || '—'}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={phone.wabaLabel}>{phone.wabaId}</td>
+                    {/* The WABA's name, not its id. The id was the same value
+                        on every row of a single-WABA account — a column of
+                        identical 15-digit numbers — while the human-readable
+                        label was hidden in a tooltip (founder-reported
+                        2026-09-03). */}
+                    <td className="px-4 py-3 text-muted-foreground" title={phone.wabaId}>
+                      {phone.wabaLabel || phone.wabaId}
+                    </td>
+                    {/* Agent: the state first, then the name only when it adds
+                        something. Most agents here are named after their own
+                        phone number, so this cell used to repeat the first
+                        column verbatim — "Phone number: +91 91520 04283 ·
+                        Agent status: +91 91520 04283". The Agent ID column
+                        that followed is gone; this cell already links through. */}
                     <td className="px-4 py-3">
                       {phone.hasAgent && statusCfg ? (
                         <button
                           onClick={() => phone.agentId && onOpenAgent(phone.agentId)}
                           className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-medium transition-colors hover:bg-muted"
                         >
-                          <StatusIndicator label={phone.agentName ?? statusCfg.label} tone={statusCfg.tone} pulse={statusCfg.pulse} />
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          <StatusIndicator label={statusCfg.label} tone={statusCfg.tone} pulse={statusCfg.pulse} />
+                          {phone.agentName && phone.agentName !== phone.displayPhoneNumber && (
+                            <span className="max-w-[180px] truncate text-muted-foreground">{phone.agentName}</span>
+                          )}
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         </button>
                       ) : (
                         <StatusIndicator label="No agent deployed" tone="neutral" />
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {phone.hasAgent && phone.agentId ? (
-                        <span
-                          title={phone.agentId}
-                          className="block max-w-[140px] truncate font-mono text-xs text-muted-foreground"
-                        >
-                          {phone.agentId}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
                       )}
                     </td>
                   </tr>

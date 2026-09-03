@@ -103,3 +103,57 @@ therefore a real, cheap fix rather than a data limitation.
 Still open and untouched: token refresh being unwired (the biggest item),
 conversations never closing, 11.6s agent latency, and the four half-built
 screens.
+
+---
+
+# Second deploy, same day — silent session renewal
+
+Frontend only, from **`cee5d99`**. Served asset `index-CuGNFbGy.js`,
+md5 `1be640600e1fe38c316bb5731d7ae02d`, verified against the local build.
+Rollback: `/tmp/metaagent-backup-20260903203244.tar.gz`.
+
+## The constraint that shaped the fix
+
+The backend rotates refresh tokens and detects reuse. Verified against the live
+API before writing any client code:
+
+```
+POST /auth/refresh with a consumed token
+→ {"success":false,"error":"Token reuse detected. Session revoked."}  HTTP 400
+```
+
+So two refresh calls racing each other **revoke the session**. A naive "refresh
+on every 401" would have logged users out harder than the bug it was fixing.
+Exactly one refresh is ever in flight; every other 401 waits on that promise.
+
+## Proof it fixes the real thing
+
+The browser test deletes only the `access_token` cookie, leaving the refresh
+token — the exact state of a user at the fifteen-minute mark. Run against
+production **before** the deploy it failed on:
+
+```
+> 73 | expect(page.url(), 'was bounced to the login screen instead of renewing').not.toContain('/login')
+```
+
+After the deploy it passes, recording exactly one `200` from `/auth/refresh`.
+**8 consecutive passes**, and the full suite is 12/12.
+
+## One failure I could not reproduce
+
+The very first run immediately after the swap failed on that same line. Eight
+runs since have passed, and I could not reproduce it.
+
+Most likely cause is the deploy itself, not the code: the frontend swap is
+`sudo rm -rf /var/www/metaagent/*` followed by `sudo cp -r`, which is **not
+atomic**. A request landing inside that window can be served an inconsistent
+set of files — a new `index.html` naming an asset that isn't copied yet, or the
+previous bundle — which would run the old code and bounce to `/login` exactly
+as observed.
+
+Recording it rather than filing it as flake, because if that is the cause then
+**every frontend deploy has a window where live users can be served a broken
+or stale app**. The fix is a symlink swap: unpack to
+`/var/www/metaagent-<ts>/`, then repoint a symlink atomically. Not done here —
+it changes the deploy path for every future release and deserves its own
+change.

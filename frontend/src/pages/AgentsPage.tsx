@@ -14,6 +14,7 @@ import {
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
+import StatusIndicator from '../components/shared/StatusIndicator'
 
 /**
  * Screen: AgentsPage (Figma 8.1 "Agents: List" — node 191:2 / 191:44)
@@ -42,9 +43,10 @@ interface AgentRow {
   phoneNumberId: string | null
   // Real dialable number, from PhoneNumberSnapshot (login-sync cache) — may
   // be null if this number was connected before that sync existed, or the
-  // sync hasn't run yet; fall back to phoneNumberId (Meta's internal id)
-  // rather than showing nothing, so the row never looks unconnected when it
-  // isn't.
+  // sync hasn't run yet. When it is null the row says "Number not synced yet"
+  // and keeps Meta's phoneNumberId in the tooltip: the row must not look
+  // unconnected when it isn't, but printing a 16-digit Meta id where a phone
+  // number belongs was worse than saying plainly that the sync is pending.
   displayPhoneNumber: string | null
   // Real business description from the deployed Business Persona for this
   // agent's phone number — replaces the old manually-typed aboutLabel as
@@ -90,12 +92,30 @@ type StatusFilter = 'all' | 'active' | 'paused' | 'draft'
 const COLUMN_HEADERS = [
   'Agent',
   'About',
-  'Phone / WABA',
+  'Phone',
   'Conversations',
-  'Agent ID',
+  'Status',
   'Enabled',
   'Last updated',
 ]
+
+/**
+ * Said in the operator's terms, not the database's. "active" is the stored
+ * value, but what the operator wants to know is whether customers are being
+ * answered — so the label is "Live". "Draft" gets "Not set up" because a draft
+ * is not a state anyone chose, it is an unfinished job.
+ */
+const STATUS_LABEL: Record<AgentRow['status'], string> = {
+  active: 'Live',
+  paused: 'Paused',
+  draft: 'Not set up',
+}
+
+const STATUS_TONE: Record<AgentRow['status'], 'positive' | 'warning' | 'neutral'> = {
+  active: 'positive',
+  paused: 'warning',
+  draft: 'neutral',
+}
 
 const PICKER_LABELS: Record<string, string> = {
   knowledge: 'Knowledge Base',
@@ -474,23 +494,45 @@ function AgentTableRow({
         )}
       </td>
 
-      {/* Phone / WABA — Figma 200:19 */}
+      {/* Phone — Figma 200:19. Two things used to go wrong here. The second
+          line printed agent.wabaId, which is our own database id, not Meta's,
+          and is therefore identical on every row of a single-WABA account —
+          a whole column of the same meaningless number. And when a number
+          hadn't synced, the first line printed the raw Meta phoneNumberId in
+          the place a phone number goes, so the column showed "+91 96422
+          01123" on one row and "1082775018258373" on the next
+          (founder-reported 2026-09-03). */}
       <td className="px-5 py-3">
-        <p className="text-foreground">{agent.displayPhoneNumber ?? agent.phoneNumberId ?? '—'}</p>
-        {agent.wabaId && <p className="font-mono text-xs text-muted-foreground">{agent.wabaId}</p>}
+        {agent.displayPhoneNumber ? (
+          <p className="text-foreground">{agent.displayPhoneNumber}</p>
+        ) : agent.phoneNumberId ? (
+          <p className="text-muted-foreground" title={`Meta phone number ID ${agent.phoneNumberId}`}>
+            Number not synced yet
+          </p>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </td>
 
       {/* Conversations */}
       <td className="px-5 py-3 tabular-nums text-foreground">{conversationCount ?? '—'}</td>
 
-      {/* Agent ID — replaces the Health column (2026-08-13): "healthy/needs
-          attention" duplicated the Enabled toggle + status badge with no new
-          information, while the id operators actually need for the API
-          Calls/Webhooks filters (agent id) was nowhere on this screen. */}
-      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-1">
-          <span className="font-mono text-xs text-muted-foreground">{agent.id}</span>
-          <CopyButton value={agent.id} label="Copy agent ID" />
+      {/* Status. This column was the Health column until 2026-08-13, when it
+          was replaced by a raw Agent ID because health "duplicated the Enabled
+          toggle with no new information" and operators needed the id for the
+          Webhooks/API-Calls filters. Both halves of that were true, but the
+          result printed an 18-digit primary key on every row and left the list
+          unable to answer "is this agent actually answering customers?"
+          (founder-reported 2026-09-03: "why would a user need something
+          internally created").
+          So: the lifecycle state is the column, and the id stays one click
+          away on hover — the operator's real need without the wall of digits. */}
+      <td className="group/id px-5 py-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5">
+          <StatusIndicator label={STATUS_LABEL[agent.status]} tone={STATUS_TONE[agent.status]} />
+          <span className="opacity-0 transition-opacity group-hover/id:opacity-100 focus-within:opacity-100">
+            <CopyButton value={agent.id} label="Copy agent ID" />
+          </span>
         </div>
       </td>
 

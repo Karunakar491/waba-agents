@@ -50,4 +50,5 @@ replay_pid*.log
 
 # Playwright output — traces and screenshots, regenerated on every run
 frontend/e2e-report/
+frontend/e2e-walk/
 frontend/test-results/

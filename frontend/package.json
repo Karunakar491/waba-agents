@@ -9,9 +9,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "jest",
-    "e2e": "playwright test",
-    "e2e:headed": "playwright test --headed",
-    "e2e:report": "playwright show-report e2e-report"
+    "e2e": "playwright test --grep-invert \"@walk|@walk2|@walk3|@shots\"",
+    "e2e:headed": "playwright test --headed --grep-invert \"@walk|@walk2|@walk3|@shots\"",
+    "e2e:report": "playwright show-report e2e-report",
+    "e2e:audit": "playwright test --grep \"@walk|@walk2|@walk3|@shots\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

@@ -7,6 +7,7 @@ import AgentsPage from './pages/AgentsPage'
 import CreateAgentPage from './pages/CreateAgentPage'
 import AgentDetailPage from './pages/AgentDetailPage'
 import SkillLibraryPage from './pages/SkillLibraryPage'
+import SkillEditPage from './pages/SkillEditPage'
 import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
 import ConnectorLibraryPage from './pages/ConnectorLibraryPage'
 import FileLibraryPage from './pages/FileLibraryPage'
@@ -112,6 +113,7 @@ export default function App() {
               <Route path="/agents/new" element={<CreateAgentPage />} />
               <Route path="/agents/:id" element={<AgentDetailPage />} />
               <Route path="/library/skills" element={<SkillLibraryPage />} />
+              <Route path="/library/skills/:skillId/edit" element={<SkillEditPage />} />
               {/* Merged into SkillLibraryPage as a tab (2026-08-05) — kept as a
                   redirect, not a dead route, so any bookmarked/shared link
                   still lands somewhere useful instead of 404ing. */}

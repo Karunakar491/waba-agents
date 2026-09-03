@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, Trash2, Zap } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
-import SkillEditorModal from '../components/agent-detail/SkillEditorModal'
 import { type SkillRow } from '../components/skills/skillTypes'
 import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
 import LibraryToolbar from '../components/library/LibraryToolbar'
@@ -44,11 +43,10 @@ function uniqueSorted(values: (string | null)[]): { value: string; label: string
 
 export default function SkillLibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const tabParam = searchParams.get('tab')
   const activeTab: SkillTab = tabParam === 'browse' ? 'browse' : tabParam === 'ui-skills' ? 'ui-skills' : 'mine'
   const queryClient = useQueryClient()
-  const [editingSkill, setEditingSkill] = useState<LibrarySkill | null>(null)
-  const [showEditor, setShowEditor] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<LibrarySkill | null>(null)
@@ -113,8 +111,7 @@ export default function SkillLibraryPage() {
   })
 
   function openEdit(row: SkillRow) {
-    const skill = skills.find((s) => s.id === row.id)
-    if (skill) { setEditingSkill(skill); setShowEditor(true) }
+    navigate(`/library/skills/${row.id}/edit`)
   }
 
   const isLoading = wabasLoading || skillsLoading
@@ -310,14 +307,6 @@ export default function SkillLibraryPage() {
         />
       )}
 
-      {showEditor && editingSkill && waba && (
-        <SkillEditorModal
-          agentId={editingSkill.source === 'AGENT' ? editingSkill.agentId ?? '' : ''}
-          skill={editingSkill}
-          librarySkillId={editingSkill.source === 'LIBRARY' ? editingSkill.id : undefined}
-          onClose={() => setShowEditor(false)}
-        />
-      )}
     </div>
   )
 }

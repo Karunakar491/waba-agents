@@ -44,6 +44,7 @@ import DeleteFromMetaModal from '../components/agent-detail/DeleteFromMetaModal'
 import UnpublishConfirmModal from '../components/agent-detail/UnpublishConfirmModal'
 import DraftsDisclosure from '../components/agent-detail/DraftsDisclosure'
 import { useUnpublishFlow } from '../components/agent-detail/useUnpublishFlow'
+import { UNPUBLISH_UI_ENABLED } from '../lib/featureFlags'
 
 // Lazy-loaded — each is a real, separate chunk not bundled into this page's
 // initial load; only one tab is ever mounted at a time (see the activeTab
@@ -682,15 +683,17 @@ function FaqsSection({ agentId, open, onToggle }: { agentId: string; open: boole
                     <p className="mt-0.5 text-sm text-muted-foreground">{faq.answer}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => setUnpublishTarget(faq)}
-                      title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
-                      className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
-                        hover:text-foreground hover:bg-muted transition-colors
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    >
-                      Unpublish
-                    </button>
+                    {UNPUBLISH_UI_ENABLED && (
+                      <button
+                        onClick={() => setUnpublishTarget(faq)}
+                        title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
+                        className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
+                          hover:text-foreground hover:bg-muted transition-colors
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        Unpublish
+                      </button>
+                    )}
                     <button
                       onClick={() => deleteMutation.mutate(faq.id)}
                       disabled={deleteMutation.isPending}

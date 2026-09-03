@@ -7,6 +7,7 @@ import StatusIndicator from '../shared/StatusIndicator'
 import UnpublishConfirmModal from './UnpublishConfirmModal'
 import DraftsDisclosure from './DraftsDisclosure'
 import { useUnpublishFlow } from './useUnpublishFlow'
+import { UNPUBLISH_UI_ENABLED } from '../../lib/featureFlags'
 
 const COMPONENT_LABELS: Record<string, string> = {
   carousel_quick_reply: 'Carousel (quick reply)',
@@ -115,15 +116,17 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
                 </p>
               </button>
               <div className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => setUnpublishTarget(skill)}
-                  title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
-                  className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
-                    hover:text-foreground hover:bg-muted transition-colors
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                >
-                  Unpublish
-                </button>
+                {UNPUBLISH_UI_ENABLED && (
+                  <button
+                    onClick={() => setUnpublishTarget(skill)}
+                    title="Unpublish — pull it off Meta, keep it as a draft to bring back later"
+                    className="rounded px-2 py-1 text-xs font-medium text-muted-foreground
+                      hover:text-foreground hover:bg-muted transition-colors
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
+                    Unpublish
+                  </button>
+                )}
                 <button
                   onClick={() => deleteMutation.mutate(skill.id)}
                   disabled={deletingId === skill.id}

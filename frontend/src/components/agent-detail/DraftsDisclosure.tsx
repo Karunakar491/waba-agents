@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Loader2, RotateCcw } from 'lucide-react'
+import { UNPUBLISH_UI_ENABLED } from '../../lib/featureFlags'
 
 /**
  * Collapsed-by-default Drafts list shared by Skills, UI Skills, and FAQ —
@@ -22,6 +23,11 @@ export default function DraftsDisclosure<T extends { id: string }>({
   isPending: boolean
 }) {
   const [open, setOpen] = useState(false)
+
+  // Guarded here rather than at each of the three call sites: one gate covers
+  // Skills, UI Skills and FAQ, so the flag can't be honoured in two places and
+  // forgotten in the third.
+  if (!UNPUBLISH_UI_ENABLED) return null
 
   if (items.length === 0) return null
 

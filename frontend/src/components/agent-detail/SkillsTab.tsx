@@ -7,6 +7,7 @@ import UiSkillsPanel from './UiSkillsPanel'
 import UnpublishConfirmModal from './UnpublishConfirmModal'
 import DraftsDisclosure from './DraftsDisclosure'
 import { useUnpublishFlow } from './useUnpublishFlow'
+import { UNPUBLISH_UI_ENABLED } from '../../lib/featureFlags'
 
 interface AgentSkillView {
   id: string
@@ -216,7 +217,7 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
                       {promoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Library className="h-4 w-4" />}
                     </button>
                   )}
-                  {skill.source === 'AGENT' && (
+                  {UNPUBLISH_UI_ENABLED && skill.source === 'AGENT' && (
                     <button
                       onClick={() => setUnpublishTarget(skill)}
                       title="Unpublish — pull it off Meta, keep it as a draft to bring back later"

@@ -9,11 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "jest",
-    "e2e": "playwright test --grep-invert \"@walk|@walk2|@walk3|@shots|@create|@edit\"",
-    "e2e:headed": "playwright test --headed --grep-invert \"@walk|@walk2|@walk3|@shots|@create|@edit\"",
+    "e2e": "playwright test --grep-invert \"@walk|@walk2|@walk3|@shots|@create|@edit|@indiamart-body\"",
+    "e2e:headed": "playwright test --headed --grep-invert \"@walk|@walk2|@walk3|@shots|@create|@edit|@indiamart-body\"",
     "e2e:report": "playwright show-report e2e-report",
     "e2e:audit": "playwright test --grep \"@walk|@walk2|@walk3|@shots\"",
-    "e2e:journeys": "playwright test --grep \"@create|@edit\""
+    "e2e:journeys": "playwright test --grep \"@create|@edit|@indiamart-body\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

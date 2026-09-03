@@ -1,4 +1,21 @@
 import { defineConfig, devices } from '@playwright/test'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Load frontend/.env.e2e without adding a dotenv dependency. Existing
+// environment variables win, so CI secrets are never overridden by a local file.
+// import.meta.url, not __dirname — this config is loaded as an ES module.
+const envFile = resolve(dirname(fileURLToPath(import.meta.url)), '.env.e2e')
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i.exec(line)
+    if (!match) continue
+    const [, key, rawValue] = match
+    if (process.env[key] !== undefined) continue
+    process.env[key] = rawValue.replace(/^['"]|['"]$/g, '')
+  }
+}
 
 /**
  * Browser tests. Points at real running app, not a mock — the whole reason this

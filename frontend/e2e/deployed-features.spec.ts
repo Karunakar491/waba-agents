@@ -37,7 +37,18 @@ test.describe('deployed 2026-09-03', () => {
 
     // The whole point of the change: a route, not a modal.
     await expect(page).toHaveURL(/\/library\/skills\/[^/]+\/edit/, { timeout: 15_000 })
-    await expect(page.locator('textarea')).toBeVisible()
+
+    // The instructions field specifically — the page exists so this one is big
+    // enough to review several thousand characters, which the old max-w-lg
+    // dialog was not. There is a second, smaller "when to apply" textarea, so
+    // this must be addressed by its placeholder rather than by tag.
+    const instructions = page.getByPlaceholder(/actual instructions the agent follows/i)
+    await expect(instructions).toBeVisible()
+
+    // Guard the actual fix, not just the route: the editor should be a tall
+    // field, not the cramped rows=8 box it replaced.
+    const height = await instructions.evaluate((el) => el.getBoundingClientRect().height)
+    expect(height, 'instructions editor is too short to review a real skill').toBeGreaterThan(300)
   })
 
   test('Inbox renders threads', async ({ authedPage: page }) => {

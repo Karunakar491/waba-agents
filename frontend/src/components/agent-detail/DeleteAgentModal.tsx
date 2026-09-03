@@ -76,7 +76,7 @@ export default function DeleteAgentModal({
           </span>
         }
         onClose={onDeleted}
-        maxWidthClassName="max-w-lg"
+        maxWidthClassName="max-w-2xl"
       >
         <p className="text-sm text-foreground">
           <strong className="font-semibold">{agentName}</strong> has been deleted from this
@@ -127,7 +127,7 @@ export default function DeleteAgentModal({
       }
       onClose={onClose}
       preventClose={mutation.isPending}
-      maxWidthClassName="max-w-lg"
+      maxWidthClassName="max-w-2xl"
     >
       <p className="text-sm text-foreground">
         This deletes the agent here and clears its configuration on Meta. It cannot be undone.

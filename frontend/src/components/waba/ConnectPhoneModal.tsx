@@ -112,7 +112,7 @@ export default function ConnectPhoneModal({ agentId, onClose }: Props) {
       title={step === 'enter' ? 'Connect a WhatsApp number' : 'Choose a phone number'}
       onClose={onClose}
       preventClose={connectMutation.isPending || validateMutation.isPending || preflightChecking}
-      maxWidthClassName="max-w-lg"
+      maxWidthClassName="max-w-2xl"
     >
         <p className="-mt-2 mb-2 text-sm text-muted-foreground">
           {step === 'enter'

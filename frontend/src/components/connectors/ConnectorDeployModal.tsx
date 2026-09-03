@@ -63,7 +63,7 @@ export default function ConnectorDeployModal({
       title={`Deploy “${connector.name}”`}
       onClose={onClose}
       preventClose={deploying}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
       <div className="space-y-4">
         {error && <ErrorBanner error={error} />}

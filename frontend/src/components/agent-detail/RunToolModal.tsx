@@ -45,7 +45,7 @@ export default function RunToolModal({
       title={`Run ${toolName}`}
       onClose={onClose}
       preventClose={mutation.isPending}
-      maxWidthClassName="max-w-lg"
+      maxWidthClassName="max-w-2xl"
     >
         <p className="text-xs text-muted-foreground mb-3">
           Test-executes this tool against its real external API — the same call the agent would make in a live conversation.

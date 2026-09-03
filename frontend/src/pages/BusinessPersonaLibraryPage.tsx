@@ -271,7 +271,7 @@ export default function BusinessPersonaLibraryPage() {
           title="Deploy this persona?"
           onClose={() => setPendingDeploy(null)}
           preventClose={deployMutation.isPending}
-          maxWidthClassName="max-w-sm"
+          maxWidthClassName="max-w-md"
         >
           <p className="text-sm text-muted-foreground">
             This replaces what's currently live on{' '}

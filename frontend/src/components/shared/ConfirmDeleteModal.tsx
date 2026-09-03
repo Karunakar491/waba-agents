@@ -38,7 +38,7 @@ export default function ConfirmDeleteModal({
       }
       onClose={onClose}
       preventClose={isPending}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
       <ConsequenceLine tone="warning">{consequence}</ConsequenceLine>
 

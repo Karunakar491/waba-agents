@@ -104,7 +104,7 @@ export default function ClientCommandBar() {
       </div>
 
       {overlayOpen && (
-        <Modal title="Switch client" onClose={() => setOverlayOpen(false)} maxWidthClassName="max-w-lg">
+        <Modal title="Switch client" onClose={() => setOverlayOpen(false)} maxWidthClassName="max-w-2xl">
           <ClientSearchList
             rows={sorted}
             isLoading={isLoading}

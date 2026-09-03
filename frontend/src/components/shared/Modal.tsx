@@ -24,7 +24,7 @@ export default function Modal({
   onClose,
   children,
   preventClose = false,
-  maxWidthClassName = 'max-w-md',
+  maxWidthClassName = 'max-w-lg',
 }: {
   /** Plain string for the common case; a styled node (icon + colored text)
    *  for higher-stakes dialogs that need a distinct visual signal — either

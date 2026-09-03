@@ -322,7 +322,7 @@ function AddWabaModal({ onClose }: { onClose: () => void }) {
       title={step === 'enter' ? 'Add WABA' : 'Confirm Registration'}
       onClose={onClose}
       preventClose={validateMutation.isPending || registerMutation.isPending}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
         {step === 'enter' ? (
           <>
@@ -496,7 +496,7 @@ function DisconnectWabaModal({ waba, onClose }: { waba: WabaEntry; onClose: () =
   })
 
   return (
-    <Modal title="Disconnect WABA" onClose={onClose} preventClose={disconnectMutation.isPending} maxWidthClassName="max-w-md">
+    <Modal title="Disconnect WABA" onClose={onClose} preventClose={disconnectMutation.isPending} maxWidthClassName="max-w-lg">
       <p className="mb-4 text-sm text-muted-foreground">
         This removes your account&apos;s access to <span className="font-medium text-foreground">{waba.label ?? waba.wabaId}</span>.
         Templates and agents on this WABA stay on Meta and on Karix — nothing there is deleted. You (or another

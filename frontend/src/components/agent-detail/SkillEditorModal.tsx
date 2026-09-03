@@ -75,7 +75,7 @@ export default function SkillEditorModal({
       title={isEditing ? 'Edit skill' : 'Add skill'}
       onClose={onClose}
       preventClose={mutation.isPending}
-      maxWidthClassName="max-w-lg"
+      maxWidthClassName="max-w-2xl"
     >
       <div className="flex flex-col">
         <div>

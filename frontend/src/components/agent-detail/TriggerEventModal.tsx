@@ -73,7 +73,7 @@ export default function TriggerEventModal({
       title="Trigger event"
       onClose={onClose}
       preventClose={poll.status === 'pending'}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
         <ConsequenceLine>
           Fires a business event at this agent — e.g. "payment received" — so it can react in the

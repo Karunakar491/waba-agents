@@ -49,7 +49,7 @@ export default function DeleteFromMetaModal({
       }
       onClose={onClose}
       preventClose={mutation.isPending}
-      maxWidthClassName="max-w-md"
+      maxWidthClassName="max-w-lg"
     >
       <p className="text-sm text-foreground">
         This will remove <strong className="font-semibold">{agentName} — {phoneNumberId}</strong> from

@@ -1,156 +1,141 @@
-# Connector edit page — one place to configure an integration
+# Connector edit page
 
 - Date: 2026-09-04
 - Status: design, not approved
-- Replaces: the `AddConnectorModal` + `AddToolModal` pair inside `AgentDetailPage.tsx`
 
-## Who this is for
+## What the user gets
 
-Whoever is wiring a business's API into an agent — today that is us on a client's
-behalf, and the goal is that it stops being us. They open a connector deciding
-*"will this actually work, and will the agent use it correctly?"* and today they
-cannot answer either question without leaving the app.
+Today, connecting a business's API to an agent means: create a connector, then
+hunt for a hidden tool editor four levels deep, guess at the request shape, save,
+get told `Meta API error: 400`, and stop. Most people stop.
 
-## Why now — what today proved
+After this, one screen. You connect an API, press Test, and see it work. If it
+doesn't work, the screen tells you why in words.
 
-Every item below was observed on 2026-09-04, not assumed.
+That's the whole point. Everything below is in service of it.
 
-1. **The work is buried.** To change how a tool calls an API: agent → Connectors
-   tab → expand a collapsed chevron → pencil on the tool row → a modal with
-   tabs. Four levels, and the chevron gives no hint that tools live under it.
-2. **A wizard-created connector cannot be called.** `StepConnectors.tsx` is 413
-   lines that create a connector and define **no tools**. The wizard implies you
-   have connected something; nothing is callable until you go and find the tool
-   editor.
-3. **The library cannot express behaviour.** `/library/connectors` manages
-   connectors and has zero tool support, so the reusable place is the one place
-   you cannot say what the API does.
-4. **You cannot read a response.** The Run panel prints the raw JSON envelope, so
-   `<` renders as `<`. The document is there and unreadable
-   (`docs/e2e-test-runs/2026-09-04-xml-tool-run.png`).
-5. **Failures are numbers.** `Meta API error: 400`, `Meta API error: 409`. Meta's
-   real message is captured in `MetaApiException.responseBody` and dropped. Two
-   wrong conclusions in one session came from this.
-6. **The UI blocks working configurations.** Nested bodies work (string-encoded);
-   `DELETE` with a body works. Both are refused by our editor.
-7. **Three verbs for one action.** "Publish connector", "Add", "Publish changes",
-   "Publish & Test".
+## How we judge every decision here
 
-## The shape
+Three questions, in this order:
 
-A full page at `/library/connectors/:connectorId`, not a modal. Sections, all on
-one page, progressive rather than hidden behind tabs:
+1. **Will Meta support it?** If not, we don't design it. We say so in the UI.
+2. **Does it make the user's job easier?** Not "is it more capable".
+3. **Is the journey still simple?** A screen with six open panels is not a
+   simpler journey than four hidden ones. It's a worse one.
 
-| Section | Content | Exists today? |
+## The journey
+
+One thing at a time. Never all of it at once.
+
+```
+Connectors
+  └─ [Connect an API]
+       Step 1  Where is it?        name, URL
+       Step 2  How do we get in?   auth  → [Test connection]
+       Step 3  What can it do?     one action, e.g. "search products"
+                                   → [Test] shows the real response
+       Done    "Search products — working. Used by 1 agent."
+```
+
+Step 3 repeats to add another action. Nothing else is on screen while you're in
+a step.
+
+**Test is the centre of the design, not a nicety.** It's the only moment the user
+learns whether any of this was right. Today that moment doesn't exist until a
+customer message fails.
+
+### The action screen
+
+Default view — four fields, nothing else:
+
+| Field | Example |
+|---|---|
+| What does this do? | Search for products |
+| Method + URL | `POST /` |
+| What does the agent send? | `query`, `city` |
+| Always send | `action = product-search` |
+
+**Advanced** is collapsed and stays collapsed: headers, fixed/macro values, enum
+constraints, nested bodies, `user_auth_required`. Nobody sees these unless they
+need them.
+
+## What Meta will and won't support
+
+Probed against the live API on 2026-09-04
+(`docs/meta-api/connector-tools-capability-matrix.md`).
+
+| We want to offer | Meta? | So the UI... |
 |---|---|---|
-| Overview | name, description, base URL, auth type + shape, which agents run it | partly — modal |
-| Tools | list; each expands **inline** into the request editor | modal only |
-| Request | method, path, path/query/header params, body incl. **nested**, live preview | partly |
-| Response | Run it, render the real response **readably**, save an example | Run exists, unreadable |
-| Mapping | tick the fields that matter → generates agent-facing text | does not exist |
-| Advanced | `enum`, macros, `user_auth_required`, certificate | `enum` unsupported in UI |
+| JSON request body | yes | offers it |
+| Nested body (objects, arrays) | yes, string-encoded | offers it, under Advanced |
+| GET/POST/PUT/PATCH/DELETE | yes | offers all five |
+| `DELETE` with a body | yes | must stop blocking it |
+| Fixed and macro values | yes | offers it |
+| `enum` on a field | yes | offers it, under Advanced |
+| **Read an XML API** | **yes** | offers it — no extra work needed |
+| **Send an XML body** | **no** | says so plainly, up front |
+| Form-encoded / multipart | no | says so plainly |
+| Response schema | **doesn't exist** | we show the *real* response instead |
+| Field mapping | **doesn't exist** | see below |
 
-## The decision this design needs
+Two of these matter for what we promise clients: a **read-only** XML API works
+today, and an API needing an **XML request body** cannot be connected at all.
 
-**Response and mapping do not exist in Meta's model.** `BizAIOmniChannelConnectorToolRequest`
-has `name`, `description`, `request_definition`, `user_auth_required`,
-`user_auth_action_config` — and nothing else. No response schema, no transform.
-The agent receives whatever the partner returns. Our own `Connector` entity has
-no columns for either, and tools are not stored locally at all.
+## Response and mapping
 
-So there are two ways to build these two sections:
+Meta stores no response schema and has no transform. The agent gets whatever the
+API returns.
 
-### (a) Observed and advisory — recommended
+So: **we show the real response and let the user point at what matters.**
 
-- Run the tool, store the **real response** as an example (ours, additive column).
-- Operator ticks the fields that matter.
-- We generate the *text* that steers the agent: the tool `description`, and
-  suggested skill instructions naming those fields.
-- Nothing is enforced. The agent can still see the whole payload.
+```
+Test → response appears → user ticks: product_name, price, city, mobile
+     → we write that into the agent's instructions
+```
 
-Why this first: it is where the evidence points. IndiaMART returns **20 fields
-per result** to answer "who sells biryani in Delhi", and `price` can be `"N/A"`
-with inconsistent units, `trustseal` can be the string `"N/A"`. Those are
-*instruction* problems — the agent needs telling what to trust — before they are
-transform problems. Buildable now, no new runtime.
+The user's benefit is concrete. IndiaMART returns **20 fields per result** to
+answer "who sells biryani in Delhi", and `price` is sometimes the literal string
+`"N/A"`. Ticking four fields is how the agent stops reciting noise.
 
-### (b) Enforced — later, and only on demand
+This is advisory — the agent still receives the full payload. Enforcing it means
+routing calls through us, which means holding the client's API credentials, which
+we deliberately never do today. Not now, and not without your decision.
 
-A gateway: the connector's base URL points at us, we translate in both
-directions. Unlocks XML/SOAP **request** bodies, real field mapping, response
-trimming, retries, caching.
+## One decision needed from you
 
-Cost, stated plainly:
-- We must store the partner's credential. Today we deliberately do not —
-  `Connector.java:73`: *"field NAMES and non-secret OAuth settings only. Never
-  values."* Reversing that is a founder decision.
-- We become a runtime dependency: our uptime is the agent's uptime, our latency
-  stacks on a response already at 11.6s.
+Meta ties tools to a phone number, so a connector's actions belong to **one
+agent**, not to the connector itself. That forces a choice:
 
-**Recommendation: build (a) now, with the Mapping section's data model shaped so
-(b) can enforce the same mapping later without re-modelling it.** Do not build
-(b) until a real client needs an XML *request* body — and note that XML
-*responses* already work with no gateway at all.
+- **Reusable:** this screen edits a template; each agent gets a copy. Connect
+  once, use on many agents. A later edit does **not** silently change a live
+  agent — it shows "this agent is running an older version".
+- **Per agent:** this screen edits one agent's live connector. Simpler to build,
+  nothing is reusable, and you reconnect the same API for every agent.
 
-## The constraint that shapes everything
+**Recommendation: reusable, no silent push.** Connecting an API once is the
+whole reason the library exists, and silently changing a live client's agent is
+not something we should be able to do by accident.
 
-**Meta scopes tools per phone number**: `/{phoneNumberId}/agent_connectors/{connectorId}/tools`.
-So a connector's tools belong to *one agent's deployment*, not to the connector
-definition. A page at `/library/connectors/:id` editing tools is therefore
-editing a template, not a live object — unless it is scoped to an agent.
+## Order of work
 
-Two options:
+**First, stop the UI lying.** Small, and everything else sits on top of it.
+- Show Meta's real error, not `Meta API error: 400`.
+- Make the Test response readable — today `<` prints as `<`.
+- Allow `DELETE` with a body. Keep blocking it on `GET` (Meta drops it there).
+- One word for "save", not four.
 
-1. **Library holds templates; deploying instantiates.** The page edits the
-   template. Requires new local storage for tool definitions and an explicit
-   answer to: *when a template changes, do live agents change?*
-2. **The page is always agent-scoped** (`/agents/:agentId/connectors/:id`). No
-   new storage, edits are immediately real, but nothing is reusable — which is
-   the problem the library exists to solve.
+**Then:** the stepped journey, with Test at each step. Same API calls as today,
+just reachable.
 
-**Recommendation: (1), with no automatic push.** A template edit never touches a
-running agent; instead each deployment shows "running an older version — review
-and update". Silent push would edit live client behaviour, which the production
-data rules forbid in spirit even though it is not data.
+**Then:** nested bodies, `enum`, and the other Advanced items.
 
-This needs founder sign-off before code: it is the difference between "edit this
-connector" and "edit this connector on this agent", and it is expensive to
-reverse.
+**Then:** tick-the-fields mapping.
 
-## Phasing
+**Later, only if a client needs an XML request body:** routing calls through us.
 
-**Phase 0 — stop the UI lying (prerequisite, small, ship first).** The page will
-present all of this; none of it should be built on the current foundation.
-- Return Meta's error message instead of `Meta API error: NNN`.
-- Render the Run response readably — unwrap `output.data`, print strings as text.
-- Allow `DELETE` with a body; keep blocking it on `GET` (verified: Meta drops a
-  GET body, delivers a DELETE body).
-- One verb for creation.
+## Not doing
 
-**Phase 1 — the page, read-mostly.** Route, Overview, Tools list, Request editor
-moved out of the modal. Behaviour-neutral: same payloads, same endpoints.
-
-**Phase 2 — nested body.** Recursive string-encoded nodes, per the capability
-matrix. Real feature, own diff.
-
-**Phase 3 — Response + Mapping, option (a).** Additive migration for the saved
-example and field selection. Generates description/instruction text.
-
-**Phase 4 — wizard reduction.** `StepConnectors` drops to a picker plus "not
-configured yet — finish in Connectors", and stops being 413 lines.
-
-**Phase 5 — gateway, option (b).** Only on real demand.
-
-## Out of scope
-
-- The gateway (Phase 5 is a placeholder, not a commitment).
-- Connector-level auth *types* — untested by the capability matrix; needs its own
-  probe before the Advanced section claims to support anything.
-- Response size limits, timeouts, redirects — also unprobed.
-
-## Open questions
-
-1. Templates with no automatic push, or always agent-scoped? (Recommendation: templates, no push.)
-2. Mapping advisory now, or hold out for enforced? (Recommendation: advisory.)
-3. Does the Connectors section live under Library, or get promoted to top-level nav?
-4. Is a connector without a working tool allowed to be marked ACTIVE at all? Today it is, and it reads as done when it is not.
+- Routing calls through us. Placeholder, not a plan.
+- Connector auth *types* beyond what exists — unprobed, so the Advanced section
+  won't claim to support them.
+- Timeouts, redirects, response size limits — also unprobed.

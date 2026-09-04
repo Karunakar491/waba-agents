@@ -62,6 +62,7 @@ import ToolBodyEditor from '../components/agent-detail/ToolBodyEditor'
 import {
   buildRequestDefinition,
   parseRequestDefinition,
+  methodSendsBody,
   extractPathParamNames,
   buildPreviewUrl,
   IncompleteRowError,
@@ -1355,7 +1356,7 @@ function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToo
     prefill?.bodyFields ?? [{ key: 'query', type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' }]
   )
 
-  const bodyAllowed = method === 'POST' || method === 'PUT' || method === 'PATCH'
+  const bodyAllowed = methodSendsBody(method)
 
   type TabKey = 'params' | 'headers' | 'body'
   const [activeTab, setActiveTab] = useState<TabKey>('params')

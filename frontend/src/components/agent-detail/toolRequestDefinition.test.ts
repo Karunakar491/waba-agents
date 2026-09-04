@@ -8,6 +8,7 @@ import {
   parseBodyJson,
   InvalidBodyJsonError,
   bodyRowsToJson,
+  methodSendsBody,
 } from './toolRequestDefinition'
 import type { ToolFormState, BodyFieldRow } from './toolRequestDefinition'
 
@@ -91,16 +92,40 @@ describe('buildRequestDefinition', () => {
     expect(parsed.bodyFields).toEqual(original.bodyFields)
   })
 
-  it('never emits body for GET or DELETE even if bodyFields is populated', () => {
-    const form: ToolFormState = {
-      method: 'GET',
-      path: '/',
-      pathParams: [],
-      queryParams: [],
-      headerParams: [],
-      bodyFields: [{ key: 'query', type: 'string', description: '', required: true, fill: 'agent' as const, fixedValue: '' }],
+  /**
+   * This used to be one test asserting "never emits body for GET or DELETE".
+   * Half of it was wrong. Checked on the wire through Meta's runtime against
+   * httpbin on 2026-09-04: a DELETE body IS delivered, a GET body is silently
+   * dropped. So GET must keep refusing, and DELETE must stop.
+   */
+  const bodyField = { key: 'query', type: 'string' as const, description: '', required: true, fill: 'agent' as const, fixedValue: '' }
+  const withBody = (method: string): ToolFormState => ({
+    method, path: '/', pathParams: [], queryParams: [], headerParams: [], bodyFields: [bodyField],
+  })
+
+  it('never emits a body for GET, because Meta drops it', () => {
+    expect(buildRequestDefinition(withBody('GET')).body).toBeUndefined()
+  })
+
+  it('emits a body for DELETE, because Meta delivers it', () => {
+    const body = buildRequestDefinition(withBody('DELETE')).body
+    expect(body?.params.query).toMatchObject({ type: 'string' })
+    expect(body?.required).toEqual(['query'])
+  })
+
+  it('emits a body for POST, PUT and PATCH', () => {
+    for (const method of ['POST', 'PUT', 'PATCH']) {
+      // jest expect takes no message argument, unlike playwright/vitest
+      expect({ method, body: buildRequestDefinition(withBody(method)).body === undefined }).toEqual({ method, body: false })
     }
-    expect(buildRequestDefinition(form).body).toBeUndefined()
+  })
+
+  it('methodSendsBody matches what the wire actually does', () => {
+    expect(methodSendsBody('POST')).toBe(true)
+    expect(methodSendsBody('PUT')).toBe(true)
+    expect(methodSendsBody('PATCH')).toBe(true)
+    expect(methodSendsBody('DELETE')).toBe(true)
+    expect(methodSendsBody('GET')).toBe(false)
   })
 
   it('models a fixed-value binding as kind default, and a macro fill as kind macro', () => {

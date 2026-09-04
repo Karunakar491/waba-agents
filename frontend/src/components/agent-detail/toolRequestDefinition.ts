@@ -43,6 +43,21 @@ export interface RequestDefinition {
  * CAROUSEL PHONE_NUMBER write path, 2026-08-20). The modal's handleSubmit must catch this
  * and show it as a visible message; buildRequestDefinition itself never guesses.
  */
+/**
+ * Which methods actually deliver a request body, checked on the wire against
+ * httpbin through Meta's own runtime on 2026-09-04 — not assumed from the verb:
+ *
+ *   POST / PUT / PATCH   body delivered
+ *   DELETE               body delivered  ← we used to refuse this
+ *   GET                  body silently dropped by Meta, so offering it would lie
+ *
+ * A DELETE that takes a body is ordinary (bulk delete by id list). Blocking it
+ * meant such an API could not be configured at all, with nothing saying why.
+ */
+export function methodSendsBody(method: string): boolean {
+  return method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE'
+}
+
 export class IncompleteRowError extends Error {
   constructor(section: string) {
     super(`${section}: every row needs a name before this tool can be saved.`)
@@ -104,7 +119,7 @@ export function buildRequestDefinition(form: ToolFormState): RequestDefinition {
   const headers = rowsToRecord(form.headerParams, 'Headers')
   if (headers) def.headers = headers
 
-  if (form.bodyFields.length > 0 && (form.method === 'POST' || form.method === 'PUT' || form.method === 'PATCH')) {
+  if (form.bodyFields.length > 0 && methodSendsBody(form.method)) {
     if (form.bodyFields.some((f) => !f.key.trim())) throw new IncompleteRowError('Request body fields')
     const params: Record<string, unknown> = {}
     const required: string[] = []

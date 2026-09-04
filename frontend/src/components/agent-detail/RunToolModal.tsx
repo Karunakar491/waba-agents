@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, Play, XCircle } from 'lucide-react'
 import api from '../../lib/api'
 import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
+import { describeToolRun } from './describeToolRun'
 
 export default function RunToolModal({
   agentId,
@@ -69,23 +70,48 @@ export default function RunToolModal({
           </div>
         )}
 
-        {result && (
-          <div className="mt-3 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              {result.status === 'success' ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-brand-green" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-destructive" />
-              )}
-              <span className={result.status === 'success' ? 'text-brand-green' : 'text-destructive'}>
-                {result.status ?? 'unknown'}
-              </span>
+        {result && (() => {
+          // The envelope is JSON-encoded three deep, so printing result.output
+          // directly showed every "<" as < — the response was present and
+          // unreadable. describeToolRun unwraps it; see that file for the detail.
+          const view = describeToolRun(result.output)
+          const good = view.ok && !view.error
+          return (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                {good ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-green" />
+                ) : (
+                  <XCircle className="h-3.5 w-3.5 text-destructive" />
+                )}
+                <span className={good ? 'text-brand-green' : 'text-destructive'}>
+                  {good ? 'Worked' : 'Did not work'}
+                </span>
+                {view.httpStatus !== null && (
+                  <span className="text-muted-foreground">· the API answered HTTP {view.httpStatus}</span>
+                )}
+                {view.headers?.['content-type'] && (
+                  <span className="text-muted-foreground">· {view.headers['content-type'].split(';')[0]}</span>
+                )}
+              </div>
+
+              {view.error && <p className="text-xs text-destructive">{view.error}</p>}
+
+              <pre className="max-h-64 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs whitespace-pre-wrap break-words">
+                {view.body || '(the API returned an empty body)'}
+              </pre>
+
+              <details>
+                <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+                  Show the raw response from Meta
+                </summary>
+                <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg border bg-muted/30 p-3 text-[11px] whitespace-pre-wrap break-all">
+                  {view.raw || '(no output)'}
+                </pre>
+              </details>
             </div>
-            <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs whitespace-pre-wrap break-all">
-              {result.output ?? '(no output)'}
-            </pre>
-          </div>
-        )}
+          )
+        })()}
 
         <div className="mt-4 flex gap-3">
           <button

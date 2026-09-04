@@ -130,3 +130,21 @@ Live GET skipped 2026-09-03 — no sandbox token in this environment.
 
 ## Error Codes
 400 Bad request | 401 Unauthorized | 404 Not found | 429 Rate limited | 500 Server error
+
+---
+
+## Enforced behaviour differs from this document
+
+See `connector-tools-capability-matrix.md` — 39 shapes probed against the live
+API on 2026-09-04. Corrections that matter when reading the tables above:
+
+- `content_type` is an **enum with one member**, `application/json`. XML, SOAP,
+  form-encoded, multipart and text/plain are all rejected.
+- Nested body nodes must be **JSON-encoded strings**, recursively — that is what
+  `items | string` above means, and it applies to `properties` values too. An
+  inline nested object is rejected.
+- `method` excludes `HEAD` and `OPTIONS`.
+- Path/query/header params are **scalars only** — `object` and `array` types are
+  rejected there.
+- `enum: [...]` on a parameter node is **accepted but undocumented above**.
+- The same input name may not appear in both `query_parameters` and `body.params`.

@@ -2,6 +2,8 @@ package com.metaagent.platform.common.exception;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.domain.templatestudio.TemplateStudioException;
+import com.metaagent.platform.infrastructure.meta.MetaApiErrorMessage;
+import com.metaagent.platform.infrastructure.meta.MetaApiException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,21 @@ public class GlobalExceptionHandler {
         // every failure. This is the ONLY place it should ever be logged.
         log.warn("TemplateStudioException: status={} body={}", ex.getStatusCode(), ex.getResponseBody());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * Must be declared as its own handler even though MetaApiException extends
+     * BusinessException: otherwise handleBusiness below wins and the operator
+     * gets "Meta API error: 400" while Meta's actual reason is discarded.
+     * Spring picks the most specific handler, so this one takes it.
+     */
+    @ExceptionHandler(MetaApiException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMetaApi(MetaApiException ex) {
+        // Full body at WARN, including the fbtrace_id that is left out of the
+        // response — that is the part Meta support asks for.
+        log.warn("MetaApiException: status={} body={}", ex.getStatusCode(), ex.getResponseBody());
+        String message = MetaApiErrorMessage.describe(ex.getStatusCode(), ex.getResponseBody());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(message));
     }
 
     @ExceptionHandler(BusinessException.class)

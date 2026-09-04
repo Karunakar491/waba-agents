@@ -139,7 +139,10 @@ See `connector-tools-capability-matrix.md` — 39 shapes probed against the live
 API on 2026-09-04. Corrections that matter when reading the tables above:
 
 - `content_type` is an **enum with one member**, `application/json`. XML, SOAP,
-  form-encoded, multipart and text/plain are all rejected.
+  form-encoded, multipart and text/plain are all rejected as REQUEST bodies.
+- **Responses are different**: Meta is content-type aware — JSON is parsed to an
+  object, anything else (XML included) is passed through as a raw string with
+  response headers intact. A read-only XML API works today with no shim.
 - Nested body nodes must be **JSON-encoded strings**, recursively — that is what
   `items | string` above means, and it applies to `properties` values too. An
   inline nested object is rejected.

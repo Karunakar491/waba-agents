@@ -26,12 +26,55 @@ written rather than as enforced.**
 > 'request_definition.body.content_type'`
 
 It is an **enum with one member**. There is no flag to turn on and no shape to
-get right. **A partner API that takes XML, SOAP, form-encoded or multipart bodies
-cannot be called by a Meta connector tool at all** — it needs a JSON-speaking
-shim of ours in front of it. That is a product decision, not a config one.
+get right.
 
-Note this constrains the *request* only. Nothing here tests what Meta does with a
-non-JSON **response**; that is still unknown and worth its own probe.
+**This constrains the request body only — and that distinction turns out to be
+the whole story.** See the next section: XML *responses* work fine.
+
+So the actual boundary is narrower than "no XML":
+
+- An API that needs an **XML/SOAP request body** cannot be called at all. It
+  needs a JSON-speaking shim of ours in front of it — a product decision, not a
+  config one.
+- An API driven by **GET/query/path/header parameters that returns XML works
+  today**, with no shim and no code change.
+
+## Non-JSON responses — XML works, verified
+
+Probed on 2026-09-04 with a throwaway `NONE`-auth connector pointing at
+`httpbin.org`, deployed to the paused agent (never the IndiaMART one), two tools
+on the same connector, then fully torn down.
+
+`GET /xml` → `application/xml`:
+
+```
+status: { "code": 1 }        (success)
+output.status: 200
+output.data: "<?xml version='1.0' encoding='us-ascii'?>\n\n<slideshow title=\"Sample Slide Show\" ...>"
+output.headers: { "content-type": "application/xml", "content-length": "522", ... }
+```
+
+`GET /json` → `application/json`, same connector, as a control:
+
+```
+output.data: { "slideshow": { "author": "Yours Truly", "slides": [ ... ] } }
+```
+
+So Meta is **content-type aware**: JSON is parsed into an object, anything else is
+handed through as a **raw string**, with response headers preserved either way.
+An agent can read XML perfectly well as text.
+
+Consequences worth acting on:
+
+- A read-only XML/RSS/legacy-REST API is usable **right now**. No gateway needed.
+- The tool's `description` should tell the agent the response is XML, since it
+  arrives as an unlabelled string.
+- Response `headers` are visible to the tool result — useful, and also a reason
+  not to put anything sensitive in a response header.
+
+**Correction:** an earlier statement in this session that "Meta doesn't support
+XML" was too broad. It cannot *send* an XML body; it consumes XML responses
+without trouble.
 
 ## Body structure — nesting IS supported, string-encoded
 

@@ -9,6 +9,18 @@ import com.metaagent.platform.domain.connector.entity.Connector;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
 import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
+import com.metaagent.platform.common.exception.BusinessException;
+import com.metaagent.platform.common.exception.NotFoundException;
+import com.metaagent.platform.domain.connector.entity.ConnectorAction;
+import com.metaagent.platform.domain.connector.repository.ConnectorActionRepository;
+import java.util.Optional;
+import org.mockito.ArgumentCaptor;
+import com.metaagent.platform.common.security.TenantDetails;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +28,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 /**
  * Verifies the outbound Meta payload shape — specifically the auth_config
@@ -29,11 +42,17 @@ import static org.mockito.Mockito.mock;
 class ConnectorLibraryServiceTest {
 
     private ConnectorLibraryService service;
+    private ConnectorRepository connectorRepository;
+    private ConnectorActionRepository connectorActionRepository;
 
     @BeforeEach
     void setUp() {
+        authenticateAs(1L);
+        connectorRepository = mock(ConnectorRepository.class);
+        connectorActionRepository = mock(ConnectorActionRepository.class);
         service = new ConnectorLibraryService(
-                mock(ConnectorRepository.class),
+                connectorRepository,
+                connectorActionRepository,
                 mock(ConnectorDeploymentRepository.class),
                 mock(AgentRepository.class),
                 mock(AgentService.class),
@@ -136,5 +155,105 @@ class ConnectorLibraryServiceTest {
         assertEquals("indiamart_pricing_api_demo_via_sheets_apps_script", payload.get("name"));
         assertEquals("Real HTTP JSON API backed by a Google Sheet via Apps Script Web App.",
                 payload.get("description"), "description must stay free text, unlike name");
+    }
+
+    // --- Actions -----------------------------------------------------------
+
+    /**
+     * The guard is the whole risk here. An action id alone must never be enough:
+     * two accounts' connectors live in one table, and findByIdAndConnectorId is
+     * what stops account A reading account B's action by guessing an id.
+     */
+    @Test
+    void should_refuse_to_read_an_action_belonging_to_another_connector() {
+        Connector owned = Connector.builder().accountId(1L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        // The action exists, but not under connector 100.
+        when(connectorActionRepository.findByIdAndConnectorId(555L, 100L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> service.deleteAction(100L, 555L));
+        verify(connectorActionRepository, never()).delete(any());
+    }
+
+    @Test
+    void should_refuse_a_second_action_with_the_same_name() {
+        Connector owned = Connector.builder().accountId(1L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        when(connectorActionRepository.existsByConnectorIdAndName(100L, "product_search")).thenReturn(true);
+
+        ConnectorLibraryDtos.ActionRequest request = new ConnectorLibraryDtos.ActionRequest(
+                "  product_search  ", "Search products", objectNode("{\"method\":\"POST\",\"path\":\"/\"}"), false);
+
+        BusinessException thrown = assertThrows(BusinessException.class, () -> service.createAction(100L, request));
+        // Names the collision instead of letting Meta reject it at deploy time.
+        assertTrue(thrown.getMessage().contains("product_search"));
+        verify(connectorActionRepository, never()).save(any());
+    }
+
+    @Test
+    void should_store_the_request_definition_verbatim_including_nested_string_nodes() {
+        Connector owned = Connector.builder().accountId(7L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        when(connectorActionRepository.existsByConnectorIdAndName(anyLong(), anyString())).thenReturn(false);
+        when(connectorActionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // A nested body: Meta requires each nested node as a JSON-encoded STRING.
+        // Our storage must not "helpfully" reshape that.
+        String definition = "{\"method\":\"POST\",\"path\":\"/\",\"body\":{\"content_type\":\"application/json\","
+                + "\"params\":{\"home\":{\"type\":\"object\",\"properties\":{\"delhi\":\"{\\\"type\\\":\\\"string\\\"}\"}}}}}";
+
+        ConnectorLibraryDtos.ActionResponse response = service.createAction(100L,
+                new ConnectorLibraryDtos.ActionRequest("nested", "Nested body", objectNode(definition), false));
+
+        ArgumentCaptor<ConnectorAction> saved = ArgumentCaptor.forClass(ConnectorAction.class);
+        verify(connectorActionRepository).save(saved.capture());
+        assertEquals(7L, saved.getValue().getAccountId(), "account must come from the connector, never the request");
+        assertEquals("nested", saved.getValue().getName());
+        // The escaped inner node survives storage untouched.
+        assertTrue(saved.getValue().getRequestDefinition().contains("\\\"type\\\":\\\"string\\\""));
+        // And comes back out as real JSON, not a quoted string.
+        assertTrue(response.requestDefinition().isObject());
+        assertEquals("POST", response.requestDefinition().path("method").asText());
+    }
+
+    @Test
+    void should_reject_a_request_definition_that_is_not_an_object() {
+        Connector owned = Connector.builder().accountId(1L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        when(connectorActionRepository.existsByConnectorIdAndName(anyLong(), anyString())).thenReturn(false);
+
+        for (String bad : new String[] {"[1,2]", "\"just a string\"", "null"}) {
+            assertThrows(BusinessException.class, () -> service.createAction(100L,
+                    new ConnectorLibraryDtos.ActionRequest("a", "b", objectNode(bad), false)),
+                    "should reject " + bad);
+        }
+        verify(connectorActionRepository, never()).save(any());
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode objectNode(String json) {
+        try {
+            return new ObjectMapper().readTree(json);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * SecurityContextHelper reads the tenant from auth.getDetails(), not the
+     * principal — copied from AgentDeployServiceTest so both behave the same.
+     */
+    private void authenticateAs(Long targetAccountId) {
+        TenantDetails tenantDetails = new TenantDetails(targetAccountId, 1L, "ROLE_USER");
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "user@test.com", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        authentication.setDetails(tenantDetails);
+        SecurityContext ctx = SecurityContextHolder.createEmptyContext();
+        ctx.setAuthentication(authentication);
+        SecurityContextHolder.setContext(ctx);
+    }
+
+    @AfterEach
+    void clearAuth() {
+        SecurityContextHolder.clearContext();
     }
 }

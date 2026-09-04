@@ -3,6 +3,10 @@ package com.metaagent.platform.domain.connector.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
+import com.metaagent.platform.domain.connector.entity.ConnectorAction;
+import com.metaagent.platform.domain.connector.repository.ConnectorActionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.transaction.annotation.Transactional;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
 import com.metaagent.platform.domain.agent.entity.Agent;
@@ -53,6 +57,7 @@ public class ConnectorLibraryService {
     private static final String AUTH_NONE = "NONE";
 
     private final ConnectorRepository connectorRepository;
+    private final ConnectorActionRepository connectorActionRepository;
     private final ConnectorDeploymentRepository deploymentRepository;
     private final AgentRepository agentRepository;
     private final AgentService agentService;
@@ -437,6 +442,107 @@ public class ConnectorLibraryService {
             return Long.parseLong(raw);
         } catch (Exception e) {
             throw new BusinessException("Invalid id: " + raw);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Actions — what a connector can DO. DB only; deploying is what reaches Meta.
+    //
+    // These live on the library connector because Meta scopes tools to a phone
+    // number, so an action for an undeployed connector has nowhere else to be.
+    // Editing one deliberately does NOT touch a running agent: that would change
+    // a live client's behaviour as a side effect of an edit in a library screen.
+    // ---------------------------------------------------------------------
+
+    public List<ConnectorLibraryDtos.ActionResponse> listActions(Long connectorId) {
+        loadOwned(connectorId);
+        return connectorActionRepository.findAllByConnectorIdOrderByNameAsc(connectorId).stream()
+                .map(ConnectorLibraryService::toActionResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ConnectorLibraryDtos.ActionResponse createAction(Long connectorId, ConnectorLibraryDtos.ActionRequest request) {
+        Connector connector = loadOwned(connectorId);
+        String name = request.name().trim();
+        // Meta refuses two tools with the same name on one connector. Saying so
+        // here beats letting the operator find out at deploy time.
+        if (connectorActionRepository.existsByConnectorIdAndName(connectorId, name)) {
+            throw new BusinessException("This connector already has an action called \"" + name + "\".");
+        }
+        ConnectorAction action = ConnectorAction.builder()
+                .accountId(connector.getAccountId())
+                .connectorId(connectorId)
+                .name(name)
+                .description(request.description().trim())
+                .requestDefinition(writeJson(request.requestDefinition()))
+                .userAuthRequired(request.userAuthRequired())
+                .build();
+        return toActionResponse(connectorActionRepository.save(action));
+    }
+
+    @Transactional
+    public ConnectorLibraryDtos.ActionResponse updateAction(
+            Long connectorId, Long actionId, ConnectorLibraryDtos.ActionRequest request) {
+        loadOwned(connectorId);
+        ConnectorAction action = connectorActionRepository.findByIdAndConnectorId(actionId, connectorId)
+                .orElseThrow(() -> new NotFoundException("Action not found"));
+        String name = request.name().trim();
+        if (!name.equals(action.getName())
+                && connectorActionRepository.existsByConnectorIdAndName(connectorId, name)) {
+            throw new BusinessException("This connector already has an action called \"" + name + "\".");
+        }
+        action.setName(name);
+        action.setDescription(request.description().trim());
+        action.setRequestDefinition(writeJson(request.requestDefinition()));
+        action.setUserAuthRequired(request.userAuthRequired());
+        return toActionResponse(connectorActionRepository.save(action));
+    }
+
+    @Transactional
+    public void deleteAction(Long connectorId, Long actionId) {
+        loadOwned(connectorId);
+        ConnectorAction action = connectorActionRepository.findByIdAndConnectorId(actionId, connectorId)
+                .orElseThrow(() -> new NotFoundException("Action not found"));
+        // Template only. Any Meta tool already instantiated from it on a live
+        // agent stays exactly where it is — removing it there is a separate,
+        // deliberate act against that agent.
+        connectorActionRepository.delete(action);
+    }
+
+    private static ConnectorLibraryDtos.ActionResponse toActionResponse(ConnectorAction action) {
+        return new ConnectorLibraryDtos.ActionResponse(
+                String.valueOf(action.getId()),
+                String.valueOf(action.getConnectorId()),
+                action.getName(),
+                action.getDescription(),
+                readJson(action.getRequestDefinition()),
+                action.isUserAuthRequired(),
+                action.getUpdatedAt() == null ? null : action.getUpdatedAt().toString());
+    }
+
+    private static final ObjectMapper ACTION_JSON = new ObjectMapper();
+
+    /** Stored verbatim, so a shape Meta accepts is never lost to our own modelling. */
+    private static String writeJson(JsonNode node) {
+        if (node == null || node.isNull()) {
+            throw new BusinessException("This action needs a request definition.");
+        }
+        if (!node.isObject()) {
+            throw new BusinessException("The request definition must be a JSON object.");
+        }
+        return node.toString();
+    }
+
+    private static JsonNode readJson(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ACTION_JSON.createObjectNode();
+        }
+        try {
+            return ACTION_JSON.readTree(raw);
+        } catch (Exception e) {
+            // One unreadable row must not break the whole list.
+            return ACTION_JSON.createObjectNode();
         }
     }
 }

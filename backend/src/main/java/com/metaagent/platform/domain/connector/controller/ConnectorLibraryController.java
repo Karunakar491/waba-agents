@@ -55,4 +55,31 @@ public class ConnectorLibraryController {
         connectorLibraryService.delete(connectorId);
         return ApiResponse.ok();
     }
+
+    // --- Actions: what a connector can do --------------------------------
+    // None of these reach Meta. Deploying does.
+
+    @GetMapping("/api/v1/connector-library/{connectorId}/actions")
+    public ApiResponse<List<ConnectorLibraryDtos.ActionResponse>> listActions(@PathVariable Long connectorId) {
+        return ApiResponse.ok(connectorLibraryService.listActions(connectorId));
+    }
+
+    @PostMapping("/api/v1/connector-library/{connectorId}/actions")
+    public ApiResponse<ConnectorLibraryDtos.ActionResponse> createAction(
+            @PathVariable Long connectorId, @Valid @RequestBody ConnectorLibraryDtos.ActionRequest request) {
+        return ApiResponse.ok(connectorLibraryService.createAction(connectorId, request));
+    }
+
+    @PutMapping("/api/v1/connector-library/{connectorId}/actions/{actionId}")
+    public ApiResponse<ConnectorLibraryDtos.ActionResponse> updateAction(
+            @PathVariable Long connectorId, @PathVariable Long actionId,
+            @Valid @RequestBody ConnectorLibraryDtos.ActionRequest request) {
+        return ApiResponse.ok(connectorLibraryService.updateAction(connectorId, actionId, request));
+    }
+
+    @DeleteMapping("/api/v1/connector-library/{connectorId}/actions/{actionId}")
+    public ApiResponse<Void> deleteAction(@PathVariable Long connectorId, @PathVariable Long actionId) {
+        connectorLibraryService.deleteAction(connectorId, actionId);
+        return ApiResponse.ok();
+    }
 }

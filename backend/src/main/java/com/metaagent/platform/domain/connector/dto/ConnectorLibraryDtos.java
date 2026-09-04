@@ -1,5 +1,7 @@
 package com.metaagent.platform.domain.connector.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -104,5 +106,31 @@ public final class ConnectorLibraryDtos {
             String updatedAt,
             int usedByAgentCount,
             List<DeploymentView> deployments
+    ) {}
+
+    // --- Actions (what a connector can DO) -------------------------------
+    //
+    // requestDefinition is Meta's own request_definition, passed through
+    // untouched. It is a JsonNode rather than a typed record on purpose: nested
+    // body nodes are recursively JSON-encoded strings, and parameters carry
+    // bindings and enums, so a Java model of it would need changing every time
+    // Meta adds a field and would silently drop anything it did not know about.
+    // See docs/meta-api/connector-tools-capability-matrix.md.
+
+    public record ActionRequest(
+            @NotBlank(message = "Name is required") @Size(max = 255) String name,
+            @NotBlank(message = "Description is required") @Size(max = 1024) String description,
+            @NotNull(message = "Request definition is required") JsonNode requestDefinition,
+            boolean userAuthRequired
+    ) {}
+
+    public record ActionResponse(
+            String id,
+            String connectorId,
+            String name,
+            String description,
+            JsonNode requestDefinition,
+            boolean userAuthRequired,
+            String updatedAt
     ) {}
 }

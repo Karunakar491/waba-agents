@@ -110,20 +110,24 @@ test.describe('@xml-ui configure an XML API through the UI', () => {
     await page.getByLabel(`Run tool ${TOOL}`).click()
     await page.getByRole('button', { name: /^Run$/ }).click()
 
-    const output = page.locator('pre')
+    // First <pre> is the readable response; the second is the raw envelope, behind a
+    // disclosure. Before the 2026-09-04 fix there was one <pre> holding the raw
+    // envelope, so this asserted the ESCAPED form (<) to pin that defect. It now
+    // asserts the fix: real angle brackets, readable XML.
+    const output = page.locator('pre').first()
     await expect(output).toBeVisible({ timeout: 90_000 })
     await expect(output).toContainText('slideshow', { timeout: 90_000 })
     const text = await output.textContent()
-    console.log('RUN OUTPUT (first 500):', (text ?? '').slice(0, 500))
+    console.log('RUN OUTPUT (first 400):', (text ?? '').slice(0, 400))
 
-    // Assert on the XML declaration WITHOUT the angle bracket: the panel renders the
-    // raw JSON envelope, in which "<" is escaped as <. So a literal "<?xml" never
-    // appears even though the document is right there. That escaping is a genuine
-    // readability defect in the Run panel, logged separately — an operator cannot read
-    // the response they just fetched.
-    expect(text, 'the XML document should arrive in the run output').toContain('?xml version')
-    expect(text, 'the escaped form is what the panel actually shows today').toContain('\\u003C')
+    expect(text, 'the XML should be readable, with real angle brackets').toContain('<?xml version')
+    expect(text).toContain('<slideshow')
+    expect(text, 'no JSON unicode escapes should reach the operator').not.toContain('\\u003C')
     expect(text).toContain('WonderWidgets')
+
+    // The panel should also say what the API answered, not just "success".
+    await expect(page.getByText(/the API answered HTTP 200/)).toBeVisible()
+    await expect(page.getByText(/application\/xml/)).toBeVisible()
 
     await page.screenshot({ path: resolve(ROOT, '../docs/e2e-test-runs/2026-09-04-xml-tool-run.png'), fullPage: true })
 

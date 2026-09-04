@@ -38,10 +38,47 @@ The three behaviour changes and the evidence each rests on:
 
 ### Produced against the running app
 
-Filled in after deploy: a screenshot of the Test panel showing a readable
-response, and a real failed save showing Meta's sentence instead of a number.
+Deployed 2026-09-04. Backend jar md5 `1387f883018056bfe52698e2c90e960c`, rollback
+`/opt/metaagent/target/platform-ROLLBACK-20260904083738.jar`, "Started
+PlatformApplication in 29.492 seconds", 54 migrations validated and none applied.
+Frontend `index-lv9Xcox_.js`, served md5 `f9cd5fbfe40444500cf691d3bd40d019`
+hash-matched against the local build, rollback
+`/tmp/metaagent-backup-20260904083919.tar.gz`.
+
+**1. Meta's real reason now reaches the operator.** Three real rejections against
+production, each of which said only `Meta API error: 400` before this deploy:
+
+```
+duplicate input name -> Invalid request_definition — request_definition uses duplicate
+                        top-level input name "action" in query_parameters and body.params.
+
+nested inline object -> JSON Schema Validation Error — ... constraint 'patternProperties'
+                        for the JSON field 'request_definition.body.params' ...
+
+XML content type     -> JSON Schema Validation Error — ... constraint 'enum' for
+                        'request_definition.body.content_type' ...
+                        expected : '[application/json]' but got 'application/xml'
+```
+
+That last one is the point: the message now tells the operator the answer instead
+of a number. None of the three created a tool; the IndiaMART connector still
+holds only `product_search`.
+
+**2. The Test response is readable.** Screenshot
+`docs/e2e-test-runs/2026-09-04-xml-tool-run.png` reads
+"Worked · the API answered HTTP 200 · application/xml" above the actual XML with
+real angle brackets, raw envelope behind a disclosure.
+
+Proven by browser test rather than by eye: `@xml-ui` previously asserted the
+**escaped** form to pin the defect, and now asserts `<?xml version` and
+`<slideshow` while requiring that no unicode escape reaches the operator. Passes
+against production.
+
+**3. `DELETE` with a body** is accepted by the editor and the serializer, covered
+by two tests split along what the wire actually does.
 
 ## Notes
+
 
 First phase of `docs/superpowers/specs/2026-09-04-connector-edit-page-design.md`.
 The edit page is built on top of this deliberately — it presents request,

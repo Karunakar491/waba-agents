@@ -100,20 +100,22 @@ export function formatListTimestampIST(iso: string, now: Date = new Date()): str
   const thatDay = istStartOfDayMs(instant)
   const daysAgo = Math.round((today - thatDay) / DAY_MS)
 
+  // Today is the one case where a time says more than a date does.
   if (daysAgo === 0) return formatTimeIST(iso)
-  if (daysAgo === 1) return 'Yesterday'
-  // Inside the last week a weekday name is easier to place than a date.
-  if (daysAgo > 1 && daysAgo < 7) {
-    return instant.toLocaleDateString('en-IN', { weekday: 'short', timeZone: IST_TIME_ZONE })
-  }
-  // Anything older, including future-dated rows from clock skew, gets a date.
+
+  // Everything else gets a real date including the year (founder, 2026-09-06:
+  // "It should have date and year").
+  //
+  // This used to say "Yesterday" for one day back and a weekday name — "Tue" —
+  // for anything inside the last week, with the year appearing only when it
+  // wasn't the current one. Both were friendlier to read and worse to scan: a
+  // column of "Tue", "Mon", "Yesterday" cannot be compared at a glance, and
+  // "Tue" is ambiguous the moment a week has passed. An operator scanning this
+  // list is placing conversations in time, not being told a story about them.
   return instant.toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
-    // Only bother with the year when it isn't the current one.
-    ...(thatDay < istStartOfDayMs(new Date(Date.UTC(now.getUTCFullYear(), 0, 1)))
-      ? { year: 'numeric' }
-      : {}),
+    year: 'numeric',
     timeZone: IST_TIME_ZONE,
   })
 }

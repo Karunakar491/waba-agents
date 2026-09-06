@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { MessageSquare, Bot, User, Webhook } from 'lucide-react'
@@ -7,7 +7,7 @@ import api from '../lib/api'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyButton from '../components/shared/CopyButton'
-import { formatTimeIST, formatListTimestampIST, formatDateTimeIST } from '../lib/dateFormat'
+import { formatListTimestampIST, formatDateTimeIST } from '../lib/dateFormat'
 import WebhookLogPanel from '../components/debug/WebhookLogPanel'
 import { describeMessage } from '../components/inbox/describeMessage'
 
@@ -94,19 +94,58 @@ export default function InboxPage() {
 
   const openCount = useMemo(() => conversations.filter((c) => c.status === 'open').length, [conversations])
 
-  // Open-first (most-recent-first within each group, per the existing API
-  // ordering — a stable sort only reorders across the open/closed boundary),
-  // per the 2026-08-05 triage fix: previously every row looked identical
-  // regardless of urgency.
+  // Most recent first, sorted here rather than trusting the API's ordering.
+  //
+  // This used to group open conversations above closed ones (2026-08-05 triage
+  // fix). The founder asked for plain recency instead (2026-09-06:
+  // "Conversations should show the latest conversation first"), which is what
+  // someone scanning for "the message that just came in" actually wants — under
+  // the old rule the newest conversation on the account could sit below a
+  // week-old open one. The Open filter still isolates unanswered threads.
+  //
+  // A conversation with no lastMessageAt has nothing to be recent about, so it
+  // sorts last rather than to the top on a NaN comparison.
   const sortedConversations = useMemo(() => {
-    const order: Record<Conversation['status'], number> = { open: 0, closed: 1 }
-    return [...conversations].sort((a, b) => order[a.status] - order[b.status])
+    const at = (c: Conversation) => (c.lastMessageAt ? new Date(c.lastMessageAt).getTime() : -Infinity)
+    return [...conversations].sort((a, b) => at(b) - at(a))
   }, [conversations])
 
   const visibleConversations = useMemo(() => {
     if (filter === 'ALL') return sortedConversations
     return sortedConversations.filter((c) => c.status === filter.toLowerCase())
   }, [sortedConversations, filter])
+
+  // Oldest first, so the newest sits at the bottom where a chat thread ends.
+  // Sorted here rather than trusting the API's order, since the bottom of the
+  // list is the only thing the user is shown on open.
+  const orderedMessages = useMemo(
+    () =>
+      [...messages].sort(
+        (a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime(),
+      ),
+    [messages],
+  )
+
+  const messageScrollRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * Open a conversation on its latest message.
+   *
+   * Until now the thread opened at the top — the oldest message — so on a
+   * conversation with any history the operator was reading a customer's first
+   * message from weeks ago and had to scroll down to find what just arrived
+   * (founder, 2026-09-06). Every chat interface in the world opens at the
+   * bottom; this one didn't.
+   *
+   * Keyed on the conversation and the message count so it also follows a new
+   * message arriving on the open thread, and jumps rather than smooth-scrolls:
+   * animating through the whole history on open is slower to read, not nicer.
+   */
+  useEffect(() => {
+    const node = messageScrollRef.current
+    if (!node || msgsLoading) return
+    node.scrollTop = node.scrollHeight
+  }, [selectedId, orderedMessages.length, msgsLoading])
 
   const selectedConv = conversations.find((c) => String(c.id) === selectedId) ?? null
 
@@ -216,8 +255,14 @@ export default function InboxPage() {
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Messages. Oldest at the top, newest at the bottom, and opened
+                scrolled to the bottom — see scrollToLatest. */}
+            <div
+              ref={messageScrollRef}
+              role="log"
+              aria-label="Messages"
+              className="flex-1 overflow-y-auto p-4 space-y-3"
+            >
               {msgsLoading ? (
                 <MessagesSkeleton />
               ) : msgsError ? (
@@ -227,7 +272,7 @@ export default function InboxPage() {
               ) : messages.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-10">No messages yet.</p>
               ) : (
-                messages.map((msg) => (
+                orderedMessages.map((msg) => (
                   <MessageBubble key={msg.id} msg={msg} onJumpToWebhook={jumpToWebhook} />
                 ))
               )}
@@ -257,6 +302,11 @@ function ConversationRow({
   return (
     <button
       onClick={onClick}
+      // Without this the button's accessible name is every scrap of text inside
+      // it read end to end — the number, the timestamp, the routing line and the
+      // status, as one run-on string.
+      aria-label={`Conversation with ${conv.externalId}`}
+      aria-current={isSelected ? 'true' : undefined}
       className={cn(
         'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors border-b',
         isSelected ? 'bg-primary/5' : 'hover:bg-muted/40'
@@ -268,12 +318,13 @@ function ConversationRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
-          <span
+          <time
+            dateTime={conv.lastMessageAt ?? undefined}
             className="text-xs text-muted-foreground shrink-0"
             title={conv.lastMessageAt ? formatDateTimeIST(conv.lastMessageAt) : undefined}
           >
             {time}
-          </span>
+          </time>
         </div>
         {/* Which of the account's several numbers this came in on (2026-08-13
             founder ask) — "to" makes the direction unambiguous next to the
@@ -292,7 +343,7 @@ function ConversationRow({
 
 function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook: (webhookRawId: string) => void }) {
   const isOutbound = msg.direction === 'outbound'
-  const time = formatTimeIST(msg.receivedAt)
+  const time = formatDateTimeIST(msg.receivedAt)
 
   // Not `[${contentType}]` any more: that rendered 21 real messages on this
   // account as the literal text "[interactive]", hiding what the customer had
@@ -338,17 +389,20 @@ function MessageBubble({ msg, onJumpToWebhook }: { msg: Message; onJumpToWebhook
             {described.detail}
           </p>
         )}
-        {/* Bare time inside the thread is the convention, but a thread can
-            span weeks — so the full IST date is on hover. */}
-        <p
-          title={formatDateTimeIST(msg.receivedAt)}
+        {/* Date AND time on every message, not a bare time with the date on
+            hover (founder, 2026-09-06: "every message should have date and
+            time"). A thread can span weeks, and hover is invisible on touch and
+            unfindable if you don't know it is there — so a message whose date
+            you can only discover by accident may as well not have one. */}
+        <time
+          dateTime={msg.receivedAt}
           className={cn(
-            'mt-1 text-[10px]',
+            'mt-1 block text-[10px]',
             isOutbound ? 'text-white/50' : 'text-muted-foreground'
           )}
         >
           {time}
-        </p>
+        </time>
       </div>
       {/* Founder-caught gap (2026-08-07): no copy affordance existed on message content. */}
       <CopyButton

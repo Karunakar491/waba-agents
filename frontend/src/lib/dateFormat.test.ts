@@ -20,32 +20,33 @@ describe('formatListTimestampIST', () => {
     expect(formatListTimestampIST('2026-09-03T12:38:00', now)).toMatch(/06:08\s*pm/i)
   })
 
-  it('says Yesterday rather than a bare time', () => {
-    expect(formatListTimestampIST('2026-09-02T13:08:20', now)).toBe('Yesterday')
+  it('dates yesterday instead of saying "Yesterday"', () => {
+    expect(formatListTimestampIST('2026-09-02T13:08:20', now)).toBe('2 Sept 2026')
   })
 
-  it('names the weekday inside the last week', () => {
-    // 2026-09-01 was a Tuesday.
-    expect(formatListTimestampIST('2026-09-01T07:26:39', now)).toBe('Tue')
+  it('dates rows inside the last week instead of naming the weekday', () => {
+    // 2026-09-01 was a Tuesday, and used to render as "Tue" — unreadable in a
+    // column and ambiguous once a week has passed.
+    expect(formatListTimestampIST('2026-09-01T07:26:39', now)).toBe('1 Sept 2026')
   })
 
   it('shows a date for the older rows that used to look like today', () => {
-    // The actual regression: this row rendered as "01:08 pm".
-    expect(formatListTimestampIST('2026-08-27T07:38:44', now)).toBe('27 Aug')
+    // The original regression: this row rendered as "01:08 pm".
+    expect(formatListTimestampIST('2026-08-27T07:38:44', now)).toBe('27 Aug 2026')
   })
 
-  it('omits the year within the current year and includes it before that', () => {
-    expect(formatListTimestampIST('2026-01-15T10:00:00', now)).toBe('15 Jan')
-    expect(formatListTimestampIST('2025-12-31T10:00:00', now)).toMatch(/31 Dec 2025/)
+  it('always carries the year, current or not', () => {
+    expect(formatListTimestampIST('2026-01-15T10:00:00', now)).toBe('15 Jan 2026')
+    expect(formatListTimestampIST('2025-12-31T10:00:00', now)).toBe('31 Dec 2025')
   })
 
   it('crosses the IST midnight boundary, not the UTC one', () => {
     // 2026-09-03 19:00 UTC is 2026-09-04 00:30 IST — already tomorrow in
-    // India. An instant at 2026-09-03 20:00 IST is then "Yesterday", even
-    // though both are the 3rd in UTC. Getting this wrong is the whole reason
-    // istStartOfDayMs exists.
+    // India. An instant at 2026-09-03 20:00 IST is then a past day and gets a
+    // date rather than a time, even though both are the 3rd in UTC. Getting
+    // this wrong is the whole reason istStartOfDayMs exists.
     const afterIstMidnight = new Date('2026-09-03T19:00:00Z')
-    expect(formatListTimestampIST('2026-09-03T14:30:00', afterIstMidnight)).toBe('Yesterday')
+    expect(formatListTimestampIST('2026-09-03T14:30:00', afterIstMidnight)).toBe('3 Sept 2026')
   })
 
   it('does not throw on an unparseable value', () => {

@@ -277,6 +277,28 @@ without an `alt`**; 34 `htmlFor` label bindings.
 
 ---
 
+## Fixed on 2026-09-07
+
+The first pass at this list. What changed, and what it did not:
+
+- **Feedback.** A confirmation mechanism now exists and is wired into **18 call
+  sites across 7 files** — every mutation that changes what a customer sees or
+  that destroys something. Each names what happened and to what, not "Success".
+  Template Studio and the agent detail tabs are still silent.
+- **Forgiveness.** Connector and connector-action deletes now confirm, so every
+  delete in the product asks first. Undo still does not exist anywhere.
+- **The dead Disconnect button is gone**, removed rather than wired — "Remove
+  from Meta" already frees a number, deliberately and with a confirmation.
+- **Silent refusal.** The connector panel’s Save button was disabled with
+  nothing explaining why; it now lists what is still needed. Found by a test
+  timing out against the dead button while trying to prove something else.
+
+Unchanged and still failing: consistency (five verbs for one act), recognition
+over recall (customers are still phone numbers), direct manipulation (still no
+way to reply), the lying success-rate metric, and 44px touch targets.
+
+The scorecard below is **as first assessed**, kept so the change is visible.
+
 ## Scorecard
 
 | # | Principle | Verdict |

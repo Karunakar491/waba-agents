@@ -9,6 +9,8 @@ import type { StatusTone } from '../components/shared/StatusIndicator'
 import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
 import LibraryToolbar from '../components/library/LibraryToolbar'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import {
@@ -116,6 +118,12 @@ export default function ConnectorLibraryPage() {
   const [deployTarget, setDeployTarget] = useState<LibraryConnector | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
+  // Connector delete used to fire immediately, while Skills, Files and WABAs
+  // all asked first. Uneven confirmation is worse than none: it teaches a habit
+  // the app then breaks, and a connector can be live on several agents.
+  const [pendingDelete, setPendingDelete] = useState<LibraryConnector | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const { confirm } = useActionFeedback()
 
   const { data: wabas = [], isLoading: wabasLoading } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -153,6 +161,10 @@ export default function ConnectorLibraryPage() {
     [agents, waba],
   )
 
+  /** A connector's name from its id, for confirmations that fire after it is gone. */
+  const nameOf = (id: string) =>
+    libraryConnectors.find((c) => c.id === id)?.name ?? 'Connector'
+
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['connector-library', waba?.id] })
     void queryClient.invalidateQueries({ queryKey: ['library-connectors', waba?.id] })
@@ -163,34 +175,44 @@ export default function ConnectorLibraryPage() {
       // Create only. Editing an existing connector navigates to its own page,
       // which is the only place that can also define what the connector does.
       api.post('/connector-library', { wabaId: waba!.id, ...toRequestBody(values) }),
-    onSuccess: () => {
+    onSuccess: (_data, values) => {
       invalidate()
       setShowEditor(false)
       setForm(EMPTY_CONNECTOR_FORM)
       setFormError(null)
+      confirm('Connector saved', `${values.name} — add an action so an agent can call it`)
     },
     onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const publishMutation = useMutation({
     mutationFn: (id: string) => api.post(`/connector-library/${id}/publish`),
-    onSuccess: invalidate,
+    onSuccess: (_data, id) => {
+      invalidate()
+      confirm('Connector published', nameOf(id))
+    },
     onError: (err) => setPageError(extractErrorMessage(err)),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/connector-library/${id}`),
-    onSuccess: invalidate,
-    onError: (err) => setPageError(extractErrorMessage(err)),
+    onSuccess: (_data, id) => {
+      invalidate()
+      setPendingDelete(null)
+      confirm('Connector deleted', nameOf(id))
+    },
+    onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
   const deployMutation = useMutation({
     mutationFn: ({ id, agentId, secrets }: { id: string; agentId: string; secrets: Record<string, string> }) =>
       api.post(`/connector-library/${id}/deploy`, { agentId, secrets }),
-    onSuccess: () => {
+    onSuccess: (_data, { id, agentId }) => {
       invalidate()
       setDeployTarget(null)
       setDeployError(null)
+      const agent = agents.find((a) => a.id === agentId)
+      confirm('Connector deployed', `${nameOf(id)} → ${agent?.displayName ?? 'the agent'}`)
     },
     onError: (err) => setDeployError(extractErrorMessage(err)),
   })
@@ -393,8 +415,8 @@ export default function ConnectorLibraryPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setPageError(null)
-                          deleteMutation.mutate(connector.id)
+                          setDeleteError(null)
+                          setPendingDelete(connector)
                         }}
                         aria-label={`Delete connector ${connector.name}`}
                         className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive"
@@ -472,6 +494,35 @@ export default function ConnectorLibraryPage() {
             setDeployTarget(null)
             setDeployError(null)
           }}
+        />
+      )}
+
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          title="Delete connector"
+          consequence={
+            <>
+              Delete <strong className="font-semibold text-foreground">{pendingDelete.name}</strong>?
+              {pendingDelete.usedByAgentCount > 0 ? (
+                <>
+                  {' '}
+                  It is deployed to{' '}
+                  <strong className="font-semibold text-foreground">
+                    {pendingDelete.usedByAgentCount} agent
+                    {pendingDelete.usedByAgentCount === 1 ? '' : 's'}
+                  </strong>
+                  , which will stop being able to call it. This cannot be undone.
+                </>
+              ) : (
+                ' No agent is using it. This cannot be undone.'
+              )}
+            </>
+          }
+          confirmLabel="Delete connector"
+          isPending={deleteMutation.isPending}
+          error={deleteError}
+          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          onClose={() => setPendingDelete(null)}
         />
       )}
     </div>

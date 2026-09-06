@@ -154,9 +154,30 @@ export function requiredSecretFields(connector: LibraryConnector): { key: string
   return []
 }
 
+/**
+ * What is still missing, in the field's own words.
+ *
+ * The Save button used to be disabled with nothing explaining why, so a user
+ * who had filled in the three obvious fields could sit looking at a dead button
+ * — the blocker was usually the auth header, further down and easy to miss.
+ * A control that refuses silently is the same failure as one that succeeds
+ * silently: the app knows something the user doesn't and won't say it.
+ */
+export function missingFields(form: ConnectorFormValues): string[] {
+  const missing: string[] = []
+  if (!form.name.trim()) missing.push('Name')
+  if (!form.description.trim()) missing.push('Description')
+  if (!form.baseUrl.trim()) missing.push('Base URL')
+  if (form.authType === 'API_KEY' && !form.headerName.trim()) {
+    missing.push('Header that carries the key')
+  }
+  if (form.authType === 'OAUTH2_CLIENT_CREDENTIALS') {
+    if (!form.tokenUrl.trim()) missing.push('Token URL')
+    if (!form.clientId.trim()) missing.push('Client ID')
+  }
+  return missing
+}
+
 export function isFormComplete(form: ConnectorFormValues): boolean {
-  if (!form.name.trim() || !form.description.trim() || !form.baseUrl.trim()) return false
-  if (form.authType === 'API_KEY') return !!form.headerName.trim()
-  if (form.authType === 'OAUTH2_CLIENT_CREDENTIALS') return !!form.tokenUrl.trim() && !!form.clientId.trim()
-  return true
+  return missingFields(form).length === 0
 }

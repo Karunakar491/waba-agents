@@ -5,6 +5,8 @@ import { ArrowLeft, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator from '../components/shared/StatusIndicator'
+import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
 import ActionEditor from '../components/connectors/ActionEditor'
 import {
@@ -52,6 +54,10 @@ export default function ConnectorEditPage() {
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [addingAction, setAddingAction] = useState(false)
   const [editingActionId, setEditingActionId] = useState<string | null>(null)
+  // Deleting an action used to happen on the first click, with no confirmation,
+  // unlike every other delete in the product except the connector itself.
+  const [pendingDeleteAction, setPendingDeleteAction] = useState<ConnectorAction | null>(null)
+  const { confirm } = useActionFeedback()
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -89,6 +95,7 @@ export default function ConnectorEditPage() {
       queryClient.invalidateQueries({ queryKey: ['connector-library'] })
       setEditingDetails(false)
       setDetailsForm(null)
+      confirm('Connector details saved')
     },
     onError: (err: unknown) => setDetailsError(err instanceof Error ? err.message : 'Could not save.'),
   })
@@ -98,16 +105,28 @@ export default function ConnectorEditPage() {
       id
         ? api.put(`/connector-library/${connectorId}/actions/${id}`, payload)
         : api.post(`/connector-library/${connectorId}/actions`, payload),
-    onSuccess: () => {
+    onSuccess: (_data, { id, payload }) => {
       queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
       setAddingAction(false)
       setEditingActionId(null)
+      // Says plainly that saving here is not the same as an agent being able to
+      // call it. Nothing instantiates these on Meta yet, and a confirmation that
+      // implied otherwise would be the most misleading message in the product.
+      confirm(
+        id ? 'Action saved' : 'Action added',
+        `${payload.name} — deploy this connector to an agent to make it callable`,
+      )
     },
   })
 
   const deleteAction = useMutation({
     mutationFn: (id: string) => api.delete(`/connector-library/${connectorId}/actions/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] }),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
+      const name = actions.find((a) => a.id === id)?.name
+      setPendingDeleteAction(null)
+      confirm('Action deleted', name)
+    },
   })
 
   if (loadingConnector) {
@@ -292,7 +311,7 @@ export default function ConnectorEditPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteAction.mutate(action.id)}
+                      onClick={() => setPendingDeleteAction(action)}
                       disabled={deleteAction.isPending}
                       aria-label={`Delete action ${action.name}`}
                       className="flex h-11 w-11 items-center justify-center rounded-lg border text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:opacity-50"
@@ -321,6 +340,24 @@ export default function ConnectorEditPage() {
       >
         Done
       </button>
+
+      {pendingDeleteAction && (
+        <ConfirmDeleteModal
+          title="Delete action"
+          consequence={
+            <>
+              Delete <strong className="font-semibold text-foreground">{pendingDeleteAction.name}</strong>?
+              Agents already running this connector keep the copy they were deployed with until you
+              deploy it again. This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete action"
+          isPending={deleteAction.isPending}
+          error={deleteAction.error instanceof Error ? deleteAction.error.message : null}
+          onConfirm={() => deleteAction.mutate(pendingDeleteAction.id)}
+          onClose={() => setPendingDeleteAction(null)}
+        />
+      )}
     </div>
   )
 }

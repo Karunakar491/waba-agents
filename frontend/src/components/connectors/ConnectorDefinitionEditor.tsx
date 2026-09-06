@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import {
   AUTH_TYPES,
-  isFormComplete,
+  missingFields,
   type ConnectorFormValues,
 } from './connectorLibrary'
 
@@ -45,6 +45,7 @@ export default function ConnectorDefinitionEditor({
   onCancel: () => void
 }) {
   const set = (patch: Partial<ConnectorFormValues>) => onChange({ ...form, ...patch })
+  const stillNeeded = missingFields(form)
 
   return (
     <div className="rounded-xl border bg-card shadow-surface-resting">
@@ -193,10 +194,19 @@ export default function ConnectorDefinitionEditor({
           Requires a client certificate (mTLS)
         </label>
 
+        {/* Says what is still needed instead of leaving a dead button. The
+            blocker is usually the auth header, which sits further up and is
+            easy to miss once the three obvious fields are filled. */}
+        {stillNeeded.length > 0 && (
+          <p className="pt-1 text-xs text-muted-foreground">
+            Still needed: <span className="text-foreground">{stillNeeded.join(', ')}</span>
+          </p>
+        )}
+
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={onSave}
-            disabled={saving || !isFormComplete(form)}
+            disabled={saving || stillNeeded.length > 0}
             className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
               text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >

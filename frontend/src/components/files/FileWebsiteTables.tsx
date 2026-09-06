@@ -1,4 +1,4 @@
-import { FileText, Globe, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { FileText, Globe, Loader2, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StatusIndicator from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
@@ -36,10 +36,40 @@ function syncBadge(metaSynced: boolean) {
 // already contains the phone number id, so unconditionally appending it
 // again rendered "Imported agent (123) (123)". Only append when it isn't
 // already present in the name.
-function deployedOn(agentName: string | null, phoneNumberId: string | null) {
+function deployedOnLabel(agentName: string | null, phoneNumberId: string | null) {
   const name = agentName ?? 'Unknown agent'
   const alreadyShown = phoneNumberId != null && name.includes(phoneNumberId)
   return `${name}${phoneNumberId && !alreadyShown ? ` (${phoneNumberId})` : ''}`
+}
+
+/**
+ * The owning agent, as a link the user can choose to follow.
+ *
+ * This column used to be plain text sitting beside a pencil that navigated
+ * here anyway. The pencil promised an editor that does not exist — there is no
+ * per-file endpoint at all, only upload and delete — so clicking it dropped the
+ * user on an agent page they never asked for (founder, 2026-09-06: "when
+ * someone clicks on anything, it is unnecessarily redirecting to the agents
+ * page"). Now the only thing that navigates is the agent's own name, which says
+ * where it goes before you click it.
+ */
+function DeployedOn({
+  agentId,
+  agentName,
+  phoneNumberId,
+}: {
+  agentId: string
+  agentName: string | null
+  phoneNumberId: string | null
+}) {
+  return (
+    <Link
+      to={`/agents/${agentId}?tab=knowledge`}
+      className="text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+    >
+      {deployedOnLabel(agentName, phoneNumberId)}
+    </Link>
+  )
 }
 
 export function FilesTable({
@@ -69,21 +99,18 @@ export function FilesTable({
           <tr key={row.id} className="hover:bg-muted/30">
             <td className="px-4 py-3 text-sm font-medium text-foreground max-w-xs truncate">{row.filename}</td>
             <td className="px-4 py-3">{syncBadge(row.metaSynced)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
+            <td className="px-4 py-3">
+              <DeployedOn agentId={row.agentId} agentName={row.agentName} phoneNumberId={row.phoneNumberId} />
+            </td>
             <td className="px-4 py-3 text-muted-foreground">{formatDateTimeIST(row.lastEdited)}</td>
-            {/* Founder-caught gap (2026-08-07): no edit action existed, only
-                delete. This page is a cross-agent rollup; the file's real
-                management UI (replace/re-upload) lives on its owning agent's
-                Knowledge tab. */}
+            {/* An Edit pencil was added here on 2026-08-07 to fill an apparently
+                missing action. It never edited anything — there is no per-file
+                endpoint, only upload and delete — it just navigated to the
+                owning agent. Removed 2026-09-06: an action that does something
+                other than what its icon says is worse than a missing action.
+                The agent is still one click away, on its own name. */}
             <td className="px-4 py-3 text-right">
               <div className="flex items-center justify-end gap-1">
-                <Link
-                  to={`/agents/${row.agentId}?tab=knowledge`}
-                  aria-label={`Edit file ${row.filename}`}
-                  className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Link>
                 <button
                   onClick={() => onDelete(row)}
                   disabled={deletingId === row.id}
@@ -128,17 +155,12 @@ export function WebsitesTable({
           <tr key={row.id} className="hover:bg-muted/30">
             <td className="px-4 py-3 text-sm font-medium text-foreground max-w-xs truncate">{row.url}</td>
             <td className="px-4 py-3">{syncBadge(row.metaSynced)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{deployedOn(row.agentName, row.phoneNumberId)}</td>
+            <td className="px-4 py-3">
+              <DeployedOn agentId={row.agentId} agentName={row.agentName} phoneNumberId={row.phoneNumberId} />
+            </td>
             <td className="px-4 py-3 text-muted-foreground">{formatDateTimeIST(row.lastEdited)}</td>
             <td className="px-4 py-3 text-right">
               <div className="flex items-center justify-end gap-1">
-                <Link
-                  to={`/agents/${row.agentId}?tab=knowledge`}
-                  aria-label={`Edit website ${row.url}`}
-                  className="rounded p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Link>
                 <button
                   onClick={() => onDelete(row)}
                   disabled={deletingId === row.id}

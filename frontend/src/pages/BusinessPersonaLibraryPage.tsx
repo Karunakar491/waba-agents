@@ -10,7 +10,7 @@ import {
 import type { BusinessProfileResponse, BusinessProfileFormValues } from '../components/agent-detail/BusinessProfileTab'
 import { PersonaDraftEditor } from '../components/persona/PersonaFilters'
 import { usePersonaData } from '../components/persona/usePersonaData'
-import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
+import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
 import LibraryToolbar from '../components/library/LibraryToolbar'
 import type { StatusTone } from '../components/shared/StatusIndicator'
 import Modal from '../components/shared/Modal'
@@ -35,7 +35,6 @@ export default function BusinessPersonaLibraryPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
   const [deployingDraftId, setDeployingDraftId] = useState<string | null>(null)
-  const [deployTargets, setDeployTargets] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [pendingDeploy, setPendingDeploy] = useState<{ draftId: string; phoneNumberId: string } | null>(null)
@@ -104,12 +103,8 @@ export default function BusinessPersonaLibraryPage() {
     deployMutation.mutate({ draftId, phoneNumberId })
   }
 
-  function requestDeployConfirm(draftId: string, phoneNumberId: string) {
-    setPendingDeploy({ draftId, phoneNumberId })
-  }
-
   function confirmDeploy() {
-    if (!pendingDeploy) return
+    if (!pendingDeploy || !pendingDeploy.phoneNumberId) return
     deploy(pendingDeploy.draftId, pendingDeploy.phoneNumberId)
     setPendingDeploy(null)
   }
@@ -179,7 +174,7 @@ export default function BusinessPersonaLibraryPage() {
       )}
 
       {isLoading ? (
-        <LibraryCardGridSkeleton />
+        <LibraryTableSkeleton />
       ) : filteredRows.length === 0 ? (
         <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
           <p className="text-base font-semibold text-foreground">
@@ -192,78 +187,74 @@ export default function BusinessPersonaLibraryPage() {
           </p>
         </div>
       ) : (
-        <LibraryCardGrid>
-          {filteredRows.map((row) => {
-            const status = STATUS_DISPLAY[row.profile.status] ?? { label: row.profile.status, tone: 'neutral' as StatusTone }
+        <LibraryTable
+          itemLabel="Persona"
+          rows={filteredRows.map((row) => {
+            const status = STATUS_DISPLAY[row.profile.status] ?? {
+              label: row.profile.status,
+              tone: 'neutral' as StatusTone,
+            }
             const isDraft = row.profile.status === 'DRAFT'
-            const deployTarget = deployTargets[row.profile.id]
-            return (
-              <LibraryItemCard
-                key={`${row.profile.status}-${row.profile.id}`}
-                name={row.profile.businessDescription || `Persona ${row.profile.id}`}
-                statusLabel={status.label}
-                statusTone={status.tone}
-                // Figma's Industry / Tone chips have no backing data — business_profile
-                // stores policy text and contact details, not a categorisation.
-                usageLine={row.displayPhoneNumber ? `Live on ${row.displayPhoneNumber}` : 'Not yet published'}
-                actions={
-                  <>
-                    <button
-                      onClick={() => startEdit(row.profile)}
-                      className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      {isDraft ? 'Edit' : 'Edit as new draft'}
-                    </button>
-                    {isDraft && (
-                      <>
-                        {phones.length > 0 && (
-                          <>
-                            <label htmlFor={`deploy-target-${row.profile.id}`} className="sr-only">
-                              Choose a phone number to deploy this draft to
-                            </label>
-                            <select
-                              id={`deploy-target-${row.profile.id}`}
-                              className="rounded-lg border bg-card px-2 py-1 text-xs"
-                              value={deployTarget ?? ''}
-                              onChange={(e) =>
-                                setDeployTargets((prev) => ({ ...prev, [row.profile.id]: e.target.value }))
-                              }
-                            >
-                              <option value="">Deploy to…</option>
-                              {phones.map((p) => (
-                                <option key={p.phoneNumberId} value={p.phoneNumberId}>
-                                  {p.displayPhoneNumber}
-                                </option>
-                              ))}
-                            </select>
-                          </>
+            return {
+              id: `${row.profile.status}-${row.profile.id}`,
+              name: row.profile.businessDescription || `Persona ${row.profile.id}`,
+              detail: row.displayPhoneNumber ? `Live on ${row.displayPhoneNumber}` : null,
+              // Figma's Industry / Tone chips have no backing data — business_profile
+              // stores policy text and contact details, not a categorisation.
+              statusLabel: status.label,
+              statusTone: status.tone,
+              // A persona is live on one number or none. Counting numbers keeps
+              // the column meaning the same thing it does on every other list.
+              usedByCount: row.displayPhoneNumber ? 1 : 0,
+              updatedAt: row.lastTouched ?? null,
+              onOpen: () => startEdit(row.profile),
+              actions: (
+                <>
+                  <button
+                    onClick={() => startEdit(row.profile)}
+                    className="min-h-11 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {isDraft ? 'Edit' : 'Edit as new draft'}
+                  </button>
+                  {isDraft && (
+                    <>
+                      {/* Choosing the number moved into the publish modal. A
+                          per-row dropdown does not fit a table, and the choice
+                          belongs next to the sentence explaining that real
+                          customers on that number see the change immediately. */}
+                      <button
+                        onClick={() =>
+                          setPendingDeploy({
+                            draftId: row.profile.id,
+                            phoneNumberId: phones.length === 1 ? phones[0].phoneNumberId : '',
+                          })
+                        }
+                        disabled={deployMutation.isPending || phones.length === 0}
+                        title={phones.length === 0 ? 'No phone number connected yet' : undefined}
+                        className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-accent-teal-solid
+                          transition-colors hover:bg-muted disabled:opacity-50"
+                      >
+                        {deployMutation.isPending && deployingDraftId === row.profile.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Rocket className="h-3.5 w-3.5" />
                         )}
-                        <button
-                          onClick={() => { if (deployTarget) requestDeployConfirm(row.profile.id, deployTarget) }}
-                          disabled={deployMutation.isPending || !deployTarget}
-                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-accent-teal-solid
-                            transition-colors hover:bg-muted disabled:opacity-50"
-                        >
-                          {deployMutation.isPending && deployingDraftId === row.profile.id
-                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            : <Rocket className="h-3.5 w-3.5" />}
-                          Publish
-                        </button>
-                        <button
-                          onClick={() => deleteDraftMutation.mutate(row.profile.id)}
-                          aria-label={`Delete persona draft ${row.profile.businessDescription || row.profile.id}`}
-                          className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </>
-                }
-              />
-            )
+                        Publish
+                      </button>
+                      <button
+                        onClick={() => deleteDraftMutation.mutate(row.profile.id)}
+                        aria-label={`Delete persona draft ${row.profile.businessDescription || row.profile.id}`}
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                </>
+              ),
+            }
           })}
-        </LibraryCardGrid>
+        />
       )}
 
       {pendingDeploy && (
@@ -273,6 +264,31 @@ export default function BusinessPersonaLibraryPage() {
           preventClose={deployMutation.isPending}
           maxWidthClassName="max-w-md"
         >
+          {phones.length > 1 && (
+            <div className="mb-4 space-y-1.5">
+              <label htmlFor="deploy-target" className="block text-xs font-medium text-foreground">
+                Which number?
+              </label>
+              <select
+                id="deploy-target"
+                value={pendingDeploy.phoneNumberId}
+                onChange={(e) =>
+                  setPendingDeploy((prev) => (prev ? { ...prev, phoneNumberId: e.target.value } : prev))
+                }
+                disabled={deployMutation.isPending}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <option value="">Choose a number…</option>
+                {phones.map((p) => (
+                  <option key={p.phoneNumberId} value={p.phoneNumberId}>
+                    {p.displayPhoneNumber}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <p className="text-sm text-muted-foreground">
             This replaces what's currently live on{' '}
             <span className="font-medium text-foreground">
@@ -294,7 +310,7 @@ export default function BusinessPersonaLibraryPage() {
             <button
               type="button"
               onClick={confirmDeploy}
-              disabled={deployMutation.isPending}
+              disabled={deployMutation.isPending || !pendingDeploy.phoneNumberId}
               className="flex items-center gap-1.5 rounded-xl bg-accent-teal-solid px-3.5 py-2 text-sm font-semibold
                 text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >

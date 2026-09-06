@@ -57,6 +57,40 @@ ids `bigint unsigned` and the foreign key present; the log reads "Successfully
 applied 1 migration to schema meta_agent_db, now at version v56" and "Started
 PlatformApplication in 29.922 seconds" with no errors.
 
+### The page is live and proven against production
+
+Deployed 2026-09-06. Bundle `index-BR68uNRG.js`, md5
+`04b8591faf2a5f38a0e2c0bb19f82e91` — identical local and on the server, and it
+is the bundle `index.html` actually references. `/library/connectors` 200,
+`/api/v1/connector-library` 401 unauthenticated as expected.
+
+`e2e/connector-edit-page.spec.ts` (`@connector-edit`) — **2 passed** against
+production, logged in as a real user:
+
+- **Edit opens a URL of its own** (`/library/connectors/{id}`), with "Where it
+  is" and "What it can do" both present. That is the whole point of the change:
+  not an inline panel, and not a detour through an agent.
+- **A connector with no actions says so** — "This connector can't do anything
+  yet" — rather than showing an empty section that reads as configured.
+- **The action editor opens on four fields**, and "Headers" is genuinely absent
+  from the DOM until Advanced is clicked. The collapse is asserted, because it
+  is the reason the page is usable rather than a wall of panels.
+
+The spec is read-only and tagged out of the default suite: these are real
+connectors on a shared production box, so it opens and reads but never creates,
+edits or deletes.
+
+The swap was done assets-first, `index.html` last, with no `rm -rf` — so no
+user could be served a half-updated app, and the previous `index.html` is kept
+as `index.html.rollback-20260906`. Asset filenames are content-hashed, so the
+old bundle stays on disk for anyone mid-session.
+
+### Still not done
+
+Saving an action stores a template and nothing more — nothing instantiates it as
+a real Meta tool on deploy yet. Until that exists, a user can define an action,
+see it listed, and still have an agent that cannot call it.
+
 ## Notes
 
 Phase 1 of `docs/superpowers/specs/2026-09-04-connector-edit-page-design.md`.

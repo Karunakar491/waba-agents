@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Rocket, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import type { ConnectorRow } from '../components/connectors/ConnectorsTable'
 import type { StatusTone } from '../components/shared/StatusIndicator'
-import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
+import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
 import LibraryToolbar from '../components/library/LibraryToolbar'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
@@ -93,24 +93,19 @@ function cardTags(row: ConnectorRow): string[] {
 }
 
 /**
- * For a live row that came from a library deployment the count is a real
- * COUNT(*) over connector_deployment. Otherwise it's still the name+base_url
- * heuristic, so we only add it when it's > 1 and say which agent this row is on.
+ * Agents running an older version than the one saved here. Shown under the
+ * "used by" count rather than folded into it, because these two numbers answer
+ * different questions: how much does an edit affect, and how much of that is
+ * already stale.
  */
-function usageLine(row: ConnectorRow): string {
-  const owner = `On ${row.agentName ?? 'Unknown agent'}`
-  return row.usedByAgentCount > 1 ? `${owner} · used by ${row.usedByAgentCount} agents` : owner
-}
-
-function libraryUsageLine(connector: LibraryConnector): string {
-  if (connector.usedByAgentCount === 0) return 'Not deployed to any agent yet'
+function outOfSyncNote(connector: LibraryConnector): string | null {
   const outOfSync = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
-  const base = `Used by ${connector.usedByAgentCount} agent${connector.usedByAgentCount === 1 ? '' : 's'}`
-  return outOfSync > 0 ? `${base} · ${outOfSync} need redeploying` : base
+  return outOfSync > 0 ? `${outOfSync} need redeploying` : null
 }
 
 export default function ConnectorLibraryPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [agentFilter, setAgentFilter] = useState('ALL')
@@ -332,7 +327,7 @@ export default function ConnectorLibraryPage() {
             </div>
 
             {isLoading ? (
-              <LibraryCardGridSkeleton />
+              <LibraryTableSkeleton />
             ) : filteredLibrary.length === 0 ? (
               <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
                 <p className="text-base font-semibold text-foreground">
@@ -345,66 +340,71 @@ export default function ConnectorLibraryPage() {
                 </p>
               </div>
             ) : (
-              <LibraryCardGrid>
-                {filteredLibrary.map((connector) => (
-                  <LibraryItemCard
-                    key={connector.id}
-                    name={connector.name}
-                    statusLabel={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
-                    statusTone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
-                    tags={[
-                      ...(connector.systemType ? [connector.systemType] : []),
-                      ...(authTypeLabel(connector.authType) ? [authTypeLabel(connector.authType)!] : []),
-                      ...connector.tags,
-                    ]}
-                    usageLine={libraryUsageLine(connector)}
-                    actions={
-                      <>
-                        {/* Opens the full connector page rather than the old inline panel: the panel
-                              could describe a connector but never say what it could do, because until
-                              V56 there was nowhere to store an action for an undeployed connector. */}
-<Link
-                          to={`/library/connectors/${connector.id}`}
-                          className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                            Edit
-                        </Link>
-                        {connector.status === 'DRAFT' && (
-                          <button
-                            onClick={() => {
-                              setPageError(null)
-                              publishMutation.mutate(connector.id)
-                            }}
-                            className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          >
-                            Publish
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setDeployError(null)
-                            setDeployTarget(connector)
-                          }}
-                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-accent-teal-solid transition-colors hover:bg-muted"
-                        >
-                          <Rocket className="h-3.5 w-3.5" />
-                          Deploy
-                        </button>
+              <LibraryTable
+                itemLabel="Connector"
+                rows={filteredLibrary.map((connector) => ({
+                  id: connector.id,
+                  name: connector.name,
+                  detail: connector.baseUrl,
+                  tags: [
+                    ...(connector.systemType ? [connector.systemType] : []),
+                    ...(authTypeLabel(connector.authType) ? [authTypeLabel(connector.authType)!] : []),
+                    ...connector.tags,
+                  ],
+                  statusLabel: connector.status === 'PUBLISHED' ? 'Published' : 'Draft',
+                  statusTone:
+                    connector.status === 'PUBLISHED' ? ('positive' as const) : ('neutral' as const),
+                  usedByCount: connector.usedByAgentCount,
+                  usedByNote: outOfSyncNote(connector),
+                  updatedAt: connector.updatedAt,
+                  // The whole row opens the connector's own page. The old inline
+                  // panel could describe a connector but never say what it could
+                  // do, because until V56 there was nowhere to store an action
+                  // for a connector that had not been deployed.
+                  onOpen: () => navigate(`/library/connectors/${connector.id}`),
+                  actions: (
+                    <>
+                      <Link
+                        to={`/library/connectors/${connector.id}`}
+                        className="flex min-h-11 items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        Edit
+                      </Link>
+                      {connector.status === 'DRAFT' && (
                         <button
                           onClick={() => {
                             setPageError(null)
-                            deleteMutation.mutate(connector.id)
+                            publishMutation.mutate(connector.id)
                           }}
-                          aria-label={`Delete connector ${connector.name}`}
-                          className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                          className="min-h-11 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          Publish
                         </button>
-                      </>
-                    }
-                  />
-                ))}
-              </LibraryCardGrid>
+                      )}
+                      <button
+                        onClick={() => {
+                          setDeployError(null)
+                          setDeployTarget(connector)
+                        }}
+                        className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-accent-teal-solid transition-colors hover:bg-muted"
+                      >
+                        <Rocket className="h-3.5 w-3.5" />
+                        Deploy
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPageError(null)
+                          deleteMutation.mutate(connector.id)
+                        }}
+                        aria-label={`Delete connector ${connector.name}`}
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  ),
+                }))}
+              />
             )}
           </section>
 
@@ -417,7 +417,7 @@ export default function ConnectorLibraryPage() {
             </div>
 
             {isLoading ? (
-              <LibraryCardGridSkeleton />
+              <LibraryTableSkeleton />
             ) : filteredRows.length === 0 ? (
               <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
                 <p className="text-base font-semibold text-foreground">
@@ -430,28 +430,32 @@ export default function ConnectorLibraryPage() {
                 </p>
               </div>
             ) : (
-              <LibraryCardGrid>
-                {filteredRows.map((row) => (
-                  <LibraryItemCard
-                    key={`${row.agentId}-${row.id}`}
-                    name={row.name}
-                    statusLabel={statusLabel(row.status)}
-                    statusTone={statusTone(row.status)}
-                    // System type / auth type / tags are real, backed by the
-                    // connector mirror (agent_connector, V45).
-                    tags={cardTags(row)}
-                    usageLine={usageLine(row)}
-                    actions={
-                      <Link
-                        to={`/agents/${row.agentId}?tab=connectors`}
-                        className="rounded-md px-2 py-1 text-xs font-medium text-accent-teal-solid transition-colors hover:bg-muted"
-                      >
-                        Open on agent
-                      </Link>
-                    }
-                  />
-                ))}
-              </LibraryCardGrid>
+              <LibraryTable
+                itemLabel="Connector"
+                showUpdated={false}
+                rows={filteredRows.map((row) => ({
+                  id: `${row.agentId}-${row.id}`,
+                  name: row.name,
+                  // Which agent it is live on — the thing you need before you
+                  // can go and change it, since it is edited on the agent.
+                  detail: `On ${row.agentName ?? 'Unknown agent'}`,
+                  // System type / auth type / tags are real, backed by the
+                  // connector mirror (agent_connector, V45).
+                  tags: cardTags(row),
+                  statusLabel: statusLabel(row.status),
+                  statusTone: statusTone(row.status),
+                  usedByCount: row.usedByAgentCount,
+                  onOpen: () => navigate(`/agents/${row.agentId}?tab=connectors`),
+                  actions: (
+                    <Link
+                      to={`/agents/${row.agentId}?tab=connectors`}
+                      className="flex min-h-11 items-center rounded-md px-2 text-xs font-medium text-accent-teal-solid transition-colors hover:bg-muted"
+                    >
+                      Open on agent
+                    </Link>
+                  ),
+                }))}
+              />
             )}
           </section>
         </>

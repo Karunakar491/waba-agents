@@ -5,7 +5,7 @@ import { Loader2, Trash2, Zap } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import { type SkillRow } from '../components/skills/skillTypes'
-import LibraryItemCard, { LibraryCardGrid, LibraryCardGridSkeleton } from '../components/library/LibraryItemCard'
+import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
 import LibraryToolbar from '../components/library/LibraryToolbar'
 import { UiSkillsLibraryTable, type UiSkillRow } from '../components/skills/UiSkillsLibraryTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
@@ -226,7 +226,7 @@ export default function SkillLibraryPage() {
               />
 
               {isLoading ? (
-                <LibraryCardGridSkeleton />
+                <LibraryTableSkeleton />
               ) : filteredRows.length === 0 ? (
                 <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
                   <p className="text-base font-semibold text-foreground">
@@ -247,42 +247,39 @@ export default function SkillLibraryPage() {
                   )}
                 </div>
               ) : (
-                <LibraryCardGrid>
-                  {filteredRows.map((skill) => (
-                    <LibraryItemCard
-                      key={skill.id}
-                      name={skill.title}
-                      statusLabel={skill.deployed ? 'Published' : 'Draft'}
-                      statusTone={skill.deployed ? 'positive' : 'neutral'}
-                      tags={[skill.industry, skill.useCase].filter((t): t is string => !!t)}
-                      usageLine={
-                        skill.deployments.length > 0
-                          ? `Used by ${skill.deployments.length} agent${skill.deployments.length === 1 ? '' : 's'}`
-                          : 'Not yet published'
-                      }
-                      actions={
-                        <>
-                          <button
-                            onClick={() => openEdit(skill)}
-                            className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          >
-                            {skill.source === 'LIBRARY' ? 'View' : 'Edit'}
-                          </button>
-                          <button
-                            onClick={() => { setDeleteError(null); setPendingDelete(skill) }}
-                            disabled={deletingId === skill.id}
-                            aria-label={`Delete skill ${skill.title}`}
-                            className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-                          >
-                            {deletingId === skill.id
-                              ? <Loader2 className="h-4 w-4 animate-spin" />
-                              : <Trash2 className="h-4 w-4" />}
-                          </button>
-                        </>
-                      }
-                    />
-                  ))}
-                </LibraryCardGrid>
+                <LibraryTable
+                  itemLabel="Skill"
+                  rows={filteredRows.map((skill) => ({
+                    id: skill.id,
+                    name: skill.title,
+                    tags: [skill.industry, skill.useCase].filter((t): t is string => !!t),
+                    statusLabel: skill.deployed ? 'Published' : 'Draft',
+                    statusTone: skill.deployed ? ('positive' as const) : ('neutral' as const),
+                    usedByCount: skill.deployments.length,
+                    updatedAt: skill.updatedAt ?? null,
+                    onOpen: () => openEdit(skill),
+                    actions: (
+                      <>
+                        <button
+                          onClick={() => openEdit(skill)}
+                          className="min-h-11 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {skill.source === 'LIBRARY' ? 'View' : 'Edit'}
+                        </button>
+                        <button
+                          onClick={() => { setDeleteError(null); setPendingDelete(skill) }}
+                          disabled={deletingId === skill.id}
+                          aria-label={`Delete skill ${skill.title}`}
+                          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                        >
+                          {deletingId === skill.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Trash2 className="h-4 w-4" />}
+                        </button>
+                      </>
+                    ),
+                  }))}
+                />
               )}
             </>
           )}

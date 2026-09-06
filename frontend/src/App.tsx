@@ -10,6 +10,7 @@ import SkillLibraryPage from './pages/SkillLibraryPage'
 import SkillEditPage from './pages/SkillEditPage'
 import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
 import ConnectorLibraryPage from './pages/ConnectorLibraryPage'
+import ConnectorEditPage from './pages/ConnectorEditPage'
 import FileLibraryPage from './pages/FileLibraryPage'
 import ReportsPage from './pages/ReportsPage'
 import DebugPage from './pages/DebugPage'
@@ -120,6 +121,7 @@ export default function App() {
               <Route path="/library/skills/browse" element={<Navigate to="/library/skills?tab=browse" replace />} />
               <Route path="/library/persona" element={<BusinessPersonaLibraryPage />} />
               <Route path="/library/connectors" element={<ConnectorLibraryPage />} />
+              <Route path="/library/connectors/:connectorId" element={<ConnectorEditPage />} />
               <Route path="/library/files" element={<FileLibraryPage />} />
               <Route path="/reports"  element={<ReportsPage />} />
               <Route path="/debug"    element={<DebugPage />} />

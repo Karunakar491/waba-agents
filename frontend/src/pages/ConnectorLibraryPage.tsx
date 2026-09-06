@@ -13,7 +13,6 @@ import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinit
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import {
   EMPTY_CONNECTOR_FORM,
-  toFormValues,
   toRequestBody,
   type ConnectorFormValues,
   type LibraryConnector,
@@ -117,7 +116,6 @@ export default function ConnectorLibraryPage() {
   const [agentFilter, setAgentFilter] = useState('ALL')
 
   const [showEditor, setShowEditor] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ConnectorFormValues>(EMPTY_CONNECTOR_FORM)
   const [formError, setFormError] = useState<string | null>(null)
   const [deployTarget, setDeployTarget] = useState<LibraryConnector | null>(null)
@@ -167,13 +165,12 @@ export default function ConnectorLibraryPage() {
 
   const saveMutation = useMutation({
     mutationFn: (values: ConnectorFormValues) =>
-      editingId
-        ? api.put(`/connector-library/${editingId}`, toRequestBody(values))
-        : api.post('/connector-library', { wabaId: waba!.id, ...toRequestBody(values) }),
+      // Create only. Editing an existing connector navigates to its own page,
+      // which is the only place that can also define what the connector does.
+      api.post('/connector-library', { wabaId: waba!.id, ...toRequestBody(values) }),
     onSuccess: () => {
       invalidate()
       setShowEditor(false)
-      setEditingId(null)
       setForm(EMPTY_CONNECTOR_FORM)
       setFormError(null)
     },
@@ -204,15 +201,7 @@ export default function ConnectorLibraryPage() {
   })
 
   function startCreate() {
-    setEditingId(null)
     setForm(EMPTY_CONNECTOR_FORM)
-    setFormError(null)
-    setShowEditor(true)
-  }
-
-  function startEdit(connector: LibraryConnector) {
-    setEditingId(connector.id)
-    setForm(toFormValues(connector))
     setFormError(null)
     setShowEditor(true)
   }
@@ -317,7 +306,7 @@ export default function ConnectorLibraryPage() {
 
           {showEditor && (
             <ConnectorDefinitionEditor
-              isEditing={editingId !== null}
+              isEditing={false}
               form={form}
               error={formError}
               saving={saveMutation.isPending}
@@ -328,7 +317,6 @@ export default function ConnectorLibraryPage() {
               }}
               onCancel={() => {
                 setShowEditor(false)
-                setEditingId(null)
                 setForm(EMPTY_CONNECTOR_FORM)
                 setFormError(null)
               }}
@@ -372,12 +360,15 @@ export default function ConnectorLibraryPage() {
                     usageLine={libraryUsageLine(connector)}
                     actions={
                       <>
-                        <button
-                          onClick={() => startEdit(connector)}
+                        {/* Opens the full connector page rather than the old inline panel: the panel
+                              could describe a connector but never say what it could do, because until
+                              V56 there was nowhere to store an action for an undeployed connector. */}
+<Link
+                          to={`/library/connectors/${connector.id}`}
                           className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
-                          Edit
-                        </button>
+                            Edit
+                        </Link>
                         {connector.status === 'DRAFT' && (
                           <button
                             onClick={() => {

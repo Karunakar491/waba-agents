@@ -9,12 +9,14 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
   Users,
 } from 'lucide-react'
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyableId from '../components/shared/CopyableId'
 import StatusIndicator from '../components/shared/StatusIndicator'
+import DeleteAgentModal from '../components/agent-detail/DeleteAgentModal'
 
 /**
  * Screen: AgentsPage (Figma 8.1 "Agents: List" — node 191:2 / 191:44)
@@ -102,7 +104,21 @@ const COLUMN_HEADERS = [
   'Enabled',
   'Agent ID',
   'Last updated',
+  '',
 ]
+
+/**
+ * Deleting rewrites this agent's configuration on Meta, so it must not happen
+ * while the agent is still answering customers. Same rule the detail page
+ * enforces — carried here rather than reimplemented, so the list cannot offer a
+ * delete the backend would be right to refuse.
+ */
+function deleteBlockedReason(agent: AgentRow): string | null {
+  if (agent.phoneNumberId && agent.status !== 'paused') {
+    return 'Pause this agent before deleting it — deleting changes its setup on Meta, which must not happen while it is answering customers.'
+  }
+  return null
+}
 
 /**
  * Said in the operator's terms, not the database's. "active" is the stored
@@ -146,6 +162,7 @@ export default function AgentsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<AgentRow | null>(null)
   const activeFilterCount = statusFilter === 'all' ? 0 : 1
 
   const filteredAgents = useMemo(() => {
@@ -360,11 +377,30 @@ export default function AgentsPage() {
                   togglingEnabled={
                     enabledMutation.isPending && enabledMutation.variables?.agent.id === agent.id
                   }
+                  onRequestDelete={() => setPendingDelete(agent)}
                 />
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* The same modal the agent's own page uses. Deleting is not one call —
+          Meta has no "remove everything" endpoint, so the persona, connectors,
+          skills and UI skills come down one at a time and any of them can fail.
+          Reusing it means the list cannot offer a weaker confirmation, or miss
+          the per-step report when Meta doesn't come away clean. */}
+      {pendingDelete && (
+        <DeleteAgentModal
+          agentId={pendingDelete.id}
+          agentName={pendingDelete.displayName}
+          phoneNumberId={pendingDelete.phoneNumberId}
+          onClose={() => setPendingDelete(null)}
+          onDeleted={() => {
+            setPendingDelete(null)
+            void queryClient.invalidateQueries({ queryKey: ['agents'] })
+          }}
+        />
       )}
     </div>
   )
@@ -422,6 +458,7 @@ function AgentTableRow({
   renamingAgent,
   onToggleEnabled,
   togglingEnabled,
+  onRequestDelete,
 }: {
   agent: AgentRow
   conversationCount: number | undefined
@@ -430,7 +467,9 @@ function AgentTableRow({
   renamingAgent: boolean
   onToggleEnabled: (next: boolean) => void
   togglingEnabled: boolean
+  onRequestDelete: () => void
 }) {
+  const deleteBlocked = deleteBlockedReason(agent)
   // Figma 200:89: a not-yet-deployable agent gets "Continue setup", not a
   // toggle that the deploy endpoint would reject.
   const setupIncomplete = agent.status === 'draft' || !agent.phoneNumberId
@@ -571,6 +610,23 @@ function AgentTableRow({
       {/* Last updated */}
       <td className="px-5 py-3 text-xs tabular-nums text-muted-foreground">
         {timeAgo(agent.updatedAt)}
+      </td>
+
+      {/* Delete. Reaching for it must not also open the agent. */}
+      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={onRequestDelete}
+          disabled={!!deleteBlocked}
+          aria-label={`Delete agent ${agent.displayName}`}
+          title={deleteBlocked ?? 'Delete this agent'}
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground
+            transition-colors hover:bg-muted hover:text-destructive
+            disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent
+            disabled:hover:text-muted-foreground"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </td>
     </tr>
   )

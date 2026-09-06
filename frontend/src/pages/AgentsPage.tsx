@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
-import CopyButton from '../components/shared/CopyButton'
+import CopyableId from '../components/shared/CopyableId'
 import StatusIndicator from '../components/shared/StatusIndicator'
 
 /**
@@ -54,6 +54,10 @@ interface AgentRow {
   // Business persona"). Null if no persona has ever been deployed.
   personaDescription: string | null
   wabaId: string | null
+  // Meta's opaque agent id, captured write-once on first successful deploy.
+  // Null until the agent has actually deployed — the list shows nothing
+  // rather than our own internal id, which Meta support cannot act on.
+  metaAgentId: string | null
   status: 'draft' | 'active' | 'paused'
   systemPrompt: string | null
   // Figma 8.1 "About" column — short human label, distinct from systemPrompt.
@@ -96,6 +100,7 @@ const COLUMN_HEADERS = [
   'Conversations',
   'Status',
   'Enabled',
+  'Agent ID',
   'Last updated',
 ]
 
@@ -519,21 +524,15 @@ function AgentTableRow({
 
       {/* Status. This column was the Health column until 2026-08-13, when it
           was replaced by a raw Agent ID because health "duplicated the Enabled
-          toggle with no new information" and operators needed the id for the
-          Webhooks/API-Calls filters. Both halves of that were true, but the
-          result printed an 18-digit primary key on every row and left the list
-          unable to answer "is this agent actually answering customers?"
-          (founder-reported 2026-09-03: "why would a user need something
-          internally created").
-          So: the lifecycle state is the column, and the id stays one click
-          away on hover — the operator's real need without the wall of digits. */}
-      <td className="group/id px-5 py-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-1.5">
-          <StatusIndicator label={STATUS_LABEL[agent.status]} tone={STATUS_TONE[agent.status]} />
-          <span className="opacity-0 transition-opacity group-hover/id:opacity-100 focus-within:opacity-100">
-            <CopyButton value={agent.id} label="Copy agent ID" />
-          </span>
-        </div>
+          toggle with no new information". That printed an 18-digit primary key
+          on every row, so on 2026-09-03 the id was demoted to a copy button
+          that appeared on hover and the lifecycle state took the column back.
+          The id itself was still ours, not Meta's (founder, 2026-09-06: "dont
+          show the rubbish our data, show the genuine Agent Id which Meta
+          gave"), so it has now moved to its own column carrying the real
+          value. Status is just status. */}
+      <td className="px-5 py-3">
+        <StatusIndicator label={STATUS_LABEL[agent.status]} tone={STATUS_TONE[agent.status]} />
       </td>
 
       {/* Enabled — Figma 200:27 / 200:59 / 200:89 */}
@@ -558,6 +557,15 @@ function AgentTableRow({
             onChange={onToggleEnabled}
           />
         )}
+      </td>
+
+      {/* Agent ID — Meta's own id, the one their support team can act on.
+          Blank for an agent that has never deployed, because there genuinely
+          isn't one yet; inventing a placeholder would be worse than an em dash.
+          Clicking copies the full ~110-character value without opening the
+          row. */}
+      <td className="px-5 py-3">
+        <CopyableId value={agent.metaAgentId} label={`Meta agent ID for ${agent.displayName}`} />
       </td>
 
       {/* Last updated */}

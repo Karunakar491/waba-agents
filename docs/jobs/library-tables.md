@@ -20,9 +20,32 @@ copy agent id button".
 
 `tsc -b --force` clean. `jest` — **71 passed**, unchanged.
 
-Not yet proven against the running app. This section is filled in after the
-deploy; the job is not done until the tables are on the server and a browser has
-opened them.
+### Live and proven against production
+
+Deployed 2026-09-06. Bundle `index-BWh5xNcD.js`, md5
+`e8419e696b7d56e5ed75f4efda997e6c` — identical local and on the server, and the
+bundle `index.html` actually references.
+
+`e2e/library-tables.spec.ts` (`@library-tables`) — **6 passed**, logged in
+against the deployed site:
+
+- **Skills, Connectors and Business persona each render a real table**, with
+  the item column, Status, and Used by.
+- **The Used by cell says something legible** — `No agents` or `N agents` — not
+  a bare zero and not an empty cell.
+- **Knowledgebase offers no "Edit file" or "Edit website" link at all**, which
+  is the pencil that used to navigate to an agent.
+- **The Agents list has an Agent ID column** whose values begin `pfbid`, shown
+  truncated under 30 characters with the full ~110-character value in `title`.
+- **Clicking the id copies the full value and stays on `/agents`.** Asserted by
+  reading the actual clipboard, so this covers both halves of the founder's
+  instruction: it copies, and it does not also open the agent.
+
+The default suite still passes unchanged — **12 passed** — so nothing regressed
+on the screens this touched.
+
+The swap was assets-first, `index.html` last, with no `rm -rf`; the previous
+`index.html` is kept as `index.html.rollback-20260906b`.
 
 ## Notes
 

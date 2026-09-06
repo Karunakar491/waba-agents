@@ -15,6 +15,7 @@ import LibraryToolbar from '../components/library/LibraryToolbar'
 import type { StatusTone } from '../components/shared/StatusIndicator'
 import Modal from '../components/shared/Modal'
 import ErrorBanner from '../components/shared/ErrorBanner'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 /** Our real persona lifecycle, in the user's words. Figma 8.15 only draws
  *  Published/Draft; ARCHIVED is a third state that genuinely exists here
@@ -36,6 +37,7 @@ export default function BusinessPersonaLibraryPage() {
   const [deployError, setDeployError] = useState<string | null>(null)
   const [deployingDraftId, setDeployingDraftId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const { confirm } = useActionFeedback()
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [pendingDeploy, setPendingDeploy] = useState<{ draftId: string; phoneNumberId: string } | null>(null)
 
@@ -58,13 +60,17 @@ export default function BusinessPersonaLibraryPage() {
       setForm(EMPTY_FORM)
       setFormError(null)
       setShowEditor(false)
+      confirm(editingDraftId ? 'Persona draft saved' : 'Persona draft created', 'Publish it to a number when you want customers to see it')
     },
     onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const deleteDraftMutation = useMutation({
     mutationFn: (draftId: string) => api.delete(`/business-profiles/draft/${draftId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['business-profile-drafts'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['business-profile-drafts'] })
+      confirm('Persona draft deleted')
+    },
   })
 
   const deployMutation = useMutation({
@@ -79,6 +85,8 @@ export default function BusinessPersonaLibraryPage() {
       queryClient.invalidateQueries({ queryKey: ['business-profile-live-and-history', phoneNumberId] })
       setDeployError(null)
       setDeployingDraftId(null)
+      const phone = phones.find((p) => p.phoneNumberId === phoneNumberId)
+      confirm('Persona published', `Customers messaging ${phone?.displayPhoneNumber ?? 'this number'} see it now`)
     },
     onError: (err) => {
       setDeployError(extractErrorMessage(err))

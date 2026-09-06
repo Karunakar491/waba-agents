@@ -12,6 +12,7 @@ import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 type SkillTab = 'mine' | 'ui-skills' | 'browse'
 
@@ -48,6 +49,7 @@ export default function SkillLibraryPage() {
   const activeTab: SkillTab = tabParam === 'browse' ? 'browse' : tabParam === 'ui-skills' ? 'ui-skills' : 'mine'
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { confirm } = useActionFeedback()
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<LibrarySkill | null>(null)
   const [search, setSearch] = useState('')
@@ -101,7 +103,11 @@ export default function SkillLibraryPage() {
         : api.delete(`/skills/${skill.id}`),
     onMutate: (skill) => { setDeletingId(skill.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] }); setPendingDelete(null) },
+    onSuccess: (_data, skill) => {
+      queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] })
+      setPendingDelete(null)
+      confirm('Skill deleted', skill.title)
+    },
     // Deleting a Library skill still attached to an agent 400s (fk_attachment_skill,
     // TASK-050) — the primary expected failure here, not an edge case, since
     // the whole point of a Library skill is to be attached to multiple agents.

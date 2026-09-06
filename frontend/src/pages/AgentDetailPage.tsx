@@ -2150,18 +2150,24 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
       <div className="rounded-xl border bg-card p-5 shadow-surface-resting space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Phone number</h3>
         {agent.phoneNumberId ? (
-          <div className="flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-sm text-foreground">
               Connected: <span className="font-medium">{agent.displayPhoneNumber ?? agent.phoneNumberId}</span>
             </p>
-            <button
-              onClick={() => {
-                // TODO: wire disconnect phone
-              }}
-              className="text-xs text-destructive hover:underline"
-            >
-              Disconnect
-            </button>
+            {/* A "Disconnect" button stood here with an empty click handler and a
+                TODO inside it. It did nothing, said nothing, and — because this
+                product confirms almost nothing on success — was indistinguishable
+                from a button that had worked. On the phone number, that is the
+                worst possible place for that ambiguity.
+
+                Removed rather than wired: freeing a number from an agent is what
+                "Remove from Meta" below already does, deliberately and with a
+                confirmation. Two controls for one act, one of them silent, was
+                never the right shape. */}
+            <p className="text-xs text-muted-foreground">
+              To free this number for another agent, use <strong className="font-medium">Remove from
+              Meta</strong> below.
+            </p>
           </div>
         ) : (
           <div className="space-y-2">

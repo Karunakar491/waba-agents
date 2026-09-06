@@ -17,6 +17,7 @@ import ErrorBanner from '../components/shared/ErrorBanner'
 import CopyableId from '../components/shared/CopyableId'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import DeleteAgentModal from '../components/agent-detail/DeleteAgentModal'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 /**
  * Screen: AgentsPage (Figma 8.1 "Agents: List" — node 191:2 / 191:44)
@@ -163,6 +164,7 @@ export default function AgentsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<AgentRow | null>(null)
+  const { confirm } = useActionFeedback()
   const activeFilterCount = statusFilter === 'all' ? 0 : 1
 
   const filteredAgents = useMemo(() => {
@@ -180,7 +182,15 @@ export default function AgentsPage() {
   const enabledMutation = useMutation({
     mutationFn: ({ agent, next }: { agent: AgentRow; next: boolean }) =>
       api.post(`/agents/${agent.id}/${next ? 'deploy' : 'pause'}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: (_data, { agent, next }) => {
+      void queryClient.invalidateQueries({ queryKey: ['agents'] })
+      confirm(
+        next ? 'Agent is live' : 'Agent paused',
+        next
+          ? `${agent.displayName} is answering customers again`
+          : `${agent.displayName} has stopped answering on every conversation`,
+      )
+    },
   })
 
   // "Add a label" for a Meta-imported agent (2026-08-13, replaces the old
@@ -201,7 +211,10 @@ export default function AgentsPage() {
         handoffEnabled: agent.handoffEnabled,
         handoffMessage: agent.handoffMessage,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: (_data, { displayName }) => {
+      void queryClient.invalidateQueries({ queryKey: ['agents'] })
+      confirm('Agent renamed', displayName)
+    },
   })
 
   // Best-effort — a missing count must never block the agents list from rendering.
@@ -397,8 +410,10 @@ export default function AgentsPage() {
           phoneNumberId={pendingDelete.phoneNumberId}
           onClose={() => setPendingDelete(null)}
           onDeleted={() => {
+            const name = pendingDelete.displayName
             setPendingDelete(null)
             void queryClient.invalidateQueries({ queryKey: ['agents'] })
+            confirm('Agent deleted', `${name} and its setup on Meta are gone`)
           }}
         />
       )}

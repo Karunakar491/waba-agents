@@ -6,6 +6,7 @@ import { extractErrorMessage } from '../lib/errors'
 import { FilesTable, WebsitesTable, type FileRow, type WebsiteRow } from '../components/files/FileWebsiteTables'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
+import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 interface WabaEntry { id: string; wabaId: string; label: string | null }
 interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null }
@@ -13,6 +14,7 @@ interface AgentEntry { id: string; displayName: string; phoneNumberId: string | 
 export default function FileLibraryPage() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'files' | 'websites'>('files')
+  const { confirm } = useActionFeedback()
   const [uploadAgentId, setUploadAgentId] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
@@ -51,14 +53,23 @@ export default function FileLibraryPage() {
       formData.append('file', file)
       return api.post(`/agents/${agentId}/files`, formData, { headers: { 'Content-Type': undefined } })
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] }); setFormError(null) },
+    onSuccess: (_data, { file }) => {
+      queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] })
+      setFormError(null)
+      confirm('File uploaded', file.name)
+    },
     onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
   const addWebsiteMutation = useMutation({
     mutationFn: ({ agentId, url }: { agentId: string; url: string }) =>
       api.post(`/agents/${agentId}/websites`, { url }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] }); setWebsiteUrl(''); setFormError(null) },
+    onSuccess: (_data, { url }) => {
+      queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] })
+      setWebsiteUrl('')
+      setFormError(null)
+      confirm('Website added', url)
+    },
     onError: (err) => setFormError(extractErrorMessage(err)),
   })
 
@@ -66,7 +77,11 @@ export default function FileLibraryPage() {
     mutationFn: (row: FileRow) => api.delete(`/agents/${row.agentId}/files/${row.id}`),
     onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] }); setPendingDeleteFile(null) },
+    onSuccess: (_data, row) => {
+      queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] })
+      setPendingDeleteFile(null)
+      confirm('File deleted', row.filename)
+    },
     onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 
@@ -74,7 +89,11 @@ export default function FileLibraryPage() {
     mutationFn: (row: WebsiteRow) => api.delete(`/agents/${row.agentId}/websites/${row.id}`),
     onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] }); setPendingDeleteWebsite(null) },
+    onSuccess: (_data, row) => {
+      queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] })
+      setPendingDeleteWebsite(null)
+      confirm('Website deleted', row.url)
+    },
     onError: (err) => setDeleteError(extractErrorMessage(err)),
   })
 

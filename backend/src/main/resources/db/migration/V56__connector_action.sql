@@ -21,10 +21,18 @@
 -- Meta adds a field.
 --
 -- Additive only: new table, no existing column touched.
+-- BIGINT UNSIGNED, not BIGINT. Every id in this schema is unsigned, and MySQL
+-- refuses a foreign key whose column type differs from its target's even by
+-- signedness. The first version of this file used plain BIGINT and failed
+-- against production on 2026-09-04: the CREATE TABLE was rejected, Flyway
+-- recorded V56 as failed, and every subsequent start aborted on
+-- "Detected failed migration to version 56" until the row was repaired.
+-- FlywayMigrationsTest now runs the whole set against a real MySQL so this
+-- class of mistake cannot reach production again.
 CREATE TABLE connector_action (
-    id BIGINT NOT NULL PRIMARY KEY,
-    account_id BIGINT NOT NULL,
-    connector_id BIGINT NOT NULL,
+    id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    account_id BIGINT UNSIGNED NOT NULL,
+    connector_id BIGINT UNSIGNED NOT NULL,
     name VARCHAR(255) NOT NULL,
     description VARCHAR(1024) NOT NULL,
     request_definition JSON NOT NULL,

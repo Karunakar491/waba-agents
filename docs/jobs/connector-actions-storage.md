@@ -27,9 +27,35 @@ Four of the new tests cover the things that would actually hurt:
   escaped inner node is still escaped after a round trip, and that it comes back
   out as real JSON rather than a quoted string.
 
-Not yet proven against the running app: the migration has not been applied to
-production and no UI reads these endpoints. That is the next job, and this one
-should not be called done until the page uses it.
+### Applied to production, after taking it down first
+
+The first version of `V56` declared `connector_id BIGINT` while `connector.id`
+is `bigint unsigned`. MySQL refuses a foreign key whose column type differs from
+its target's even by signedness, so the `CREATE TABLE` was rejected — and
+because MySQL DDL is not transactional, Flyway recorded V56 as failed and every
+subsequent boot aborted on "Detected failed migration to version 56". The
+backend crash-looped and production returned 502 for about four minutes.
+
+Recovered by stopping the service, deleting the single failed history row
+(`DELETE FROM flyway_schema_history WHERE version = 56 AND success = 0`),
+restoring `platform-ROLLBACK-20260904091116.jar`, and restarting — login 200 and
+agents 200 verified before moving on. A verified-restorable backup existed
+first: `/tmp/meta_agent_db-pre-V56-20260904090913.sql.gz`, gzip integrity OK,
+39 tables.
+
+The same mistake had already happened once on V50 (2026-08-13, also a lost
+UNSIGNED), which is what makes it worth a container rather than a comment.
+`FlywayMigrationsTest` now applies every migration to a real MySQL and asserts
+no history row is left failed, plus that `connector_action.connector_id` matches
+`connector.id` exactly — signedness included. Nothing in the build could have
+caught this before: unit tests mock the repositories and `mvn package` never
+touches a database.
+
+After the fix: `SELECT version, success FROM flyway_schema_history WHERE
+version = 56` → `56  1`; `SHOW CREATE TABLE connector_action` confirms all three
+ids `bigint unsigned` and the foreign key present; the log reads "Successfully
+applied 1 migration to schema meta_agent_db, now at version v56" and "Started
+PlatformApplication in 29.922 seconds" with no errors.
 
 ## Notes
 

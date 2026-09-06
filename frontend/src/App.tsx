@@ -28,6 +28,7 @@ import TemplateDebugPage from './pages/TemplateDebugPage'
 import NotFoundPage from './pages/NotFoundPage'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/router/ProtectedRoute'
+import { ActionFeedbackProvider } from './components/shared/ActionFeedback'
 import { useModuleEntitlements, type ModuleName } from './hooks/useModuleEntitlements'
 
 const queryClient = new QueryClient({
@@ -95,6 +96,9 @@ function RootRedirect() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Wraps the router so a confirmation survives the navigation that often
+          follows the action it is confirming. */}
+      <ActionFeedbackProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -137,6 +141,7 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
+      </ActionFeedbackProvider>
     </QueryClientProvider>
   )
 }

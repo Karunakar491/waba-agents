@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
+import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
 
 /**
  * Proves the workbench: the tree, the request bar, the tabs, and that an action
@@ -25,29 +26,11 @@ test.describe('@workbench the connector workbench', () => {
     test.setTimeout(240_000)
     await page.setViewportSize({ width: 1440, height: 900 })
 
-    await page.goto('/library/connectors')
-    await page.waitForLoadState('networkidle')
+    await createThrowawayConnector(page, CONNECTOR)
 
-    const existing = page.getByRole('button', { name: `Delete connector ${CONNECTOR}` })
-    if ((await existing.count()) > 0) {
-      await existing.first().click()
-      await page.getByRole('button', { name: /^Delete connector$/ }).click()
-      await expect(existing).toHaveCount(0, { timeout: 20_000 })
-    }
-
-    await page.getByRole('button', { name: /New connector/i }).click()
-    await page.getByPlaceholder('e.g. Shopify Order Management').fill(CONNECTOR)
-    await page
-      .getByPlaceholder(/Checks real order and delivery status/i)
-      .fill('Automated check of the connector workbench. Safe to delete.')
-    await page.getByPlaceholder('https://api.example.com').fill('https://example.invalid')
-    await page.getByPlaceholder('e.g. X-API-Key').fill('X-Api-Key')
-    await page.getByRole('button', { name: /^Create connector$/ }).click()
-    await expect(page.getByRole('status')).toContainText(/Connector saved/i, { timeout: 20_000 })
-
-    // Open OUR row, not the first one in the table.
-    await page.locator('tr', { hasText: CONNECTOR }).getByRole('link', { name: 'Edit' }).click()
+    // createThrowawayConnector leaves us on the connector's own page.
     await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
+    const connectorUrl = page.url()
 
     // ---- the connector side -----------------------------------------------
     // No tabs here any more. Details, auth and where it runs are all on the
@@ -115,13 +98,8 @@ test.describe('@workbench the connector workbench', () => {
     await expect(page.locator('#wb-method')).toHaveValue('POST')
 
     // ---- clean up ---------------------------------------------------------
-    await page.goto('/library/connectors')
+    await page.goto(connectorUrl)
     await page.waitForLoadState('networkidle')
-    await page.getByRole('button', { name: `Delete connector ${CONNECTOR}` }).click()
-    await page.getByRole('button', { name: /^Delete connector$/ }).click()
-    await expect(page.getByRole('button', { name: `Delete connector ${CONNECTOR}` })).toHaveCount(
-      0,
-      { timeout: 20_000 },
-    )
+    await deleteOpenConnector(page)
   })
 })

@@ -14,7 +14,6 @@ import { test } from './fixtures/auth'
 test.describe('@library-tables library sections', () => {
   for (const [name, path, itemLabel] of [
     ['Skills', '/library/skills', 'Skill'],
-    ['Connectors', '/library/connectors', 'Connector'],
     ['Business persona', '/library/persona', 'Persona'],
   ] as const) {
     test(`${name} renders a table with a Used by column`, async ({ authedPage: page }) => {
@@ -32,7 +31,15 @@ test.describe('@library-tables library sections', () => {
 
       // The count is the reason the column exists, so assert it says something
       // legible rather than a bare "0" or an empty cell.
-      const firstUsage = table.locator('tbody tr').first().locator('td').nth(2)
+      //
+      // Located by which column the header sits in, not a fixed index: Skills
+      // gained Agent ID and Phone columns on 2026-09-07, and a hard-coded
+      // nth(2) silently started reading the wrong cell — it failed on an em
+      // dash, which looked like missing data rather than a moved column.
+      const headers = await table.locator('thead th').allInnerTexts()
+      const usedByIndex = headers.findIndex((h) => /used by/i.test(h))
+      expect(usedByIndex).toBeGreaterThan(-1)
+      const firstUsage = table.locator('tbody tr').first().locator('td').nth(usedByIndex)
       await expect(firstUsage).toHaveText(/No agents|\d+ agents?/)
     })
   }

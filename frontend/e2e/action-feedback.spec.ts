@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
+import { removeConnectorIfPresent } from './fixtures/connectors'
 
 /**
  * Proves that a completed action now says so, and that deleting a connector
@@ -24,29 +25,20 @@ test.describe('@feedback a finished action says so', () => {
   test('saving a connector confirms, and deleting one asks first', async ({ authedPage: page }) => {
     test.setTimeout(120_000)
 
-    await page.goto('/library/connectors')
-    await page.waitForLoadState('networkidle')
+    await removeConnectorIfPresent(page, NAME)
 
-    // Clean up after an earlier interrupted run before adding another.
-    const existing = page.getByRole('button', { name: `Delete connector ${NAME}` })
-    if ((await existing.count()) > 0) {
-      await existing.first().click()
-      await page.getByRole('button', { name: /^Delete connector$/ }).click()
-      await expect(existing).toHaveCount(0, { timeout: 20_000 })
-    }
+    await page.locator('div.w-72').getByRole('button', { name: 'New connector' }).click()
 
-    await page.getByRole('button', { name: /New connector/i }).click()
-
-    // By placeholder, not label: "Name" matches more than one control on this
-    // page, and the placeholders are unique.
+    // By placeholder, not label: "Name" matches more than one control here,
+    // and the placeholders are unique.
     await page.getByPlaceholder('e.g. Shopify Order Management').fill(NAME)
     await page
       .getByPlaceholder(/Checks real order and delivery status/i)
       .fill('Created by an automated check of the success-confirmation mechanism. Safe to delete.')
     await page.getByPlaceholder('https://api.example.com').fill('https://example.invalid')
 
-    // The panel now says what is still missing rather than leaving a dead
-    // button — assert that, then satisfy it.
+    // The panel says what is still missing rather than leaving a dead button —
+    // assert that, then satisfy it.
     await expect(page.getByText(/Still needed:/)).toContainText(/header that carries a credential/i)
     await page.getByPlaceholder('e.g. X-API-Key').fill('X-Api-Key')
     await expect(page.getByText(/Still needed:/)).toHaveCount(0)
@@ -60,20 +52,14 @@ test.describe('@feedback a finished action says so', () => {
     // And it says what it affected, not just "Success".
     await expect(status).toContainText(NAME)
 
-    await expect(page.getByRole('button', { name: `Delete connector ${NAME}` })).toBeVisible({
-      timeout: 20_000,
-    })
-
     // Deleting used to fire on the first click, unlike every other delete here.
-    await page.getByRole('button', { name: `Delete connector ${NAME}` }).click()
-    const dialogText = page.getByText(/This cannot be undone/i)
-    await expect(dialogText).toBeVisible()
+    await page.getByRole('button', { name: /^Delete connector$/ }).first().click()
+    await expect(page.getByText(/This cannot be undone/i)).toBeVisible()
     await expect(page.getByText(/No agent is using it, so nothing stops working/i)).toBeVisible()
 
-    await page.getByRole('button', { name: /^Delete connector$/ }).click()
-
+    await page.getByRole('dialog').getByRole('button', { name: /^Delete connector$/ }).click()
     await expect(page.getByRole('status')).toContainText(/Connector deleted/i, { timeout: 20_000 })
-    await expect(page.getByRole('button', { name: `Delete connector ${NAME}` })).toHaveCount(0, {
+    await expect(page.locator('div.w-72 button', { hasText: NAME })).toHaveCount(0, {
       timeout: 20_000,
     })
   })

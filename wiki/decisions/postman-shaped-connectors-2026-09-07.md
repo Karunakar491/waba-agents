@@ -51,6 +51,23 @@ missing one sends people hunting for it, and it links to the connector.
 `WHATSAPP_CURRENT_STATUS_ID`) and was only discoverable inside a parameter's
 fill dropdown.
 
+## Follow-up, same day
+
+The founder, on seeing it: "that add an action is always an extra step dude.
+Instead we will show it as body and by default details should open."
+
+- A connector opens on `Details`. Actions led with a table that is empty on
+  every connector that has just been created.
+- On a connector with no actions, selecting `Actions` opens the request editor
+  directly — no button, no empty state.
+
+**The failed first attempt is the lesson**: rendering the editor *inside* the
+Actions tab put two rows of tabs on screen, one under the other, both reading
+Authorization / Headers / Body. Nested tab rows are the tab-shaped version of
+nested card chrome — it was worse than the button it removed. The editor opens
+as its own view instead, the same one the tree reaches, so there is one editor
+and not two.
+
 ## Consequences
 
 - A required field now sits behind a tab (`Docs`). The Still-needed line beside

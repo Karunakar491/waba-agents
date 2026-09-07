@@ -23,6 +23,15 @@ Meta does not do.
 **Action = Postman request.** Name on a breadcrumb line, method+path bar, then
 `Params` / `Authorization` / `Headers` / `Body` / `Docs` / `Response`.
 
+**Follow-up, same day, after the founder saw it:** a connector opens on
+`Details`, not `Actions` — arriving at a connector, the connector is what you
+are looking at, and Actions led with a table that is empty on every newly
+created one. And "add an action is always an extra step": on a connector with
+no actions, selecting `Actions` opens the request editor directly. The obvious
+version — rendering the editor inside the tab — put two rows of tabs on screen,
+both saying Authorization / Headers / Body, so it opens as its own view
+instead. The button survives only where a table already exists to add to.
+
 Deliberately **not** copied:
 
 - **Collection-level Headers and Body.** Meta's connector object has neither.
@@ -45,18 +54,23 @@ silently dropped by Meta, and that is worth a sentence.
 
 ## Proof
 
-Deployed to production as `index-BqTeOTjh.js`, md5
-`0481b7d817558a45e4f2eec289983d54`, verified served by nginx and referenced by
-the live `index.html`.
+Deployed to production as `index-BUn-dY0z.js`, md5
+`a199d0f245bdad2866b1e8e2c88977c7`, verified served by nginx and referenced by
+the live `index.html`. (Earlier bundles this job: `index-BqTeOTjh.js`, then
+`index-De7wZ0r6.js` — the nested-tabs attempt, replaced within the hour.)
 
 Against production, after the deploy:
 
-- `@workbench` — 1 passed. Asserts all five connector tabs, that Variables
-  lists Meta's macros, that an action's Authorization reports what it inherits,
-  and that the Still-needed line names the Docs tab.
-- `@nested-body`, `@multi-auth` — 2 passed.
-- `@connector-delete`, `@feedback` — 5 passed.
-- Default suite — 12 passed.
+- `@workbench` — 1 passed. Asserts all five connector tabs, that a connector
+  opens on Details, that selecting Actions on an empty connector lands in the
+  request editor with no button pressed, that Variables lists Meta's macros,
+  that an action's Authorization reports what it inherits, and that the
+  Still-needed line names the Docs tab.
+- `@nested-body`, `@multi-auth`, `@connector-delete`, `@feedback` — 7 passed.
+- Default suite — 12 passed. One spec, `@handoffshot`, first failed on the
+  login rate limit ("Too many requests. Try again in 9 minutes") because it
+  logs in itself instead of reusing the shared auth fixture; re-run after the
+  window, passed. Worth folding onto the fixture.
 - `tsc --noEmit` clean, `oxlint` clean on every changed file, 82 unit tests pass.
 
 Screenshots at 1440x900 in `frontend/e2e-shots/wb-*.png`.

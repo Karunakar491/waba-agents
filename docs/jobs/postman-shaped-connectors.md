@@ -45,6 +45,27 @@ silently dropped by Meta, and that is worth a sentence.
 
 ## Proof
 
-- `@workbench`, `@nested-body`, `@multi-auth`, `@connector-delete` green against
-  production after the change, plus the default suite.
-- Screenshots of both panes at 1440x900.
+Deployed to production as `index-BqTeOTjh.js`, md5
+`0481b7d817558a45e4f2eec289983d54`, verified served by nginx and referenced by
+the live `index.html`.
+
+Against production, after the deploy:
+
+- `@workbench` — 1 passed. Asserts all five connector tabs, that Variables
+  lists Meta's macros, that an action's Authorization reports what it inherits,
+  and that the Still-needed line names the Docs tab.
+- `@nested-body`, `@multi-auth` — 2 passed.
+- `@connector-delete`, `@feedback` — 5 passed.
+- Default suite — 12 passed.
+- `tsc --noEmit` clean, `oxlint` clean on every changed file, 82 unit tests pass.
+
+Screenshots at 1440x900 in `frontend/e2e-shots/wb-*.png`.
+
+Two of my own test bugs found on the way:
+
+- `shots-workbench.spec.ts` pointed at the deleted list page's links, so it
+  could only ever have photographed an empty state. Deleted, not patched.
+- The replacement waited on `networkidle` after selecting a connector, which
+  proves nothing — the actions query starts *after* the selection. It now waits
+  for the pane to have decided, and skips out loud rather than green when no
+  connector on the account has an action, which is true today.

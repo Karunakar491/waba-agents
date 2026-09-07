@@ -135,10 +135,13 @@ public class SkillLibraryService {
                         legacy.getDescription(),
                         legacy.getBody(),
                         legacy.getUpdatedAt().toString(),
+                        legacy.getCreatedAt() != null ? legacy.getCreatedAt().toString() : null,
                         true, // legacy writes through to Meta immediately — always deployed
                         "AGENT",
                         String.valueOf(legacy.getAgentId()),
                         agent != null ? agent.getDisplayName() : null,
+                        agent != null ? agent.getPhoneNumberId() : null,
+                        agent != null ? agent.getMetaAgentId() : null,
                         agent != null
                                 ? List.of(new SkillDtos.Deployment(String.valueOf(agent.getId()), agent.getDisplayName(), agent.getPhoneNumberId()))
                                 : List.of(),
@@ -211,8 +214,13 @@ public class SkillLibraryService {
                 skill.getDescription(),
                 skill.getBody(),
                 skill.getUpdatedAt().toString(),
+                skill.getCreatedAt() != null ? skill.getCreatedAt().toString() : null,
                 deployed,
                 "LIBRARY",
+                null,
+                null,
+                // A Library skill has no single owning agent — the agents it is
+                // live on are in deployments below.
                 null,
                 null,
                 deployments,

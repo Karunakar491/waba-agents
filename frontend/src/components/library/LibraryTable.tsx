@@ -42,6 +42,13 @@ export interface LibraryTableRow {
    */
   owner?: string | null
   /**
+   * Extra cells for a page that needs columns the shared set does not cover —
+   * the Skills Library shows the Meta agent id and the phone number as their
+   * own columns, the way the Agents list does. Positional: one entry per
+   * extraLabels entry on the table.
+   */
+  extras?: ReactNode[]
+  /**
    * A warning under the name, for when the name does not identify the row.
    *
    * On the live account one agent carries ten separate skills all titled
@@ -101,11 +108,14 @@ export default function LibraryTable({
   showUpdated = true,
   /** Column heading for `owner`, e.g. "On agent". Omit to hide the column. */
   ownerLabel,
+  /** Headings for each row's `extras`, in the same order. */
+  extraLabels,
 }: {
   rows: LibraryTableRow[]
   itemLabel: string
   showUpdated?: boolean
   ownerLabel?: string
+  extraLabels?: string[]
 }) {
   const showOwner = !!ownerLabel && rows.some((r) => r.owner)
   return (
@@ -116,6 +126,7 @@ export default function LibraryTable({
             {[
               itemLabel,
               ...(showOwner ? [ownerLabel!] : []),
+              ...(extraLabels ?? []),
               'Status',
               'Used by',
               ...(showUpdated ? ['Last updated'] : []),
@@ -190,6 +201,12 @@ export default function LibraryTable({
                     )}
                   </td>
                 )}
+
+                {(extraLabels ?? []).map((label, i) => (
+                  <td key={label} className="max-w-[12rem] px-5 py-2.5">
+                    {row.extras?.[i] ?? <span className="text-muted-foreground">—</span>}
+                  </td>
+                ))}
 
                 <td className="px-5 py-2.5">
                   <StatusIndicator label={row.statusLabel} tone={row.statusTone} />

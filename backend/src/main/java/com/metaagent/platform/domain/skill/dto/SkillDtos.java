@@ -64,10 +64,21 @@ public final class SkillDtos {
             String description,
             String body,
             String updatedAt,
+            /** When it was first created, for the Skills Library's "created on" filter. */
+            String createdAt,
             boolean deployed,
             String source, // "LIBRARY" | "AGENT"
             String agentId, // set only when source = "AGENT"
             String agentName, // set only when source = "AGENT"
+            /**
+             * The owning agent's phone number id and Meta agent id, for the two
+             * columns the Skills Library shows separately (founder, 2026-09-07).
+             * Both null for a LIBRARY skill, which has no single owning agent —
+             * its agents are in {@code deployments} instead. metaAgentId is also
+             * null until that agent has actually deployed once.
+             */
+            String phoneNumberId,
+            String metaAgentId,
             List<Deployment> deployments, // every agent+number this skill is live on (0..N for LIBRARY, 0..1 for AGENT)
             String industry, // V43 provenance tag; null for skills created before it existed and for every legacy AGENT row
             String useCase

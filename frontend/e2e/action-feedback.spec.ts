@@ -47,7 +47,7 @@ test.describe('@feedback a finished action says so', () => {
 
     // The panel now says what is still missing rather than leaving a dead
     // button — assert that, then satisfy it.
-    await expect(page.getByText(/Still needed:/)).toContainText(/Header that carries the key/)
+    await expect(page.getByText(/Still needed:/)).toContainText(/header that carries a credential/i)
     await page.getByPlaceholder('e.g. X-API-Key').fill('X-Api-Key')
     await expect(page.getByText(/Still needed:/)).toHaveCount(0)
 

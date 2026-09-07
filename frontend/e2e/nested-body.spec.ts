@@ -65,14 +65,18 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
       .getByRole('link', { name: 'Edit' })
       .click()
     await expect(page).toHaveURL(/\/library\/connectors\/\d+/)
-    await expect(page.getByRole('heading', { name: CONNECTOR })).toBeVisible()
+    // The workbench shows the connector in its breadcrumb bar, not as a heading.
+    await expect(page.getByText(CONNECTOR, { exact: true }).first()).toBeVisible()
     await page.waitForLoadState('networkidle')
 
     await page.getByRole('button', { name: /Add an action/i }).click()
-    await page.locator('#action-name').fill(ACTION)
-    await page.locator('#action-description').fill('Creates an order with nested lines.')
-    await page.locator('#action-method').selectOption('POST')
-    await page.locator('#action-path').fill('/orders')
+    await page.getByPlaceholder('e.g. product_search').fill(ACTION)
+    await page
+      .getByPlaceholder(/Search the catalogue/i)
+      .fill('Creates an order with nested lines.')
+    await page.locator('#wb-method').selectOption('POST')
+    await page.locator('#wb-path').fill('/orders')
+    await page.getByRole('tab', { name: /^Body/ }).click()
 
     const bodyBox = page.locator('textarea[placeholder*="customer"]')
     await bodyBox.fill(PAYLOAD)
@@ -91,11 +95,14 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
     await expect(page.getByRole('status')).toContainText(/Action added/i, { timeout: 20_000 })
 
     // ---- reopen it and confirm the shape came back ------------------------
+    // Saving gives the action its own URL, so a reload is the reopen.
+    await expect(page).toHaveURL(/\/actions\/\d+$/)
     await page.reload()
     await page.waitForLoadState('networkidle')
-    await expect(page.getByText(ACTION).first()).toBeVisible({ timeout: 20_000 })
-
-    await page.getByRole('button', { name: `Edit action ${ACTION}` }).click()
+    await expect(page.getByPlaceholder('e.g. product_search')).toHaveValue(ACTION, {
+      timeout: 20_000,
+    })
+    await page.getByRole('tab', { name: /^Body/ }).click()
     await expect(page.getByText('list of object')).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText('list of string')).toBeVisible()
 

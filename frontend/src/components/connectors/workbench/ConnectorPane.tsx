@@ -1,28 +1,40 @@
+import { useState } from 'react'
 import { Plus, Rocket, Trash2 } from 'lucide-react'
 import StatusIndicator from '../../shared/StatusIndicator'
 import ConnectorDefinitionEditor from '../ConnectorDefinitionEditor'
-import { MethodBadge } from './WorkbenchSidebar'
-import { summariseAction, type ConnectorAction } from '../connectorActions'
-import type { ConnectorFormValues, LibraryConnector } from '../connectorLibrary'
+import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
+import ConnectorActionsTable from './ConnectorActionsTable'
+import { type ConnectorAction } from '../connectorActions'
+import { AUTH_TYPES, type ConnectorFormValues, type LibraryConnector } from '../connectorLibrary'
+
+/** Meta's macro set is closed — these three and nothing else. */
+const MACROS: [string, string][] = [
+  ['WHATSAPP_PHONE_NUMBER', "The customer's WhatsApp number"],
+  ['WHATSAPP_IDENTITY_HASH', 'Identity hash for the customer'],
+  ['WHATSAPP_CURRENT_STATUS_ID', 'Id of the conversation status in play'],
+]
 
 /**
- * A connector: what it is, and what it can do — on one screen.
+ * A connector, laid out like a Postman collection.
  *
- * This replaced a set of tabs (Details / Auth / Deployments). Auth was the tell
- * that the split was wrong: authentication is part of the connector's
- * definition and already lives in the form below, so the Auth tab could only
- * ever be a signpost saying "it's on the other tab" — a tab whose content is
- * directions to different content.
+ * Tabs, because operators here already know Postman and paid for our own
+ * arrangement on every visit: Actions are the requests in the collection,
+ * Details is its Overview, Authorization is Authorization, Variables is
+ * Variables. Agents has no Postman equivalent — it is Meta's, and it is the
+ * question "who breaks if I change this".
  *
- * Selecting a collection in Postman shows you the requests in it. The same
- * thing is true here: the question someone opens a connector to answer is
- * usually "what can this do", so the actions are on the page rather than behind
- * navigation. Tabs stay where they earn their place — inside a single action,
- * where Params, Headers and Body genuinely are alternative views of one thing.
+ * What Postman has that this deliberately does not:
  *
- * Where it is deployed is a strip rather than a tab, because it is a fact about
- * the connector, not a workspace: three lines telling you who would be affected
- * by a change, which is exactly what you want visible while making one.
+ * - Collection-level **Headers** and **Body**. Meta's connector object has
+ *   neither. Postman merges collection headers into every request; doing that
+ *   here would make an action's Headers tab show rows nobody typed there, and
+ *   the merge would be ours rather than Meta's. Headers stay per-action.
+ * - **Scripts**, **Settings**, **Runs**. Meta's runtime makes the call, so
+ *   there is no pre-request script, no timeout to set and no run history.
+ *
+ * Authorization is a real tab here — unlike on an action, where it can only
+ * report what it inherits — because a connector is the only thing in Meta that
+ * can hold credentials.
  */
 export default function ConnectorPane({
   connector,
@@ -52,131 +64,63 @@ export default function ConnectorPane({
   onPublish: () => void
   onRequestDelete: () => void
 }) {
+  const [tab, setTab] = useState('actions')
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
+  const authLabel =
+    AUTH_TYPES.find((a) => a.value === form.authType)?.label ?? form.authType
+
+  const tabs: WorkbenchTab[] = [
+    { id: 'actions', label: 'Actions', count: actions?.length ?? 0 },
+    { id: 'details', label: 'Details' },
+    { id: 'auth', label: 'Authorization' },
+    { id: 'variables', label: 'Variables', count: MACROS.length },
+    { id: 'agents', label: 'Agents', count: connector.deployments.length },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* --- What it can do. First, because it is the usual reason for opening
-              a connector, and because an empty one is the thing most worth
-              saying out loud. ------------------------------------------- */}
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">What it can do</h2>
+    <div className="space-y-4">
+      <WorkbenchTabs tabs={tabs} active={tab} onSelect={setTab} />
+
+      {tab === 'actions' && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Each action is one call the agent can make.
+              One row is one call the agent can make. <code>{authLabel}</code> and{' '}
+              <code className="break-all">{connector.baseUrl}</code> apply to all of them.
             </p>
+            <button
+              type="button"
+              onClick={onAddAction}
+              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
+                text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add an action
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onAddAction}
-            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
-              text-xs font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add an action
-          </button>
-        </div>
 
-        {actions === undefined ? (
-          <p className="text-sm text-muted-foreground">Loading actions…</p>
-        ) : actions.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-5 text-center">
-            <p className="text-sm font-medium text-foreground">
-              This connector can&apos;t do anything yet
-            </p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Add an action so an agent has something to call. Until then, deploying it achieves
-              nothing.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-            {actions.map((action) => (
-              <li key={action.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpenAction(action.id)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
-                >
-                  <MethodBadge method={action.requestDefinition?.method ?? 'GET'} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-sm text-foreground">
-                      {action.name}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {action.description}
-                    </span>
-                  </span>
-                  <code className="hidden shrink-0 text-xs text-muted-foreground lg:block">
-                    {summariseAction(action)}
-                  </code>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* --- Where it runs. A strip, not a tab. ---------------------------- */}
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground">Where it runs</h2>
-          {/* "Publish" everywhere in this product means: make it real on Meta.
-              This is that button, and it opens the agent picker — there is no
-              other kind of publishing for a connector. A second button called
-              Publish used to sit in the list and only flip a local flag that
-              gated nothing, so the word pointed at the wrong action. */}
-          <button
-            type="button"
-            onClick={onPublish}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
-              text-xs font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Rocket className="h-3.5 w-3.5" />
-            Publish to an agent
-          </button>
-        </div>
-
-        {connector.deployments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Not on any agent yet, so nothing here can be called by a customer.
-          </p>
-        ) : (
-          <>
-            {behind > 0 && (
-              <p className="text-xs font-medium text-warning">
-                {behind} of {connector.deployments.length} still running an older version — deploy
-                again to bring {behind === 1 ? 'it' : 'them'} up to date.
+          {actions === undefined ? (
+            <p className="text-sm text-muted-foreground">Loading actions…</p>
+          ) : actions.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-5 text-center">
+              <p className="text-sm font-medium text-foreground">No actions yet</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                An agent has nothing to call until this connector has one, so publishing it now
+                would achieve nothing.
               </p>
-            )}
-            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-              {connector.deployments.map((d) => (
-                <li
-                  key={`${d.agentId}-${d.metaConnectorId ?? 'none'}`}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                >
-                  <span className="min-w-0 truncate text-foreground">
-                    {d.agentName ?? d.agentId}
-                  </span>
-                  <StatusIndicator
-                    label={d.status === 'OUT_OF_SYNC' ? 'Behind — redeploy' : 'Up to date'}
-                    tone={d.status === 'OUT_OF_SYNC' ? 'warning' : 'positive'}
-                  />
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+            </div>
+          ) : (
+            <ConnectorActionsTable actions={actions} onOpenAction={onOpenAction} />
+          )}
+        </section>
+      )}
 
-      {/* --- What it is. Auth included, because auth is part of the
-              definition rather than a separate concern. ------------------ */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-foreground">Where it is, and how it signs in</h2>
+      {(tab === 'details' || tab === 'auth') && (
         <div className="max-w-3xl">
           <ConnectorDefinitionEditor
             isEditing
+            chrome={false}
+            section={tab === 'auth' ? 'auth' : 'details'}
             form={form}
             error={detailsError}
             saving={saving}
@@ -184,37 +128,122 @@ export default function ConnectorPane({
             onSave={onSave}
             onCancel={onResetForm}
           />
-        </div>
-      </section>
 
-      {/* --- Removing it. Last, and refused while any agent still runs it,
-              because the backend refuses too: "This connector is deployed to
-              at least one agent. Remove it from those agents first." Saying so
-              on the control beats asking and then failing. ------------- */}
-      <section className="space-y-2 border-t pt-4">
-        <button
-          type="button"
-          onClick={onRequestDelete}
-          disabled={connector.usedByAgentCount > 0}
-          title={
-            connector.usedByAgentCount > 0
-              ? `On ${connector.usedByAgentCount} agent${connector.usedByAgentCount === 1 ? '' : 's'} — remove it from those agents before deleting it.`
-              : 'Delete this connector and its actions'
-          }
-          className="flex min-h-11 items-center gap-1.5 rounded-lg border border-destructive px-3 text-xs
-            font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white
-            disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground
-            disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete connector
-        </button>
-        {connector.usedByAgentCount > 0 && (
+          {tab === 'details' && (
+            /* Deleting is a Details concern — it is the connector itself, not
+               one of its requests. Refused while any agent still runs it,
+               because the backend refuses too ("deployed to at least one
+               agent"); saying so on the control beats asking and then failing. */
+            <section className="mt-6 space-y-2 border-t pt-4">
+              <button
+                type="button"
+                onClick={onRequestDelete}
+                disabled={connector.usedByAgentCount > 0}
+                title={
+                  connector.usedByAgentCount > 0
+                    ? `On ${connector.usedByAgentCount} agent${connector.usedByAgentCount === 1 ? '' : 's'} — remove it from those agents before deleting it.`
+                    : 'Delete this connector and its actions'
+                }
+                className="flex min-h-11 items-center gap-1.5 rounded-lg border border-destructive px-3 text-xs
+                  font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white
+                  disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground
+                  disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete connector
+              </button>
+              {connector.usedByAgentCount > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  On {connector.usedByAgentCount}{' '}
+                  {connector.usedByAgentCount === 1 ? 'agent' : 'agents'} — see the Agents tab.
+                </p>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+
+      {tab === 'variables' && (
+        <section className="max-w-3xl space-y-2">
+          {/* Read-only on purpose: this is Meta's set, not ours, and it is
+              closed. These were only discoverable inside a parameter's fill
+              dropdown, which is a poor place to learn what exists. */}
           <p className="text-xs text-muted-foreground">
-            Remove it from the {connector.usedByAgentCount === 1 ? 'agent' : 'agents'} above first.
+            Meta substitutes these at call time. The set is fixed — you cannot add one. Pick one as
+            a parameter&apos;s value on any action.
           </p>
-        )}
-      </section>
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                  <th className="px-3 py-2 font-medium">Variable</th>
+                  <th className="px-3 py-2 font-medium">Resolves to</th>
+                </tr>
+              </thead>
+              <tbody>
+                {MACROS.map(([name, meaning]) => (
+                  <tr key={name} className="border-b last:border-b-0">
+                    <td className="px-3 py-2 font-mono text-xs text-foreground">{name}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{meaning}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {tab === 'agents' && (
+        <section className="max-w-3xl space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Who is affected by a change here.
+            </p>
+            {/* "Publish" everywhere in this product means: make it real on
+                Meta. This is that button, and it opens the agent picker. */}
+            <button
+              type="button"
+              onClick={onPublish}
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
+                text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Rocket className="h-3.5 w-3.5" />
+              Publish to an agent
+            </button>
+          </div>
+
+          {connector.deployments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Not on any agent, so nothing here can be called by a customer yet.
+            </p>
+          ) : (
+            <>
+              {behind > 0 && (
+                <p className="text-xs font-medium text-warning">
+                  {behind} of {connector.deployments.length} still running an older version —
+                  publish again to bring {behind === 1 ? 'it' : 'them'} up to date.
+                </p>
+              )}
+              <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+                {connector.deployments.map((d) => (
+                  <li
+                    key={`${d.agentId}-${d.metaConnectorId ?? 'none'}`}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                  >
+                    <span className="min-w-0 truncate text-foreground">
+                      {d.agentName ?? d.agentId}
+                    </span>
+                    <StatusIndicator
+                      label={d.status === 'OUT_OF_SYNC' ? 'Behind — republish' : 'Up to date'}
+                      tone={d.status === 'OUT_OF_SYNC' ? 'warning' : 'positive'}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
     </div>
   )
 }

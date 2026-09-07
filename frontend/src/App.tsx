@@ -9,7 +9,6 @@ import AgentDetailPage from './pages/AgentDetailPage'
 import SkillLibraryPage from './pages/SkillLibraryPage'
 import SkillEditPage from './pages/SkillEditPage'
 import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
-import ConnectorLibraryPage from './pages/ConnectorLibraryPage'
 import ConnectorWorkbenchPage from './pages/ConnectorWorkbenchPage'
 import FileLibraryPage from './pages/FileLibraryPage'
 import ReportsPage from './pages/ReportsPage'
@@ -124,7 +123,9 @@ export default function App() {
                   still lands somewhere useful instead of 404ing. */}
               <Route path="/library/skills/browse" element={<Navigate to="/library/skills?tab=browse" replace />} />
               <Route path="/library/persona" element={<BusinessPersonaLibraryPage />} />
-              <Route path="/library/connectors" element={<ConnectorLibraryPage />} />
+              {/* The workbench is the Connectors screen: the sidebar is the whole list, so
+                  there is no separate two-table page to land on first. */}
+              <Route path="/library/connectors" element={<ConnectorWorkbenchPage />} />
               <Route path="/library/connectors/:connectorId" element={<ConnectorWorkbenchPage />} />
               <Route path="/library/connectors/:connectorId/actions/:actionId" element={<ConnectorWorkbenchPage />} />
               <Route path="/library/files" element={<FileLibraryPage />} />

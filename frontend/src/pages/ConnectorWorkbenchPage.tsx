@@ -10,8 +10,12 @@ import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
 import ToolPane from '../components/connectors/workbench/ToolPane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
+import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
+import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
+import type { ConnectorRow } from '../components/connectors/ConnectorsTable'
 import {
+  EMPTY_CONNECTOR_FORM,
   toFormValues,
   toRequestBody,
   type ConnectorFormValues,
@@ -63,6 +67,13 @@ export default function ConnectorWorkbenchPage() {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ConnectorAction | null>(null)
   const [detailsForm, setDetailsForm] = useState<ConnectorFormValues | null>(null)
   const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [publishTarget, setPublishTarget] = useState<LibraryConnector | null>(null)
+  const [publishError, setPublishError] = useState<string | null>(null)
+  const creating = connectorId === 'new'
+  const [newForm, setNewForm] = useState<ConnectorFormValues>(EMPTY_CONNECTOR_FORM)
+  const [newError, setNewError] = useState<string | null>(null)
+  const [pendingDeleteConnector, setPendingDeleteConnector] = useState<LibraryConnector | null>(null)
+  const [deleteConnectorError, setDeleteConnectorError] = useState<string | null>(null)
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -136,6 +147,89 @@ export default function ConnectorWorkbenchPage() {
     },
   })
 
+  // Only agents on this WABA with a number bound can receive a connector.
+  const { data: agentList = [] } = useQuery<
+    { id: string; displayName: string; phoneNumberId: string | null; wabaId: string | null }[]
+  >({
+    queryKey: ['agents'],
+    queryFn: () => api.get('/agents').then((r) => r.data.data ?? []),
+  })
+  const publishTargets: DeployTargetAgent[] = useMemo(
+    () =>
+      agentList
+        .filter((a) => !waba || a.wabaId === waba.id)
+        .map((a) => ({ id: a.id, displayName: a.displayName, phoneNumberId: a.phoneNumberId })),
+    [agentList, waba],
+  )
+
+  const publishMutation = useMutation({
+    mutationFn: ({ id, agentId, secrets }: { id: string; agentId: string; secrets: Record<string, string> }) =>
+      api.post(`/connector-library/${id}/deploy`, { agentId, secrets }),
+    onSuccess: (_d, { agentId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      const agent = agentList.find((a) => a.id === agentId)
+      setPublishTarget(null)
+      setPublishError(null)
+      confirm('Published to Meta', `${publishTarget?.name ?? 'Connector'} → ${agent?.displayName ?? 'the agent'}`)
+    },
+    onError: (err: unknown) =>
+      setPublishError(err instanceof Error ? err.message : 'Could not publish.'),
+  })
+
+  /**
+   * What Meta reports on the account's agents. Used only to show, at the
+   * bottom of the tree, connectors that exist on an agent but have no
+   * definition of ours — added directly on the agent, or before this library
+   * existed. They used to be a second table on a separate page.
+   */
+  const { data: mirror = [] } = useQuery<ConnectorRow[]>({
+    queryKey: ['library-connectors', waba?.id],
+    queryFn: () =>
+      api
+        .get('/connectors', { params: { wabaId: waba!.id } })
+        .then((r) => r.data.data?.connectors ?? []),
+    enabled: !!waba,
+  })
+  const liveOnly = useMemo(() => {
+    const ours = new Set(connectors.map((c) => c.name.toLowerCase()))
+    return mirror
+      .filter((row) => !ours.has((row.name ?? '').toLowerCase()))
+      .map((row) => ({
+        key: `${row.agentId}-${row.id}`,
+        name: row.name,
+        agentId: row.agentId,
+        agentName: row.agentName,
+      }))
+  }, [mirror, connectors])
+
+  const createConnector = useMutation({
+    mutationFn: (values: ConnectorFormValues) =>
+      api.post('/connector-library', { wabaId: waba!.id, ...toRequestBody(values) }),
+    onSuccess: (res, values) => {
+      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      confirm('Connector saved', `${values.name} — add an action so an agent can call it`)
+      setNewForm(EMPTY_CONNECTOR_FORM)
+      setNewError(null)
+      const id = (res as { data?: { data?: { id?: string } } })?.data?.data?.id
+      if (id) navigate(`/library/connectors/${id}`, { replace: true })
+    },
+    onError: (err: unknown) =>
+      setNewError(err instanceof Error ? err.message : 'Could not save.'),
+  })
+
+  const deleteConnector = useMutation({
+    mutationFn: (id: string) => api.delete(`/connector-library/${id}`),
+    onSuccess: (_d, id) => {
+      const gone = connectors.find((c) => c.id === id)?.name
+      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      setPendingDeleteConnector(null)
+      confirm('Connector deleted', gone)
+      navigate('/library/connectors', { replace: true })
+    },
+    onError: (err: unknown) =>
+      setDeleteConnectorError(err instanceof Error ? err.message : 'Could not delete.'),
+  })
+
   const saveDetails = useMutation({
     mutationFn: (values: ConnectorFormValues) =>
       api.put(`/connector-library/${connectorId}`, toRequestBody(values)),
@@ -197,7 +291,9 @@ export default function ConnectorWorkbenchPage() {
             navigate(`/library/connectors/${id}`)
           }}
           onSelectAction={(cid, aid) => navigate(`/library/connectors/${cid}/actions/${aid}`)}
-          onNewConnector={() => navigate('/library/connectors')}
+          liveOnly={liveOnly}
+          onOpenOnAgent={(agentId) => navigate(`/agents/${agentId}?tab=connectors`)}
+          onNewConnector={() => navigate('/library/connectors/new')}
           onNewAction={(cid) => {
             setExpanded((p) => ({ ...p, [cid]: true }))
             navigate(`/library/connectors/${cid}/actions/new`)
@@ -205,14 +301,37 @@ export default function ConnectorWorkbenchPage() {
         />
 
         <div className="min-w-0 flex-1 overflow-y-auto p-5">
-          {!connector ? (
-            <p className="text-sm text-muted-foreground">
-              Pick a connector on the left, or{' '}
-              <Link to="/library/connectors" className="text-accent-teal-solid hover:underline">
-                go back to the list
-              </Link>
-              .
-            </p>
+          {creating ? (
+            <div className="max-w-3xl space-y-3">
+              <h2 className="text-sm font-semibold text-foreground">New connector</h2>
+              <ConnectorDefinitionEditor
+                isEditing={false}
+                form={newForm}
+                error={newError}
+                saving={createConnector.isPending}
+                onChange={setNewForm}
+                onSave={() => createConnector.mutate(newForm)}
+                onCancel={() => navigate('/library/connectors')}
+              />
+            </div>
+          ) : !connector ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                {connectors.length === 0 ? 'No connectors yet' : 'Pick a connector on the left'}
+              </p>
+              <p className="max-w-md text-sm text-muted-foreground">
+                A connector is an API your agents can call. Everything on this account is in the
+                panel on the left — there is no second list.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/library/connectors/new')}
+                className="mt-1 flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4
+                  text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                New connector
+              </button>
+            </div>
           ) : actionId && actionId !== 'new' && actions === undefined ? (
             /* The pane fills its fields once, at mount, from the action it is
                given. So it must not mount before the action has arrived —
@@ -258,15 +377,55 @@ export default function ConnectorWorkbenchPage() {
                 navigate(`/library/connectors/${connector.id}/actions/${aid}`)
               }
               onAddAction={() => navigate(`/library/connectors/${connector.id}/actions/new`)}
-              // Deploying needs the agent picker and the credential prompts,
-              // which live on the list page. Sending the user there is honest;
-              // a second copy of that modal would be a second thing to keep
-              // right.
-              onDeploy={() => navigate('/library/connectors')}
+              onPublish={() => {
+                setPublishError(null)
+                setPublishTarget(connector)
+              }}
+              onRequestDelete={() => {
+                setDeleteConnectorError(null)
+                setPendingDeleteConnector(connector)
+              }}
             />
           )}
         </div>
       </div>
+
+      {pendingDeleteConnector && (
+        <ConfirmDeleteModal
+          title="Delete connector"
+          consequence={
+            <>
+              Delete{' '}
+              <strong className="font-semibold text-foreground">
+                {pendingDeleteConnector.name}
+              </strong>
+              ? No agent is using it, so nothing stops working. Its actions go with it, and this
+              cannot be undone.
+            </>
+          }
+          confirmLabel="Delete connector"
+          isPending={deleteConnector.isPending}
+          error={deleteConnectorError}
+          onConfirm={() => deleteConnector.mutate(pendingDeleteConnector.id)}
+          onClose={() => setPendingDeleteConnector(null)}
+        />
+      )}
+
+      {publishTarget && (
+        <ConnectorDeployModal
+          connector={publishTarget}
+          agents={publishTargets}
+          deploying={publishMutation.isPending}
+          error={publishError}
+          onDeploy={(agentId, secrets) =>
+            publishMutation.mutate({ id: publishTarget.id, agentId, secrets })
+          }
+          onClose={() => {
+            setPublishTarget(null)
+            setPublishError(null)
+          }}
+        />
+      )}
 
       {pendingDeleteAction && (
         <ConfirmDeleteModal

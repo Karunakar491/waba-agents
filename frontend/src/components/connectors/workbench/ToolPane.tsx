@@ -1,0 +1,265 @@
+import { useMemo, useState } from 'react'
+import { Loader2, Trash2 } from 'lucide-react'
+import ErrorBanner from '../../shared/ErrorBanner'
+import RequestBar from './RequestBar'
+import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
+import ToolParamsEditor from '../../agent-detail/ToolParamsEditor'
+import ToolBodyEditor from '../../agent-detail/ToolBodyEditor'
+import {
+  buildRequestDefinition,
+  parseRequestDefinition,
+  extractPathParamNames,
+  methodSendsBody,
+  IncompleteRowError,
+  type ParamRow,
+  type BodyFieldRow,
+} from '../../agent-detail/toolRequestDefinition'
+import type { ActionPayload, ConnectorAction } from '../connectorActions'
+
+const inputCls =
+  'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition'
+
+const TEST_UNAVAILABLE =
+  'Testing needs this connector deployed to an agent — Meta makes the call, not us.'
+
+/**
+ * One action: the request bar, the tabs, and what it will actually send.
+ *
+ * Keyed by the caller on the action's id, so switching actions in the sidebar
+ * remounts this and resets the draft. That is deliberately not an effect —
+ * syncing props into state on every refetch of the actions list would fight the
+ * user's typing, and this project has already shipped one stale-effect-deps bug.
+ */
+export default function ToolPane({
+  action,
+  baseUrl,
+  saving,
+  saveError,
+  onSave,
+  onRequestDelete,
+}: {
+  /** Null when adding a new action. */
+  action: ConnectorAction | null
+  baseUrl: string
+  saving: boolean
+  saveError: unknown
+  onSave: (payload: ActionPayload) => void
+  onRequestDelete: () => void
+}) {
+  const prefill = useMemo(
+    () => (action ? parseRequestDefinition(action.requestDefinition) : null),
+    [action],
+  )
+
+  const [tab, setTab] = useState('params')
+  const [name, setName] = useState(action?.name ?? '')
+  const [description, setDescription] = useState(action?.description ?? '')
+  const [method, setMethod] = useState(prefill?.method ?? 'GET')
+  const [path, setPath] = useState(prefill?.path ?? '/')
+  const [queryParams, setQueryParams] = useState<ParamRow[]>(prefill?.queryParams ?? [])
+  const [headerParams, setHeaderParams] = useState<ParamRow[]>(prefill?.headerParams ?? [])
+  const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(prefill?.bodyFields ?? [])
+  const [pathParamMeta, setPathParamMeta] = useState<Record<string, ParamRow>>(
+    Object.fromEntries((prefill?.pathParams ?? []).map((row) => [row.key, row])),
+  )
+  const [rowError, setRowError] = useState<string | null>(null)
+
+  // Derived from the Path field each render rather than synced in an effect.
+  const pathTokens = extractPathParamNames(path)
+  const pathParamRows: ParamRow[] = pathTokens.map(
+    (token) =>
+      pathParamMeta[token] ?? {
+        key: token,
+        type: 'string',
+        description: '',
+        required: true,
+        fill: 'agent',
+        fixedValue: '',
+      },
+  )
+  function setPathParamRows(updater: (prev: ParamRow[]) => ParamRow[]) {
+    const next = updater(pathParamRows)
+    setPathParamMeta((prev) => {
+      const merged = { ...prev }
+      for (const row of next) merged[row.key] = row
+      return merged
+    })
+  }
+
+  const bodyAllowed = methodSendsBody(method)
+
+  const tabs: WorkbenchTab[] = [
+    { id: 'params', label: 'Params', count: pathParamRows.length + queryParams.length },
+    { id: 'headers', label: 'Headers', count: headerParams.length },
+    {
+      id: 'body',
+      label: 'Body',
+      count: bodyAllowed ? bodyFields.length : undefined,
+      unavailable: bodyAllowed
+        ? null
+        : 'A GET request sends no body — Meta drops it, so configuring one here would lie.',
+    },
+    { id: 'response', label: 'Response', unavailable: TEST_UNAVAILABLE },
+  ]
+
+  const stillNeeded = [
+    !name.trim() && 'Name',
+    !description.trim() && 'What does this do?',
+    !path.trim() && 'Path',
+  ].filter(Boolean) as string[]
+
+  function handleSave() {
+    setRowError(null)
+    let requestDefinition
+    try {
+      requestDefinition = buildRequestDefinition({
+        method,
+        path: path.trim(),
+        pathParams: pathParamRows,
+        queryParams,
+        headerParams,
+        bodyFields,
+      })
+    } catch (err) {
+      // A blank row is a visible failure, never a silently dropped field.
+      setRowError(err instanceof IncompleteRowError ? err.message : 'Check the parameter rows.')
+      return
+    }
+    onSave({
+      name: name.trim(),
+      description: description.trim(),
+      requestDefinition,
+      userAuthRequired: false,
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,20rem)_1fr]">
+        <label className="block space-y-1.5">
+          <span className="block text-xs font-medium text-foreground">Name</span>
+          <input
+            type="text"
+            value={name}
+            disabled={saving}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. product_search"
+            className={`${inputCls} font-mono`}
+          />
+        </label>
+        <label className="block space-y-1.5">
+          {/* Stated as behaviour, not documentation: this sentence is what the
+              agent reads to decide when to call the action, and vague wording
+              here is the main cause of an agent calling the wrong thing. */}
+          <span className="block text-xs font-medium text-foreground">
+            What does this do? — the agent reads this to decide when to use it
+          </span>
+          <input
+            type="text"
+            value={description}
+            disabled={saving}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Search the catalogue for what the buyer asked for"
+            className={inputCls}
+          />
+        </label>
+      </div>
+
+      <RequestBar
+        method={method}
+        path={path}
+        baseUrl={baseUrl}
+        disabled={saving}
+        onMethodChange={setMethod}
+        onPathChange={setPath}
+        onTest={() => setTab('response')}
+        testing={false}
+        testUnavailable={TEST_UNAVAILABLE}
+      />
+
+      <WorkbenchTabs tabs={tabs} active={tab} onSelect={setTab} />
+
+      <div className="pt-1">
+        {tab === 'params' && (
+          <div className="space-y-4">
+            {pathTokens.length > 0 && (
+              <ToolParamsEditor
+                label="Path parameters"
+                rows={pathParamRows}
+                setRows={setPathParamRows}
+                lockedKeys={pathTokens}
+                showAdd={false}
+                disabled={saving}
+              />
+            )}
+            <ToolParamsEditor
+              label="Query parameters"
+              rows={queryParams}
+              setRows={setQueryParams}
+              disabled={saving}
+            />
+            <p className="text-xs text-muted-foreground">
+              Query and path values are single values only — Meta rejects an object or a list
+              here. Nested shapes belong in the body.
+            </p>
+          </div>
+        )}
+
+        {tab === 'headers' && (
+          <ToolParamsEditor
+            label="Headers"
+            rows={headerParams}
+            setRows={setHeaderParams}
+            disabled={saving}
+          />
+        )}
+
+        {tab === 'body' && bodyAllowed && (
+          <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
+        )}
+
+        {tab === 'response' && (
+          <p className="text-sm text-muted-foreground">
+            Nothing to show yet. Meta's runtime makes this call, not us, so an action can only be
+            tested once this connector is deployed to an agent.
+          </p>
+        )}
+      </div>
+
+      {rowError && <p className="text-xs text-destructive">{rowError}</p>}
+      {saveError ? <ErrorBanner error={saveError} /> : null}
+
+      <div className="flex items-center gap-3 border-t pt-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={stillNeeded.length > 0 || saving}
+          className="flex min-h-11 items-center gap-2 rounded-lg bg-accent-teal-solid px-4 text-sm
+            font-semibold text-white transition-opacity hover:opacity-90
+            disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {action ? 'Save action' : 'Add action'}
+        </button>
+        {/* Says what is missing instead of leaving a dead button. */}
+        {stillNeeded.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Still needed: <span className="text-foreground">{stillNeeded.join(', ')}</span>
+          </span>
+        )}
+        {action && (
+          <button
+            type="button"
+            onClick={onRequestDelete}
+            aria-label={`Delete action ${action.name}`}
+            className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border
+              text-muted-foreground transition hover:bg-muted hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

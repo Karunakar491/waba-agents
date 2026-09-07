@@ -25,6 +25,9 @@ Every architectural and product decision with date and rationale.
 ## Frontend Design Decisions
 - [[design-evaluator-anti-patterns|Design Evaluator Anti-Patterns]] — accumulated list of generic-AI-feel tells to avoid proactively (gradient-sparkle avatars, icon-per-chip rows, pill-badge status indicators)
 
+## 2026-09-07
+- [[postman-shaped-connectors-2026-09-07|Connectors Laid Out Like Postman]] — both levels tabbed to Postman's own two levels because operators already know it; collection-level Headers/Body deliberately NOT copied (Meta's connector object has neither, and the merge would be ours); an action's Authorization tab reports its inheritance rather than editing, since Meta forbids per-tool auth; Variables surfaces Meta's three closed macros, previously visible only inside a fill dropdown
+
 ## 2026-08-13
 - [[reusable-library-over-meta-execution-2026-08-13|Reusable Library Over Meta Execution]] — Meta is the execution layer, our DB is the source of truth for reusable Skills/Connectors/(eventually) Agents; extends the existing Skill pattern to Connectors (library definition / deployed instance / live-state cache, kept as 3 distinct layers)
 - [[draft-publish-pattern-audit-2026-08-13|Draft/Publish Pattern Audit Across Agent Detail Tabs]] — audited all 6 tabs against the founder's per-tab draft+publish ask; Business Persona already fully implements it (built same session); Settings is the real gap; Skills/Connectors already have their own library-attach pattern and need a founder decision, not new code; Evals/Events need their data model read first. No-go on new code this pass — scoped follow-up plan written instead of a rushed/incomplete build

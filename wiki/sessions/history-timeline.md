@@ -12,6 +12,8 @@ tags: [history, timeline, index, sessions]
 
 ## 2026-09
 
+- **2026-09-07** — Postman-Shaped Connectors · both levels tabbed to match Postman (connector=collection, action=request); collection headers/body NOT copied because Meta's connector object has neither; auth tab reports inheritance since Meta forbids per-tool auth; Variables surfaces Meta's three closed macros
+- **2026-09-06** — Connectors Became One Screen · list page deleted, sidebar is the only list; "Publish" repointed at Meta after being the button that flipped a local flag gating nothing while "Deploy" did the publishing; library tables everywhere; logrotate after a third disk-full
 - **2026-09-03** — Daily User Challenges Audit · 31 evidence-backed user problems on the real WABA; token refresh unwired (logged out every 15 min), no human can reply, nothing ever closes
 - **2026-09-03** — master HEAD Unbuildable · dangling unpublish imports since 08-25; master can't build from a clean checkout, prod maps to no commit
 - **2026-09-03** — StepBasics Self-Conflict Fix · own agent's bound number falsely showed as taken after Back/draft-resume

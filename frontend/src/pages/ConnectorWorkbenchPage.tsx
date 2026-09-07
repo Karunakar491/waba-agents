@@ -15,6 +15,7 @@ import { type ActionPayload, type ConnectorAction } from '../components/connecto
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
 import type { ConnectorRow } from '../components/connectors/ConnectorsTable'
 import {
+  AUTH_TYPES,
   EMPTY_CONNECTOR_FORM,
   toFormValues,
   toRequestBody,
@@ -46,11 +47,15 @@ interface WabaEntry {
  * URL, the auth and the certificate. Postman lets auth sit on either and would
  * have taught the wrong model.
  *
- * Tabs are used inside a single action, where Params, Headers and Body really
- * are alternative views of one request. A connector gets no tabs: it showed
- * Details / Auth / Deployments until 2026-09-07, and the Auth tab was the tell
- * — authentication is part of the definition and already sat in the Details
- * form, so that tab could only be a signpost to the other one.
+ * Both levels are tabbed, mapped onto Postman's own two levels: a connector is
+ * a collection (Actions / Details / Authorization / Variables / Agents), an
+ * action is a request (Params / Authorization / Headers / Body / Docs /
+ * Response). The panes carry the notes on what was deliberately not copied —
+ * collection-level headers and bodies, scripts, settings.
+ *
+ * An action's Authorization tab reports rather than edits, which is the one
+ * place the mapping is not one-to-one: Postman lets a request override its
+ * parent's auth, Meta does not.
  *
  * This page owns navigation and data only; the panes are their own components.
  * Replaces a max-w-3xl page that used 768px of a 1440px laptop.
@@ -355,10 +360,14 @@ export default function ConnectorWorkbenchPage() {
               key={actionId}
               action={action}
               baseUrl={connector.baseUrl}
+              authLabel={
+                AUTH_TYPES.find((a) => a.value === connector.authType)?.label ?? connector.authType
+              }
               saving={saveAction.isPending}
               saveError={saveAction.error}
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}
               onRequestDelete={() => action && setPendingDeleteAction(action)}
+              onOpenConnectorAuth={() => navigate(`/library/connectors/${connector.id}`)}
             />
           ) : (
             <ConnectorPane

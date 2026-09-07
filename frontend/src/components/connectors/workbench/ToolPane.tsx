@@ -24,7 +24,15 @@ const TEST_UNAVAILABLE =
   'Testing needs this connector deployed to an agent — Meta makes the call, not us.'
 
 /**
- * One action: the request bar, the tabs, and what it will actually send.
+ * One action, laid out like a Postman request: name, the method+path bar, then
+ * Params / Authorization / Headers / Body / Docs / Response.
+ *
+ * The name and description used to sit above the bar as two labelled prose
+ * fields, which pushed the bar down the page and made this look like a form
+ * rather than a request. The name is now the title, and the description lives
+ * in Docs — Postman's own home for it. It is still required, and the "Still
+ * needed" line beside Save says which tab it is on, because a required field
+ * behind a tab is otherwise a dead button with no explanation.
  *
  * Keyed by the caller on the action's id, so switching actions in the sidebar
  * remounts this and resets the draft. That is deliberately not an effect —
@@ -34,18 +42,23 @@ const TEST_UNAVAILABLE =
 export default function ToolPane({
   action,
   baseUrl,
+  authLabel,
   saving,
   saveError,
   onSave,
   onRequestDelete,
+  onOpenConnectorAuth,
 }: {
   /** Null when adding a new action. */
   action: ConnectorAction | null
   baseUrl: string
+  /** The connector's auth type, in words — this action inherits it. */
+  authLabel: string
   saving: boolean
   saveError: unknown
   onSave: (payload: ActionPayload) => void
   onRequestDelete: () => void
+  onOpenConnectorAuth: () => void
 }) {
   const prefill = useMemo(
     () => (action ? parseRequestDefinition(action.requestDefinition) : null),
@@ -91,6 +104,7 @@ export default function ToolPane({
 
   const tabs: WorkbenchTab[] = [
     { id: 'params', label: 'Params', count: pathParamRows.length + queryParams.length },
+    { id: 'auth', label: 'Authorization' },
     { id: 'headers', label: 'Headers', count: headerParams.length },
     {
       id: 'body',
@@ -100,12 +114,13 @@ export default function ToolPane({
         ? null
         : 'A GET request sends no body — Meta drops it, so configuring one here would lie.',
     },
+    { id: 'docs', label: 'Docs', filled: !!description.trim() },
     { id: 'response', label: 'Response', unavailable: TEST_UNAVAILABLE },
   ]
 
   const stillNeeded = [
     !name.trim() && 'Name',
-    !description.trim() && 'What does this do?',
+    !description.trim() && 'Description (Docs tab)',
     !path.trim() && 'Path',
   ].filter(Boolean) as string[]
 
@@ -136,35 +151,24 @@ export default function ToolPane({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,20rem)_1fr]">
-        <label className="block space-y-1.5">
-          <span className="block text-xs font-medium text-foreground">Name</span>
-          <input
-            type="text"
-            value={name}
-            disabled={saving}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. product_search"
-            className={`${inputCls} font-mono`}
-          />
-        </label>
-        <label className="block space-y-1.5">
-          {/* Stated as behaviour, not documentation: this sentence is what the
-              agent reads to decide when to call the action, and vague wording
-              here is the main cause of an agent calling the wrong thing. */}
-          <span className="block text-xs font-medium text-foreground">
-            What does this do? — the agent reads this to decide when to use it
-          </span>
-          <input
-            type="text"
-            value={description}
-            disabled={saving}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Search the catalogue for what the buyer asked for"
-            className={inputCls}
-          />
-        </label>
-      </div>
+      {/* The request's name, as its title — editable in place, the way the
+          name of a Postman request is. */}
+      <label className="block">
+        <span className="sr-only">Name</span>
+        <input
+          type="text"
+          value={name}
+          disabled={saving}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. product_search"
+          spellCheck={false}
+          className="w-full max-w-lg rounded-lg border border-transparent bg-transparent px-2 py-1
+            font-mono text-base font-semibold text-foreground placeholder:font-normal
+            placeholder:text-muted-foreground hover:border-border focus-visible:border-primary
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
+            disabled:opacity-60"
+        />
+      </label>
 
       <RequestBar
         method={method}
@@ -182,7 +186,16 @@ export default function ToolPane({
 
       <div className="pt-1">
         {tab === 'params' && (
+          /* Query first, then path — Postman's order, and the order they are
+             usually edited in: path rows appear on their own as soon as a
+             {token} is typed into the bar. */
           <div className="space-y-4">
+            <ToolParamsEditor
+              label="Query parameters"
+              rows={queryParams}
+              setRows={setQueryParams}
+              disabled={saving}
+            />
             {pathTokens.length > 0 && (
               <ToolParamsEditor
                 label="Path parameters"
@@ -193,16 +206,35 @@ export default function ToolPane({
                 disabled={saving}
               />
             )}
-            <ToolParamsEditor
-              label="Query parameters"
-              rows={queryParams}
-              setRows={setQueryParams}
-              disabled={saving}
-            />
             <p className="text-xs text-muted-foreground">
               Query and path values are single values only — Meta rejects an object or a list
               here. Nested shapes belong in the body.
             </p>
+          </div>
+        )}
+
+        {tab === 'auth' && (
+          /* Postman calls this "inherit auth from parent" and offers to
+             override it per request. Meta does not: auth_config lives on the
+             connector and a tool cannot carry a credential. So the tab exists
+             — a missing one sends people hunting — and it reports rather than
+             edits, with the way to change it one click away. */
+          <div className="max-w-2xl space-y-2 text-sm">
+            <p className="text-foreground">
+              Inherited from the connector: <span className="font-medium">{authLabel}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Meta keeps <code>auth_config</code> on the connector, so every action under it signs
+              in the same way and no action can override it. Credential values are typed at publish
+              time and never stored here.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenConnectorAuth}
+              className="min-h-11 text-xs font-medium text-accent-teal-solid transition-colors hover:underline"
+            >
+              Change it on the connector
+            </button>
           </div>
         )}
 
@@ -217,6 +249,29 @@ export default function ToolPane({
 
         {tab === 'body' && bodyAllowed && (
           <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
+        )}
+
+        {tab === 'docs' && (
+          <label className="block max-w-2xl space-y-1.5">
+            {/* Stated as behaviour, not documentation: this sentence is what
+                the agent reads to decide when to call the action, and vague
+                wording here is the main cause of an agent calling the wrong
+                thing. That is also why it is required. */}
+            <span className="block text-xs font-medium text-foreground">
+              Description — the agent reads this to decide when to call this action
+            </span>
+            <textarea
+              rows={4}
+              value={description}
+              disabled={saving}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Search the catalogue for what the buyer asked for"
+              className={`${inputCls} resize-y`}
+            />
+            <span className="block text-xs text-muted-foreground">
+              Required. Meta passes it to the model verbatim.
+            </span>
+          </label>
         )}
 
         {tab === 'response' && (

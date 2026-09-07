@@ -50,18 +50,22 @@ test.describe('@workbench the connector workbench', () => {
     await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
 
     // ---- the connector side -----------------------------------------------
-    await expect(page.getByRole('tab', { name: /^Details$/ })).toBeVisible()
-    await expect(page.getByRole('tab', { name: /^Auth$/ })).toBeVisible()
-    // Auth is connector-level in Meta, and the tab says so rather than
-    // pretending a tool could carry credentials.
-    await page.getByRole('tab', { name: /^Auth$/ }).click()
-    await expect(page.getByText(/Authentication lives on the connector/i)).toBeVisible()
+    // No tabs here any more. Details, auth and where it runs are all on the
+    // one page — the Auth tab used to be a signpost to the Details tab, which
+    // is a tab whose content is directions to other content.
+    await expect(page.getByRole('heading', { name: /What it can do/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Where it runs/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /how it signs in/i })).toBeVisible()
+    // Auth is part of the definition, so its fields are right here.
+    await expect(page.getByText(/Headers that carry a credential/i)).toBeVisible()
 
-    // The tree shows this connector and offers to add an action under it.
-    await expect(page.getByText(/Nothing it can do yet/i)).toBeVisible()
+    // An empty connector says so, in both the tree and the page.
+    await expect(page.getByText(/can't do anything yet/i)).toBeVisible()
 
     // ---- add an action ----------------------------------------------------
-    await page.getByRole('button', { name: /Add an action/i }).click()
+    // Two entry points exist — the tree and the page — which is fine; the
+    // test has to say which one it means. This is the page's.
+    await page.getByRole('button', { name: /^Add an action$/ }).last().click()
     await expect(page).toHaveURL(/\/actions\/new$/)
 
     // Save is refused with the reason stated, not silently disabled.

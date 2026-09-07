@@ -8,9 +8,8 @@ import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
-import WorkbenchTabs, { type WorkbenchTab } from '../components/connectors/workbench/WorkbenchTabs'
 import ToolPane from '../components/connectors/workbench/ToolPane'
-import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
+import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
 import {
   toFormValues,
@@ -35,15 +34,19 @@ interface WabaEntry {
  * 3. POSSIBLE ACTIONS: pick a connector or one of its actions, change the
  *    request, save it, test it.
  * 4. HOW WE HELP: Postman's shape, because operators already know it — a tree
- *    on the left, method and path on one bar, tabs so exactly one panel is on
- *    screen, full width.
+ *    on the left, method and path on one bar, full width.
  *
  * Organised around Meta rather than around Postman, because the two disagree
  * somewhere that matters: **auth is only ever connector-level**. A tool cannot
  * carry credentials, so a connector is itself selectable — it owns the base
- * URL, the auth and the certificate — and the tab sets differ depending on
- * whether a connector or a tool is selected. Postman lets auth sit on either
- * and would have taught the wrong model.
+ * URL, the auth and the certificate. Postman lets auth sit on either and would
+ * have taught the wrong model.
+ *
+ * Tabs are used inside a single action, where Params, Headers and Body really
+ * are alternative views of one request. A connector gets no tabs: it showed
+ * Details / Auth / Deployments until 2026-09-07, and the Auth tab was the tell
+ * — authentication is part of the definition and already sat in the Details
+ * form, so that tab could only be a signpost to the other one.
  *
  * This page owns navigation and data only; the panes are their own components.
  * Replaces a max-w-3xl page that used 768px of a 1440px laptop.
@@ -57,7 +60,6 @@ export default function ConnectorWorkbenchPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     connectorId ? { [connectorId]: true } : {},
   )
-  const [connectorTab, setConnectorTab] = useState('details')
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ConnectorAction | null>(null)
   const [detailsForm, setDetailsForm] = useState<ConnectorFormValues | null>(null)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -161,12 +163,6 @@ export default function ConnectorWorkbenchPage() {
     )
   }
 
-  const connectorTabs: WorkbenchTab[] = [
-    { id: 'details', label: 'Details' },
-    { id: 'auth', label: 'Auth' },
-    { id: 'deployments', label: 'Deployments', count: connector?.usedByAgentCount ?? 0 },
-  ]
-
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
       <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5">
@@ -246,69 +242,28 @@ export default function ConnectorWorkbenchPage() {
               onRequestDelete={() => action && setPendingDeleteAction(action)}
             />
           ) : (
-            <div className="space-y-4">
-              <WorkbenchTabs tabs={connectorTabs} active={connectorTab} onSelect={setConnectorTab} />
-
-              {connectorTab === 'details' && (
-                <div className="max-w-3xl">
-                  <ConnectorDefinitionEditor
-                    isEditing
-                    form={detailsForm ?? toFormValues(connector)}
-                    error={detailsError}
-                    saving={saveDetails.isPending}
-                    onChange={setDetailsForm}
-                    onSave={() => saveDetails.mutate(detailsForm ?? toFormValues(connector))}
-                    onCancel={() => {
-                      setDetailsForm(null)
-                      setDetailsError(null)
-                    }}
-                  />
-                </div>
-              )}
-
-              {connectorTab === 'auth' && (
-                <div className="max-w-3xl space-y-2 rounded-xl border bg-card p-4">
-                  <p className="text-sm font-medium text-foreground">
-                    Authentication lives on the connector
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Meta holds credentials against the connector, not against each action — so
-                    every action here shares one set. Two endpoints on the same API needing
-                    different keys are two connectors.
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Editable on the Details tab for now. Multiple API-key headers, query and body
-                    credentials, the mTLS certificate and per-user OAuth are the next thing being
-                    built.
-                  </p>
-                </div>
-              )}
-
-              {connectorTab === 'deployments' && (
-                <div className="max-w-3xl space-y-2">
-                  {connector.deployments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Not deployed to any agent yet, so nothing here can be called.
-                    </p>
-                  ) : (
-                    <ul className="divide-y rounded-xl border bg-card">
-                      {connector.deployments.map((d) => (
-                        <li
-                          key={`${d.agentId}-${d.status}`}
-                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
-                        >
-                          <span className="truncate text-foreground">{d.agentName ?? d.agentId}</span>
-                          <StatusIndicator
-                            label={d.status === 'OUT_OF_SYNC' ? 'Behind — redeploy' : 'Up to date'}
-                            tone={d.status === 'OUT_OF_SYNC' ? 'warning' : 'positive'}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
+            <ConnectorPane
+              connector={connector}
+              actions={actions}
+              form={detailsForm ?? toFormValues(connector)}
+              detailsError={detailsError}
+              saving={saveDetails.isPending}
+              onFormChange={setDetailsForm}
+              onSave={() => saveDetails.mutate(detailsForm ?? toFormValues(connector))}
+              onResetForm={() => {
+                setDetailsForm(null)
+                setDetailsError(null)
+              }}
+              onOpenAction={(aid) =>
+                navigate(`/library/connectors/${connector.id}/actions/${aid}`)
+              }
+              onAddAction={() => navigate(`/library/connectors/${connector.id}/actions/new`)}
+              // Deploying needs the agent picker and the credential prompts,
+              // which live on the list page. Sending the user there is honest;
+              // a second copy of that modal would be a second thing to keep
+              // right.
+              onDeploy={() => navigate('/library/connectors')}
+            />
           )}
         </div>
       </div>

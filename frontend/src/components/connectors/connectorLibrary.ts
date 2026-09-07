@@ -64,8 +64,16 @@ export interface ConnectorFormValues {
   systemType: string
   baseUrl: string
   authType: string
-  headerName: string
-  headerPrefix: string
+  /**
+   * Every header that carries a credential, not just the first.
+   *
+   * Meta's api_key auth config takes an array, the backend has always built
+   * one, and deploy already prompts for a value per header — but the form
+   * held a single headerName/headerPrefix pair and read only headers[0].
+   * So a connector needing two headers could not be configured, and one
+   * that somehow had two would silently save back one.
+   */
+  headers: AuthHeaderField[]
   tokenUrl: string
   clientId: string
   scopes: string
@@ -79,8 +87,7 @@ export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
   systemType: '',
   baseUrl: '',
   authType: 'API_KEY',
-  headerName: '',
-  headerPrefix: '',
+  headers: [{ fieldName: '', prefix: '' }],
   tokenUrl: '',
   clientId: '',
   scopes: '',
@@ -89,15 +96,17 @@ export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
 }
 
 export function toFormValues(connector: LibraryConnector): ConnectorFormValues {
-  const header = connector.authShape?.headers?.[0]
   return {
     name: connector.name,
     description: connector.description,
     systemType: connector.systemType ?? '',
     baseUrl: connector.baseUrl,
     authType: connector.authType,
-    headerName: header?.fieldName ?? '',
-    headerPrefix: header?.prefix ?? '',
+    headers:
+      connector.authShape?.headers?.map((h) => ({
+        fieldName: h.fieldName,
+        prefix: h.prefix ?? '',
+      })) ?? [{ fieldName: '', prefix: '' }],
     tokenUrl: connector.authShape?.tokenUrl ?? '',
     clientId: connector.authShape?.clientId ?? '',
     scopes: (connector.authShape?.scopes ?? []).join(', '),
@@ -106,13 +115,15 @@ export function toFormValues(connector: LibraryConnector): ConnectorFormValues {
   }
 }
 
-/** One header is enough for every real API key we've seen; more can be added when a second case exists. */
 function buildAuthShape(form: ConnectorFormValues): AuthShape | null {
   if (form.authType === 'API_KEY') {
-    if (!form.headerName.trim()) return null
-    return {
-      headers: [{ fieldName: form.headerName.trim(), prefix: form.headerPrefix.trim() || null }],
-    }
+    // Blank rows are dropped rather than sent: an empty field_name would be
+    // rejected by our own validation at the far end, and the editor already
+    // says a name is needed before it will save.
+    const headers = form.headers
+      .filter((h) => h.fieldName.trim())
+      .map((h) => ({ fieldName: h.fieldName.trim(), prefix: (h.prefix ?? '').trim() || null }))
+    return headers.length > 0 ? { headers } : null
   }
   if (form.authType === 'OAUTH2_CLIENT_CREDENTIALS') {
     return {
@@ -168,8 +179,8 @@ export function missingFields(form: ConnectorFormValues): string[] {
   if (!form.name.trim()) missing.push('Name')
   if (!form.description.trim()) missing.push('Description')
   if (!form.baseUrl.trim()) missing.push('Base URL')
-  if (form.authType === 'API_KEY' && !form.headerName.trim()) {
-    missing.push('Header that carries the key')
+  if (form.authType === 'API_KEY' && !form.headers.some((h) => h.fieldName.trim())) {
+    missing.push('At least one header that carries a credential')
   }
   if (form.authType === 'OAUTH2_CLIENT_CREDENTIALS') {
     if (!form.tokenUrl.trim()) missing.push('Token URL')

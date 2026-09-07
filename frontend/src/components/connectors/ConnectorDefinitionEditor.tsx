@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import {
@@ -116,25 +116,79 @@ export default function ConnectorDefinitionEditor({
         </Field>
 
         {form.authType === 'API_KEY' && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Header that carries the key">
-              <input
-                type="text"
-                value={form.headerName}
-                onChange={(e) => set({ headerName: e.target.value })}
-                placeholder="e.g. X-API-Key"
-                className={inputCls}
-              />
-            </Field>
-            <Field label="Prefix (optional)">
-              <input
-                type="text"
-                value={form.headerPrefix}
-                onChange={(e) => set({ headerPrefix: e.target.value })}
-                placeholder="e.g. Bearer "
-                className={inputCls}
-              />
-            </Field>
+          <div className="space-y-2">
+            <span className="block text-xs font-medium text-foreground">
+              Headers that carry a credential
+            </span>
+            {/* A list, not one pair. Meta's api_key config takes an array and the
+                backend has always built one — the form was the only thing
+                insisting on a single header, which made an API needing two (a
+                key plus an account id, say) impossible to configure at all. */}
+            {form.headers.map((header, i) => (
+              <div key={i} className="flex flex-wrap items-end gap-2">
+                <label className="min-w-[10rem] flex-1 space-y-1.5">
+                  <span className="sr-only">Header name</span>
+                  <input
+                    type="text"
+                    value={header.fieldName}
+                    onChange={(e) =>
+                      set({
+                        headers: form.headers.map((h, j) =>
+                          j === i ? { ...h, fieldName: e.target.value } : h,
+                        ),
+                      })
+                    }
+                    placeholder="e.g. X-API-Key"
+                    className={inputCls}
+                  />
+                </label>
+                <label className="min-w-[8rem] flex-1 space-y-1.5">
+                  <span className="sr-only">Prefix for {header.fieldName || 'this header'}</span>
+                  <input
+                    type="text"
+                    value={header.prefix ?? ''}
+                    onChange={(e) =>
+                      set({
+                        headers: form.headers.map((h, j) =>
+                          j === i ? { ...h, prefix: e.target.value } : h,
+                        ),
+                      })
+                    }
+                    placeholder="Prefix, e.g. Bearer "
+                    className={inputCls}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    set({
+                      headers:
+                        form.headers.length > 1
+                          ? form.headers.filter((_, j) => j !== i)
+                          : [{ fieldName: '', prefix: '' }],
+                    })
+                  }
+                  aria-label={`Remove header ${header.fieldName || i + 1}`}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border
+                    text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => set({ headers: [...form.headers, { fieldName: '', prefix: '' }] })}
+              className="flex min-h-11 items-center gap-1.5 text-xs font-medium text-accent-teal-solid
+                transition-colors hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add another header
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Names only here. You type each value when you deploy the connector to an agent, and
+              it goes straight to Meta.
+            </p>
           </div>
         )}
 

@@ -418,8 +418,18 @@ export default function ConnectorLibraryPage() {
                           setDeleteError(null)
                           setPendingDelete(connector)
                         }}
+                        disabled={connector.usedByAgentCount > 0}
+                        title={
+                          connector.usedByAgentCount > 0
+                            ? `Deployed to ${connector.usedByAgentCount} agent${
+                                connector.usedByAgentCount === 1 ? '' : 's'
+                              } — remove it from those agents before deleting it.`
+                            : 'Delete this connector'
+                        }
                         aria-label={`Delete connector ${connector.name}`}
-                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive"
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground
+                          transition-colors hover:text-destructive
+                          disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted-foreground"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -503,19 +513,15 @@ export default function ConnectorLibraryPage() {
           consequence={
             <>
               Delete <strong className="font-semibold text-foreground">{pendingDelete.name}</strong>?
-              {pendingDelete.usedByAgentCount > 0 ? (
-                <>
-                  {' '}
-                  It is deployed to{' '}
-                  <strong className="font-semibold text-foreground">
-                    {pendingDelete.usedByAgentCount} agent
-                    {pendingDelete.usedByAgentCount === 1 ? '' : 's'}
-                  </strong>
-                  , which will stop being able to call it. This cannot be undone.
-                </>
-              ) : (
-                ' No agent is using it. This cannot be undone.'
-              )}
+              {/* Only ever reached for an undeployed connector — the row's delete
+                  is refused while any agent still runs it, because the backend
+                  refuses too. This dialog previously said a deployed connector
+                  would be deleted and its agents would stop being able to call
+                  it, which was doubly wrong: the delete would have failed, and
+                  it described a consequence that could not happen. */}
+              {' '}
+              No agent is using it, so nothing stops working. Its actions go with it, and this
+              cannot be undone.
             </>
           }
           confirmLabel="Delete connector"

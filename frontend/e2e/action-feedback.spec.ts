@@ -68,7 +68,7 @@ test.describe('@feedback a finished action says so', () => {
     await page.getByRole('button', { name: `Delete connector ${NAME}` }).click()
     const dialogText = page.getByText(/This cannot be undone/i)
     await expect(dialogText).toBeVisible()
-    await expect(page.getByText(/No agent is using it/i)).toBeVisible()
+    await expect(page.getByText(/No agent is using it, so nothing stops working/i)).toBeVisible()
 
     await page.getByRole('button', { name: /^Delete connector$/ }).click()
 

@@ -31,6 +31,26 @@ export interface LibraryTableRow {
   detail?: string | null
   /** Short flags (industry, use case, auth type). */
   tags?: string[]
+  /**
+   * Which agent this row belongs to.
+   *
+   * The Skills library shows the same skill once per agent — `intent-router`
+   * appeared nine times on the live account, every row reading "Published, 1
+   * agent, 25d ago" with nothing to tell them apart. Deleting the wrong one is a
+   * live change to a real customer's agent. The data was always in the API
+   * response and simply was not rendered.
+   */
+  owner?: string | null
+  /**
+   * A warning under the name, for when the name does not identify the row.
+   *
+   * On the live account one agent carries ten separate skills all titled
+   * `intent-router`, with bodies of 5127, 6266, 4814… characters — genuinely
+   * different rules sharing a name, which Meta permits. The table presented them
+   * as ten identical rows, so it looked like duplicated data and made deleting
+   * the wrong one easy. Saying so is more honest than hiding it.
+   */
+  nameNote?: string | null
   statusLabel: string
   statusTone: StatusTone
   /** How many agents use it. Null when the page genuinely cannot know. */
@@ -71,26 +91,40 @@ function usageLabel(count: number | null): { text: string; muted: boolean } {
   return { text: `${count} agent${count === 1 ? '' : 's'}`, muted: false }
 }
 
+/** Tags past this many collapse to a count — five wrapping chips doubled the row height. */
+const MAX_TAGS = 3
+
 export default function LibraryTable({
   rows,
   /** What the first column is called on this page: "Skill", "Connector". */
   itemLabel,
   showUpdated = true,
+  /** Column heading for `owner`, e.g. "On agent". Omit to hide the column. */
+  ownerLabel,
 }: {
   rows: LibraryTableRow[]
   itemLabel: string
   showUpdated?: boolean
+  ownerLabel?: string
 }) {
+  const showOwner = !!ownerLabel && rows.some((r) => r.owner)
   return (
     <div className="overflow-x-auto rounded-2xl border bg-card shadow-surface-resting">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b">
-            {[itemLabel, 'Status', 'Used by', ...(showUpdated ? ['Last updated'] : []), ''].map(
+            {[
+              itemLabel,
+              ...(showOwner ? [ownerLabel!] : []),
+              'Status',
+              'Used by',
+              ...(showUpdated ? ['Last updated'] : []),
+              '',
+            ].map(
               (header, i) => (
                 <th
                   key={header || `actions-${i}`}
-                  className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                 >
                   {header || <span className="sr-only">Actions</span>}
                 </th>
@@ -111,7 +145,7 @@ export default function LibraryTable({
                     : 'transition-colors hover:bg-muted/20'
                 }
               >
-                <td className="max-w-md px-5 py-3">
+                <td className="max-w-md px-5 py-2.5">
                   <p className="truncate font-medium text-foreground" title={row.name}>
                     {row.name}
                   </p>
@@ -120,9 +154,12 @@ export default function LibraryTable({
                       {row.detail}
                     </p>
                   )}
+                  {row.nameNote && (
+                    <p className="text-xs font-medium text-warning">{row.nameNote}</p>
+                  )}
                   {row.tags && row.tags.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {row.tags.map((tag) => (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {row.tags.slice(0, MAX_TAGS).map((tag) => (
                         <span
                           key={tag}
                           className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
@@ -130,15 +167,35 @@ export default function LibraryTable({
                           {tag}
                         </span>
                       ))}
+                      {row.tags.length > MAX_TAGS && (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title={row.tags.slice(MAX_TAGS).join(', ')}
+                        >
+                          +{row.tags.length - MAX_TAGS}
+                        </span>
+                      )}
                     </div>
                   )}
                 </td>
 
-                <td className="px-5 py-3">
+                {showOwner && (
+                  <td className="max-w-[12rem] px-5 py-2.5">
+                    {row.owner ? (
+                      <span className="block truncate text-muted-foreground" title={row.owner}>
+                        {row.owner}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                )}
+
+                <td className="px-5 py-2.5">
                   <StatusIndicator label={row.statusLabel} tone={row.statusTone} />
                 </td>
 
-                <td className="px-5 py-3">
+                <td className="px-5 py-2.5">
                   <span
                     className={`tabular-nums ${
                       usage.muted ? 'text-muted-foreground' : 'text-foreground'
@@ -152,14 +209,14 @@ export default function LibraryTable({
                 </td>
 
                 {showUpdated && (
-                  <td className="px-5 py-3 text-xs tabular-nums text-muted-foreground">
+                  <td className="px-5 py-2.5 text-xs tabular-nums text-muted-foreground">
                     {row.updatedAt ? timeAgo(row.updatedAt) : '—'}
                   </td>
                 )}
 
                 {/* Actions must not also open the row: a user reaching for
                     Delete has not asked to navigate. */}
-                <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                <td className="px-5 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">{row.actions}</div>
                 </td>
               </tr>

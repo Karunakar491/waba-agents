@@ -96,6 +96,25 @@ export default function SkillLibraryPage() {
       )
   }, [skills, search, statusFilter, industryFilter, useCaseFilter, sort])
 
+  /**
+   * How many skills share each (agent, title) pair.
+   *
+   * Meta permits two skills on one agent with the same title, and one agent on
+   * this account has ten separate rules all called `intent-router` — different
+   * bodies, same name. The table showed them as ten identical rows, which read
+   * as duplicated data and made deleting the wrong rule easy. Counted over all
+   * skills rather than the filtered view, so a search does not make the warning
+   * disappear while the ambiguity remains.
+   */
+  const sameNameCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const s of skills) {
+      const k = `${s.agentId ?? 'library'}||${s.title}`
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    }
+    return counts
+  }, [skills])
+
   const deleteMutation = useMutation({
     mutationFn: (skill: LibrarySkill) =>
       skill.source === 'AGENT'
@@ -255,9 +274,23 @@ export default function SkillLibraryPage() {
               ) : (
                 <LibraryTable
                   itemLabel="Skill"
+                  // Without this the list is unusable: the same skill appears
+                  // once per agent, and on the live account `intent-router`
+                  // showed nine times with every row reading "Published, 1
+                  // agent" and nothing to tell them apart. Deleting the wrong
+                  // one is a live change to a real customer's agent.
+                  ownerLabel="On agent"
                   rows={filteredRows.map((skill) => ({
                     id: skill.id,
                     name: skill.title,
+                    detail: skill.description,
+                    owner: skill.agentName,
+                    nameNote: (() => {
+                      const n = sameNameCounts.get(`${skill.agentId ?? 'library'}||${skill.title}`) ?? 1
+                      return n > 1
+                        ? `${n} different rules on this agent share this name — open it to see which this is`
+                        : null
+                    })(),
                     tags: [skill.industry, skill.useCase].filter((t): t is string => !!t),
                     statusLabel: skill.deployed ? 'Published' : 'Draft',
                     statusTone: skill.deployed ? ('positive' as const) : ('neutral' as const),

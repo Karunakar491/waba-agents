@@ -100,7 +100,11 @@ export default function FileLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Files</h1>
+        {/* "Knowledge Base" is what the sidebar and the breadcrumb both call
+            this, and it is the wider idea — files, websites, and FAQs when they
+            exist. The heading said "Files", so the one screen went by two names
+            depending on where you looked at it from. */}
+        <h1 className="text-2xl font-bold text-foreground">Knowledge Base</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {waba ? `Every file and website across every agent on ${waba.label ?? waba.wabaId}.` : 'Knowledge sources for your agents, in one place.'}
         </p>

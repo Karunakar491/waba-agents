@@ -179,7 +179,7 @@ export default function CreateAgentPage() {
 
   if (hydrating) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6 p-8">
+      <div className="mx-auto max-w-7xl space-y-6 p-8">
         <div className="h-6 animate-pulse rounded bg-muted" />
         <div className="h-64 animate-pulse rounded-xl bg-muted" />
       </div>

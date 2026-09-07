@@ -31,7 +31,7 @@ export default function TemplateIrisAllChatsPage() {
   }, [sessionsQuery.data, query])
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center gap-1 text-sm text-muted-foreground">
         <button type="button" onClick={() => navigate('/templates/iris')} className="flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid focus-visible:ring-offset-2">
           <ArrowLeft className="h-3.5 w-3.5" />

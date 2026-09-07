@@ -265,7 +265,7 @@ export default function AgentDetailPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div>
           <button
@@ -2705,7 +2705,7 @@ function TestDrawer({
 
 function AgentDetailSkeleton() {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 animate-pulse">
+    <div className="mx-auto max-w-7xl space-y-6 animate-pulse">
       <div className="h-5 w-28 rounded bg-muted" />
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-muted" />

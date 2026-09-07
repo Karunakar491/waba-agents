@@ -12,6 +12,7 @@ import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
+import CopyableId from '../components/shared/CopyableId'
 import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 type SkillTab = 'mine' | 'ui-skills' | 'browse'
@@ -57,6 +58,8 @@ export default function SkillLibraryPage() {
   const [industryFilter, setIndustryFilter] = useState('ALL')
   const [useCaseFilter, setUseCaseFilter] = useState('ALL')
   const [sort, setSort] = useState<SkillSort>('most-used')
+  const [createdFilter, setCreatedFilter] = useState('ALL')
+  const [phoneFilter, setPhoneFilter] = useState('ALL')
 
   // Multi-WABA switcher deferred (TASKS.md follow-up) — default to the first
   // WABA this account has access to, same resolution order used elsewhere
@@ -79,6 +82,31 @@ export default function SkillLibraryPage() {
     enabled: !!waba && activeTab === 'ui-skills',
   })
 
+  /**
+   * Agents, only to turn a phoneNumberId into a number a human recognises.
+   * The skills API returns Meta's phone number id; printing that in a filter
+   * or a column would be the same defect the Agents list had.
+   */
+  const { data: agents = [] } = useQuery<{ phoneNumberId: string | null; displayPhoneNumber: string | null }[]>({
+    queryKey: ['agents'],
+    queryFn: () => api.get('/agents').then((r) => r.data.data ?? []),
+  })
+  const phoneLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const a of agents) {
+      if (a.phoneNumberId) map.set(a.phoneNumberId, a.displayPhoneNumber ?? a.phoneNumberId)
+    }
+    return map
+  }, [agents])
+
+  /** Only numbers that actually have a skill on them — an empty option filters to nothing. */
+  const phoneOptions = useMemo(() => {
+    const ids = Array.from(new Set(skills.map((s) => s.phoneNumberId).filter((v): v is string => !!v)))
+    return ids
+      .map((id) => ({ value: id, label: phoneLabelById.get(id) ?? id }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [skills, phoneLabelById])
+
   const industryOptions = useMemo(() => uniqueSorted(skills.map((s) => s.industry)), [skills])
   const useCaseOptions = useMemo(() => uniqueSorted(skills.map((s) => s.useCase)), [skills])
 
@@ -89,12 +117,20 @@ export default function SkillLibraryPage() {
       .filter((s) => statusFilter === 'ALL' || (statusFilter === 'deployed' ? s.deployed : !s.deployed))
       .filter((s) => industryFilter === 'ALL' || s.industry === industryFilter)
       .filter((s) => useCaseFilter === 'ALL' || s.useCase === useCaseFilter)
+      .filter((s) => phoneFilter === 'ALL' || s.phoneNumberId === phoneFilter)
+      .filter((s) => {
+        if (createdFilter === 'ALL') return true
+        if (!s.createdAt) return false
+        const days = Number(createdFilter)
+        const age = Date.now() - new Date(s.createdAt).getTime()
+        return Number.isFinite(age) && age <= days * 24 * 60 * 60 * 1000
+      })
       .sort((a, b) =>
         sort === 'most-used'
           ? b.deployments.length - a.deployments.length
           : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       )
-  }, [skills, search, statusFilter, industryFilter, useCaseFilter, sort])
+  }, [skills, search, statusFilter, industryFilter, useCaseFilter, phoneFilter, createdFilter, sort])
 
   /**
    * How many skills share each (agent, title) pair.
@@ -220,6 +256,28 @@ export default function SkillLibraryPage() {
                 search={search}
                 onSearchChange={setSearch}
                 filters={[
+                  // Created and Deployed-on first: the two the founder asked
+                  // for, and the two that narrow a 52-row list fastest.
+                  {
+                    id: 'skill-created-filter',
+                    label: 'Created',
+                    value: createdFilter,
+                    onChange: setCreatedFilter,
+                    options: [
+                      { value: '7', label: 'Last 7 days' },
+                      { value: '30', label: 'Last 30 days' },
+                      { value: '90', label: 'Last 90 days' },
+                    ],
+                  },
+                  ...(phoneOptions.length > 0
+                    ? [{
+                        id: 'skill-phone-filter',
+                        label: 'Deployed on',
+                        value: phoneFilter,
+                        onChange: setPhoneFilter,
+                        options: phoneOptions,
+                      }]
+                    : []),
                   ...(industryOptions.length > 0
                     ? [{ id: 'skill-industry-filter', label: 'Industry', value: industryFilter, onChange: setIndustryFilter, options: industryOptions }]
                     : []),
@@ -280,11 +338,29 @@ export default function SkillLibraryPage() {
                   // agent" and nothing to tell them apart. Deleting the wrong
                   // one is a live change to a real customer's agent.
                   ownerLabel="On agent"
+                  // Agent id and phone number as their own columns, the way
+                  // the Agents list shows them (founder, 2026-09-07).
+                  extraLabels={['Agent ID', 'Phone']}
                   rows={filteredRows.map((skill) => ({
                     id: skill.id,
                     name: skill.title,
                     detail: skill.description,
                     owner: skill.agentName,
+                    extras: [
+                      <CopyableId
+                        key="agent-id"
+                        value={skill.metaAgentId}
+                        label={`Meta agent ID for ${skill.title}`}
+                      />,
+                      // The dialable number, never Meta's phone number id —
+                      // that id in a column where a phone number belongs is
+                      // the defect the Agents list already had fixed.
+                      skill.phoneNumberId ? (
+                        <span key="phone" className="text-muted-foreground">
+                          {phoneLabelById.get(skill.phoneNumberId) ?? 'Number not synced yet'}
+                        </span>
+                      ) : null,
+                    ],
                     nameNote: (() => {
                       const n = sameNameCounts.get(`${skill.agentId ?? 'library'}||${skill.title}`) ?? 1
                       return n > 1

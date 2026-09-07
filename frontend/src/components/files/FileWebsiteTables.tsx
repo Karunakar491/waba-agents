@@ -1,4 +1,4 @@
-import { FileText, Globe, Loader2, Trash2 } from 'lucide-react'
+import { FileText, Globe, Loader2, MessageSquareText, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StatusIndicator from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
@@ -23,6 +23,20 @@ export interface WebsiteRow {
   agentName: string | null
   phoneNumberId: string | null
   lastEdited: string
+}
+
+export interface FaqRow {
+  id: string
+  question: string
+  answer: string
+  metaSynced: boolean
+  /** Meta's published/unpublished lifecycle — files and websites have none. */
+  status: string | null
+  agentId: string
+  agentName: string | null
+  phoneNumberId: string | null
+  metaAgentId: string | null
+  lastEdited: string | null
 }
 
 function syncBadge(metaSynced: boolean) {
@@ -178,3 +192,77 @@ export function WebsitesTable({
   )
 }
 
+
+/**
+ * FAQs across every agent on the WABA.
+ *
+ * The Knowledge Base screen listed files and websites but no FAQs at all
+ * (founder, 2026-09-07: "FAQ's are still not visible in knowledge base"),
+ * because FAQs only ever had per-agent endpoints — nothing rolled them up the
+ * way /files and /websites do. The endpoint now exists and this is its table.
+ *
+ * It carries a state column the other two do not need: an FAQ can be
+ * unpublished from Meta while staying in our database, so "Synced" alone would
+ * misreport a withdrawn answer as live.
+ *
+ * Read-only for now, deliberately. Editing an FAQ writes through to a live
+ * agent immediately, and the per-agent Knowledge tab is where that already
+ * happens with its own confirmations — a second, thinner editor here would be a
+ * second thing to keep right.
+ */
+export function FaqsTable({ isLoading, rows }: { isLoading: boolean; rows: FaqRow[] }) {
+  if (isLoading) return <TableSkeleton />
+  if (rows.length === 0)
+    return (
+      <TableEmptyState
+        icon={<MessageSquareText className="h-8 w-8 text-muted-foreground mb-2" />}
+        text="No FAQs yet. Add them on an agent's Knowledge tab and they show up here."
+      />
+    )
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+          <th className="px-4 py-3">Question</th>
+          <th className="px-4 py-3">Status</th>
+          <th className="px-4 py-3">Deployed on</th>
+          <th className="px-4 py-3">Last edited</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y">
+        {rows.map((row) => (
+          <tr key={row.id} className="hover:bg-muted/30">
+            <td className="max-w-md px-4 py-3">
+              <p className="truncate text-sm font-medium text-foreground" title={row.question}>
+                {row.question}
+              </p>
+              <p className="truncate text-xs text-muted-foreground" title={row.answer}>
+                {row.answer}
+              </p>
+            </td>
+            <td className="px-4 py-3">
+              {/* Unpublished beats synced: an answer withdrawn from Meta is not
+                  reaching customers, whatever our sync state says. */}
+              {row.status && row.status.toLowerCase() !== 'published' ? (
+                <StatusIndicator label="Draft — not live" tone="warning" />
+              ) : (
+                syncBadge(row.metaSynced)
+              )}
+            </td>
+            <td className="px-4 py-3">
+              <DeployedOn
+                agentId={row.agentId}
+                agentName={row.agentName}
+                phoneNumberId={row.phoneNumberId}
+              />
+            </td>
+            <td className="px-4 py-3 text-muted-foreground">
+              {row.lastEdited ? formatDateTimeIST(row.lastEdited) : '—'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}

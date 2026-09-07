@@ -3,17 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Upload } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
-import { FilesTable, WebsitesTable, type FileRow, type WebsiteRow } from '../components/files/FileWebsiteTables'
+import { FilesTable, WebsitesTable, FaqsTable, type FileRow, type WebsiteRow, type FaqRow } from '../components/files/FileWebsiteTables'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 import { useActionFeedback } from '../components/shared/ActionFeedback'
 
 interface WabaEntry { id: string; wabaId: string; label: string | null }
-interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null }
+interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null; displayPhoneNumber: string | null }
 
 export default function FileLibraryPage() {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<'files' | 'websites'>('files')
+  const [tab, setTab] = useState<'files' | 'websites' | 'faqs'>('files')
   const { confirm } = useActionFeedback()
   const [uploadAgentId, setUploadAgentId] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
@@ -44,6 +44,12 @@ export default function FileLibraryPage() {
   const { data: websites = [], isLoading: websitesLoading } = useQuery<WebsiteRow[]>({
     queryKey: ['library-websites', waba?.id],
     queryFn: () => api.get('/websites', { params: { wabaId: waba!.id } }).then((r) => r.data.data?.websites ?? []),
+    enabled: !!waba,
+  })
+
+  const { data: faqs = [], isLoading: faqsLoading } = useQuery<FaqRow[]>({
+    queryKey: ['library-faqs', waba?.id],
+    queryFn: () => api.get('/faqs', { params: { wabaId: waba!.id } }).then((r) => r.data.data?.faqs ?? []),
     enabled: !!waba,
   })
 
@@ -106,12 +112,12 @@ export default function FileLibraryPage() {
             depending on where you looked at it from. */}
         <h1 className="text-2xl font-bold text-foreground">Knowledge Base</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {waba ? `Every file and website across every agent on ${waba.label ?? waba.wabaId}.` : 'Knowledge sources for your agents, in one place.'}
+          {waba ? `Every file, website and FAQ across every agent on ${waba.label ?? waba.wabaId}.` : "Knowledge sources for your agents, in one place."}
         </p>
       </div>
 
       <div className="flex gap-2 border-b">
-        {(['files', 'websites'] as const).map((t) => (
+        {(['files', 'websites', 'faqs'] as const).map((t) => (
           <button
             key={t}
             onClick={() => { setTab(t); setFormError(null) }}
@@ -119,7 +125,7 @@ export default function FileLibraryPage() {
               tab === t ? 'border-accent-teal-solid text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'files' ? 'Files' : 'Websites'}
+            {t === 'files' ? 'Files' : t === 'websites' ? 'Websites' : 'FAQs'}
           </button>
         ))}
       </div>
@@ -130,6 +136,10 @@ export default function FileLibraryPage() {
         </div>
       )}
 
+      {/* FAQs are written on an agent's Knowledge tab, where editing them has
+          its own confirmations — so this panel, which only uploads files and
+          adds websites, would be offering the wrong thing on that tab. */}
+      {tab !== 'faqs' && (
       <div className="rounded-xl border bg-card p-4 shadow-surface-resting space-y-3">
         <label htmlFor="upload-agent-picker" className="text-xs font-medium text-muted-foreground">
           {tab === 'files' ? 'Upload a file to' : 'Add a website to'}
@@ -143,7 +153,13 @@ export default function FileLibraryPage() {
           >
             <option value="">Choose an agent…</option>
             {boundAgents.map((a) => (
-              <option key={a.id} value={a.id}>{a.displayName} ({a.phoneNumberId})</option>
+              // The dialable number, not Meta's phone number id. This read
+              // "smsa (1249896194867775)" — an internal id where a phone
+              // number belongs, the same defect the Agents list had fixed.
+              <option key={a.id} value={a.id}>
+                {a.displayName}
+                {a.displayPhoneNumber ? ` · ${a.displayPhoneNumber}` : ''}
+              </option>
             ))}
           </select>
 
@@ -187,11 +203,15 @@ export default function FileLibraryPage() {
         </div>
       </div>
 
+      )}
+
       <div className="rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
         {tab === 'files' ? (
           <FilesTable isLoading={filesLoading} rows={files} deletingId={deletingId} onDelete={(row) => { setDeleteError(null); setPendingDeleteFile(row) }} />
-        ) : (
+        ) : tab === 'websites' ? (
           <WebsitesTable isLoading={websitesLoading} rows={websites} deletingId={deletingId} onDelete={(row) => { setDeleteError(null); setPendingDeleteWebsite(row) }} />
+        ) : (
+          <FaqsTable isLoading={faqsLoading} rows={faqs} />
         )}
       </div>
 

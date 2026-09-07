@@ -64,7 +64,10 @@ export default function ConnectorPane({
   onPublish: () => void
   onRequestDelete: () => void
 }) {
-  const [tab, setTab] = useState('actions')
+  // Details, not Actions. Arriving at a connector, the thing you are looking
+  // at is the connector — its name, where it points, how it signs in. Actions
+  // led with a table that is empty on every new connector.
+  const [tab, setTab] = useState('details')
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
   const authLabel =
     AUTH_TYPES.find((a) => a.value === form.authType)?.label ?? form.authType
@@ -79,7 +82,24 @@ export default function ConnectorPane({
 
   return (
     <div className="space-y-4">
-      <WorkbenchTabs tabs={tabs} active={tab} onSelect={setTab} />
+      <WorkbenchTabs
+        tabs={tabs}
+        active={tab}
+        onSelect={(id) => {
+          // Actions on a connector with none goes straight to the request
+          // editor. "Add an action is always an extra step" — so there is no
+          // step: the tab IS the editor.
+          //
+          // It opens as its own view rather than inside this tab, because the
+          // editor has a tab row of its own; nesting it under this one put two
+          // rows of tabs on screen, both saying Authorization, Headers, Body.
+          if (id === 'actions' && actions?.length === 0) {
+            onAddAction()
+            return
+          }
+          setTab(id)
+        }}
+      />
 
       {tab === 'actions' && (
         <section className="space-y-2">
@@ -94,27 +114,28 @@ export default function ConnectorPane({
                 {connector.baseUrl}
               </code>
             </p>
-            <button
-              type="button"
-              onClick={onAddAction}
-              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
-                text-xs font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add an action
-            </button>
+            {/* Only offered once there is a table to add to. On an empty
+                connector the form is already open below, so a button here
+                would be a click that produces what is on screen. */}
+            {!!actions?.length && (
+              <button
+                type="button"
+                onClick={onAddAction}
+                className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
+                  text-xs font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add an action
+              </button>
+            )}
           </div>
 
           {actions === undefined ? (
             <p className="text-sm text-muted-foreground">Loading actions…</p>
           ) : actions.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-5 text-center">
-              <p className="text-sm font-medium text-foreground">No actions yet</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                An agent has nothing to call until this connector has one, so publishing it now
-                would achieve nothing.
-              </p>
-            </div>
+            // Only reachable by landing here with actions still loading and
+            // then finding none — selecting the tab navigates instead.
+            <p className="text-sm text-muted-foreground">No actions yet.</p>
           ) : (
             <ConnectorActionsTable actions={actions} onOpenAction={onOpenAction} />
           )}

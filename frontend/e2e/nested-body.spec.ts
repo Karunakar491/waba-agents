@@ -41,7 +41,10 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
     const connectorUrl = page.url()
 
     // ---- add an action with a nested body ---------------------------------
-    await page.getByRole('button', { name: /^Add an action$/ }).last().click()
+    // Selecting Actions on an empty connector opens the request editor
+    // directly — there is no "Add an action" button to press.
+    await page.getByRole('tab', { name: /^Actions/ }).click()
+    await expect(page).toHaveURL(/\/actions\/new$/)
     await page.getByPlaceholder('e.g. product_search').fill(ACTION)
     // The description is on the Docs tab, as it is in Postman.
     await page.getByRole('tab', { name: 'Docs' }).click()

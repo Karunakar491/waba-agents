@@ -39,8 +39,9 @@ test.describe('@workbench the connector workbench', () => {
       await expect(page.getByRole('tab', { name: new RegExp(`^${label}`) })).toBeVisible()
     }
 
-    // Opens on Actions, and an empty connector says so.
-    await expect(page.getByText(/No actions yet/i)).toBeVisible()
+    // Opens on Details — arriving at a connector, the connector is the thing
+    // you are looking at.
+    await expect(page.getByPlaceholder('https://api.example.com')).toBeVisible()
 
     // Auth is the connector's, so its fields are on the connector — a tool
     // cannot carry a credential in Meta.
@@ -51,13 +52,15 @@ test.describe('@workbench the connector workbench', () => {
     await page.getByRole('tab', { name: 'Variables' }).click()
     await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeVisible()
 
-    await page.getByRole('tab', { name: 'Actions' }).click()
-
     // ---- add an action ----------------------------------------------------
-    // Two entry points exist — the tree and the page — which is fine; the
-    // test has to say which one it means. This is the page's.
-    await page.getByRole('button', { name: /^Add an action$/ }).last().click()
+    // No button. On a connector with no actions, selecting Actions IS opening
+    // the request editor — "add an action is always an extra step", so the
+    // step is gone. It opens as its own view because the editor has a tab row
+    // of its own, and nesting it put two rows on screen both saying
+    // Authorization / Headers / Body.
+    await page.getByRole('tab', { name: /^Actions/ }).click()
     await expect(page).toHaveURL(/\/actions\/new$/)
+    await expect(page.getByPlaceholder('e.g. product_search')).toBeVisible()
 
     // Save is refused with the reason stated, not silently disabled.
     await expect(page.getByText(/Still needed:/)).toBeVisible()

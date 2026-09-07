@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, Plus, Search } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { ConnectorAction } from '../connectorActions'
 import type { LibraryConnector } from '../connectorLibrary'
@@ -41,6 +42,20 @@ export default function WorkbenchSidebar({
   onNewConnector: () => void
   onNewAction: (connectorId: string) => void
 }) {
+  const [filter, setFilter] = useState('')
+
+  // Filters on the connector and on the names of the actions inside it, so
+  // searching for an action finds the connector holding it rather than
+  // nothing. A connector matched by one of its actions opens automatically.
+  const query = filter.trim().toLowerCase()
+  const visible = useMemo(() => {
+    if (!query) return connectors
+    return connectors.filter((c) => {
+      if (c.name.toLowerCase().includes(query)) return true
+      return (actionsByConnector[c.id] ?? []).some((a) => a.name.toLowerCase().includes(query))
+    })
+  }, [connectors, actionsByConnector, query])
+
   return (
     <div className="flex h-full w-72 shrink-0 flex-col border-r bg-card">
       <div className="flex items-center justify-between border-b px-3 py-2.5">
@@ -60,13 +75,40 @@ export default function WorkbenchSidebar({
         </button>
       </div>
 
+      {/* A list this long needs a way in. Five connectors fit; twenty do not,
+          and scrolling a truncated list looking for a name is the worst way to
+          find one. */}
+      {connectors.length > 3 && (
+        <div className="border-b px-2 py-2">
+          <label className="sr-only" htmlFor="wb-filter">
+            Filter connectors and actions
+          </label>
+          <div className="flex items-center gap-1.5 rounded-lg border bg-background px-2 focus-within:ring-2 focus-within:ring-primary">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <input
+              id="wb-filter"
+              type="search"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter…"
+              className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-muted-foreground
+                focus-visible:outline-none"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto py-1">
         {connectors.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
             No connectors yet. Add one to give an agent an API it can call.
           </p>
+        ) : visible.length === 0 ? (
+          <p className="px-3 py-4 text-xs text-muted-foreground">
+            Nothing matches “{filter.trim()}”.
+          </p>
         ) : (
-          connectors.map((connector) => {
+          visible.map((connector) => {
             const isOpen = !!expanded[connector.id]
             const actions = actionsByConnector[connector.id]
             const connectorSelected = selectedConnectorId === connector.id && !selectedActionId
@@ -108,6 +150,27 @@ export default function WorkbenchSidebar({
                       {connector.name}
                     </span>
                   </button>
+                  {/* How many actions it holds, so "can this connector do
+                      anything?" is answerable without expanding every row. A
+                      zero is worth seeing: it means deploying it achieves
+                      nothing. */}
+                  {actions !== undefined && (
+                    <span
+                      title={
+                        actions.length === 0
+                          ? 'No actions yet — nothing an agent could call'
+                          : `${actions.length} action${actions.length === 1 ? '' : 's'}`
+                      }
+                      className={cn(
+                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                        actions.length === 0
+                          ? 'text-warning'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {actions.length === 0 ? '0' : actions.length}
+                    </span>
+                  )}
                   {connector.status === 'DRAFT' && (
                     <span
                       title="Not published"

@@ -234,9 +234,43 @@ describe('parseBodyJson', () => {
     expect(() => parseBodyJson('{not json', [])).toThrow(InvalidBodyJsonError)
   })
 
-  it('throws InvalidBodyJsonError on a nested object or array value', () => {
-    expect(() => parseBodyJson('{"nested": {"a": 1}}', [])).toThrow(InvalidBodyJsonError)
-    expect(() => parseBodyJson('{"list": [1, 2]}', [])).toThrow(InvalidBodyJsonError)
+  // This used to assert the opposite — nested values were rejected outright with
+  // "flat fields only, contact engineering". That was a self-imposed limit, not
+  // a platform one: Meta accepts nested bodies, we were encoding them wrongly,
+  // and drew the wrong conclusion from our own opaque 400. Pasting a real
+  // enterprise payload is now the fastest way to build one of these.
+  it('reads a nested object into child rows', () => {
+    const rows = parseBodyJson('{"customer": {"id": 7, "vip": true}}', [])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].type).toBe('object')
+    expect(rows[0].children?.map((c) => [c.key, c.type])).toEqual([
+      ['id', 'integer'],
+      ['vip', 'boolean'],
+    ])
+  })
+
+  it('reads a list of objects, taking the shape from the first element', () => {
+    const rows = parseBodyJson('{"lines": [{"sku": "A1", "qty": 2}]}', [])
+    expect(rows[0].type).toBe('array')
+    expect(rows[0].itemType).toBe('object')
+    expect(rows[0].children?.map((c) => [c.key, c.type])).toEqual([
+      ['sku', 'string'],
+      ['qty', 'integer'],
+    ])
+  })
+
+  it('reads a list of scalars without inventing children', () => {
+    const rows = parseBodyJson('{"tags": ["a", "b"]}', [])
+    expect(rows[0].type).toBe('array')
+    expect(rows[0].itemType).toBe('string')
+    expect(rows[0].children).toBeUndefined()
+  })
+
+  it('keeps a description already typed against a nested child', () => {
+    const existing = parseBodyJson('{"customer": {"id": 1}}', [])
+    existing[0].children![0].description = 'The buyer id'
+    const reparsed = parseBodyJson('{"customer": {"id": 1, "name": "x"}}', existing)
+    expect(reparsed[0].children![0].description).toBe('The buyer id')
   })
 
   it('throws InvalidBodyJsonError when the top level is an array or a primitive', () => {
@@ -270,5 +304,139 @@ describe('bodyRowsToJson', () => {
     // constructed without a fill rendered the literal string "<undefined>" as its example.
     const row = { key: 'query', type: 'string' as const, description: '', required: false } as BodyFieldRow
     expect(JSON.parse(bodyRowsToJson([row]))).toEqual({ query: 'TMT Bars' })
+  })
+})
+
+/**
+ * The encoding Meta actually enforces. Verified against the live API on
+ * 2026-09-04 across 39 shapes — see
+ * docs/meta-api/connector-tools-capability-matrix.md.
+ *
+ * The rule these tests exist to hold: a nested node must be a JSON-encoded
+ * STRING, not an inline object, at every level. An inline object is rejected:
+ *
+ *   request_definition.body.params.lines.items.properties.sku must be a JSON
+ *   object string that describes a body field.
+ *
+ * Getting this wrong once already produced a wrong conclusion — that Meta
+ * rejected nested bodies at all — which kept the editor flat for weeks.
+ */
+describe('nested request bodies', () => {
+  const base = { method: 'POST', path: '/orders', pathParams: [], queryParams: [], headerParams: [] }
+  const scalar = (key: string, type: 'string' | 'integer' = 'string') => ({
+    key,
+    type,
+    description: '',
+    required: false,
+    fill: 'agent' as const,
+    fixedValue: '',
+  })
+
+  it('encodes an object\'s properties as JSON strings, not inline objects', () => {
+    const def = buildRequestDefinition({
+      ...base,
+      bodyFields: [
+        { ...scalar('customer'), type: 'object', children: [scalar('id', 'integer')] },
+      ],
+    })
+    const node = def.body!.params.customer as { type: string; properties: Record<string, unknown> }
+    expect(node.type).toBe('object')
+    // The value is a string. This is the whole rule.
+    expect(typeof node.properties.id).toBe('string')
+    expect(JSON.parse(node.properties.id as string)).toEqual({ type: 'integer' })
+  })
+
+  it('encodes a list\'s items as a JSON string', () => {
+    const def = buildRequestDefinition({
+      ...base,
+      bodyFields: [{ ...scalar('tags'), type: 'array', itemType: 'string' }],
+    })
+    const node = def.body!.params.tags as { type: string; items: unknown }
+    expect(node.type).toBe('array')
+    expect(typeof node.items).toBe('string')
+    expect(JSON.parse(node.items as string)).toEqual({ type: 'string' })
+  })
+
+  it('string-encodes at every level of a list of objects', () => {
+    const def = buildRequestDefinition({
+      ...base,
+      bodyFields: [
+        {
+          ...scalar('lines'),
+          type: 'array',
+          itemType: 'object',
+          children: [scalar('sku'), scalar('qty', 'integer')],
+        },
+      ],
+    })
+    const node = def.body!.params.lines as { items: string }
+    const item = JSON.parse(node.items) as { type: string; properties: Record<string, string> }
+    expect(item.type).toBe('object')
+    // Meta's error named exactly this path, so assert exactly this path.
+    expect(typeof item.properties.sku).toBe('string')
+    expect(JSON.parse(item.properties.sku)).toEqual({ type: 'string' })
+  })
+
+  it('keeps a fixed binding on a nested leaf', () => {
+    const def = buildRequestDefinition({
+      ...base,
+      bodyFields: [
+        {
+          ...scalar('meta'),
+          type: 'object',
+          children: [{ ...scalar('source'), fill: 'fixed', fixedValue: 'whatsapp' }],
+        },
+      ],
+    })
+    const node = def.body!.params.meta as { properties: Record<string, string> }
+    expect(JSON.parse(node.properties.source)).toEqual({
+      type: 'string',
+      binding: { kind: 'default', value: 'whatsapp' },
+    })
+  })
+
+  it('never puts required on a node — it belongs in body.required', () => {
+    const def = buildRequestDefinition({
+      ...base,
+      bodyFields: [{ ...scalar('customer'), required: true, type: 'object', children: [scalar('id')] }],
+    })
+    expect(def.body!.required).toEqual(['customer'])
+    expect(def.body!.params.customer).not.toHaveProperty('required')
+  })
+
+  it('refuses a blank key deep in the tree rather than dropping the field', () => {
+    expect(() =>
+      buildRequestDefinition({
+        ...base,
+        bodyFields: [{ ...scalar('customer'), type: 'object', children: [scalar('')] }],
+      }),
+    ).toThrow(IncompleteRowError)
+  })
+
+  it('survives a round trip through Meta\'s shape', () => {
+    const bodyFields = [
+      {
+        ...scalar('lines'),
+        type: 'array' as const,
+        itemType: 'object' as const,
+        children: [scalar('sku'), scalar('qty', 'integer')],
+      },
+      { ...scalar('customer'), type: 'object' as const, children: [scalar('id', 'integer')] },
+    ]
+    const parsed = parseRequestDefinition(buildRequestDefinition({ ...base, bodyFields }))
+    expect(parsed.bodyFields[0].type).toBe('array')
+    expect(parsed.bodyFields[0].itemType).toBe('object')
+    expect(parsed.bodyFields[0].children?.map((c) => c.key)).toEqual(['sku', 'qty'])
+    expect(parsed.bodyFields[1].children?.[0].type).toBe('integer')
+  })
+
+  it('shows a nested example body rather than a flat one', () => {
+    const json = JSON.parse(
+      bodyRowsToJson([
+        { ...scalar('customer'), type: 'object', children: [scalar('id', 'integer')] },
+        { ...scalar('tags'), type: 'array', itemType: 'string' },
+      ]),
+    )
+    expect(json).toEqual({ customer: { id: 1 }, tags: ['TMT Bars'] })
   })
 })

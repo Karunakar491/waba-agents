@@ -33,8 +33,10 @@ test.describe('@workbench the connector workbench', () => {
     const connectorUrl = page.url()
 
     // ---- the connector side, as a Postman collection -----------------------
+    // Anchored, not exact: a tab that holds anything carries its count in the
+    // accessible name, so Variables reads "Variables 3".
     for (const label of ['Actions', 'Details', 'Authorization', 'Variables', 'Agents']) {
-      await expect(page.getByRole('tab', { name: label, exact: true })).toBeVisible()
+      await expect(page.getByRole('tab', { name: new RegExp(`^${label}`) })).toBeVisible()
     }
 
     // Opens on Actions, and an empty connector says so.
@@ -81,6 +83,7 @@ test.describe('@workbench the connector workbench', () => {
     // A path token becomes a parameter row without being asked for twice.
     await page.getByRole('tab', { name: /^Params/ }).click()
     await expect(page.getByText('Path parameters', { exact: true }).first()).toBeVisible()
+    await page.screenshot({ path: 'e2e-shots/wb-action-params.png' })
 
     // Body is available for POST; it is disabled for GET with a reason.
     await expect(page.getByRole('tab', { name: /^Body/ })).not.toHaveAttribute(

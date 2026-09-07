@@ -84,9 +84,15 @@ export default function ConnectorPane({
       {tab === 'actions' && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              One row is one call the agent can make. <code>{authLabel}</code> and{' '}
-              <code className="break-all">{connector.baseUrl}</code> apply to all of them.
+            {/* One line, truncated. Spelled out as a sentence it wrapped to
+                two and a long Apps Script base URL swamped the tab. */}
+            <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <span className="shrink-0">Every action inherits:</span>
+              <code className="shrink-0">{authLabel}</code>
+              <span className="shrink-0">·</span>
+              <code className="min-w-0 truncate" title={connector.baseUrl}>
+                {connector.baseUrl}
+              </code>
             </p>
             <button
               type="button"

@@ -1082,6 +1082,39 @@ public class AgentService {
         return rows;
     }
 
+    /**
+     * Every FAQ across a WABA's agents.
+     *
+     * Mirrors getAllFilesForWaba exactly, including going through
+     * requireWabaAgents so the account check is the same one. FAQs carry a
+     * status that files do not — an FAQ can be unpublished from Meta while
+     * staying with us — so it is passed through rather than folded into
+     * metaSynced.
+     */
+    public List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow> getAllFaqsForWaba(Long wabaId, Long accountId) {
+        List<Agent> agents = requireWabaAgents(wabaId, accountId);
+        Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
+        List<Long> agentIds = agents.stream().map(Agent::getId).toList();
+        if (agentIds.isEmpty()) return List.of();
+
+        List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow> rows = new ArrayList<>();
+        for (AgentFaq f : agentFaqRepository.findAllByAgentIdIn(agentIds)) {
+            Agent agent = agentsById.get(f.getAgentId());
+            rows.add(new com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow(
+                    String.valueOf(f.getId()),
+                    f.getQuestion(),
+                    f.getAnswer(),
+                    f.isMetaSynced(),
+                    f.getStatus() != null ? f.getStatus().name() : null,
+                    String.valueOf(f.getAgentId()),
+                    agent != null ? agent.getDisplayName() : null,
+                    agent != null ? agent.getPhoneNumberId() : null,
+                    agent != null ? agent.getMetaAgentId() : null,
+                    f.getUpdatedAt() != null ? f.getUpdatedAt().toString() : null));
+        }
+        return rows;
+    }
+
     public List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.WebsiteRow> getAllWebsitesForWaba(Long wabaId, Long accountId) {
         List<Agent> agents = requireWabaAgents(wabaId, accountId);
         Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));

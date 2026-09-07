@@ -10,6 +10,9 @@ import java.util.Optional;
 @Repository
 public interface AgentFaqRepository extends JpaRepository<AgentFaq, Long> {
     List<AgentFaq> findAllByAgentId(Long agentId);
+
+    /** Every FAQ across a WABA's agents, for the Knowledge Base rollup. */
+    List<AgentFaq> findAllByAgentIdIn(java.util.Collection<Long> agentIds);
     Optional<AgentFaq> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
 

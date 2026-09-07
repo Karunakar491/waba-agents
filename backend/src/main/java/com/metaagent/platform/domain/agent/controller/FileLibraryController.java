@@ -31,6 +31,20 @@ public class FileLibraryController {
         return ApiResponse.ok(new FileLibraryDtos.WebsiteListResponse(agentService.getAllWebsitesForWaba(wabaId, accountId)));
     }
 
+    /**
+     * FAQs across every agent on a WABA.
+     *
+     * Added 2026-09-07: the Knowledge Base screen listed files and websites but
+     * no FAQs, because FAQs only ever had per-agent endpoints and nothing that
+     * rolled them up the way these two do.
+     */
+    @GetMapping("/api/v1/faqs")
+    public ApiResponse<FileLibraryDtos.FaqListResponse> listFaqs(@RequestParam("wabaId") String wabaIdRaw) {
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        Long wabaId = parseId(wabaIdRaw);
+        return ApiResponse.ok(new FileLibraryDtos.FaqListResponse(agentService.getAllFaqsForWaba(wabaId, accountId)));
+    }
+
     private static Long parseId(String raw) {
         try {
             return Long.parseLong(raw);

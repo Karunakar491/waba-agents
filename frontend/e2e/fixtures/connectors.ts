@@ -62,6 +62,9 @@ export async function createThrowawayConnector(
  * connector", so each is addressed by where it is rather than by name alone.
  */
 export async function deleteOpenConnector(page: Page): Promise<void> {
+  // Delete lives on the connector's Details tab — it is the connector itself,
+  // not one of its requests. The pane opens on Actions.
+  await page.getByRole('tab', { name: 'Details' }).click()
   await page.getByRole('button', { name: /^Delete connector$/ }).first().click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()

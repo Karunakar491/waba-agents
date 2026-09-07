@@ -43,6 +43,8 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
     // ---- add an action with a nested body ---------------------------------
     await page.getByRole('button', { name: /^Add an action$/ }).last().click()
     await page.getByPlaceholder('e.g. product_search').fill(ACTION)
+    // The description is on the Docs tab, as it is in Postman.
+    await page.getByRole('tab', { name: 'Docs' }).click()
     await page.getByPlaceholder(/Search the catalogue/i).fill('Creates an order with nested lines.')
     await page.locator('#wb-method').selectOption('POST')
     await page.locator('#wb-path').fill('/orders')

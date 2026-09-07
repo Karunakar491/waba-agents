@@ -32,18 +32,24 @@ test.describe('@workbench the connector workbench', () => {
     await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
     const connectorUrl = page.url()
 
-    // ---- the connector side -----------------------------------------------
-    // No tabs here any more. Details, auth and where it runs are all on the
-    // one page — the Auth tab used to be a signpost to the Details tab, which
-    // is a tab whose content is directions to other content.
-    await expect(page.getByRole('heading', { name: /What it can do/i })).toBeVisible()
-    await expect(page.getByRole('heading', { name: /Where it runs/i })).toBeVisible()
-    await expect(page.getByRole('heading', { name: /how it signs in/i })).toBeVisible()
-    // Auth is part of the definition, so its fields are right here.
+    // ---- the connector side, as a Postman collection -----------------------
+    for (const label of ['Actions', 'Details', 'Authorization', 'Variables', 'Agents']) {
+      await expect(page.getByRole('tab', { name: label, exact: true })).toBeVisible()
+    }
+
+    // Opens on Actions, and an empty connector says so.
+    await expect(page.getByText(/No actions yet/i)).toBeVisible()
+
+    // Auth is the connector's, so its fields are on the connector — a tool
+    // cannot carry a credential in Meta.
+    await page.getByRole('tab', { name: 'Authorization' }).click()
     await expect(page.getByText(/Headers that carry a credential/i)).toBeVisible()
 
-    // An empty connector says so, in both the tree and the page.
-    await expect(page.getByText(/can't do anything yet/i)).toBeVisible()
+    // Meta's macro set is closed, and listed rather than hidden in a dropdown.
+    await page.getByRole('tab', { name: 'Variables' }).click()
+    await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Actions' }).click()
 
     // ---- add an action ----------------------------------------------------
     // Two entry points exist — the tree and the page — which is fine; the
@@ -55,16 +61,26 @@ test.describe('@workbench the connector workbench', () => {
     await expect(page.getByText(/Still needed:/)).toBeVisible()
 
     await page.getByPlaceholder('e.g. product_search').fill(ACTION)
+
+    // The description is on Docs, Postman's home for it, and the Still-needed
+    // line has to name the tab or Save is a dead button with no explanation.
+    await expect(page.getByText(/Still needed:.*Docs tab/)).toBeVisible()
+    await page.getByRole('tab', { name: 'Docs' }).click()
     await page
       .getByPlaceholder(/Search the catalogue/i)
       .fill('Looks up one order by its id and reports the delivery status.')
+
+    // Auth is reported, not editable — Meta has no per-tool auth override.
+    await page.getByRole('tab', { name: 'Authorization' }).click()
+    await expect(page.getByText(/Inherited from the connector/i)).toBeVisible()
 
     // Method + path live on one bar.
     await page.locator('#wb-method').selectOption('POST')
     await page.locator('#wb-path').fill('/orders/{order_id}')
 
     // A path token becomes a parameter row without being asked for twice.
-    await expect(page.getByText("Path parameters", { exact: true }).first()).toBeVisible()
+    await page.getByRole('tab', { name: /^Params/ }).click()
+    await expect(page.getByText('Path parameters', { exact: true }).first()).toBeVisible()
 
     // Body is available for POST; it is disabled for GET with a reason.
     await expect(page.getByRole('tab', { name: /^Body/ })).not.toHaveAttribute(

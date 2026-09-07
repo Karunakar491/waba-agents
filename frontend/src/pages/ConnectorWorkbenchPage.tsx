@@ -217,6 +217,22 @@ export default function ConnectorWorkbenchPage() {
               </Link>
               .
             </p>
+          ) : actionId && actionId !== 'new' && actions === undefined ? (
+            /* The pane fills its fields once, at mount, from the action it is
+               given. So it must not mount before the action has arrived —
+               reloading a tool's URL used to show an empty form, because the
+               actions query resolves after the first render and the pane kept
+               its blank draft. Caught by the browser test, not by looking. */
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading action…
+            </p>
+          ) : actionId && actionId !== 'new' && !action ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">That action isn&apos;t here</p>
+              <p className="text-sm text-muted-foreground">
+                It may have been deleted. Pick another on the left.
+              </p>
+            </div>
           ) : actionId ? (
             <ToolPane
               // Remounts on a different action, which resets the draft — see

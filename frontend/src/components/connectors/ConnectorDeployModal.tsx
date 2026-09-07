@@ -16,7 +16,13 @@ export interface DeployTargetAgent {
 }
 
 /**
- * Screen: Connector Library — deploy to an agent.
+ * Screen: Connector — publish to an agent.
+ *
+ * "Publish" means one thing everywhere in this product: make it real on Meta.
+ * This is that action for a connector. It was called Deploy until 2026-09-07,
+ * while a second button called Publish flipped a local DRAFT/PUBLISHED flag
+ * that gated nothing at all — so the button named Publish was the one that did
+ * not publish, which is the worst possible split of that word.
  *
  * 1. USER GOAL: Put a connector they already defined onto a real agent.
  * 2. EMOTIONAL STATE: This is the one moment secrets are typed — they need to
@@ -60,7 +66,7 @@ export default function ConnectorDeployModal({
 
   return (
     <Modal
-      title={`Deploy “${connector.name}”`}
+      title={`Publish “${connector.name}” to an agent`}
       onClose={onClose}
       preventClose={deploying}
       maxWidthClassName="max-w-lg"
@@ -147,7 +153,7 @@ export default function ConnectorDeployModal({
               text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            Deploy
+            Publish to this agent
           </button>
         </div>
       </div>

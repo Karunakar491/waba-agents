@@ -29,8 +29,20 @@ export default function WorkbenchSidebar({
   onSelectAction,
   onNewConnector,
   onNewAction,
+  liveOnly = [],
+  onOpenOnAgent,
 }: {
   connectors: LibraryConnector[]
+  /**
+   * Connectors Meta reports on an agent that we have no definition for —
+   * added there directly, or before this library existed. They are listed so
+   * the panel is the whole picture (founder, 2026-09-07: "cant we list all of
+   * them in the left side panel only?"), and they are not selectable here
+   * because there is nothing of ours to edit: they are managed on the agent
+   * that owns them.
+   */
+  liveOnly?: { key: string; name: string; agentId: string; agentName: string | null }[]
+  onOpenOnAgent?: (agentId: string) => void
   /** Loaded lazily — a connector that has never been opened has no entry yet. */
   actionsByConnector: Record<string, ConnectorAction[] | undefined>
   selectedConnectorId: string | null
@@ -227,6 +239,27 @@ export default function WorkbenchSidebar({
               </div>
             )
           })
+        )}
+
+        {liveOnly.length > 0 && (
+          <div className="mt-2 border-t pt-2">
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Live on an agent, not in your library
+            </p>
+            {liveOnly.map((row) => (
+              <button
+                key={row.key}
+                type="button"
+                onClick={() => onOpenOnAgent?.(row.agentId)}
+                title={`Added directly on ${row.agentName ?? 'an agent'} — edited there, not here`}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground
+                  transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wide">on agent</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { Plus, Rocket } from 'lucide-react'
+import { Plus, Rocket, Trash2 } from 'lucide-react'
 import StatusIndicator from '../../shared/StatusIndicator'
 import ConnectorDefinitionEditor from '../ConnectorDefinitionEditor'
 import { MethodBadge } from './WorkbenchSidebar'
@@ -35,7 +35,8 @@ export default function ConnectorPane({
   onResetForm,
   onOpenAction,
   onAddAction,
-  onDeploy,
+  onPublish,
+  onRequestDelete,
 }: {
   connector: LibraryConnector
   /** undefined while still loading. */
@@ -48,7 +49,8 @@ export default function ConnectorPane({
   onResetForm: () => void
   onOpenAction: (actionId: string) => void
   onAddAction: () => void
-  onDeploy: () => void
+  onPublish: () => void
+  onRequestDelete: () => void
 }) {
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
 
@@ -120,14 +122,19 @@ export default function ConnectorPane({
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">Where it runs</h2>
+          {/* "Publish" everywhere in this product means: make it real on Meta.
+              This is that button, and it opens the agent picker — there is no
+              other kind of publishing for a connector. A second button called
+              Publish used to sit in the list and only flip a local flag that
+              gated nothing, so the word pointed at the wrong action. */}
           <button
             type="button"
-            onClick={onDeploy}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold
-              text-foreground transition-colors hover:bg-muted"
+            onClick={onPublish}
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3
+              text-xs font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Rocket className="h-3.5 w-3.5" />
-            Deploy to an agent
+            Publish to an agent
           </button>
         </div>
 
@@ -178,6 +185,35 @@ export default function ConnectorPane({
             onCancel={onResetForm}
           />
         </div>
+      </section>
+
+      {/* --- Removing it. Last, and refused while any agent still runs it,
+              because the backend refuses too: "This connector is deployed to
+              at least one agent. Remove it from those agents first." Saying so
+              on the control beats asking and then failing. ------------- */}
+      <section className="space-y-2 border-t pt-4">
+        <button
+          type="button"
+          onClick={onRequestDelete}
+          disabled={connector.usedByAgentCount > 0}
+          title={
+            connector.usedByAgentCount > 0
+              ? `On ${connector.usedByAgentCount} agent${connector.usedByAgentCount === 1 ? '' : 's'} — remove it from those agents before deleting it.`
+              : 'Delete this connector and its actions'
+          }
+          className="flex min-h-11 items-center gap-1.5 rounded-lg border border-destructive px-3 text-xs
+            font-semibold text-destructive transition-colors hover:bg-destructive hover:text-white
+            disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground
+            disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete connector
+        </button>
+        {connector.usedByAgentCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Remove it from the {connector.usedByAgentCount === 1 ? 'agent' : 'agents'} above first.
+          </p>
+        )}
       </section>
     </div>
   )

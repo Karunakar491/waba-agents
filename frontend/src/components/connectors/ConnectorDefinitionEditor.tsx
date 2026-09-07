@@ -26,6 +26,14 @@ const inputCls =
  * DESIGN.md §6: inline panel over Modal, because the operator compares the
  * definition against the library cards behind it (same call as the Persona
  * draft editor).
+ *
+ * `section` exists because a connector's page is tabbed like a Postman
+ * collection: Details holds the identity and `base_url`, Authorization holds
+ * `auth_type` and everything under it. Both halves edit ONE form object and
+ * share one Save — splitting the state as well would let someone change the
+ * auth type on one tab and save a stale base URL from the other. Creating a
+ * connector still renders `all`, because there is nothing to tab between
+ * before the thing exists.
  */
 export default function ConnectorDefinitionEditor({
   isEditing,
@@ -35,6 +43,8 @@ export default function ConnectorDefinitionEditor({
   onChange,
   onSave,
   onCancel,
+  section = 'all',
+  chrome = true,
 }: {
   isEditing: boolean
   form: ConnectorFormValues
@@ -43,26 +53,37 @@ export default function ConnectorDefinitionEditor({
   onChange: (form: ConnectorFormValues) => void
   onSave: () => void
   onCancel: () => void
+  /** Which half to render. 'all' for the create form. */
+  section?: 'all' | 'details' | 'auth'
+  /** false inside a tab panel — a bordered card in a tab is card chrome twice. */
+  chrome?: boolean
 }) {
   const set = (patch: Partial<ConnectorFormValues>) => onChange({ ...form, ...patch })
   const stillNeeded = missingFields(form)
+  const show = (part: 'details' | 'auth') => section === 'all' || section === part
 
   return (
-    <div className="rounded-xl border bg-card shadow-surface-resting">
-      <div className="border-b px-4 py-3.5">
-        <span className="text-sm font-semibold text-foreground">
-          {isEditing ? 'Edit connector' : 'New connector'}
-        </span>
-      </div>
+    <div className={chrome ? 'rounded-xl border bg-card shadow-surface-resting' : ''}>
+      {chrome && (
+        <div className="border-b px-4 py-3.5">
+          <span className="text-sm font-semibold text-foreground">
+            {isEditing ? 'Edit connector' : 'New connector'}
+          </span>
+        </div>
+      )}
 
-      <div className="space-y-3 border-t bg-muted/20 px-4 py-4">
+      <div className={chrome ? 'space-y-3 border-t bg-muted/20 px-4 py-4' : 'space-y-3'}>
         {error && <p className="text-xs text-destructive">{error}</p>}
 
-        <ConsequenceLine>
-          This saves the definition only — nothing reaches Meta until you deploy it to an agent. API keys,
-          client secrets and certificates are never stored here; you type them at deploy time.
-        </ConsequenceLine>
+        {show('auth') && (
+          <ConsequenceLine>
+            This saves the definition only — nothing reaches Meta until you deploy it to an agent. API keys,
+            client secrets and certificates are never stored here; you type them at deploy time.
+          </ConsequenceLine>
+        )}
 
+        {show('details') && (
+        <>
         <Field label="Name">
           <input
             type="text"
@@ -101,6 +122,20 @@ export default function ConnectorDefinitionEditor({
           />
         </Field>
 
+        <Field label="Tags (comma separated)">
+          <input
+            type="text"
+            value={form.tags}
+            onChange={(e) => set({ tags: e.target.value })}
+            placeholder="e-commerce, orders"
+            className={inputCls}
+          />
+        </Field>
+        </>
+        )}
+
+        {show('auth') && (
+        <>
         <Field label="Auth type">
           <select
             value={form.authType}
@@ -225,16 +260,6 @@ export default function ConnectorDefinitionEditor({
           </>
         )}
 
-        <Field label="Tags (comma separated)">
-          <input
-            type="text"
-            value={form.tags}
-            onChange={(e) => set({ tags: e.target.value })}
-            placeholder="e-commerce, orders"
-            className={inputCls}
-          />
-        </Field>
-
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input
             type="checkbox"
@@ -244,6 +269,8 @@ export default function ConnectorDefinitionEditor({
           />
           Requires a client certificate (mTLS)
         </label>
+        </>
+        )}
 
         {/* Says what is still needed instead of leaving a dead button. The
             blocker is usually the auth header, which sits further up and is

@@ -83,26 +83,23 @@ export default function ConnectorDefinitionEditor({
           />
         </Field>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Base URL">
-            <input
-              type="url"
-              value={form.baseUrl}
-              onChange={(e) => set({ baseUrl: e.target.value })}
-              placeholder="https://api.example.com"
-              className={inputCls}
-            />
-          </Field>
-          <Field label="System (our label — Meta has no such field)">
-            <input
-              type="text"
-              value={form.systemType}
-              onChange={(e) => set({ systemType: e.target.value })}
-              placeholder="e.g. Shopify"
-              className={inputCls}
-            />
-          </Field>
-        </div>
+        {/* "System" used to sit beside this, labelled "our label — Meta has no
+            such field", which is the kind of thing a form should never have to
+            admit. Its only use anywhere was rendering one more chip in the
+            connectors list, next to the free-text Tags field below that already
+            does exactly that — so it asked the user to fill in a second tags
+            box under a confusing name. The stored column stays (existing values
+            still show, and mirrored connectors still get one guessed from their
+            URL); we just stopped asking. */}
+        <Field label="Base URL">
+          <input
+            type="url"
+            value={form.baseUrl}
+            onChange={(e) => set({ baseUrl: e.target.value })}
+            placeholder="https://api.example.com"
+            className={inputCls}
+          />
+        </Field>
 
         <Field label="Auth type">
           <select

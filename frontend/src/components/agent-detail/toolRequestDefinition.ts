@@ -10,13 +10,28 @@ export interface ParamRow {
   fixedValue: string // used only when fill === 'fixed'
 }
 
+/**
+ * A body field may be a scalar, an object, or a list — unlike a query or path
+ * parameter, which Meta restricts to scalars.
+ */
+export type BodyFieldType = ParamType | 'object' | 'array'
+
 export interface BodyFieldRow {
   key: string
-  type: ParamType
+  type: BodyFieldType
   description: string
   required: boolean
   fill: FillMode
   fixedValue: string // used only when fill === 'fixed'
+  /** For `array`: what each item is. Defaults to 'string'. */
+  itemType?: BodyFieldType
+  /** For `object`, and for an `array` of objects: the fields inside. */
+  children?: BodyFieldRow[]
+}
+
+/** A field that contains other fields, so the editor knows to show them. */
+export function holdsChildren(row: BodyFieldRow): boolean {
+  return row.type === 'object' || (row.type === 'array' && row.itemType === 'object')
 }
 
 export interface ToolFormState {
@@ -107,6 +122,79 @@ function rowsToRecord(rows: ParamRow[], section: string): Record<string, unknown
   return record
 }
 
+/** Blank keys anywhere in the tree, not just at the top. */
+function assertKeysPresent(rows: BodyFieldRow[]): void {
+  for (const row of rows) {
+    if (!row.key.trim()) throw new IncompleteRowError('Request body fields')
+    if (row.children) assertKeysPresent(row.children)
+  }
+}
+
+/**
+ * One body field, in the shape Meta enforces.
+ *
+ * The rule that makes this non-obvious: **a nested node must be a JSON-encoded
+ * string, not an inline object**, and it applies at every level. An inline
+ * object is rejected with
+ *
+ *   request_definition.body.params.lines.items.properties.sku must be a JSON
+ *   object string that describes a body field.
+ *
+ * Verified against the live API on 2026-09-04 across 39 shapes — see
+ * docs/meta-api/connector-tools-capability-matrix.md. An earlier conclusion in
+ * this project that "Meta rejects nested bodies" was wrong: it rejected the
+ * encoding, not the capability, and that mistake is why the editor was
+ * flat-only until now.
+ *
+ * `required` is deliberately absent from every node. For a body it belongs in
+ * `body.required` as a top-level string[], which is why only top-level fields
+ * can be marked required — Meta gives no verified place to say it deeper.
+ */
+function buildBodyNode(row: BodyFieldRow): Record<string, unknown> {
+  const description = row.description.trim()
+
+  if (row.type === 'object') {
+    const properties: Record<string, string> = {}
+    for (const child of row.children ?? []) {
+      properties[child.key.trim()] = JSON.stringify(buildBodyNode(child))
+    }
+    return {
+      type: 'object',
+      ...(description ? { description } : {}),
+      properties,
+    }
+  }
+
+  if (row.type === 'array') {
+    const itemType = row.itemType ?? 'string'
+    const itemNode: Record<string, unknown> =
+      itemType === 'object'
+        ? {
+            type: 'object',
+            properties: Object.fromEntries(
+              (row.children ?? []).map((child) => [
+                child.key.trim(),
+                JSON.stringify(buildBodyNode(child)),
+              ]),
+            ),
+          }
+        : { type: itemType }
+    return {
+      type: 'array',
+      ...(description ? { description } : {}),
+      // Also a JSON-encoded string, for the same reason as properties above.
+      items: JSON.stringify(itemNode),
+    }
+  }
+
+  const binding = bindingFor(row.fill, row.fixedValue)
+  return {
+    type: row.type,
+    ...(description ? { description } : {}),
+    ...(binding ? { binding } : {}),
+  }
+}
+
 export function buildRequestDefinition(form: ToolFormState): RequestDefinition {
   const def: RequestDefinition = { method: form.method, path: form.path }
 
@@ -120,20 +208,12 @@ export function buildRequestDefinition(form: ToolFormState): RequestDefinition {
   if (headers) def.headers = headers
 
   if (form.bodyFields.length > 0 && methodSendsBody(form.method)) {
-    if (form.bodyFields.some((f) => !f.key.trim())) throw new IncompleteRowError('Request body fields')
+    assertKeysPresent(form.bodyFields)
     const params: Record<string, unknown> = {}
     const required: string[] = []
     for (const field of form.bodyFields) {
       const key = field.key.trim()
-      const binding = bindingFor(field.fill, field.fixedValue)
-      params[key] = {
-        type: field.type,
-        ...(field.description.trim() ? { description: field.description.trim() } : {}),
-        // `required` is deliberately NOT set on the node here — for a body it belongs in
-        // body.required below as a string[]. Putting it on the node is the exact defect
-        // this editor exists to prevent.
-        ...(binding ? { binding } : {}),
-      }
+      params[key] = buildBodyNode(field)
       if (field.required) required.push(key)
     }
     def.body = {
@@ -160,19 +240,68 @@ function recordToRows(record: Record<string, unknown> | undefined): ParamRow[] {
   })
 }
 
+/**
+ * The inverse of buildBodyNode. A nested node arrives as a JSON string, so this
+ * decodes at each level — a string that fails to parse is treated as a plain
+ * field rather than throwing, because refusing to open an existing tool would be
+ * worse than showing it imperfectly.
+ */
+function nodeToBodyRow(key: string, raw: unknown, required: boolean): BodyFieldRow {
+  const node = (typeof raw === 'string' ? safeParse(raw) : raw) as {
+    type?: BodyFieldType
+    description?: string
+    properties?: Record<string, unknown>
+    items?: unknown
+    binding?: { kind: string; value?: string; macro?: string }
+  } | null
+
+  const base = {
+    key,
+    description: node?.description ?? '',
+    required,
+    ...fillFromBinding(node?.binding),
+  }
+
+  if (node?.type === 'object') {
+    return {
+      ...base,
+      type: 'object',
+      children: Object.entries(node.properties ?? {}).map(([k, v]) => nodeToBodyRow(k, v, false)),
+    }
+  }
+
+  if (node?.type === 'array') {
+    const item = (typeof node.items === 'string' ? safeParse(node.items) : node.items) as {
+      type?: BodyFieldType
+      properties?: Record<string, unknown>
+    } | null
+    const itemType: BodyFieldType = item?.type ?? 'string'
+    return {
+      ...base,
+      type: 'array',
+      itemType,
+      children:
+        itemType === 'object'
+          ? Object.entries(item?.properties ?? {}).map(([k, v]) => nodeToBodyRow(k, v, false))
+          : undefined,
+    }
+  }
+
+  return { ...base, type: node?.type ?? 'string' }
+}
+
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 export function parseRequestDefinition(def: RequestDefinition): ToolFormState {
   const requiredSet = new Set(def.body?.required ?? [])
   const bodyFields: BodyFieldRow[] = def.body
-    ? Object.entries(def.body.params).map(([key, raw]) => {
-        const node = raw as { type?: ParamType; description?: string; binding?: { kind: string; value?: string; macro?: string } }
-        return {
-          key,
-          type: node.type ?? 'string',
-          description: node.description ?? '',
-          required: requiredSet.has(key),
-          ...fillFromBinding(node.binding),
-        }
-      })
+    ? Object.entries(def.body.params).map(([key, raw]) => nodeToBodyRow(key, raw, requiredSet.has(key)))
     : []
 
   return {
@@ -236,22 +365,57 @@ export function parseBodyJson(jsonText: string, existingRows: BodyFieldRow[]): B
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new InvalidBodyJsonError('The body must be a flat JSON object, e.g. {"query": "TMT Bars"}.')
   }
+  return rowsFromExample(parsed as Record<string, unknown>, existingRows)
+}
+
+/**
+ * Turns a pasted example body into rows, at any depth.
+ *
+ * This used to refuse anything nested — "flat fields only, contact
+ * engineering" — which was a self-imposed limit, not a platform one. Meta
+ * accepts nested bodies; we were encoding them wrongly and drew the wrong
+ * conclusion from our own opaque 400. Pasting a real enterprise payload is now
+ * the fastest way to build one of these, which is the whole point.
+ *
+ * Existing rows are matched by key so a description or a fixed value typed in
+ * earlier is not wiped when the example JSON is tweaked.
+ */
+function rowsFromExample(obj: Record<string, unknown>, existingRows: BodyFieldRow[]): BodyFieldRow[] {
   const existingByKey = new Map(existingRows.map((r) => [r.key, r]))
-  return Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
-    if (typeof value === 'object' && value !== null) {
-      throw new InvalidBodyJsonError(`"${key}" is a nested object or list — flat fields only. For a nested shape, contact engineering.`)
-    }
+  return Object.entries(obj).map(([key, value]) => {
     const existing = existingByKey.get(key)
-    return {
+    const base = {
       key,
-      type: inferParamType(value),
       description: existing?.description ?? '',
       required: existing?.required ?? false,
       // Carried over for the same reason as description/required: retyping the example JSON
       // must not silently revert a field from "Fixed value" back to agent-filled.
-      fill: existing?.fill ?? 'agent',
+      fill: existing?.fill ?? ('agent' as FillMode),
       fixedValue: existing?.fixedValue ?? '',
     }
+
+    if (Array.isArray(value)) {
+      const first = value[0]
+      const isObjectList = typeof first === 'object' && first !== null && !Array.isArray(first)
+      return {
+        ...base,
+        type: 'array' as const,
+        itemType: isObjectList ? ('object' as const) : inferParamType(first),
+        children: isObjectList
+          ? rowsFromExample(first as Record<string, unknown>, existing?.children ?? [])
+          : undefined,
+      }
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      return {
+        ...base,
+        type: 'object' as const,
+        children: rowsFromExample(value as Record<string, unknown>, existing?.children ?? []),
+      }
+    }
+
+    return { ...base, type: inferParamType(value) }
   })
 }
 
@@ -260,6 +424,18 @@ export function parseBodyJson(jsonText: string, existingRows: BodyFieldRow[]): B
  * A fixed field shows its actual value, coerced to the field's type, because that is literally
  * what gets sent — a generic placeholder there would misrepresent the request. */
 function exampleValueFor(row: BodyFieldRow): unknown {
+  if (row.type === 'object') {
+    return Object.fromEntries((row.children ?? []).map((c) => [c.key, exampleValueFor(c)]))
+  }
+  if (row.type === 'array') {
+    // One element, not two: the operator needs to see the item's shape, and a
+    // repeated element adds nothing but height.
+    const itemType = row.itemType ?? 'string'
+    if (itemType === 'object') {
+      return [Object.fromEntries((row.children ?? []).map((c) => [c.key, exampleValueFor(c)]))]
+    }
+    return [exampleValueFor({ ...row, type: itemType, children: undefined })]
+  }
   if (row.fill === 'fixed' && row.fixedValue.trim()) {
     const raw = row.fixedValue.trim()
     if (row.type === 'boolean') return raw === 'true'

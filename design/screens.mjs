@@ -138,6 +138,98 @@ screen({
   resp: response('idle'),
 })
 
+/* ------------------------------------------------------------ Import cURL */
+screen({
+  file: 'ImportCurl.dc.html',
+  tree: { open: 'kundli', sel: 'general_kundli' },
+  crumbs: [{ text: 'Connectors' }, { text: 'AstroTalk Kundli' }, { text: 'Import', mono: false }],
+  bar: requestBar({ method: 'POST', host: 'api.kundali.astrotalk.com', path: '/v1/combined/general' }),
+  tabRow: tabs({ active: 'body', params: 0, headers: 0, body: 13 }),
+  content: `
+          <div style="display: flex; gap: 20px; height: 100%">
+            <div style="width: 470px; flex-shrink: 0; display: flex; flex-direction: column">
+              <div class="lbl" style="display: block; margin-bottom: 8px">Paste a cURL</div>
+              <div class="mono" style="border: 1px solid ${T.teal}; border-radius: 10px; background: #FCFCFD; padding: 11px 13px; line-height: 1.6; font-size: 11px; flex-shrink: 0">
+                <div><span class="s">curl</span> -X POST \\</div>
+                <div>&nbsp;&nbsp;'https://api.kundali.astrotalk.com/v1/combined/general' \\</div>
+                <div>&nbsp;&nbsp;-H 'Content-Type: application/json' \\</div>
+                <div>&nbsp;&nbsp;-d '{</div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"detail"</span>: {</div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"name"</span>: <span class="s">"Test User"</span>,</div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"day"</span>: <span class="n">1</span>, <span class="k">"month"</span>: <span class="n">1</span>, <span class="k">"year"</span>: <span class="n">1990</span>,</div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"lat"</span>: <span class="n">28.6139</span>, <span class="k">"lon"</span>: <span class="n">77.209</span></div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+                <div>&nbsp;&nbsp;}'</div>
+              </div>
+              <p style="font-size: 11.5px; color: ${T.muted}; margin: 10px 2px 0; line-height: 1.5">Straight out of the API's own documentation. This is the fastest honest way to start &mdash; and the first moment we can tell you whether the API can be connected at all.</p>
+
+              <div class="lbl" style="display: block; margin: 20px 0 8px">When it cannot be imported</div>
+              <div style="border: 1px solid #F5D9A8; background: #FEF9F0; border-radius: 10px; padding: 11px 13px">
+                <div class="mono" style="font-size: 10.5px; color: #7C4A11; line-height: 1.5">-H 'Content-Type: application/x-www-form-urlencoded'<br>-d 'merchant=KX01&amp;amount=4999'</div>
+                <p style="font-size: 12px; color: #7C4A11; margin: 9px 0 0; line-height: 1.5"><strong>This API takes a form body. Meta only ever sends JSON</strong>, so it cannot be connected &mdash; not a setting we can change. Said here, on paste, rather than at publish.</p>
+              </div>
+            </div>
+
+            <div style="flex-grow: 1; min-width: 0">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px">
+                <span class="lbl">What it filled in</span>
+                <span style="display: inline-flex; align-items: center; gap: 5px">
+                  ${tick}<span style="font-size: 12px; color: #15803D">Valid JSON</span>
+                </span>
+                <span style="margin-left: auto; font-size: 12px; color: ${T.teal}; font-weight: 500">Beautify</span>
+              </div>
+              <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
+                <table><tbody>
+                  <tr>
+                    <td style="width: 150px; font-size: 12.5px; color: ${T.muted}; padding: 0 16px; height: 40px; border-bottom: 1px solid ${T.rowline}">Method</td>
+                    <td class="tdc"><span class="mono" style="font-weight: 700; color: ${T.amber}; font-size: 11px">POST</span></td>
+                  </tr>
+                  <tr>
+                    <td style="width: 150px; font-size: 12.5px; color: ${T.muted}; padding: 0 16px; height: 40px; border-bottom: 1px solid ${T.rowline}">Base URL</td>
+                    <td class="tdc mono">https://api.kundali.astrotalk.com</td>
+                  </tr>
+                  <tr>
+                    <td style="width: 150px; font-size: 12.5px; color: ${T.muted}; padding: 0 16px; height: 40px; border-bottom: 1px solid ${T.rowline}">Path</td>
+                    <td class="tdc mono">/v1/combined/general</td>
+                  </tr>
+                  <tr>
+                    <td style="width: 150px; font-size: 12.5px; color: ${T.muted}; padding: 0 16px; height: 40px; border-bottom: 1px solid ${T.rowline}">Headers</td>
+                    <td class="tdc ghost">none &mdash; <span class="mono" style="font-size: 11.5px">Content-Type</span> dropped, Meta sets it</td>
+                  </tr>
+                  <tr>
+                    <td style="width: 150px; font-size: 12.5px; color: ${T.muted}; padding: 0 16px; height: 40px; border-bottom: none">Body fields</td>
+                    <td class="tdc" style="border-bottom: none">13, from <span class="mono" style="font-size: 11.5px">detail</span> down</td>
+                  </tr>
+                </tbody></table>
+              </div>
+
+              <div class="lbl" style="display: block; margin: 20px 0 8px">Worth your attention</div>
+              <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
+                <table><tbody>
+                  <tr>
+                    <td class="tdc" style="width: 26px; padding-left: 14px; padding-right: 0">${tick}</td>
+                    <td class="tdc sub">13 fields found. Descriptions are empty &mdash; five of these are required by the API and <strong>cannot be marked required</strong>, so the description is the only place to say so.</td>
+                  </tr>
+                  <tr>
+                    <td class="tdc" style="width: 26px; padding-left: 14px; padding-right: 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${T.amber}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg></td>
+                    <td class="tdc sub"><span class="mono" style="font-size: 11.5px">lat</span> and <span class="mono" style="font-size: 11.5px">lon</span> are decimal degrees. The agent will be given a place name, so say so in their descriptions or the call will fail.</td>
+                  </tr>
+                  <tr>
+                    <td class="tdc" style="width: 26px; padding-left: 14px; padding-right: 0; border-bottom: none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${T.amber}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg></td>
+                    <td class="tdc sub" style="border-bottom: none">No auth in the cURL. If the live endpoint needs a key, add it on Auth &mdash; header, query or body.</td>
+                  </tr>
+                </tbody></table>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 20px">
+                <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 8px; background: ${T.teal}; color: #FFFFFF; font-size: 12.5px; font-weight: 600">Import</span>
+                <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid ${T.line}; font-size: 12.5px; font-weight: 500">Cancel</span>
+              </div>
+            </div>
+          </div>`,
+  resp: response('idle'),
+})
+
 /* -------------------------------------------------------- Params, in bulk */
 screen({
   file: 'BulkEdit.dc.html',
@@ -245,7 +337,12 @@ screen({
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${T.muted}" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
               <span style="font-size: 12.5px">Example JSON</span>
             </div>
-            <span style="font-size: 12px; color: ${T.muted}">JSON only &mdash; Meta sends no other content type</span>
+            <span style="display: inline-flex; align-items: center; gap: 5px">${tick}<span style="font-size: 12px; color: #15803D">Valid</span></span>
+            <span style="margin-left: auto; display: inline-flex; gap: 14px; align-items: center">
+              <span style="font-size: 12px; color: ${T.teal}; font-weight: 500">Beautify</span>
+              <span style="font-size: 12px; color: ${T.teal}; font-weight: 500">Import cURL</span>
+              <span style="font-size: 12px; color: ${T.muted}">JSON only</span>
+            </span>
           </div>
           <div class="mono" style="border: 1px solid ${T.line}; border-radius: 10px; background: #FCFCFD; padding: 11px 13px; line-height: 1.6; font-size: 11.5px; margin-bottom: 16px">${BODY_JSON}</div>
 
@@ -265,11 +362,13 @@ screen({
     status: '200 OK',
     ms: 412,
     size: '1.2 KB',
-    body: `<div>{</div>
-<div>&nbsp;&nbsp;<span class="k">"enquiry_id"</span>: <span class="s">"ENQ-90412"</span>,</div>
-<div>&nbsp;&nbsp;<span class="k">"status"</span>: <span class="s">"sent_to_suppliers"</span>,</div>
-<div>&nbsp;&nbsp;<span class="k">"suppliers_notified"</span>: <span class="n">6</span></div>
-<div>}</div>`,
+    body: `<div><span class="ghost">&lt;?xml version="1.0"?&gt;</span></div>
+<div><span class="k">&lt;enquiry&gt;</span></div>
+<div>&nbsp;&nbsp;<span class="k">&lt;id&gt;</span>ENQ-90412<span class="k">&lt;/id&gt;</span></div>
+<div>&nbsp;&nbsp;<span class="k">&lt;status&gt;</span>sent_to_suppliers<span class="k">&lt;/status&gt;</span></div>
+<div>&nbsp;&nbsp;<span class="k">&lt;notified&gt;</span>6<span class="k">&lt;/notified&gt;</span></div>
+<div><span class="k">&lt;/enquiry&gt;</span></div>
+<div style="margin-top: 7px; color: ${T.muted}; font-family: Inter, sans-serif; font-size: 11.5px">An XML response is fine &mdash; verified against the live API. Only the <em>request</em> body must be JSON.</div>`,
   }),
 })
 

@@ -1,6 +1,14 @@
 {
   "artboards": [
     {
+      "file": "ImportCurl.dc.html",
+      "title": "Import cURL",
+      "x": 0,
+      "y": -1080,
+      "w": 1440,
+      "h": 900
+    },
+    {
       "file": "Main.dc.html",
       "title": "1 · Connector",
       "x": 0,
@@ -115,6 +123,13 @@
       "y": 940,
       "w": 470,
       "text": "Auth, collapsed from two screens into one.\n\nEditable, because this is where you are when you need it. Marked shared, because it is: Meta keeps base_url and auth_config on the connector and a tool cannot carry a credential of its own, so one edit changes every action under it.\n\nThe In column — Header / Query / Body — is the gap that stops an ?api_key= API being configurable at all today."
+    },
+    {
+      "id": "curl",
+      "x": 1560,
+      "y": -1080,
+      "w": 490,
+      "text": "Import cURL is the highest-value screen here, and not for the obvious reason.\n\nEvery API doc ships a curl example, so pasting one is the fastest way in — method, base URL, path, headers and all 13 body fields in one action.\n\nThe real value is that it is the FIRST moment we can tell the truth. A curl with a form-encoded or multipart body means the API cannot be connected at all, and saying that on paste beats discovering it at publish. It can also spot an api_key sitting in the query string, a Basic auth flag we have no auth type for, and a signature header we cannot compute per request.\n\nSo the honesty gap (G7) is not a paragraph in the Body tab. It is a check that runs the moment someone brings us an API."
     }
   ],
   "launch": {

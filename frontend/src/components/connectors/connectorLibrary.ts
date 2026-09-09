@@ -86,8 +86,19 @@ export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
   description: '',
   systemType: '',
   baseUrl: '',
-  authType: 'API_KEY',
-  headers: [{ fieldName: '', prefix: '' }],
+  /*
+   * A new connector starts with no auth, and no credential header.
+   *
+   * It used to default to API_KEY with one blank header, because the create
+   * form collected auth. It no longer does: the canvas puts base URL, auth,
+   * credentials and the certificate on an action's Authorization tab —
+   * "editable here because this is where it is used" — so a connector is
+   * created with a name, a description and a host, and told how to sign in
+   * from the screen where it signs in. Defaulting to API_KEY here would create
+   * connectors claiming an auth type with nothing to send.
+   */
+  authType: 'NONE',
+  headers: [],
   tokenUrl: '',
   clientId: '',
   scopes: '',

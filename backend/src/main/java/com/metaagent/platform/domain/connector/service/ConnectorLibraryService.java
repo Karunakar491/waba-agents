@@ -371,7 +371,13 @@ public class ConnectorLibraryService {
                 deployments);
     }
 
-    private Connector loadOwned(Long connectorId) {
+    /**
+     * Package-private rather than private: {@link ConnectorProbeService} needs
+     * exactly this check and must not grow its own. A probe that scoped access
+     * differently from every other endpoint here would be the one way to reach
+     * another tenant's connector.
+     */
+    Connector loadOwned(Long connectorId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Connector connector = connectorRepository.findById(connectorId)
                 .orElseThrow(() -> new NotFoundException("Connector not found"));

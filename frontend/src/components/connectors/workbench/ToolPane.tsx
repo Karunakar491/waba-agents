@@ -6,7 +6,9 @@ import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
 import AutoHeaders from './AutoHeaders'
 import ResponsePane, { type ProbeResult } from './ResponsePane'
 import ImportCurl from './ImportCurl'
+import ActionAuthPane from './ActionAuthPane'
 import { type ParsedCurl } from './parseCurl'
+import { paramsToText, textToParams } from './bulkParams'
 import ToolParamsEditor from '../../agent-detail/ToolParamsEditor'
 import ToolBodyEditor from '../../agent-detail/ToolBodyEditor'
 import {
@@ -20,6 +22,7 @@ import {
   type BodyFieldRow,
 } from '../../agent-detail/toolRequestDefinition'
 import type { ActionPayload, ConnectorAction } from '../connectorActions'
+import type { ConnectorFormValues } from '../connectorLibrary'
 
 /** Scheme and host of the connector's base URL, for comparing against a pasted cURL. */
 function originOf(baseUrl: string): string {
@@ -67,31 +70,44 @@ export interface ProbeRequestPayload {
 export default function ToolPane({
   action,
   baseUrl,
-  authLabel,
   authHeaders,
   saving,
   saveError,
   onSave,
   onRequestDelete,
-  onOpenConnectorAuth,
   onSend,
   probe,
+  connectorForm,
+  actionCount,
+  savingConnector,
+  connectorDirty,
+  onConnectorChange,
+  onConnectorSave,
 }: {
   /** Null when adding a new action. */
   action: ConnectorAction | null
   baseUrl: string
-  /** The connector's auth type, in words — this action inherits it. */
-  authLabel: string
   /** Credential header names from the connector, sent without being typed here. */
   authHeaders: string[]
   saving: boolean
   saveError: unknown
   onSave: (payload: ActionPayload) => void
   onRequestDelete: () => void
-  onOpenConnectorAuth: () => void
   /** Sends the request as it stands, saved or not — that is the point of it. */
   onSend: (payload: ProbeRequestPayload) => void
   probe: { result: ProbeResult | null; error: string | null; pending: boolean }
+  /**
+   * The connector's own settings, edited from this screen's Authorization tab.
+   * They live on the connector in Meta — base_url and auth_config are its
+   * fields, not a tool's — so a change here changes every action under it,
+   * which is what the tab's warning says.
+   */
+  connectorForm: ConnectorFormValues
+  actionCount: number
+  savingConnector: boolean
+  connectorDirty: boolean
+  onConnectorChange: (form: ConnectorFormValues) => void
+  onConnectorSave: () => void
 }) {
   const prefill = useMemo(
     () => (action ? parseRequestDefinition(action.requestDefinition) : null),
@@ -149,6 +165,51 @@ export default function ToolPane({
   }
 
   const bodyAllowed = methodSendsBody(method)
+
+  /**
+   * Table or Bulk, and the switch between them.
+   *
+   * Entering Bulk serialises the rows as they stand; leaving the textarea
+   * parses them back. The text is not the source of truth — the rows are — so
+   * the two can never disagree for longer than one field's focus.
+   */
+  const [paramMode, setParamMode] = useState<'table' | 'bulk'>('table')
+  const [bulkText, setBulkText] = useState('')
+
+  const paramModeToggle = (
+    <div className="flex items-center gap-2.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Query params
+      </span>
+      <div
+        role="group"
+        aria-label="Parameter editing mode"
+        className="ml-auto inline-flex overflow-hidden rounded-lg border text-xs"
+      >
+        {(['table', 'bulk'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={paramMode === mode}
+            onClick={() => {
+              if (mode === 'bulk') setBulkText(paramsToText(queryParams))
+              else setQueryParams(textToParams(bulkText, queryParams))
+              setParamMode(mode)
+            }}
+            className={
+              'px-3 py-1.5 capitalize transition-colors ' +
+              (paramMode === mode
+                ? 'bg-muted font-semibold text-foreground'
+                : 'text-muted-foreground hover:text-foreground') +
+              (mode === 'bulk' ? ' border-l' : '')
+            }
+          >
+            {mode}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   const tabs: WorkbenchTab[] = [
     { id: 'params', label: 'Params', count: pathParamRows.length + queryParams.length },
@@ -350,11 +411,39 @@ export default function ToolPane({
       <WorkbenchTabs tabs={tabs} active={tab} onSelect={setTab} />
 
       <div className="pt-1">
-        {tab === 'params' && (
+        {tab === 'params' && paramMode === 'bulk' && (
+          /* Screen 7. The same parameters as the table, one line each — nine
+             rows of dropdowns against nine lines of typing. Parsed on blur
+             rather than per keystroke, so a half-typed line does not delete a
+             parameter while it is being written. */
+          <div className="space-y-2">
+            {paramModeToggle}
+            <textarea
+              rows={12}
+              value={bulkText}
+              disabled={saving}
+              spellCheck={false}
+              onChange={(e) => setBulkText(e.target.value)}
+              onBlur={() => setQueryParams(textToParams(bulkText, queryParams))}
+              aria-label="Query parameters as text"
+              placeholder={'product: agent  // what the buyer is looking for\nlimit: 10'}
+              className="w-full rounded-[10px] border bg-muted/20 p-3 font-mono text-xs leading-[1.85]
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            />
+            <p className="max-w-[900px] text-xs text-muted-foreground">
+              One line each: <code>key: source</code>, and anything after <code>//</code> is the
+              description. <code>agent</code> means the model fills it; anything else is a fixed
+              value. Switching back to Table loses nothing.
+            </p>
+          </div>
+        )}
+
+        {tab === 'params' && paramMode === 'table' && (
           /* Query first, then path — Postman's order, and the order they are
              usually edited in: path rows appear on their own as soon as a
              {token} is typed into the bar. */
           <div className="space-y-4">
+            {paramModeToggle}
             <ToolParamsEditor
               label="Query parameters"
               rows={queryParams}
@@ -379,58 +468,14 @@ export default function ToolPane({
         )}
 
         {tab === 'auth' && (
-          /* Postman calls this "inherit auth from parent" and offers to
-             override it per request. Meta does not: auth_config lives on the
-             connector and a tool cannot carry a credential. So the tab exists
-             — a missing one sends people hunting — and it reports rather than
-             edits, with the way to change it one click away. */
-          <div className="max-w-2xl space-y-2 text-sm">
-            <p className="text-foreground">
-              Inherited from the connector: <span className="font-medium">{authLabel}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Meta keeps <code>auth_config</code> on the connector, so every action under it signs
-              in the same way and no action can override it. Credential values are typed at publish
-              time and never stored here.
-            </p>
-            <button
-              type="button"
-              onClick={onOpenConnectorAuth}
-              className="min-h-11 text-xs font-medium text-accent-teal-solid transition-colors hover:underline"
-            >
-              Change it on the connector
-            </button>
-
-            {/* The one place a credential value is typed outside publishing.
-                It is here rather than on the Response tab because this is where
-                someone looks when a call comes back 401. */}
-            {authHeaders.length > 0 && (
-              <div className="space-y-2 border-t pt-3">
-                <p className="text-xs font-medium text-foreground">
-                  Credential values for sending a test request
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Needed because nothing here stores them. Typed for this call only — not saved,
-                  not sent to Meta, gone when you leave this page.
-                </p>
-                {authHeaders.map((header) => (
-                  <label key={header} className="block max-w-md space-y-1">
-                    <span className="block font-mono text-xs text-muted-foreground">{header}</span>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={secrets[header] ?? ''}
-                      onChange={(e) =>
-                        setSecrets((prev) => ({ ...prev, [header]: e.target.value }))
-                      }
-                      placeholder="Paste the value to test with"
-                      className={`${inputCls} font-mono`}
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
+          <ActionAuthPane
+            form={connectorForm}
+            actionCount={actionCount}
+            saving={savingConnector}
+            onChange={onConnectorChange}
+            onSave={onConnectorSave}
+            dirty={connectorDirty}
+          />
         )}
 
         {tab === 'headers' && (
@@ -495,6 +540,33 @@ export default function ToolPane({
                   <code className="mx-1">application/json</code>.
                 </span>
               </label>
+            )}
+
+            {/* Beside Send, because this is the only place a credential value
+                is ever typed outside publishing — and it is typed for one call.
+                The Authorization tab deliberately shows "never stored here" in
+                its Value column; this is that same truth from the other side:
+                to try the request, the value has to be supplied now. */}
+            {authHeaders.length > 0 && (
+              <div className="max-w-2xl space-y-2">
+                <p className="text-xs font-medium text-foreground">Credential for this call</p>
+                <p className="text-xs text-muted-foreground">
+                  Not saved, not sent to Meta, gone when you leave this page.
+                </p>
+                {authHeaders.map((header) => (
+                  <label key={header} className="block max-w-md space-y-1">
+                    <span className="block font-mono text-xs text-muted-foreground">{header}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={secrets[header] ?? ''}
+                      onChange={(e) => setSecrets((prev) => ({ ...prev, [header]: e.target.value }))}
+                      placeholder="Paste the value to test with"
+                      className={`${inputCls} font-mono`}
+                    />
+                  </label>
+                ))}
+              </div>
             )}
 
             {unresolvedTokens.length > 0 && (

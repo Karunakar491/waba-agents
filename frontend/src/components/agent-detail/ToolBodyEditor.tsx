@@ -1,3 +1,4 @@
+import { AlertCircle, Check, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import type { BodyFieldRow, FillMode } from './toolRequestDefinition'
 import { parseBodyJson, bodyRowsToJson, InvalidBodyJsonError, holdsChildren } from './toolRequestDefinition'
@@ -91,6 +92,29 @@ export default function ToolBodyEditor({
   // fails) — never silently discarded.
   const [jsonText, setJsonText] = useState(() => bodyRowsToJson(rows))
   const [jsonError, setJsonError] = useState<string | null>(null)
+  // Open when there is nothing yet, because then the box is the way in. Closed
+  // once a shape exists, because the Fields table below is the better view of
+  // it and the JSON is only an input method.
+  const [jsonOpen, setJsonOpen] = useState(rows.length === 0)
+
+  /**
+   * Reformats the text in place, and parses it while it is there.
+   *
+   * Not a formatter bolted on: a pasted body arrives as one line from a
+   * terminal, and reading a one-line nested payload to check it is right is
+   * the thing this replaces. Invalid JSON is left exactly as typed, with the
+   * error shown, rather than being reformatted into something equally broken.
+   */
+  function beautify() {
+    try {
+      const parsed: unknown = JSON.parse(jsonText)
+      setJsonText(JSON.stringify(parsed, null, 2))
+      setJsonError(null)
+      setRows(() => parseBodyJson(jsonText, rows))
+    } catch {
+      setJsonError('This is not valid JSON, so it cannot be formatted.')
+    }
+  }
 
   function handleBlur() {
     if (!jsonText.trim()) {
@@ -111,23 +135,77 @@ export default function ToolBodyEditor({
 
   return (
     <div className="space-y-3">
+      {/* The strip from `design/Body.dc.html`: what this box is, whether it
+          parses, and the two things worth doing to it — on one 28px line
+          rather than as a paragraph above and errors below. */}
       <div className="space-y-1.5">
-        <span className="block text-xs font-medium text-foreground">Request body</span>
-        <p className="text-xs text-muted-foreground">
-          Paste an example of the JSON this endpoint expects — nested objects and lists included.
-          Every field appears in the table below.
-        </p>
-        <textarea
-          rows={5}
-          value={jsonText}
-          disabled={disabled}
-          onChange={(e) => setJsonText(e.target.value)}
-          onBlur={handleBlur}
-          placeholder={'{\n  "customer": { "id": 1024 },\n  "lines": [{ "sku": "TMT-12", "qty": 2 }]\n}'}
-          spellCheck={false}
-          className={`${jsonBoxCls} disabled:opacity-60`}
-        />
-        {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+          <button
+            type="button"
+            onClick={() => setJsonOpen((open) => !open)}
+            aria-expanded={jsonOpen}
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs
+              transition-colors hover:bg-muted"
+          >
+            <ChevronDown
+              className={`h-3 w-3 transition-transform ${jsonOpen ? '' : '-rotate-90'}`}
+            />
+            Example JSON
+          </button>
+
+          {/* Only ever about the text in the box: valid, or the reason it is
+              not. Silent when the box is empty, because "invalid" would be a
+              complaint about nothing having been typed yet. */}
+          {jsonText.trim() &&
+            (jsonError ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {jsonError}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs text-success">
+                <Check className="h-3.5 w-3.5" />
+                Valid
+              </span>
+            ))}
+
+          <span className="ml-auto flex items-center gap-3.5">
+            <button
+              type="button"
+              onClick={beautify}
+              disabled={disabled || !jsonText.trim()}
+              className="text-xs font-medium text-accent-teal-solid transition-opacity
+                hover:opacity-80 disabled:cursor-not-allowed disabled:text-muted-foreground/60"
+            >
+              Beautify
+            </button>
+            {/* Meta's content_type enum has exactly one member. Stated here
+                because this is where someone would otherwise paste XML. */}
+            <span className="text-xs text-muted-foreground" title="Meta accepts no other request body type">
+              JSON only
+            </span>
+          </span>
+        </div>
+
+        {jsonOpen && (
+          <>
+            <textarea
+              rows={5}
+              value={jsonText}
+              disabled={disabled}
+              onChange={(e) => setJsonText(e.target.value)}
+              onBlur={handleBlur}
+              aria-label="Example JSON for the request body"
+              placeholder={'{\n  "customer": { "id": 1024 },\n  "lines": [{ "sku": "TMT-12", "qty": 2 }]\n}'}
+              spellCheck={false}
+              className={`${jsonBoxCls} disabled:opacity-60`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Paste an example of the JSON this endpoint expects — nested objects and lists
+              included. Every field appears in the table below.
+            </p>
+          </>
+        )}
       </div>
 
       {fields.length > 0 && (

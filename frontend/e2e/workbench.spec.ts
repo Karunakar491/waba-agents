@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { connectorSection, createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import { createThrowawayConnector, deleteOpenConnector, openConnectorPage } from './fixtures/connectors'
 
 /**
  * Proves the workbench: the tree, the request bar, the tabs, and that an action
@@ -32,51 +32,36 @@ test.describe('@workbench the connector workbench', () => {
     await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
     const connectorUrl = page.url()
 
-    // ---- the connector side, as a Postman collection -----------------------
-    // Addressed through the header nav, never by tab name: an open action has
-    // an Authorization and a Headers of its own, so by name alone each of
-    // those selectors matched two elements and failed on a working screen.
-    for (const label of ['Actions', 'Details', 'Authorization', 'Variables', 'Agents']) {
-      await expect(connectorSection(page, label)).toBeVisible()
-    }
-
-    // Opens on Details — arriving at a connector, the connector is the thing
-    // you are looking at.
+    // ---- the connector is ONE page ----------------------------------------
+    // It had five section pills — Actions, Details, Authorization, Variables,
+    // Agents — and everything they led to is now on the page at once. That is
+    // the assertion: no clicking, no tab row, all four things visible
+    // together. "When someone clicks on actions why are other sections
+    // closed?" cannot be asked of a page with no sections.
     await expect(page.getByPlaceholder('https://api.example.com')).toBeVisible()
-
-    // Auth is the connector's, so its fields are on the connector — a tool
-    // cannot carry a credential in Meta.
-    await connectorSection(page, 'Authorization').click()
     await expect(page.getByText(/Headers that carry a credential/i)).toBeVisible()
-
-    // Meta's macro set is closed, and listed rather than hidden in a dropdown.
-    await connectorSection(page, 'Variables').click()
+    await expect(page.getByRole('heading', { name: 'Actions' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Variables you can substitute/ })).toBeVisible()
     await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible()
+
+    // And only ONE tab row is ever on screen — the connector has none, so
+    // "Authorization" and "Headers" appear once each rather than twice.
+    await expect(page.getByRole('tablist')).toHaveCount(0)
 
     // ---- add an action ----------------------------------------------------
-    // No button. On a connector with no actions, selecting Actions IS opening
-    // the request editor — "add an action is always an extra step", so the
-    // step is gone. It opens as its own view because the editor has a tab row
-    // of its own, and nesting it put two rows on screen both saying
-    // Authorization / Headers / Body.
-    await connectorSection(page, 'Actions').click()
+    // The Actions table's own control, always there rather than appearing only
+    // once the table is non-empty. It opens as its own view because the editor
+    // has a tab row, and nesting it put two rows on screen.
+    await page.getByRole('button', { name: /Add an action/i }).click()
     await expect(page).toHaveURL(/\/actions\/new$/)
     await expect(page.getByPlaceholder('e.g. product_search')).toBeVisible()
 
-    // And the connector's own sections are still on screen while the action is
-    // open. They used to vanish, because the row lived inside the pane the
-    // action replaced — "when someone clicks on actions why are other sections
-    // closed?". They are in the header now.
-    for (const label of ['Details', 'Authorization', 'Variables', 'Agents']) {
-      await expect(connectorSection(page, label)).toBeVisible()
-    }
-    // And going back to one of them leaves the action's URL behind, and lands
-    // on that section rather than reverting to Details — the section is in the
-    // URL because these are two routes, and this page remounts between them.
-    await connectorSection(page, 'Variables').click()
-    await expect(page).toHaveURL(/\/library\/connectors\/\d+\?section=variables$/)
+    // The breadcrumb's connector name is the way back, and it lands on the
+    // whole connector rather than on one remembered section.
+    await openConnectorPage(page)
     await expect(page.getByText('WHATSAPP_IDENTITY_HASH')).toBeVisible()
-    await connectorSection(page, 'Actions').click()
+    await page.getByRole('button', { name: /Add an action/i }).click()
     await expect(page).toHaveURL(/\/actions\/new$/)
 
     // Save is refused with the reason stated, not silently disabled.

@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { connectorSection, removeConnectorIfPresent } from './fixtures/connectors'
+import { openConnectorPage, removeConnectorIfPresent } from './fixtures/connectors'
 
 /**
  * Proves that a completed action now says so, and that deleting a connector
@@ -53,8 +53,8 @@ test.describe('@feedback a finished action says so', () => {
     await expect(status).toContainText(NAME)
 
     // Deleting used to fire on the first click, unlike every other delete here.
-    // It sits on the connector's Details section.
-    await connectorSection(page, 'Details').click()
+    // It sits at the foot of the connector's page.
+    await openConnectorPage(page)
     await page.getByRole('button', { name: /^Delete connector$/ }).first().click()
     await expect(page.getByText(/This cannot be undone/i)).toBeVisible()
     await expect(page.getByText(/No agent is using it, so nothing stops working/i)).toBeVisible()

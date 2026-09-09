@@ -14,18 +14,19 @@ import { expect, type Page } from '@playwright/test'
  */
 
 /**
- * One of the connector's own sections in the header — Actions, Details,
- * Authorization, Variables, Agents.
+ * Back to the connector's own page from an open action.
  *
- * Scoped to that nav on purpose: the connector's sections and an open action's
- * panels are both on screen, and both include "Authorization" and "Headers".
- * Asking for a tab by name alone matched two elements and failed on a working
- * screen. The header is a labelled nav; the action's row is the tablist.
+ * There used to be a five-pill section nav in the header and a
+ * `connectorSection()` helper to address it. The connector is one page now, so
+ * everything those pills led to is already on screen — the only navigation
+ * left is leaving an action, which is the breadcrumb's connector name.
  */
-export function connectorSection(page: Page, name: string) {
-  return page
-    .getByRole('navigation', { name: 'Connector sections' })
-    .getByRole('button', { name: new RegExp(`^${name}`) })
+export async function openConnectorPage(page: Page): Promise<void> {
+  if (!/\/actions\//.test(page.url())) return
+  // The breadcrumb's connector name is the only link to a numbered connector
+  // outside the tree, and the tree's entries are buttons.
+  await page.locator('a[href^="/library/connectors/"]').first().click()
+  await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
 }
 
 /** Removes a leftover from an interrupted run, if one is there. */
@@ -77,9 +78,9 @@ export async function createThrowawayConnector(
  * connector", so each is addressed by where it is rather than by name alone.
  */
 export async function deleteOpenConnector(page: Page): Promise<void> {
-  // Delete lives on the connector's Details tab — it is the connector itself,
-  // not one of its requests. The pane opens on Actions.
-  await connectorSection(page, 'Details').click()
+  // Delete is at the foot of the connector's page — it is the connector itself,
+  // not one of its requests.
+  await openConnectorPage(page)
   await page.getByRole('button', { name: /^Delete connector$/ }).first().click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()

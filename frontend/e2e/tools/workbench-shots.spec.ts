@@ -1,6 +1,6 @@
 import { test } from '../fixtures/auth'
 import { expect } from '@playwright/test'
-import { connectorSection } from '../fixtures/connectors'
+
 
 /**
  * Screenshots of both Postman-shaped panes, for reviewing the layout.
@@ -31,33 +31,20 @@ test.describe('@shotswb the workbench, photographed', () => {
       await page.locator('div.w-72 button').filter({ hasText: /\w/ }).nth(i).click()
       if (!/\/library\/connectors\/\d+$/.test(page.url())) continue
 
-      // A connector opens on Details, so ask for Actions. On one with none
-      // that redirects into the request editor — which is the answer to "does
-      // this connector have any", and cheaper than waiting for a table that
-      // will never appear.
-      await connectorSection(page, 'Actions').click()
-      await expect(
-        page.locator('table').or(page.getByPlaceholder('e.g. product_search')).first(),
-      ).toBeVisible({ timeout: 20_000 })
+      // The connector's whole page arrives at once now — the Actions table is
+      // on it, so "does this connector have an action" is answered by waiting
+      // for the table rather than by selecting a section.
+      await expect(page.getByRole('heading', { name: 'Actions' })).toBeVisible({ timeout: 20_000 })
       if ((await page.locator('table tbody tr').count()) > 0) {
         opened = true
         break
       }
     }
     test.skip(!opened, 'no connector on this account has an action')
-    await expect(page).toHaveURL(/\/library\/connectors\/\d+\?section=actions$/)
-    await page.screenshot({ path: 'e2e-shots/wb-connector-actions.png' })
-
-    for (const tab of ['Details', 'Authorization', 'Variables', 'Agents']) {
-      await connectorSection(page, tab).click()
-      // The underline transitions colour; shooting instantly catches two tabs
-      // mid-fade and reads like a bug in the screenshot.
-      await page.waitForTimeout(400)
-      await page.screenshot({ path: `e2e-shots/wb-connector-${tab.toLowerCase()}.png` })
-    }
+    await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
+    await page.screenshot({ path: 'e2e-shots/wb-connector.png', fullPage: true })
 
     // An action, if this connector has one.
-    await connectorSection(page, 'Actions').click()
     const action = page.locator('table tbody tr button').first()
     await action.click()
     await expect(page).toHaveURL(/\/actions\/\d+$/)

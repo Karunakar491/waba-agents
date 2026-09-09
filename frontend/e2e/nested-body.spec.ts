@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { connectorSection, createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
 
 /**
  * Proves an enterprise-shaped body — nested objects and a list of objects —
@@ -41,9 +41,8 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
     const connectorUrl = page.url()
 
     // ---- add an action with a nested body ---------------------------------
-    // Selecting Actions on an empty connector opens the request editor
-    // directly — there is no "Add an action" button to press.
-    await connectorSection(page, 'Actions').click()
+    // From the Actions table on the connector's own page.
+    await page.getByRole('button', { name: /Add an action/i }).click()
     await expect(page).toHaveURL(/\/actions\/new$/)
     await page.getByPlaceholder('e.g. product_search').fill(ACTION)
     // The description is on the Docs tab, as it is in Postman.

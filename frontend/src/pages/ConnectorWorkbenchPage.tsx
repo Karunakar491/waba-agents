@@ -10,7 +10,7 @@ import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
 import ToolPane from '../components/connectors/workbench/ToolPane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
-import WorkbenchTabs, { type WorkbenchTab } from '../components/connectors/workbench/WorkbenchTabs'
+import { type WorkbenchTab } from '../components/connectors/workbench/WorkbenchTabs'
 import { META_MACROS } from '../components/connectors/workbench/metaMacros'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
@@ -320,40 +320,58 @@ export default function ConnectorWorkbenchPage() {
 
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
-      <div className="border-b bg-card">
-        <div className="flex items-center gap-3 px-4 py-2.5">
-          <Link
-            to="/library/connectors"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" /> Connectors
-          </Link>
-          {connector && (
-            <>
-              <span className="text-muted-foreground">/</span>
-              <span className="truncate text-sm font-medium text-foreground">{connector.name}</span>
-              <StatusIndicator
-                label={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
-                tone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
-              />
-            </>
-          )}
-        </div>
+      {/* One line, and only ever ONE row of tabs on the screen.
 
-        {/* The connector's sections live in the header, not in the pane.
-            Opening an action replaces the pane entirely, and when this row was
-            inside it every other section vanished — the founder: "when someone
-            clicks on actions why are other sections closed?" Up here they stay
-            reachable from wherever you are in the connector. */}
+          The connector's sections were a second tab row under this, so an open
+          action put two strips on screen — with "Authorization" and "Headers"
+          appearing twice. They belong at breadcrumb level: small muted links on
+          the same line as the name, plainly navigation rather than a tab strip,
+          and still reachable from inside an action. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b bg-card px-4 py-2.5">
+        <Link
+          to="/library/connectors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Connectors
+        </Link>
         {connector && (
-          <div className="px-4">
-            <WorkbenchTabs
-              navLabel="Connector sections"
-              tabs={connectorSections}
-              active={actionId ? 'actions' : connectorTab}
-              onSelect={selectConnectorSection}
+          <>
+            <span className="text-muted-foreground">/</span>
+            <span className="max-w-xs truncate text-sm font-medium text-foreground">
+              {connector.name}
+            </span>
+            <StatusIndicator
+              label={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
+              tone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
             />
-          </div>
+
+            <nav aria-label="Connector sections" className="ml-auto flex items-center gap-1">
+              {connectorSections.map((section) => {
+                const current = (actionId ? 'actions' : connectorTab) === section.id
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() => selectConnectorSection(section.id)}
+                    className={
+                      'rounded-md px-2 py-1 text-xs transition-colors ' +
+                      (current
+                        ? 'bg-muted font-medium text-foreground'
+                        : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    {section.label}
+                    {typeof section.count === 'number' && section.count > 0 && (
+                      <span className="ml-1 tabular-nums text-muted-foreground">
+                        {section.count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </nav>
+          </>
         )}
       </div>
 

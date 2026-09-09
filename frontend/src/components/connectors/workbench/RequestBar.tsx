@@ -14,6 +14,15 @@ import { MethodBadge } from './WorkbenchSidebar'
  * "Test" is only possible once the tool exists on Meta, because Meta's runtime
  * makes the call, not us. Until then the button says why rather than failing.
  */
+/** Host of a base URL, falling back to the raw string if it will not parse. */
+function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host
+  } catch {
+    return baseUrl.replace(/^https?:\/\//, '').split('/')[0]
+  }
+}
+
 export default function RequestBar({
   method,
   path,
@@ -58,13 +67,18 @@ export default function RequestBar({
         </select>
 
         {/* The connector's base URL, stated so the path reads as a path rather
-            than as a whole address the user might try to replace. */}
+            than as a whole address the user might try to replace.
+
+            Host only. Truncating the whole thing cut a Google Apps Script URL
+            mid-token — "script.google.com/macros/s/AKfycbz6VEDS7HQ" — which
+            tells you less than the host alone and looks like a rendering bug.
+            The full value is on hover. */}
         <span
-          className="hidden max-w-[18rem] items-center truncate border-r bg-muted/20 px-2.5 font-mono text-xs
+          className="hidden items-center border-r bg-muted/20 px-2.5 font-mono text-xs
             text-muted-foreground sm:flex"
           title={`${baseUrl} — set on the connector, shared by every action under it`}
         >
-          {baseUrl.replace(/^https?:\/\//, '')}
+          {hostOf(baseUrl)}
         </span>
 
         <label className="sr-only" htmlFor="wb-path">

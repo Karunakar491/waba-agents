@@ -155,10 +155,15 @@ export default function ToolPane({
 
   return (
     <div className="space-y-4">
-      {/* The request's name, as its title — editable in place, the way the
-          name of a Postman request is. */}
-      <label className="block">
-        <span className="sr-only">Name</span>
+      {/* The request's name.
+
+          It was borderless with only a placeholder, "editable in place" like
+          Postman's request title. On an empty action that rendered as a line of
+          large grey ghost text with no field around it — it read as a broken
+          heading, not as something to type in. A label and a border cost one
+          line and remove the guessing. */}
+      <label className="block max-w-lg space-y-1">
+        <span className="block text-xs font-medium text-foreground">Name</span>
         <input
           type="text"
           value={name}
@@ -166,11 +171,7 @@ export default function ToolPane({
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. product_search"
           spellCheck={false}
-          className="w-full max-w-lg rounded-lg border border-transparent bg-transparent px-2 py-1
-            font-mono text-base font-semibold text-foreground placeholder:font-normal
-            placeholder:text-muted-foreground hover:border-border focus-visible:border-primary
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
-            disabled:opacity-60"
+          className={`${inputCls} font-mono`}
         />
       </label>
 

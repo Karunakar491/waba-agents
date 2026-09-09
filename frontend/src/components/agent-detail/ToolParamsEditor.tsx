@@ -83,7 +83,9 @@ export default function ToolParamsEditor({
             <thead>
               <tr className="border-b bg-muted/40 text-left text-muted-foreground">
                 <th className="w-1/5 px-3 py-2 font-medium">Key</th>
-                <th className="w-24 px-3 py-2 font-medium">Type</th>
+                {/* Wide enough for "boolean" plus a select's own arrow — at
+                    w-24 the control clipped "string" to "strin". */}
+                <th className="w-32 px-3 py-2 font-medium">Type</th>
                 <th className="w-1/4 px-3 py-2 font-medium">Value</th>
                 <th className="px-3 py-2 font-medium">Description</th>
                 <th className="w-20 px-3 py-2 text-center font-medium">Required</th>

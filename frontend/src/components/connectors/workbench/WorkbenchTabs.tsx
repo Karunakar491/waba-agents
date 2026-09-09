@@ -26,13 +26,30 @@ export default function WorkbenchTabs({
   tabs,
   active,
   onSelect,
+  navLabel,
 }: {
   tabs: WorkbenchTab[]
   active: string
   onSelect: (id: string) => void
+  /**
+   * Present = this row is section *navigation*, not a tablist.
+   *
+   * The connector's sections and an action's panels are both on screen at
+   * once, and both include "Authorization" and "Headers". Two tabs with one
+   * name is ambiguous to a person and outright unresolvable to a screen reader
+   * or a test. So the connector's row is a labelled nav — which is also what
+   * it is: it moves you between parts of the connector, while the action's
+   * tabs switch panels inside one form.
+   */
+  navLabel?: string
 }) {
+  const asNav = !!navLabel
   return (
-    <div role="tablist" className="flex items-center gap-1 border-b">
+    <div
+      role={asNav ? 'navigation' : 'tablist'}
+      aria-label={navLabel}
+      className="flex items-center gap-1 border-b"
+    >
       {tabs.map((tab) => {
         const disabled = !!tab.unavailable
         const selected = active === tab.id
@@ -40,8 +57,9 @@ export default function WorkbenchTabs({
           <button
             key={tab.id}
             type="button"
-            role="tab"
-            aria-selected={selected}
+            role={asNav ? undefined : 'tab'}
+            aria-selected={asNav ? undefined : selected}
+            aria-current={asNav && selected ? 'page' : undefined}
             aria-disabled={disabled || undefined}
             title={tab.unavailable ?? undefined}
             onClick={() => !disabled && onSelect(tab.id)}

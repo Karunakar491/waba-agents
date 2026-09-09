@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import api from '../lib/api'
@@ -10,6 +10,8 @@ import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
 import ToolPane from '../components/connectors/workbench/ToolPane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
+import WorkbenchTabs, { type WorkbenchTab } from '../components/connectors/workbench/WorkbenchTabs'
+import { META_MACROS } from '../components/connectors/workbench/metaMacros'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
@@ -79,6 +81,23 @@ export default function ConnectorWorkbenchPage() {
   const [newError, setNewError] = useState<string | null>(null)
   const [pendingDeleteConnector, setPendingDeleteConnector] = useState<LibraryConnector | null>(null)
   const [deleteConnectorError, setDeleteConnectorError] = useState<string | null>(null)
+
+  /**
+   * Which of the connector's sections is showing, in the URL rather than in
+   * state.
+   *
+   * It has to be. `/library/connectors/:id` and
+   * `/library/connectors/:id/actions/:actionId` are separate routes, so moving
+   * between them unmounts this page and remounts it — held in `useState`, the
+   * section silently reverted to Details on the way back from an action, and
+   * the test caught it showing the wrong panel.
+   *
+   * Details is the default: arriving at a connector, the connector is what you
+   * are looking at. Actions led with a table that is empty on every connector
+   * just created.
+   */
+  const [searchParams] = useSearchParams()
+  const connectorTab = searchParams.get('section') ?? 'details'
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -247,6 +266,43 @@ export default function ConnectorWorkbenchPage() {
       setDetailsError(err instanceof Error ? err.message : 'Could not save.'),
   })
 
+  /**
+   * The connector's sections, and what selecting one does.
+   *
+   * Actions is the odd one: on a connector with no actions it opens the
+   * request editor straight away ("add an action is always an extra step"),
+   * and from inside an action it goes back to the connector to show the table.
+   */
+  const connectorSections: WorkbenchTab[] = [
+    { id: 'actions', label: 'Actions', count: actions?.length ?? 0 },
+    { id: 'details', label: 'Details' },
+    { id: 'auth', label: 'Authorization' },
+    { id: 'variables', label: 'Variables', count: META_MACROS.length },
+    { id: 'agents', label: 'Agents', count: connector?.deployments.length ?? 0 },
+  ]
+
+  function selectConnectorSection(id: string) {
+    // One navigation covers every case: choosing a section from the connector,
+    // and leaving an open action for one of them. Whether Actions means "the
+    // table" or "the editor" is decided below, once the actions are known —
+    // deciding it here read `actions?.length === 0` before the query had
+    // answered, so a click during loading landed on an empty table.
+    navigate(`/library/connectors/${connectorId}?section=${id}`)
+  }
+
+  /**
+   * Actions on a connector with none IS the request editor — "add an action is
+   * always an extra step". Done here rather than on the click because it needs
+   * the actions to have loaded, and it covers a pasted `?section=actions` URL
+   * too. `replace` so Back does not bounce off it.
+   */
+  useEffect(() => {
+    if (actionId || connectorTab !== 'actions' || !connectorId) return
+    if (actions && actions.length === 0) {
+      navigate(`/library/connectors/${connectorId}/actions/new`, { replace: true })
+    }
+  }, [actionId, connectorTab, connectorId, actions, navigate])
+
   if (loadingConnectors) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
@@ -264,22 +320,40 @@ export default function ConnectorWorkbenchPage() {
 
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5">
-        <Link
-          to="/library/connectors"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Connectors
-        </Link>
+      <div className="border-b bg-card">
+        <div className="flex items-center gap-3 px-4 py-2.5">
+          <Link
+            to="/library/connectors"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Connectors
+          </Link>
+          {connector && (
+            <>
+              <span className="text-muted-foreground">/</span>
+              <span className="truncate text-sm font-medium text-foreground">{connector.name}</span>
+              <StatusIndicator
+                label={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
+                tone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
+              />
+            </>
+          )}
+        </div>
+
+        {/* The connector's sections live in the header, not in the pane.
+            Opening an action replaces the pane entirely, and when this row was
+            inside it every other section vanished — the founder: "when someone
+            clicks on actions why are other sections closed?" Up here they stay
+            reachable from wherever you are in the connector. */}
         {connector && (
-          <>
-            <span className="text-muted-foreground">/</span>
-            <span className="truncate text-sm font-medium text-foreground">{connector.name}</span>
-            <StatusIndicator
-              label={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
-              tone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
+          <div className="px-4">
+            <WorkbenchTabs
+              navLabel="Connector sections"
+              tabs={connectorSections}
+              active={actionId ? 'actions' : connectorTab}
+              onSelect={selectConnectorSection}
             />
-          </>
+          </div>
         )}
       </div>
 
@@ -367,7 +441,7 @@ export default function ConnectorWorkbenchPage() {
               saveError={saveAction.error}
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}
               onRequestDelete={() => action && setPendingDeleteAction(action)}
-              onOpenConnectorAuth={() => navigate(`/library/connectors/${connector.id}`)}
+              onOpenConnectorAuth={() => selectConnectorSection('auth')}
             />
           ) : (
             <ConnectorPane
@@ -394,6 +468,7 @@ export default function ConnectorWorkbenchPage() {
                 setDeleteConnectorError(null)
                 setPendingDeleteConnector(connector)
               }}
+              tab={connectorTab}
             />
           )}
         </div>

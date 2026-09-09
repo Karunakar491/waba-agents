@@ -1,18 +1,10 @@
-import { useState } from 'react'
 import { Plus, Rocket, Trash2 } from 'lucide-react'
 import StatusIndicator from '../../shared/StatusIndicator'
 import ConnectorDefinitionEditor from '../ConnectorDefinitionEditor'
-import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
 import ConnectorActionsTable from './ConnectorActionsTable'
+import { META_MACROS } from './metaMacros'
 import { type ConnectorAction } from '../connectorActions'
 import { AUTH_TYPES, type ConnectorFormValues, type LibraryConnector } from '../connectorLibrary'
-
-/** Meta's macro set is closed — these three and nothing else. */
-const MACROS: [string, string][] = [
-  ['WHATSAPP_PHONE_NUMBER', "The customer's WhatsApp number"],
-  ['WHATSAPP_IDENTITY_HASH', 'Identity hash for the customer'],
-  ['WHATSAPP_CURRENT_STATUS_ID', 'Id of the conversation status in play'],
-]
 
 /**
  * A connector, laid out like a Postman collection.
@@ -49,6 +41,7 @@ export default function ConnectorPane({
   onAddAction,
   onPublish,
   onRequestDelete,
+  tab,
 }: {
   connector: LibraryConnector
   /** undefined while still loading. */
@@ -63,44 +56,19 @@ export default function ConnectorPane({
   onAddAction: () => void
   onPublish: () => void
   onRequestDelete: () => void
+  /**
+   * Which section is showing. Owned by the page, not here, because the header
+   * renders the section nav — it has to stay reachable while an action is
+   * open, and an action replaces this whole pane.
+   */
+  tab: string
 }) {
-  // Details, not Actions. Arriving at a connector, the thing you are looking
-  // at is the connector — its name, where it points, how it signs in. Actions
-  // led with a table that is empty on every new connector.
-  const [tab, setTab] = useState('details')
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
   const authLabel =
     AUTH_TYPES.find((a) => a.value === form.authType)?.label ?? form.authType
 
-  const tabs: WorkbenchTab[] = [
-    { id: 'actions', label: 'Actions', count: actions?.length ?? 0 },
-    { id: 'details', label: 'Details' },
-    { id: 'auth', label: 'Authorization' },
-    { id: 'variables', label: 'Variables', count: MACROS.length },
-    { id: 'agents', label: 'Agents', count: connector.deployments.length },
-  ]
-
   return (
     <div className="space-y-4">
-      <WorkbenchTabs
-        tabs={tabs}
-        active={tab}
-        onSelect={(id) => {
-          // Actions on a connector with none goes straight to the request
-          // editor. "Add an action is always an extra step" — so there is no
-          // step: the tab IS the editor.
-          //
-          // It opens as its own view rather than inside this tab, because the
-          // editor has a tab row of its own; nesting it under this one put two
-          // rows of tabs on screen, both saying Authorization, Headers, Body.
-          if (id === 'actions' && actions?.length === 0) {
-            onAddAction()
-            return
-          }
-          setTab(id)
-        }}
-      />
-
       {tab === 'actions' && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -208,7 +176,7 @@ export default function ConnectorPane({
                 </tr>
               </thead>
               <tbody>
-                {MACROS.map(([name, meaning]) => (
+                {META_MACROS.map(([name, meaning]) => (
                   <tr key={name} className="border-b last:border-b-0">
                     <td className="px-3 py-2 font-mono text-xs text-foreground">{name}</td>
                     <td className="px-3 py-2 text-muted-foreground">{meaning}</td>

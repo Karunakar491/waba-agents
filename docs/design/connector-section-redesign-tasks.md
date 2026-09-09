@@ -166,23 +166,8 @@ Fixes W11.
 
 ---
 
-## Order, and why
-
-| # | Task | Why here |
-| --- | --- | --- |
-| 1 | T1 one table component | Every later task is cheap after it and expensive before it |
-| 2 | T2 connector Details + Authorization | The largest surface still on the old pattern |
-| 3 | T4 empty tables | Small, and it is the thing in the screenshot |
-| 4 | T3 action Details | Removes the `Still needed` workaround |
-| 5 | T5 Agents table | Last non-table list |
-| 6 | T6 Body disclosure | Needs T1 |
-| 7 | T7 drop Response | Trivial, do it with T6 |
-| 8 | T9 honest status | Needs a decision, not much code |
-| 9 | T8 Meta instantiation | Backend, largest, and the only one that changes what the product *does* |
-
-T8 is last by sequence and first by importance. It is the one task on this list
-that a user would notice from the outside, and it should be scheduled as its
-own job rather than smuggled into a design pass.
+*The order for all fourteen tasks is in **The order**, below the coverage
+check — the layout tasks above are only half the list.*
 
 ---
 
@@ -224,6 +209,8 @@ kind. It is not nothing.
 | **G4** | **OAuth2 `token_request_content_type`.** Meta defaults it to `application/x-www-form-urlencoded` | Any token endpoint that wants a JSON token request |
 | **G5** | **Duplicate key across query and body** is rejected by Meta with a clear message; the editor lets you build it and fail on save | Anyone who names a query param and a body field the same |
 | **G6** | **Meta's rejection reason is discarded.** Every failure reaches the caller as `{"success":false,"error":"Meta API error: 400"}`; the real text sits in `api_call_log` | Everyone, on every mistake. This is why the matrix had to be probed rather than read |
+| **G7** | **Nothing says which body formats Meta refuses.** The Body tab invites JSON without stating that JSON is the *only* thing Meta will send | Anyone whose API takes a form POST, SOAP or a file upload — they configure a body and find out at publish |
+| **G8** | **A saved action never becomes a Meta tool.** Saving stores a template; nothing calls `/{phoneNumberId}/agent_connectors/{id}/tools` | Everyone. The agent cannot call anything configured here, and `Test` can never work |
 
 ### Cannot be built at all — Meta's wall, not ours
 
@@ -236,7 +223,8 @@ upload cannot be connected**, by any means, through Meta. A large share of
 older enterprise and payment APIs are exactly this.
 
 The UI must say so rather than let someone configure a body and discover it at
-publish. That is G7.
+publish — that is G7 above, and it is the one gap on this page that is not
+fixable by building more. All we can do is tell the truth early.
 
 ### Extra tasks from this audit
 
@@ -253,14 +241,53 @@ publish. That is G7.
   only, and names the alternatives that are rejected. Duplicate keys refused
   inline, quoting Meta's message.
 
-### Revised order
+---
 
-T13 first — it costs almost nothing and every other gap becomes diagnosable
-instead of a `400`. Then T10, then T1–T7 (the table work), then T11, T12, T14,
-then T8.
+## The order
 
-T8 still matters most: until actions are instantiated as Meta tools, all of the
-above is a document that no agent can call.
+One list, all fourteen. There were two order tables in this document at one
+point — the layout one written before the coverage check, and a revised one
+after. Two orders is no order.
+
+| # | Task | Fixes | Size | Why here |
+| --- | --- | --- | --- | --- |
+| 1 | **T13** surface Meta's real error | G6 | XS | Nearly free, and every other failure below stops being a `400`. Doing anything else first means debugging blind |
+| 2 | **T14** say what Meta refuses | G5, G7 | S | Stops people building a form-encoded or SOAP body that can never work. Pure honesty, no new capability |
+| 3 | **T10** API key in query params / body params | G1 | M | The most common auth style we cannot express. Backend + one column |
+| 4 | **T1** one table component | W1, W2, W6 | M | Every layout task after it is cheap; before it, each is a new implementation |
+| 5 | **T2** connector Details + Authorization as tables | W1, W2 | M | Largest surface still on the old pattern. Lands T10's new column with it |
+| 6 | **T4** empty tables show a blank row | W7 | S | Small, and it is the thing in the screenshot that started this |
+| 7 | **T3** an action's own Details tab | W3, W4, W8 | S | Removes the `Still needed` workaround rather than rewording it |
+| 8 | **T6** Body: table first, JSON collapsed | W10, W6 | M | Needs T1 |
+| 9 | **T7** drop the Response tab | W9 | XS | Do it in the same pass as T6; it comes back with T8 |
+| 10 | **T5** Agents as a table | W5 | S | Last non-table list |
+| 11 | **T9** honest connector status | W11 | S | Needs a decision from the founder more than it needs code |
+| 12 | **T12** `enum` on a parameter | G3 | S | Real capability, small surface — one column or one Value mode |
+| 13 | **T11** per-user OAuth | G2 | L | Opens a class of API we cannot touch today. Needs backend, a per-action flag, and a login/refresh tool concept |
+| 14 | **T8** instantiate actions as Meta tools | G8, W12 | L | **Matters most, sequenced last.** Its own job, not part of a design pass |
+
+### Reading that order honestly
+
+T8 is bottom of the list and top of the importance ranking. Everything above it
+improves a document that no agent can currently call. The reason it is not first
+is that it is backend work of a different shape and size, and starting it now
+would leave the section half-redesigned for as long as it takes.
+
+If the founder would rather have one connector that genuinely works end to end
+than fourteen tidy screens, **T8 and T13 alone are that** — and the rest can
+wait. That is a scheduling call, not a design one.
+
+### Not tasks, but worth knowing
+
+- `user_auth_required` already exists on the action payload and is hard-coded
+  `false`. T11 is the feature behind that field.
+- `upsertCertificate` is already wired for mTLS rotation, and the deploy modal
+  already takes all three PEMs. An earlier note of mine claiming mTLS had
+  "nowhere to put a PEM" was wrong — checked in
+  `ConnectorDeployModal.tsx:117-119`.
+- `GET /reports/api-calls?outcome=FAILURE` returns HTTP 500, so the fastest way
+  to find failures is unfiltered and filter client-side. Unrelated to this
+  section but it is how you would investigate anything on this page.
 
 ## Not doing
 

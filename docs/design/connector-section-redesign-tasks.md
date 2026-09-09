@@ -14,6 +14,112 @@ and the work to get there.
 
 ---
 
+## Why this kept iterating — the actual cause
+
+Every fix in this section was defensible and the screen still got worse. That
+is not a taste problem, it is a structural one:
+
+**The section runs three navigation systems over two objects.**
+
+1. the sidebar tree — connector → action
+2. the connector's section row — Actions / Details / Authorization / Variables / Agents
+3. the action's tab row — Params / Authorization / Headers / Body / Docs / Response
+
+Two of those address the same two objects. So every layout decision had to
+answer "which nav owns this?", and each answer contradicted the last one:
+
+- Sections inside the pane → opening an action destroyed them → *"why are other
+  sections closed?"*
+- Sections in the header as tabs → two tab rows, `Authorization` twice → *"why
+  are there 2 tabs."*
+- Sections as header pills → fine today, and still two rows of navigation
+  competing for the same top strip the moment anything else needs to go there.
+
+Restyling row 2 cannot fix row 2. It has to go.
+
+## The layout decision: a connector has no tabs
+
+Look at what the connector's five sections actually hold:
+
+| Section | Contents | Verdict |
+| --- | --- | --- |
+| `Details` | name, description, base URL, tags | 4 fields |
+| `Authorization` | auth type, credential header names, mTLS flag | ~3 fields |
+| `Variables` | Meta's three macros — **identical for every connector in the product** | not per-connector at all |
+| `Agents` | deployments, and one Publish button | a fact plus a button |
+| `Actions` | the tools | **the actual content** |
+
+Seven fields, one static reference list, and a deployment fact — split across
+five tabs. That is navigation invented to fill a screen, and it is why the
+connector view kept fighting the action view.
+
+**So: one screen per connector, no tabs.**
+
+```
+┌ Connectors / IndiaMART Supplier Search API · Published ────────────┐
+│                                                                     │
+│  ┌ Field ──────────┬ Value ─────────────────────────────────────┐   │
+│  │ Name            │ IndiaMART Supplier Search API              │   │
+│  │ Description     │ Finds suppliers for a buyer's requirement   │   │
+│  │ Base URL        │ https://script.google.com/macros/s/AKfy…    │   │
+│  │ Auth            │ API key · X-Api-Key (Bearer)          [+]   │   │
+│  │ Client cert     │ Not required                                │   │
+│  │ Tags            │ e-commerce, suppliers                       │   │
+│  └─────────────────┴─────────────────────────────────────────────┘   │
+│                                                                     │
+│  Actions                                          [ Add an action ] │
+│  ┌ Method ┬ Name ─────────┬ Path ────────┬ Params ┬ Body ┬ Desc ─┐  │
+│  │ POST   │ lookup_order  │ /orders/{id} │   2    │  3   │ …     │  │
+│  └────────┴───────────────┴──────────────┴────────┴──────┴───────┘  │
+│                                                                     │
+│  On 1 agent · Karix Demo (+91…) · up to date       [ Publish ]      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Everything about the connector is visible at once — which is what the founder
+actually asked for when he asked why sections were closed. Nothing is closed
+because there are no sections. And it is all tables, which is the other thing
+he asked for.
+
+`Variables` leaves the connector entirely: Meta's three macros are the same
+everywhere, so they belong at the point of use — a reference beside the Value
+cell where a macro is chosen, not a tab on every connector.
+
+### Tabs survive in exactly one place
+
+Inside an action, where `Params` / `Headers` / `Body` genuinely are alternative
+views of one request and only one can usefully be on screen at a time.
+
+Navigation systems: **3 → 2** (sidebar, action tabs). Two tab rows become
+impossible by construction rather than by styling, and the next layout question
+has one obvious owner.
+
+### What this reverses
+
+On 2026-09-07 the founder chose "keep the connector's sections reachable" over
+stacking them. That choice was between two bad options I offered — tabs, or one
+long scroll of complex panels. This is the third: the connector is small enough
+that nothing needs to be reachable, because nothing is away.
+
+`docs/jobs/connector-tables-redesign.md` carries the before/after.
+
+### What this does to the tasks below
+
+Stated here so this document does not end up with two plans again.
+
+| Task | Change |
+| --- | --- |
+| **T2** connector Details + Authorization as tables | Becomes **one property table**, not two tabbed ones. Same work, one surface |
+| **T5** Agents as a table | Shrinks to the strip at the foot of the connector screen |
+| **T20** *(new)* remove the connector section nav | The header keeps only the breadcrumb. Deletes the code shipped on 2026-09-09 |
+| **T21** *(new)* Variables leaves the connector | Meta's three macros become a reference beside the Value cell, at the point a macro is chosen |
+| **T19** description column in the Actions table | Now definitely wanted — the Actions table is the connector screen's main content |
+| T1, T3, T4, T6, T7, T15–T18 | Unchanged |
+
+T20 and T21 both **delete** things I built this week. That is the honest cost of
+having designed per screenshot, and they are cheaper to delete now than to keep
+styling.
+
 ## The rule
 
 **Everything you can edit about a connector is a row in a table. One table

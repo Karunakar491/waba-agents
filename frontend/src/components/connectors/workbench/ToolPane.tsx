@@ -5,6 +5,8 @@ import RequestBar from './RequestBar'
 import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
 import AutoHeaders from './AutoHeaders'
 import ResponsePane, { type ProbeResult } from './ResponsePane'
+import ImportCurl from './ImportCurl'
+import { type ParsedCurl } from './parseCurl'
 import ToolParamsEditor from '../../agent-detail/ToolParamsEditor'
 import ToolBodyEditor from '../../agent-detail/ToolBodyEditor'
 import {
@@ -12,11 +14,21 @@ import {
   parseRequestDefinition,
   extractPathParamNames,
   methodSendsBody,
+  parseBodyJson,
   IncompleteRowError,
   type ParamRow,
   type BodyFieldRow,
 } from '../../agent-detail/toolRequestDefinition'
 import type { ActionPayload, ConnectorAction } from '../connectorActions'
+
+/** Scheme and host of the connector's base URL, for comparing against a pasted cURL. */
+function originOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).origin
+  } catch {
+    return ''
+  }
+}
 
 const inputCls =
   'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
@@ -202,6 +214,61 @@ export default function ToolPane({
     setTab('response')
   }
 
+  /**
+   * Fills the whole request from a pasted cURL.
+   *
+   * Rows are replaced rather than merged. Importing is "make this be that
+   * request", and merging would leave a parameter from the previous shape in
+   * place — which reads as a bug in the import.
+   *
+   * Two things are deliberately not taken from the cURL. The credential value,
+   * because it belongs on the connector and is never stored; and the host,
+   * because the base URL is the connector's, and a cURL for a different host is
+   * a different connector rather than an edit to this one. ImportCurl says both
+   * before this runs.
+   */
+  function applyCurl(parsed: ParsedCurl) {
+    setMethod(parsed.method)
+    setPath(parsed.path || '/')
+    setQueryParams(
+      parsed.queryParams.map((p) => ({
+        key: p.key,
+        type: 'string',
+        description: '',
+        required: false,
+        // A value that came from a real call is a fixed value, not something
+        // for the agent to invent. Someone can switch a row to agent-filled;
+        // guessing that for them would silently drop the value they pasted.
+        fill: 'fixed',
+        fixedValue: p.value,
+      })),
+    )
+    setHeaderParams(
+      parsed.headers
+        // Content-Type is not a row anyone should own: Meta sets it, and
+        // AutoHeaders already shows that it is set.
+        .filter((h) => h.key.toLowerCase() !== 'content-type')
+        .map((h) => ({
+          key: h.key,
+          type: 'string',
+          description: '',
+          required: false,
+          fill: 'fixed',
+          fixedValue: h.value,
+        })),
+    )
+    if (parsed.body) {
+      try {
+        setBodyFields(parseBodyJson(parsed.body, []))
+      } catch {
+        // A body the parser already warned about. The request is still worth
+        // importing without it, rather than refusing the whole paste.
+        setBodyFields([])
+      }
+      setProbeBody(parsed.body)
+    }
+  }
+
   const unresolvedTokens = pathTokens.filter(
     (token) => !pathParamMeta[token]?.fixedValue?.trim(),
   )
@@ -258,6 +325,15 @@ export default function ToolPane({
           className={`${inputCls} font-mono`}
         />
       </label>
+
+      {/* Above the bar, because pasting a cURL is the fastest way to fill
+          everything below it — and on a new action it is usually the first
+          thing someone wants to do. */}
+      <ImportCurl
+        connectorOrigin={originOf(baseUrl)}
+        onApply={applyCurl}
+        disabled={saving}
+      />
 
       <RequestBar
         method={method}

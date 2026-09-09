@@ -55,3 +55,6 @@ frontend/test-results/
 
 # Seeded design-canvas payload — a 2MB build artifact; the .dc.html sources beside it are the source of truth
 design/connector-section.html
+
+# Design artboards are generated — `node screens.mjs && node connectors.mjs`. The generators are the source.
+design/*.dc.html

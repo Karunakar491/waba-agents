@@ -424,6 +424,21 @@ kind. It is not nothing.
 | **G8** | **A saved action never becomes a Meta tool.** Saving stores a template; nothing calls `/{phoneNumberId}/agent_connectors/{id}/tools` | Everyone. The agent cannot call anything configured here |
 | **G9** | **You cannot send the request and see the response.** So an endpoint is configured blind and first proved by a real customer's message failing | Everyone, on every connector. See the correction below |
 
+### Two more that cannot be built, found later
+
+Both are auth-shaped, both are common in Indian enterprise APIs, and neither
+was in the first audit.
+
+| # | Gap | Why it cannot be expressed |
+| --- | --- | --- |
+| **G10** | **A request signature computed per call** — HMAC of the body plus a timestamp plus a nonce, sent as a header | There is no pre-request step anywhere: not in Meta's tool model, not in the connector. `binding` supplies a fixed value or one of three WhatsApp macros, and that is all. Most Indian payment and logistics APIs sign this way |
+| **G11** | **Log in first, then use the token** — `POST /login` with a username and password, take `token` from the reply, send it as a header on every later call | `auth_type` has exactly three values: `API_KEY`, `OAUTH2_CLIENT_CREDENTIALS`, `NONE`. A bespoke login endpoint is none of them. OAuth2 client credentials fits only if the token endpoint happens to speak OAuth |
+
+Neither has a workaround inside the product. The only honest routes are a proxy
+the customer runs, or `user_auth_injection_config` (G2) where the flow happens
+to be per-customer rather than per-business. Both belong in the answer to "can
+we connect this API?", not discovered at publish time.
+
 ### Cannot be built at all — Meta's wall, not ours
 
 `content_type` is an enum with exactly one member. Verified rejected:
@@ -434,9 +449,16 @@ So **any API that only accepts a form-encoded POST, SOAP, or a multipart file
 upload cannot be connected**, by any means, through Meta. A large share of
 older enterprise and payment APIs are exactly this.
 
-The UI must say so rather than let someone configure a body and discover it at
-publish — that is G7 above, and it is the one gap on this page that is not
-fixable by building more. All we can do is tell the truth early.
+So, plainly: **no file uploads, no form POSTs, no SOAP.** Those are not
+configuration problems, they are "this API cannot be connected".
+
+One thing that *does* work and looks like it should not: **GraphQL**. A GraphQL
+call is a `POST` of `application/json` with `query` and `variables` in the body,
+which is exactly what Meta sends. It needs no special support.
+
+The UI must say all of this rather than let someone configure a body and
+discover it at publish — that is G7 above, and it is the one gap on this page
+that is not fixable by building more. All we can do is tell the truth early.
 
 ### Correction: a test call is not impossible
 

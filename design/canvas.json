@@ -1,13 +1,77 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "title": "1 · Connector", "x": 0, "y": 0, "w": 1440, "h": 900 },
-    { "file": "NewConnector.dc.html", "title": "2 · Connector — nothing in it yet", "x": 1560, "y": 0, "w": 1440, "h": 900 },
-    { "file": "Params.dc.html", "title": "3 · Action — Params", "x": 3120, "y": 0, "w": 1440, "h": 900 },
-    { "file": "ActionAuth.dc.html", "title": "4 · Action — Auth (base URL + credentials)", "x": 0, "y": 1080, "w": 1440, "h": 900 },
-    { "file": "Headers.dc.html", "title": "5 · Action — Headers", "x": 1560, "y": 1080, "w": 1440, "h": 900 },
-    { "file": "Body.dc.html", "title": "6 · Action — Body, sent", "x": 3120, "y": 1080, "w": 1440, "h": 900 },
-    { "file": "Docs.dc.html", "title": "7 · Action — Docs", "x": 0, "y": 2160, "w": 1440, "h": 900 },
-    { "file": "Kundli.dc.html", "title": "8 · AstroTalk Kundli mapped", "x": 1560, "y": 2160, "w": 1440, "h": 900 }
+    {
+      "file": "Main.dc.html",
+      "title": "1 · Connector",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "NewConnector.dc.html",
+      "title": "2 · Connector — nothing in it yet",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Params.dc.html",
+      "title": "3 · Action — Params",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "BulkEdit.dc.html",
+      "title": "4 · Action — Params in bulk",
+      "x": 4680,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "ActionAuth.dc.html",
+      "title": "5 · Action — Auth (base URL + credentials)",
+      "x": 0,
+      "y": 1080,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Headers.dc.html",
+      "title": "6 · Action — Headers",
+      "x": 1560,
+      "y": 1080,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Body.dc.html",
+      "title": "7 · Action — Body, sent",
+      "x": 3120,
+      "y": 1080,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Docs.dc.html",
+      "title": "8 · Action — Docs",
+      "x": 0,
+      "y": 2160,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Kundli.dc.html",
+      "title": "9 · AstroTalk Kundli mapped",
+      "x": 1560,
+      "y": 2160,
+      "w": 1440,
+      "h": 900
+    }
   ],
   "annotations": [
     {
@@ -15,14 +79,7 @@
       "x": 0,
       "y": -250,
       "w": 520,
-      "text": "Nine screens became eight.\n\nThe old screen 2 (connector, auth open) and screen 5 (action, Auth) had the same purpose — and the action one was worse than redundant: its entire content was \"it's over there\". That is the signpost tab I removed from the connector earlier in the session and then rebuilt one level down.\n\nSo: a connector is Name, Description, Tags and its Actions — identity and contents, nothing else. Base URL and auth move to the action's Auth tab, where they are actually used, and are editable there."
-    },
-    {
-      "id": "shared",
-      "x": 0,
-      "y": 940,
-      "w": 500,
-      "text": "Screen 4 is the collapse.\n\nEditable, because this is where you are when you need it. Marked shared, because it is: Meta keeps base_url and auth_config on the connector and a tool cannot carry a credential of its own, so one edit changes every action under it. The amber line says so before you type, not after.\n\nThe In column — Header / Query / Body — is the gap that stops an ?api_key= API being configurable at all today."
+      "text": "Nine screens, one chrome, light only.\n\nThe old connector-auth screen and the action Auth tab had the same purpose — and the action one was worse than redundant: its whole content was \"it is over there\". That is the signpost tab I removed from the connector earlier in the session and then rebuilt one level down.\n\nSo: a connector is Name, Description, Tags and its Actions — identity and contents, nothing else. Base URL and auth moved onto the action Auth tab, where they are used, and are editable there."
     },
     {
       "id": "connector-rule",
@@ -32,19 +89,35 @@
       "text": "A connector has no tabs and now barely has a screen: three identity rows and the Actions table.\n\nScreen 2 is one with nothing in it — no empty-state message, no Add button. The last row of the table is the affordance, and Publish is greyed because a connector with no actions cannot usefully be published."
     },
     {
-      "id": "action-rule",
-      "x": 4680,
-      "y": 0,
-      "w": 460,
-      "text": "One tab row, ever, and it lives inside an action.\n\nResponse is pinned to the foot of the pane on EVERY action screen — a 44px \"Not sent yet\" strip until you Send, then 268px with the status line and the body. It does not move between tabs.\n\nEvery table is the same five columns: Key · Type · Source · Description · Required."
-    },
-    {
       "id": "kundli-rule",
       "x": 3120,
       "y": 2160,
       "w": 470,
       "text": "The founder's own API: 13 fields under one `detail` object.\n\nday, month, year, lat and lon are required by the API and every one shows a dash — Meta records required-ness only for TOP-LEVEL body fields, and the only top-level field here is `detail`. So the description carries the range, the unit and the word required. There is no min, max or pattern either.\n\nThe response is 200 OK with status:failed. A green tick on the status line would report success on a failed call, so the pane shows the body and the strip says read status, not the code."
+    },
+    {
+      "id": "bulk",
+      "x": 6240,
+      "y": 0,
+      "w": 470,
+      "text": "Still no Add button — the trailing row is the add, sitting where the new row appears.\n\nWhat actually helps at nine or twenty params: Bulk swaps the table for one line per parameter, Tab off the last row makes the next one, and pasting a query string fills rows in one go. A button would add a click per row and nothing else.\n\nSwitching Table/Bulk loses nothing — same data, two ways to type it."
+    },
+    {
+      "id": "action-rule",
+      "x": 0,
+      "y": 940,
+      "w": 470,
+      "text": "One tab row, ever, and it lives inside an action.\n\nResponse is pinned to the foot of the pane on EVERY action screen — a 44px \"Not sent yet\" strip until you Send, then 268px with the status line and the body. It does not move between tabs.\n\nEvery table is the same five columns: Key · Type · Source · Description · Required."
+    },
+    {
+      "id": "shared",
+      "x": 1560,
+      "y": 940,
+      "w": 470,
+      "text": "Auth, collapsed from two screens into one.\n\nEditable, because this is where you are when you need it. Marked shared, because it is: Meta keeps base_url and auth_config on the connector and a tool cannot carry a credential of its own, so one edit changes every action under it.\n\nThe In column — Header / Query / Body — is the gap that stops an ?api_key= API being configurable at all today."
     }
   ],
-  "launch": { "view": "canvas" }
+  "launch": {
+    "view": "canvas"
+  }
 }

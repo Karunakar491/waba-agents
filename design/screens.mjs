@@ -138,6 +138,59 @@ screen({
   resp: response('idle'),
 })
 
+/* -------------------------------------------------------- Params, in bulk */
+screen({
+  file: 'BulkEdit.dc.html',
+  tree: { open: 'supplier', sel: 'supplier_search' },
+  crumbs: [...SUP, { text: 'supplier_search', mono: true }],
+  bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
+  tabRow: tabs({ active: 'params', params: 9, headers: 1, body: 0, bodyOff: true }),
+  content: `
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px">
+            <span class="lbl">Query params</span>
+            <span style="margin-left: auto; display: inline-flex; border: 1px solid ${T.line}; border-radius: 8px; overflow: hidden">
+              <span style="font-size: 12px; padding: 6px 12px; color: ${T.muted}">Table</span>
+              <span style="font-size: 12px; padding: 6px 12px; background: #F4F4F5; font-weight: 600; border-left: 1px solid ${T.line}">Bulk</span>
+            </span>
+          </div>
+
+          <div class="mono" style="border: 1px solid ${T.line}; border-radius: 10px; background: #FCFCFD; padding: 12px 14px; line-height: 1.85; font-size: 12.5px">
+            <div><span class="k">product</span>: agent  <span class="ghost">// what the buyer is looking for</span></div>
+            <div><span class="k">city</span>: agent  <span class="ghost">// delivery city the buyer named</span></div>
+            <div><span class="k">phone</span>: {{customer_phone}}</div>
+            <div><span class="k">limit</span>: 10</div>
+            <div><span class="k">sort</span>: agent  <span class="ghost">// price_asc, price_desc or rating</span></div>
+            <div><span class="k">min_rating</span>: 3</div>
+            <div><span class="k">verified_only</span>: true</div>
+            <div><span class="k">page</span>: agent</div>
+            <div><span class="k">locale</span>: en-IN<span style="display: inline-block; width: 1.5px; height: 15px; background: ${T.teal}; vertical-align: -3px; margin-left: 2px"></span></div>
+          </div>
+          <p style="font-size: 12px; color: ${T.muted}; margin: 10px 0 0; max-width: 900px">One line per parameter: <span class="mono" style="font-size: 11.5px">key: source</span>, and anything after <span class="mono" style="font-size: 11.5px">//</span> is the description. Nine parameters is nine lines to type here and nine rows to tab through in the table &mdash; this is the same data, faster. Switching back to Table loses nothing.</p>
+
+          <div style="display: flex; gap: 22px; margin-top: 22px">
+            <div style="flex: 1">
+              <div class="lbl" style="display: block; margin-bottom: 7px">Also, in the table</div>
+              <div style="border: 1px solid ${T.line}; border-radius: 10px; padding: 12px 14px">
+                <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 7px">
+                  <span class="mono" style="font-size: 11px; background: #F4F4F5; border: 1px solid ${T.line}; border-radius: 5px; padding: 2px 7px">Tab</span>
+                  <span style="font-size: 12.5px">at the end of the last row makes the next one</span>
+                </div>
+                <div style="display: flex; align-items: baseline; gap: 10px">
+                  <span class="mono" style="font-size: 11px; background: #F4F4F5; border: 1px solid ${T.line}; border-radius: 5px; padding: 2px 7px">Paste</span>
+                  <span style="font-size: 12.5px">a query string or <span class="mono" style="font-size: 11.5px">key: value</span> lines fills rows in one go</span>
+                </div>
+              </div>
+            </div>
+            <div style="flex: 1">
+              <div class="lbl" style="display: block; margin-bottom: 7px">Still no Add button</div>
+              <div style="border: 1px solid ${T.line}; border-radius: 10px; padding: 12px 14px">
+                <p style="font-size: 12.5px; margin: 0; line-height: 1.55; color: #52525B">A button would be a second way to do what the trailing row already does, placed away from the row it creates. Nine parameters is nine rows of typing either way &mdash; a button just adds nine clicks.</p>
+              </div>
+            </div>
+          </div>`,
+  resp: response('idle'),
+})
+
 /* ------------------------------------------------------------------- Docs */
 screen({
   file: 'Docs.dc.html',
@@ -293,4 +346,4 @@ screen({
   }),
 })
 
-console.log('wrote Headers.dc.html ActionAuth.dc.html Docs.dc.html Body.dc.html Kundli.dc.html')
+console.log('wrote Headers ActionAuth BulkEdit Docs Body Kundli')

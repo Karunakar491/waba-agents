@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #0F766E; text-decoration: none; } a:hover { color: #115E56; }
+    table { border-collapse: collapse; width: 100%; }
+    .th { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #71717A; text-align: left; padding: 0 12px; height: 30px; border-bottom: 1px solid #E4E4E7; }
+    .td { font-size: 12.5px; color: #1F1F1F; padding: 0 12px; height: 40px; border-bottom: 1px solid #F0F0F1; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .ghost { color: #A1A1AA; }
+    .sel { font-size: 12px; color: #1F1F1F; display: inline-flex; align-items: center; gap: 5px; }
+    .k { color: #0F766E; } .s { color: #B45309; } .n { color: #6B4EE6; }
+    .warn { border: 1px solid #F5D9A8; background: #FEF9F0; border-radius: 10px; padding: 12px 14px; }
+    .warnh { font-size: 12.5px; font-weight: 600; color: #92400E; margin: 0 0 4px }
+    .warnp { font-size: 12.5px; color: #7C4A11; margin: 0; line-height: 1.55 }
+  </style>
+</helmet>
+
+<div style="width: 1300px; height: 1560px; background: #FFFFFF; color: #1F1F1F; padding: 32px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+
+  <div>
+    <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">A real API, mapped</div>
+    <p style="font-size: 12.5px; color: #52525B; margin: 8px 0 0; max-width: 860px">AstroTalk combined Kundli &mdash; <span class="mono">POST api.kundali.astrotalk.com/v1/combined/general</span>. Thirteen fields inside one nested object, five of them genuinely required by the API, two the agent has to derive. Mapping it exposed three things the earlier artboards got wrong.</p>
+  </div>
+
+  <!-- request bar + body -->
+  <div style="display: flex; gap: 10px; align-items: stretch">
+    <div style="display: flex; flex-grow: 1; min-width: 0; border: 1px solid #E4E4E7; border-radius: 10px; overflow: hidden; height: 38px">
+      <div style="display: flex; align-items: center; gap: 6px; padding: 0 12px; border-right: 1px solid #E4E4E7; background: #FAFAFA">
+        <span class="mono" style="font-size: 11.5px; font-weight: 700; color: #B45309">POST</span>
+      </div>
+      <div style="display: flex; align-items: center; padding: 0 10px; border-right: 1px solid #E4E4E7; background: #FAFAFA">
+        <span class="mono ghost" style="font-size: 11.5px">api.kundali.astrotalk.com</span>
+      </div>
+      <div style="display: flex; align-items: center; padding: 0 12px; flex-grow: 1">
+        <span class="mono" style="font-size: 12.5px">/v1/combined/general</span>
+      </div>
+    </div>
+    <div style="display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 16px; border-radius: 10px; background: #0F766E; color: #FFFFFF">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="#FFFFFF"><path d="M8 5v14l11-7z"/></svg>
+      <span style="font-size: 12.5px; font-weight: 600">Send</span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 20px; align-items: flex-start">
+    <div style="width: 470px; flex-shrink: 0">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 7px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">Request</span>
+        <span style="font-size: 11.5px; color: #A1A1AA">pasted once &mdash; the rows below come from it</span>
+      </div>
+      <div class="mono" style="border: 1px solid #E4E4E7; border-radius: 10px; background: #FCFCFD; padding: 11px 13px; line-height: 1.6; font-size: 11.5px">
+        <div>{</div>
+        <div>&nbsp;&nbsp;<span class="k">"detail"</span>: {</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"name"</span>: <span class="s">"Test User"</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"gender"</span>: <span class="s">"Male"</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"day"</span>: <span class="n">1</span>, <span class="k">"month"</span>: <span class="n">1</span>, <span class="k">"year"</span>: <span class="n">1990</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"hour"</span>: <span class="n">12</span>, <span class="k">"min"</span>: <span class="n">0</span>, <span class="k">"sec"</span>: <span class="n">0</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"lat"</span>: <span class="n">28.6139</span>, <span class="k">"lon"</span>: <span class="n">77.209</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"place"</span>: <span class="s">"New Delhi, India"</span>,</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"tzone"</span>: <span class="n">5.5</span></div>
+        <div>&nbsp;&nbsp;}</div>
+        <div>}</div>
+      </div>
+      <p style="font-size: 11.5px; color: #71717A; margin: 9px 2px 0; line-height: 1.5">Everything nests under one object, so the table below is the only place the shape is legible at a glance.</p>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 7px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">Fields</span>
+        <span style="font-size: 11.5px; color: #A1A1AA">13</span>
+      </div>
+      <div style="border: 1px solid #E4E4E7; border-radius: 10px; overflow: hidden">
+        <table>
+          <thead>
+            <tr>
+              <th class="th" style="width: 132px">Field</th>
+              <th class="th" style="width: 82px">Type</th>
+              <th class="th" style="width: 120px">Source</th>
+              <th class="th">Description &mdash; what the agent reads</th>
+              <th class="th" style="width: 68px; text-align: center">Req.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td mono ghost">detail</td>
+              <td class="td" style="color: #52525B">object</td>
+              <td class="td ghost">&mdash;</td>
+              <td class="td" style="color: #52525B">The person&rsquo;s birth data</td>
+              <td class="td" style="text-align: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2.6" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.name</td>
+              <td class="td" style="color: #52525B">string</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Name the person gave. Use &ldquo;Anonymous&rdquo; if they did not give one.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.gender</td>
+              <td class="td" style="color: #52525B">string</td>
+              <td class="td"><span class="sel" style="color: #0F766E; font-weight: 500">One of</span></td>
+              <td class="td" style="color: #52525B">Exactly <span class="mono">Male</span> or <span class="mono">Female</span> &mdash; the API accepts nothing else.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.day</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Day of birth, 1&ndash;31. <strong>Required by the API.</strong></td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.month</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Month of birth as a number, 1&ndash;12. <strong>Required by the API.</strong></td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.year</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Four-digit year of birth. <strong>Required by the API.</strong></td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.hour</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Hour of birth on a 24-hour clock, 0&ndash;23. Midnight is 0, not 24.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.min</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Minute of birth, 0&ndash;59.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.sec</td>
+              <td class="td" style="color: #52525B">integer</td>
+              <td class="td"><span class="sel">Fixed<span class="mono" style="border: 1px solid #E4E4E7; border-radius: 5px; padding: 1px 6px">0</span></span></td>
+              <td class="td ghost">&mdash;</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.lat</td>
+              <td class="td" style="color: #52525B">number</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Latitude of the birth place in decimal degrees, e.g. 28.6139 for New Delhi. Not a place name. <strong>Required.</strong></td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.lon</td>
+              <td class="td" style="color: #52525B">number</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Longitude in decimal degrees, e.g. 77.209. East is positive. <strong>Required.</strong></td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.place</td>
+              <td class="td" style="color: #52525B">string</td>
+              <td class="td"><span class="sel">Agent</span></td>
+              <td class="td" style="color: #52525B">Birth place as the person said it, e.g. &ldquo;New Delhi, India&rdquo;.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="td mono">detail.tzone</td>
+              <td class="td" style="color: #52525B">number</td>
+              <td class="td"><span class="sel">Fixed<span class="mono" style="border: 1px solid #E4E4E7; border-radius: 5px; padding: 1px 6px">5.5</span></span></td>
+              <td class="td" style="color: #52525B">UTC offset in hours. 5.5 for India.</td>
+              <td class="td ghost" style="text-align: center">&mdash;</td>
+            </tr>
+            <tr style="background: #FCFCFD">
+              <td class="td mono ghost" style="border-bottom: none">field</td>
+              <td class="td ghost" style="border-bottom: none">string</td>
+              <td class="td ghost" style="border-bottom: none">Agent</td>
+              <td class="td ghost" style="border-bottom: none">description</td>
+              <td class="td" style="border-bottom: none; text-align: center"><span style="display: inline-block; width: 13px; height: 13px; border: 1.5px solid #E8E8EB; border-radius: 4px"></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- what mapping a real API exposed -->
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">What this API exposed</span>
+
+    <div class="warn">
+      <p class="warnh">1 &mdash; The Required column is almost useless here, and my earlier artboards hid that</p>
+      <p class="warnp">
+        Meta records required-ness only as <span class="mono">body.required</span>, a list of <strong>top-level</strong> field names. The only top-level field in this API is <span class="mono">detail</span>. So <span class="mono">day</span>, <span class="mono">month</span>, <span class="mono">year</span>, <span class="mono">lat</span> and <span class="mono">lon</span> &mdash; which the API genuinely rejects the call without &mdash; <strong>cannot be marked required at all</strong>. Every one shows a dash.
+        <br><br>
+        Which answers the question directly: <strong>the description is not documentation, it is the contract.</strong> It is the only place a constraint can live, so it carries the range, the unit, the format and the word &ldquo;required&rdquo; in words. Meta has no min, no max, no pattern either.
+      </p>
+    </div>
+
+    <div class="warn">
+      <p class="warnh">2 &mdash; Two fields need the agent to convert, not to relay</p>
+      <p class="warnp">
+        A person says &ldquo;born in Bankura&rdquo;. This API wants <span class="mono">lat: 23.23</span>, <span class="mono">lon: 87.07</span> in decimal degrees, and it will not geocode <span class="mono">place</span> for you. So those two descriptions have to say <em>decimal degrees, not a place name</em>, with an example &mdash; or the agent will send the string and the call fails. <span class="mono">hour</span> is the same trap: &ldquo;12 midnight&rdquo; must become <span class="mono">0</span>.
+      </p>
+    </div>
+
+    <div class="warn">
+      <p class="warnh">3 &mdash; A failure arrives as HTTP 200</p>
+      <p class="warnp">
+        <span class="mono">{"status":"failed","reason":"lat and lon are required"}</span> comes back <strong>200 OK</strong>. Nothing in Meta's tool model can express &ldquo;200 but check a field&rdquo;, so the <em>action&rsquo;s</em> description &mdash; not a field&rsquo;s &mdash; has to tell the agent to read <span class="mono">status</span> before trusting the body, and to relay <span class="mono">reason</span>. Without that the agent reports success on a failed call.
+        <br><br>
+        A green <span class="mono">200 OK</span> in the response pane would say the same wrong thing, so the pane has to show the body and not just the status line.
+      </p>
+    </div>
+  </div>
+
+  <!-- action description -->
+  <div style="display: flex; flex-direction: column; gap: 7px">
+    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">The action&rsquo;s own description &mdash; Docs</span>
+    <div style="border: 1px solid #E4E4E7; border-radius: 10px; padding: 12px 14px; background: #FCFCFD">
+      <p style="font-size: 12.5px; color: #1F1F1F; margin: 0; line-height: 1.6">
+        Generates a full Kundli report from a person&rsquo;s birth date, exact time and birth place. Ask for all three before calling &mdash; the report is wrong, not merely incomplete, if the time is guessed. The reply is a 200 even when it fails: check <span class="mono">status</span>, and if it is <span class="mono">failed</span>, tell the person what <span class="mono">reason</span> says instead of reporting a result.
+      </p>
+    </div>
+    <p style="font-size: 11.5px; color: #71717A; margin: 2px 2px 0; max-width: 900px">Two sentences of behaviour and one of failure handling. This is the text Meta hands the model verbatim to decide when to call the action, so it is the highest-consequence copy on the screen &mdash; which is why the Description column is always visible here rather than hidden behind an info icon, as it is in Postman.</p>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

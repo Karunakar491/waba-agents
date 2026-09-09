@@ -5,7 +5,8 @@
     { "file": "Send.dc.html", "title": "Action · Body + Send + Response", "x": 3120, "y": 0, "w": 1440, "h": 900 },
     { "file": "Auth.dc.html", "title": "Auth on the connector", "x": 0, "y": 1120, "w": 1180, "h": 1000 },
     { "file": "BodyDark.dc.html", "title": "Action · Body — dark", "x": 1300, "y": 1120, "w": 1440, "h": 900 },
-    { "file": "States.dc.html", "title": "Creating without a button", "x": 2860, "y": 1120, "w": 1180, "h": 1240 }
+    { "file": "States.dc.html", "title": "Creating without a button", "x": 2860, "y": 1120, "w": 1180, "h": 1240 },
+    { "file": "Kundli.dc.html", "title": "AstroTalk Kundli — a real API mapped", "x": 0, "y": 2500, "w": 1300, "h": 1560 }
   ],
   "annotations": [
     {
@@ -35,6 +36,13 @@
       "y": 2180,
       "w": 470,
       "text": "Auth is two rows of the connector's property table, and the credentials are a table.\n\nThe In column (Header / Query / Body) is the whole of gap G1: Meta accepts credentials in all three and we only ever built headers, so every ?api_key= API was unconfigurable.\n\nAn action's Auth tab reports what it inherits and links here — Meta ignores a per-tool override, so offering one would lie."
+    },
+    {
+      "id": "kundli-note",
+      "x": 1380,
+      "y": 2500,
+      "w": 470,
+      "text": "The founder's question: \"if I have to map fields of the body and all with the agent how do I give the description?\"\n\nAnswer, from mapping his API: the description is not documentation, it is the contract. Meta records required-ness only for TOP-LEVEL body fields, and this API nests everything under one — so day, month, year, lat and lon are all genuinely required and none of them can be marked required. There is no min, no max, no pattern either.\n\nSo the description carries the range, the unit, the format and the word required, in words. lat wants decimal degrees and will not geocode a place name; hour wants 0 for midnight, never 24.\n\nAnd a failed call returns HTTP 200 with status:failed — so the ACTION's description, not a field's, has to tell the agent to read status before trusting the body."
     },
     {
       "id": "copy-note",

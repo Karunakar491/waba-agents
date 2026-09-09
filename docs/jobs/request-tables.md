@@ -46,10 +46,20 @@ nothing. The checkbox column here is `Required`, which is real and maps to
 
 ## Proof
 
-- `@workbench`, `@nested-body`, `@multi-auth`, `@connector-delete`, `@feedback`
-  green against production, plus the default suite.
-- The nested-body spec is the one that matters: it pastes a payload with an
-  object, a list of objects and a list of strings, and proves every leaf comes
-  back after a save.
-- Unit tests on `toolRequestDefinition` unchanged and passing — the wire format
-  does not move in this job, only the way it is edited.
+Deployed as `index-I5PE6OX1.js`, md5 `7bdeef843a7d34619799aefea4f2de76`,
+verified served by nginx and referenced by the live `index.html`.
+
+- `@nested-body` + `@workbench` — 2 passed. The nested-body one is the one that
+  matters: it pastes an object, a list of objects and a list of strings, and now
+  asserts the rows come back named `lines[].sku`, `lines[].qty`,
+  `customer.vip`. Those assertions were `sku`, `qty`, `vip` — they had to
+  change, which is the point: a row is addressed by its full path now.
+- `@multi-auth`, `@connector-delete`, `@feedback` — 6 passed.
+- Default suite — 12 passed.
+- 82 unit tests on `toolRequestDefinition` untouched and green. The wire format
+  does not move in this job, only the way it is edited — that is the whole
+  reason the existing tests are the right check here.
+
+Screenshot: `frontend/e2e-shots/wb-action.png` — `{ "order": { "id": 42 } }`
+pasted, producing `order` (object, "built from its fields") and `order.id`
+(integer, "Agent fills this in").

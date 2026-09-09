@@ -1,0 +1,48 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Connector — light", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Action.dc.html", "title": "Action · Params — light", "x": 1560, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Send.dc.html", "title": "Action · Body + Send + Response", "x": 3120, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Auth.dc.html", "title": "Auth on the connector", "x": 0, "y": 1120, "w": 1180, "h": 1000 },
+    { "file": "BodyDark.dc.html", "title": "Action · Body — dark", "x": 1300, "y": 1120, "w": 1440, "h": 900 },
+    { "file": "States.dc.html", "title": "Creating without a button", "x": 2860, "y": 1120, "w": 1180, "h": 1240 }
+  ],
+  "annotations": [
+    {
+      "id": "one-nav",
+      "x": 0,
+      "y": -210,
+      "w": 460,
+      "text": "One screen per connector, no tabs.\n\nSeven fields, a static macro list and a deployment fact used to be five tabs. Everything is on screen at once, so nothing is closed — which is what \"why are other sections closed?\" was actually asking for.\n\nNavigation: the sidebar, and an action's tabs. Two rows of tabs are now impossible."
+    },
+    {
+      "id": "one-tab-row",
+      "x": 1560,
+      "y": -210,
+      "w": 460,
+      "text": "Tabs survive in exactly one place: inside an action, where Params / Headers / Body really are alternative views of one request.\n\nEvery table is the same five columns: Key · Type · Source · Description · Required. No enable/disable checkbox — Meta has no disabled parameter, so Required is the only real one."
+    },
+    {
+      "id": "send-note",
+      "x": 3120,
+      "y": -300,
+      "w": 470,
+      "text": "Send and Response — the correction that matters.\n\nI had been saying a test was impossible because Meta makes the call at runtime. Wrong: for VERIFICATION our own server can make it and show you the response. Without that you configure blind and find out from a customer.\n\nWhat this needs, and what it costs:\n• the credential typed for the test, held for that one request, never stored\n• an SSRF guard — the server must refuse private ranges, localhost and 169.254.169.254, with a timeout and a response cap\n• honesty: our egress is not Meta's, so a request that passes here can still be refused there by an IP allowlist"
+    },
+    {
+      "id": "auth-note",
+      "x": 0,
+      "y": 2180,
+      "w": 470,
+      "text": "Auth is two rows of the connector's property table, and the credentials are a table.\n\nThe In column (Header / Query / Body) is the whole of gap G1: Meta accepts credentials in all three and we only ever built headers, so every ?api_key= API was unconfigurable.\n\nAn action's Auth tab reports what it inherits and links here — Meta ignores a per-tool override, so offering one would lie."
+    },
+    {
+      "id": "copy-note",
+      "x": 4200,
+      "y": 1120,
+      "w": 420,
+      "text": "Copy standard, visible rather than described: nouns, not sentences. Actions. Agents. Source. Agent. Fixed. Up to date. JSON only.\n\nGone: \"What it can do\", \"Who fills this in\", \"Agent fills this in\", \"built from its fields\", \"Still needed: Name, Description (Docs tab)\".\n\nMacros read as {{customer_phone}} — standard token style, mapped to Meta's constant on the way out, so nobody reads a Meta constant."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

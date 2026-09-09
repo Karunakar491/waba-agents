@@ -1,0 +1,245 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #0F766E; text-decoration: none; } a:hover { color: #115E56; }
+    table { border-collapse: collapse; width: 100%; }
+    .th { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #71717A; text-align: left; padding: 0 12px; height: 32px; border-bottom: 1px solid #E4E4E7; }
+    .td { font-size: 13px; color: #1F1F1F; padding: 0 12px; height: 44px; border-bottom: 1px solid #F0F0F1; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .ghost { color: #A1A1AA; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #FFFFFF; color: #1F1F1F; display: flex; flex-direction: column; overflow: hidden">
+
+  <!-- top chrome -->
+  <div style="height: 3px; background: #E73590"></div>
+  <div style="height: 44px; background: #0A0A0A; display: flex; align-items: center; gap: 16px; padding: 0 16px; flex-shrink: 0">
+    <div style="display: flex; align-items: center; gap: 8px; background: #1C1C20; border-radius: 999px; padding: 5px 12px">
+      <span style="width: 6px; height: 6px; border-radius: 999px; background: #1EBA5D"></span>
+      <span style="font-size: 12.5px; font-weight: 500; color: #FAFAFA">Business Agents</span>
+    </div>
+    <span style="font-size: 12.5px; color: #A1A1AA">All clients</span>
+    <span style="margin-left: auto; font-size: 12.5px; color: #A1A1AA">demo@karix.online</span>
+  </div>
+
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <!-- icon rail -->
+    <div style="width: 56px; background: #0A0A0A; display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 14px 0; flex-shrink: 0">
+      <div style="width: 30px; height: 30px; border-radius: 9px; background: #0F766E; display: flex; align-items: center; justify-content: center">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V5.5a3 3 0 0 1 6 0V8"/></svg>
+      </div>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#52525B" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FAFAFA" stroke-width="1.7" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#52525B" stroke-width="1.7" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-6"/></svg>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#52525B" stroke-width="1.7" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+
+    <!-- tree -->
+    <div style="width: 288px; border-right: 1px solid #E4E4E7; display: flex; flex-direction: column; flex-shrink: 0; background: #FCFCFD">
+      <div style="height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 16px; border-bottom: 1px solid #E4E4E7">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">Connectors</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div style="padding: 10px 12px">
+        <div style="height: 32px; border: 1px solid #E4E4E7; border-radius: 8px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #FFFFFF">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <span style="font-size: 12.5px; color: #A1A1AA">Filter</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; background: #F0FAF8; border-left: 2px solid #0F766E">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+          <span style="font-size: 13px; font-weight: 500; color: #1F1F1F; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">IndiaMART Supplier Search</span>
+          <span style="margin-left: auto; font-size: 11px; color: #71717A; font-variant-numeric: tabular-nums">3</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px 0 37px">
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 700; color: #0F766E; width: 30px">GET</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #1F1F1F">supplier_search</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px 0 37px">
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 700; color: #B45309; width: 30px">POST</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #1F1F1F">create_enquiry</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px 0 37px">
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 700; color: #0F766E; width: 30px">GET</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #1F1F1F">enquiry_status</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+          <span style="font-size: 13px; color: #1F1F1F; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">IndiaMART Pricing</span>
+          <span style="margin-left: auto; font-size: 11px; color: #71717A; font-variant-numeric: tabular-nums">1</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+          <span style="font-size: 13px; color: #1F1F1F">Google Sheets Export</span>
+          <span style="margin-left: auto; font-size: 11px; color: #71717A">Draft</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+          <span style="font-size: 13px; color: #1F1F1F">Product Search</span>
+          <span style="margin-left: auto; font-size: 11px; color: #71717A; font-variant-numeric: tabular-nums">2</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px; padding: 0 16px 6px">
+        <span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #A1A1AA">On an agent, not in the library</span>
+      </div>
+      <div style="display: flex; align-items: center; height: 30px; padding: 0 16px">
+        <span style="font-size: 12.5px; color: #71717A">whatsappcarousel</span>
+      </div>
+      <div style="display: flex; align-items: center; height: 30px; padding: 0 16px">
+        <span style="font-size: 12.5px; color: #71717A">liciousstorelocator</span>
+      </div>
+      <div style="display: flex; align-items: center; height: 30px; padding: 0 16px">
+        <span style="font-size: 12.5px; color: #71717A">smsabotapi</span>
+      </div>
+    </div>
+
+    <!-- pane -->
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+
+      <!-- breadcrumb: the ONLY navigation in the header -->
+      <div style="height: 52px; border-bottom: 1px solid #E4E4E7; display: flex; align-items: center; gap: 10px; padding: 0 24px; flex-shrink: 0">
+        <span style="font-size: 12.5px; color: #71717A">Connectors</span>
+        <span style="font-size: 12.5px; color: #D4D4D8">/</span>
+        <span style="font-size: 15px; font-weight: 600; color: #1F1F1F">IndiaMART Supplier Search API</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; margin-left: 4px">
+          <span style="width: 6px; height: 6px; border-radius: 999px; background: #0F766E"></span>
+          <span style="font-size: 12px; color: #71717A">Live on 1 agent</span>
+        </span>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; padding: 22px 24px 0">
+
+        <!-- property table -->
+        <div style="border: 1px solid #E4E4E7; border-radius: 12px; overflow: hidden; max-width: 980px">
+          <table>
+            <tbody>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px; border-bottom: 1px solid #F0F0F1">Name</td>
+                <td class="td" style="border-bottom: 1px solid #F0F0F1">IndiaMART Supplier Search API</td>
+              </tr>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px; border-bottom: 1px solid #F0F0F1">Description</td>
+                <td class="td" style="border-bottom: 1px solid #F0F0F1">Finds suppliers matching a buyer&rsquo;s requirement</td>
+              </tr>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px; border-bottom: 1px solid #F0F0F1">Base URL</td>
+                <td class="td mono" style="border-bottom: 1px solid #F0F0F1">https://script.google.com/macros/s/AKfycbz6VEDS7HQa1J/exec</td>
+              </tr>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px; border-bottom: 1px solid #F0F0F1">Auth</td>
+                <td class="td" style="border-bottom: 1px solid #F0F0F1">
+                  API key
+                  <span class="mono" style="color: #71717A">&nbsp;&middot;&nbsp;X-Api-Key</span>
+                  <span style="color: #71717A">&nbsp;&middot;&nbsp;prefix</span>
+                  <span class="mono" style="color: #71717A">&nbsp;Bearer</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px; border-bottom: 1px solid #F0F0F1">Client certificate</td>
+                <td class="td ghost" style="border-bottom: 1px solid #F0F0F1">Not required</td>
+              </tr>
+              <tr>
+                <td style="width: 168px; font-size: 12.5px; color: #71717A; padding: 0 16px; height: 44px">Tags</td>
+                <td class="td" style="border-bottom: none">
+                  <span style="display: inline-flex; gap: 6px">
+                    <span style="font-size: 11.5px; background: #F4F4F5; border-radius: 6px; padding: 3px 8px; color: #52525B">e-commerce</span>
+                    <span style="font-size: 11.5px; background: #F4F4F5; border-radius: 6px; padding: 3px 8px; color: #52525B">suppliers</span>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- actions -->
+        <div style="display: flex; align-items: baseline; gap: 10px; margin: 26px 0 10px">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">Actions</span>
+          <span style="font-size: 11px; color: #A1A1AA; font-variant-numeric: tabular-nums">3</span>
+        </div>
+
+        <div style="border: 1px solid #E4E4E7; border-radius: 12px; overflow: hidden">
+          <table>
+            <thead>
+              <tr>
+                <th class="th" style="width: 78px">Method</th>
+                <th class="th" style="width: 190px">Name</th>
+                <th class="th" style="width: 210px">Path</th>
+                <th class="th">Description</th>
+                <th class="th" style="width: 82px; text-align: right">Params</th>
+                <th class="th" style="width: 70px; text-align: right">Body</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td"><span class="mono" style="font-weight: 700; color: #0F766E; font-size: 11px">GET</span></td>
+                <td class="td mono">supplier_search</td>
+                <td class="td mono" style="color: #52525B">/exec</td>
+                <td class="td" style="color: #52525B">Suppliers for a product and city</td>
+                <td class="td" style="text-align: right; font-variant-numeric: tabular-nums">4</td>
+                <td class="td ghost" style="text-align: right">&mdash;</td>
+              </tr>
+              <tr>
+                <td class="td"><span class="mono" style="font-weight: 700; color: #B45309; font-size: 11px">POST</span></td>
+                <td class="td mono">create_enquiry</td>
+                <td class="td mono" style="color: #52525B">/exec</td>
+                <td class="td" style="color: #52525B">Raises an enquiry with a supplier</td>
+                <td class="td" style="text-align: right; font-variant-numeric: tabular-nums">1</td>
+                <td class="td" style="text-align: right; font-variant-numeric: tabular-nums">7</td>
+              </tr>
+              <tr>
+                <td class="td"><span class="mono" style="font-weight: 700; color: #0F766E; font-size: 11px">GET</span></td>
+                <td class="td mono">enquiry_status</td>
+                <td class="td mono" style="color: #52525B">/exec/{enquiry_id}</td>
+                <td class="td" style="color: #52525B">Delivery status of one enquiry</td>
+                <td class="td" style="text-align: right; font-variant-numeric: tabular-nums">2</td>
+                <td class="td ghost" style="text-align: right">&mdash;</td>
+              </tr>
+              <!-- the live trailing row: this is how an action is created -->
+              <tr style="background: #FCFCFD">
+                <td class="td" style="border-bottom: none">
+                  <span class="mono ghost" style="font-weight: 700; font-size: 11px">GET</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" stroke-width="2.4" stroke-linecap="round" style="margin-left: 3px"><path d="M6 9l6 6 6-6"/></svg>
+                </td>
+                <td class="td mono ghost" style="border-bottom: none">name</td>
+                <td class="td mono ghost" style="border-bottom: none">/path</td>
+                <td class="td ghost" style="border-bottom: none">what it does</td>
+                <td class="td ghost" style="border-bottom: none; text-align: right">&mdash;</td>
+                <td class="td ghost" style="border-bottom: none; text-align: right">&mdash;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- deployments -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 26px; max-width: 980px">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #71717A">Agents</span>
+          <span style="font-size: 13px; color: #1F1F1F">Karix Demo</span>
+          <span class="mono" style="font-size: 12px; color: #71717A">+91 90000 00000</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px">
+            <span style="width: 6px; height: 6px; border-radius: 999px; background: #0F766E"></span>
+            <span style="font-size: 12px; color: #71717A">Up to date</span>
+          </span>
+          <span style="margin-left: auto; display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 8px; background: #0F766E; color: #FFFFFF; font-size: 12.5px; font-weight: 600">Publish</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -534,6 +534,41 @@ Two consequences for the task list:
   worth flagging, because `Required` cannot flag it. This is the one place the
   section should nag.
 
+### T27 — Import cURL, and why it outranks most of this list
+
+Every API's documentation ships a `curl` example. Pasting one fills the method,
+base URL, path, headers and every body field in a single action, which makes it
+the fastest honest way to start an action — and much faster than the trailing
+row it would otherwise take thirteen rows of typing to fill.
+
+But that is not the main reason it ranks high. **It is the first moment we can
+tell the truth about whether the API can be connected at all**, and it can do
+so from the paste alone:
+
+| In the cURL | What we say, on paste |
+| --- | --- |
+| `-H 'Content-Type: application/x-www-form-urlencoded'`, or `--data-urlencode` | This API takes a form body. Meta only sends JSON, so it cannot be connected. |
+| `-F` (multipart) | File uploads cannot be connected. |
+| an XML or SOAP content type | Cannot be connected as a request body. |
+| `-u user:pass` (Basic) | We have no Basic auth type — `API_KEY`, OAuth2 client credentials or none. |
+| `?api_key=…` in the URL | Offer to move it to the connector's auth as a **Query** credential (G1). |
+| a signature or timestamp header | We cannot compute one per request (G10). |
+| `-H 'Content-Type: application/json'` | Dropped — Meta sets it, and ours would be ignored. |
+
+So **G7 stops being a paragraph in the Body tab and becomes a check** that runs
+the moment someone brings us an API. That is worth more than any layout task
+here, because it converts a publish-time failure into a five-second answer.
+
+**T28 — JSON validity and Beautify.** A validity indicator beside the JSON box
+and a Beautify action. Small, expected, and the validator has to name the
+position of the error rather than saying "invalid".
+
+**T29 — XML in the response pane only.** An XML *response* works and is
+verified against the live API, so the response pane needs to pretty-print XML
+as well as JSON. An XML *request* body does not work and must never be offered —
+the same asymmetry as `content_type` above, and the pane is where it becomes
+visible.
+
 ### Extra tasks from this audit
 
 - **T10 — API key in query params and body params (G1).** Backend + one column

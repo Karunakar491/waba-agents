@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import { connectorSection, createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
 
 /**
  * Proves a connector can carry more than one credential header.
@@ -31,7 +31,7 @@ test.describe('@multi-auth more than one credential header', () => {
 
     // ---- add a second header, which was impossible before -----------------
     // Auth is its own tab now, the way a Postman collection's is.
-    await page.getByRole('tab', { name: 'Authorization' }).click()
+    await connectorSection(page, 'Authorization').click()
     await page.getByPlaceholder(/^Prefix, e.g. Bearer/).first().fill('Bearer')
     await page.getByRole('button', { name: /Add another header/i }).click()
     const names = page.locator('input[placeholder="e.g. X-API-Key"]')
@@ -45,7 +45,7 @@ test.describe('@multi-auth more than one credential header', () => {
     await page.reload()
     await page.waitForLoadState('networkidle')
 
-    await page.getByRole('tab', { name: 'Authorization' }).click()
+    await connectorSection(page, 'Authorization').click()
     const reopened = page.locator('input[placeholder="e.g. X-API-Key"]')
     await expect(reopened).toHaveCount(2, { timeout: 20_000 })
     await expect(reopened.nth(0)).toHaveValue('X-Api-Key')
@@ -54,7 +54,7 @@ test.describe('@multi-auth more than one credential header', () => {
     await expect(page.locator('input[placeholder^="Prefix"]').nth(0)).toHaveValue('Bearer')
 
     // ---- publishing asks for a value per header, and stores none ----------
-    await page.getByRole('tab', { name: 'Agents' }).click()
+    await connectorSection(page, 'Agents').click()
     await page.getByRole('button', { name: /Publish to an agent/i }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Value for X-Api-Key/i)).toBeVisible()

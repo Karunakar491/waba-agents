@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import { connectorSection, createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
 
 /**
  * Proves the workbench: the tree, the request bar, the tabs, and that an action
@@ -33,10 +33,11 @@ test.describe('@workbench the connector workbench', () => {
     const connectorUrl = page.url()
 
     // ---- the connector side, as a Postman collection -----------------------
-    // Anchored, not exact: a tab that holds anything carries its count in the
-    // accessible name, so Variables reads "Variables 3".
+    // Addressed through the header nav, never by tab name: an open action has
+    // an Authorization and a Headers of its own, so by name alone each of
+    // those selectors matched two elements and failed on a working screen.
     for (const label of ['Actions', 'Details', 'Authorization', 'Variables', 'Agents']) {
-      await expect(page.getByRole('tab', { name: new RegExp(`^${label}`) })).toBeVisible()
+      await expect(connectorSection(page, label)).toBeVisible()
     }
 
     // Opens on Details — arriving at a connector, the connector is the thing
@@ -45,11 +46,11 @@ test.describe('@workbench the connector workbench', () => {
 
     // Auth is the connector's, so its fields are on the connector — a tool
     // cannot carry a credential in Meta.
-    await page.getByRole('tab', { name: 'Authorization' }).click()
+    await connectorSection(page, 'Authorization').click()
     await expect(page.getByText(/Headers that carry a credential/i)).toBeVisible()
 
     // Meta's macro set is closed, and listed rather than hidden in a dropdown.
-    await page.getByRole('tab', { name: 'Variables' }).click()
+    await connectorSection(page, 'Variables').click()
     await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeVisible()
 
     // ---- add an action ----------------------------------------------------
@@ -58,9 +59,25 @@ test.describe('@workbench the connector workbench', () => {
     // step is gone. It opens as its own view because the editor has a tab row
     // of its own, and nesting it put two rows on screen both saying
     // Authorization / Headers / Body.
-    await page.getByRole('tab', { name: /^Actions/ }).click()
+    await connectorSection(page, 'Actions').click()
     await expect(page).toHaveURL(/\/actions\/new$/)
     await expect(page.getByPlaceholder('e.g. product_search')).toBeVisible()
+
+    // And the connector's own sections are still on screen while the action is
+    // open. They used to vanish, because the row lived inside the pane the
+    // action replaced — "when someone clicks on actions why are other sections
+    // closed?". They are in the header now.
+    for (const label of ['Details', 'Authorization', 'Variables', 'Agents']) {
+      await expect(connectorSection(page, label)).toBeVisible()
+    }
+    // And going back to one of them leaves the action's URL behind, and lands
+    // on that section rather than reverting to Details — the section is in the
+    // URL because these are two routes, and this page remounts between them.
+    await connectorSection(page, 'Variables').click()
+    await expect(page).toHaveURL(/\/library\/connectors\/\d+\?section=variables$/)
+    await expect(page.getByText('WHATSAPP_IDENTITY_HASH')).toBeVisible()
+    await connectorSection(page, 'Actions').click()
+    await expect(page).toHaveURL(/\/actions\/new$/)
 
     // Save is refused with the reason stated, not silently disabled.
     await expect(page.getByText(/Still needed:/)).toBeVisible()

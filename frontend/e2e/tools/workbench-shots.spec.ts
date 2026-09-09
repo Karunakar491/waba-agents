@@ -1,5 +1,6 @@
 import { test } from '../fixtures/auth'
 import { expect } from '@playwright/test'
+import { connectorSection } from '../fixtures/connectors'
 
 /**
  * Screenshots of both Postman-shaped panes, for reviewing the layout.
@@ -45,7 +46,7 @@ test.describe('@shotswb the workbench, photographed', () => {
     await page.screenshot({ path: 'e2e-shots/wb-connector-actions.png' })
 
     for (const tab of ['Details', 'Authorization', 'Variables', 'Agents']) {
-      await page.getByRole('tab', { name: new RegExp(`^${tab}`) }).click()
+      await connectorSection(page, tab).click()
       // The underline transitions colour; shooting instantly catches two tabs
       // mid-fade and reads like a bug in the screenshot.
       await page.waitForTimeout(400)
@@ -53,13 +54,15 @@ test.describe('@shotswb the workbench, photographed', () => {
     }
 
     // An action, if this connector has one.
-    await page.getByRole('tab', { name: /^Actions/ }).click()
+    await connectorSection(page, 'Actions').click()
     const action = page.locator('table tbody tr button').first()
     await action.click()
     await expect(page).toHaveURL(/\/actions\/\d+$/)
     await page.waitForLoadState('networkidle')
     await page.screenshot({ path: 'e2e-shots/wb-action-params.png' })
 
+    // The action's own tabs, which are a real tablist — unlike the connector's
+    // sections above, which are header navigation.
     for (const tab of ['Authorization', 'Headers', 'Docs']) {
       await page.getByRole('tab', { name: new RegExp(`^${tab}`) }).click()
       // The underline transitions colour; shooting instantly catches two tabs

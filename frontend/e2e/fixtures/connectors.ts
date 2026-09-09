@@ -13,6 +13,21 @@ import { expect, type Page } from '@playwright/test'
  * phone number is touched.
  */
 
+/**
+ * One of the connector's own sections in the header — Actions, Details,
+ * Authorization, Variables, Agents.
+ *
+ * Scoped to that nav on purpose: the connector's sections and an open action's
+ * panels are both on screen, and both include "Authorization" and "Headers".
+ * Asking for a tab by name alone matched two elements and failed on a working
+ * screen. The header is a labelled nav; the action's row is the tablist.
+ */
+export function connectorSection(page: Page, name: string) {
+  return page
+    .getByRole('navigation', { name: 'Connector sections' })
+    .getByRole('button', { name: new RegExp(`^${name}`) })
+}
+
 /** Removes a leftover from an interrupted run, if one is there. */
 export async function removeConnectorIfPresent(page: Page, name: string): Promise<void> {
   await page.goto('/library/connectors')
@@ -64,7 +79,7 @@ export async function createThrowawayConnector(
 export async function deleteOpenConnector(page: Page): Promise<void> {
   // Delete lives on the connector's Details tab — it is the connector itself,
   // not one of its requests. The pane opens on Actions.
-  await page.getByRole('tab', { name: 'Details' }).click()
+  await connectorSection(page, 'Details').click()
   await page.getByRole('button', { name: /^Delete connector$/ }).first().click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()

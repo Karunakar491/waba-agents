@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import { connectorSection, createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
 
 /**
  * Proves a connector can be deleted, and that a deployed one is refused up
@@ -39,8 +39,8 @@ test.describe('@connector-delete deleting a connector', () => {
       if (!/\/library\/connectors\/\d+$/.test(page.url())) continue
       await page.waitForTimeout(1200)
 
-      // Delete sits on the connector's Details tab; the pane opens on Actions.
-      await page.getByRole('tab', { name: 'Details' }).click().catch(() => {})
+      // Delete sits on the connector's Details section.
+      await connectorSection(page, 'Details').click().catch(() => {})
       const del = page.getByRole('button', { name: /^Delete connector$/ }).first()
       if ((await del.count()) === 0) continue
       if (await del.isDisabled()) {
@@ -57,7 +57,7 @@ test.describe('@connector-delete deleting a connector', () => {
     await createThrowawayConnector(page, CONNECTOR, 'Automated check of connector deletion.')
 
     // Nothing uses it, so the control is live rather than guarded.
-    await page.getByRole('tab', { name: 'Details' }).click()
+    await connectorSection(page, 'Details').click()
     const del = page.getByRole('button', { name: /^Delete connector$/ }).first()
     await expect(del).toBeEnabled()
     await del.click()
@@ -85,7 +85,7 @@ test.describe('@connector-delete publish is the word for reaching Meta', () => {
     // "Publish" used to flip a local flag that gated nothing, while "Deploy"
     // was the thing that reached Meta — so the button named Publish was the one
     // that did not publish.
-    await page.getByRole('tab', { name: 'Agents' }).click()
+    await connectorSection(page, 'Agents').click()
     await page.getByRole('button', { name: /Publish to an agent/i }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()

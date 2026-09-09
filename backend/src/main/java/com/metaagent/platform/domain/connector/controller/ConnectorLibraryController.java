@@ -2,7 +2,9 @@ package com.metaagent.platform.domain.connector.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.domain.connector.dto.ConnectorLibraryDtos;
+import com.metaagent.platform.domain.connector.dto.ConnectorProbeDtos;
 import com.metaagent.platform.domain.connector.service.ConnectorLibraryService;
+import com.metaagent.platform.domain.connector.service.ConnectorProbeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,7 @@ import java.util.List;
 public class ConnectorLibraryController {
 
     private final ConnectorLibraryService connectorLibraryService;
+    private final ConnectorProbeService connectorProbeService;
 
     @PostMapping("/api/v1/connector-library")
     public ApiResponse<ConnectorLibraryDtos.ConnectorResponse> create(
@@ -48,6 +51,23 @@ public class ConnectorLibraryController {
     public ApiResponse<ConnectorLibraryDtos.DeploymentView> deploy(
             @PathVariable Long connectorId, @Valid @RequestBody ConnectorLibraryDtos.DeployRequest request) {
         return ApiResponse.ok(connectorLibraryService.deploy(connectorId, request));
+    }
+
+    /**
+     * Makes one real HTTP call to the connector's API and returns what came
+     * back, so an operator can see an action work before a customer's message
+     * is the thing that finds out.
+     *
+     * <p>Takes the request as typed rather than an action id, because the point
+     * is testing an edit that has not been saved. The base URL is read from the
+     * stored connector and never from this payload; see
+     * {@link com.metaagent.platform.domain.connector.service.ConnectorProbeService}
+     * for the SSRF screening this goes through and the one gap that remains.
+     */
+    @PostMapping("/api/v1/connector-library/{connectorId}/probe")
+    public ApiResponse<ConnectorProbeDtos.ProbeResponse> probe(
+            @PathVariable Long connectorId, @Valid @RequestBody ConnectorProbeDtos.ProbeRequest request) {
+        return ApiResponse.ok(connectorProbeService.probe(connectorId, request));
     }
 
     @DeleteMapping("/api/v1/connector-library/{connectorId}")

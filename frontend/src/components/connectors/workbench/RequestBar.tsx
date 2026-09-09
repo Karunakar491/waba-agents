@@ -11,8 +11,11 @@ import { MethodBadge } from './WorkbenchSidebar'
  * every tool under it shares one. Letting someone type a full URL would imply
  * they could point one tool somewhere else, which needs a second connector.
  *
- * "Test" is only possible once the tool exists on Meta, because Meta's runtime
- * makes the call, not us. Until then the button says why rather than failing.
+ * Send makes the call server-side and shows what came back. It said for months
+ * that testing was impossible because "Meta makes the call, not us" — which
+ * confused Meta calling it at runtime with nobody being able to call it at all.
+ * When it is disabled now it is because the request is not complete, and the
+ * button says which part.
  */
 /** Host of a base URL, falling back to the raw string if it will not parse. */
 function hostOf(baseUrl: string): string {
@@ -30,9 +33,9 @@ export default function RequestBar({
   disabled,
   onMethodChange,
   onPathChange,
-  onTest,
-  testing,
-  testUnavailable,
+  onSend,
+  sending,
+  sendUnavailable,
 }: {
   method: string
   path: string
@@ -40,10 +43,10 @@ export default function RequestBar({
   disabled: boolean
   onMethodChange: (method: string) => void
   onPathChange: (path: string) => void
-  onTest: () => void
-  testing: boolean
-  /** Why the tool cannot be tested yet. Present = the button is disabled. */
-  testUnavailable?: string | null
+  onSend: () => void
+  sending: boolean
+  /** Why the request cannot be sent. Present = the button is disabled. */
+  sendUnavailable?: string | null
 }) {
   return (
     <div className="flex flex-wrap items-stretch gap-2">
@@ -99,15 +102,15 @@ export default function RequestBar({
 
       <button
         type="button"
-        onClick={onTest}
-        disabled={disabled || testing || !!testUnavailable}
-        title={testUnavailable ?? 'Call this endpoint through Meta and show what comes back'}
+        onClick={onSend}
+        disabled={disabled || sending || !!sendUnavailable}
+        title={sendUnavailable ?? 'Call this endpoint now and show what comes back'}
         className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-4 text-sm font-semibold
           text-foreground transition-colors hover:bg-muted
           disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
       >
-        {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-        Test
+        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+        Send
       </button>
     </div>
   )

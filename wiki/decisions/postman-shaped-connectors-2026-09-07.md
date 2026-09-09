@@ -68,6 +68,33 @@ nested card chrome — it was worse than the button it removed. The editor opens
 as its own view instead, the same one the tree reaches, so there is one editor
 and not two.
 
+## Second follow-up: the sections had to leave the pane
+
+"When someone clicks on actions why are other sections closed?" They were not
+closed — they were gone. The section row lived inside the pane, and opening an
+action replaces the pane, so Details / Authorization / Variables / Agents all
+disappeared and the sidebar was the only way back. The row moved into the
+header.
+
+Three things broke on the way, and each is a general trap:
+
+1. **Two tablists, one screen.** The connector's row and the action's row both
+   contained "Authorization" and "Headers". Ambiguous to a person, and a
+   `getByRole('tab', { name: 'Authorization' })` selector matched two elements
+   and failed on a screen that worked. Fix: the header is a labelled `nav` with
+   `aria-current`, the action's row stays the tablist — which is what each one
+   actually is. Specs address the header through one helper,
+   `connectorSection()`.
+2. **State does not survive a route change.** `/library/connectors/:id` and
+   `/library/connectors/:id/actions/:actionId` are separate routes, so moving
+   between them unmounts the page. The section reverted to Details on the way
+   back from an action. It lives in `?section=…` now. See
+   `wiki/lessons/frontend-patterns.md` on unmount races.
+3. **`x?.length === 0` is false while `x` is undefined.** Deciding on the click
+   whether Actions means the table or the editor read the actions before the
+   query answered, so a click during loading landed on an empty table. Decided
+   in an effect guarded on the data being present.
+
 ## Consequences
 
 - A required field now sits behind a tab (`Docs`). The Still-needed line beside

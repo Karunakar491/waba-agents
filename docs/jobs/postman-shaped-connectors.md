@@ -52,25 +52,42 @@ Copy goes terse: `auth_type`, `binding`, `required`, not sentences. The
 explanatory line stays only where it prevents a real mistake — a GET body is
 silently dropped by Meta, and that is worth a sentence.
 
+**Second follow-up:** "when someone clicks on actions why are other sections
+closed?" They were not closed, they were gone — the section row lived inside
+the pane, and opening an action replaces that pane. It moved into the header,
+where it stays put wherever you are in the connector. Three consequences, all
+of which broke something first: the row had to become *navigation* rather than
+a second tablist (two tabs named Authorization on one screen); the section had
+to move into the URL (`?section=…`, because the two routes remount the page and
+`useState` reverted to Details); and "Actions on an empty connector opens the
+editor" had to be decided after the actions load rather than on the click
+(`actions?.length === 0` is false while `actions` is `undefined`).
+
 ## Proof
 
-Deployed to production as `index-BUn-dY0z.js`, md5
-`a199d0f245bdad2866b1e8e2c88977c7`, verified served by nginx and referenced by
-the live `index.html`. (Earlier bundles this job: `index-BqTeOTjh.js`, then
-`index-De7wZ0r6.js` — the nested-tabs attempt, replaced within the hour.)
+Deployed to production as `index-Da_nxP0b.js`, md5
+`ece3282c161ae1b6e1cca8a238f8ba34`, verified served by nginx and referenced by
+the live `index.html`. (Earlier bundles this job: `index-BqTeOTjh.js`,
+`index-De7wZ0r6.js` — the nested-tabs attempt — then `index-BUn-dY0z.js`.)
 
 Against production, after the deploy:
 
-- `@workbench` — 1 passed. Asserts all five connector tabs, that a connector
+- `@workbench` — passes. Asserts all five connector sections, that a connector
   opens on Details, that selecting Actions on an empty connector lands in the
-  request editor with no button pressed, that Variables lists Meta's macros,
-  that an action's Authorization reports what it inherits, and that the
+  request editor with no button pressed, that the connector's sections are
+  **still visible while an action is open**, that returning to one lands on
+  that section rather than reverting to Details, that Variables lists Meta's
+  macros, that an action's Authorization reports what it inherits, and that the
   Still-needed line names the Docs tab.
-- `@nested-body`, `@multi-auth`, `@connector-delete`, `@feedback` — 7 passed.
-- Default suite — 12 passed. One spec, `@handoffshot`, first failed on the
-  login rate limit ("Too many requests. Try again in 9 minutes") because it
-  logs in itself instead of reusing the shared auth fixture; re-run after the
-  window, passed. Worth folding onto the fixture.
+- `@workbench`, `@nested-body`, `@multi-auth`, `@connector-delete`, `@feedback`
+  — 8 passed together.
+- Default suite — 12 passed.
+
+The login rate limit ("Too many requests. Try again in 7 minutes") bit twice
+during this job, once making all seven connector specs fail at the same time.
+It is not a product fault, but it does mean a red run needs checking against
+`error-context.md` before it is believed. `@handoffshot` logs in itself instead
+of reusing the shared auth fixture, which is worth fixing.
 - `tsc --noEmit` clean, `oxlint` clean on every changed file, 82 unit tests pass.
 
 Screenshots at 1440x900 in `frontend/e2e-shots/wb-*.png`.

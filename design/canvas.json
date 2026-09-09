@@ -26,7 +26,7 @@
     },
     {
       "file": "Params.dc.html",
-      "title": "3 · Action — Params",
+      "title": "3 · Action — Params (Table)",
       "x": 3120,
       "y": 0,
       "w": 1440,
@@ -34,7 +34,7 @@
     },
     {
       "file": "BulkEdit.dc.html",
-      "title": "4 · Action — Params in bulk",
+      "title": "4 · Action — Params (Bulk) — same screen, same nine",
       "x": 4680,
       "y": 0,
       "w": 1440,
@@ -108,7 +108,7 @@
       "x": 6240,
       "y": 0,
       "w": 470,
-      "text": "Still no Add button — the trailing row is the add, sitting where the new row appears.\n\nWhat actually helps at nine or twenty params: Bulk swaps the table for one line per parameter, Tab off the last row makes the next one, and pasting a query string fills rows in one go. A button would add a click per row and nothing else.\n\nSwitching Table/Bulk loses nothing — same data, two ways to type it."
+      "text": "Screens 3 and 4 are the SAME screen in two modes, showing the SAME nine parameters. Only the Table/Bulk toggle differs.\n\nThe first pass gave the table four params and the bulk view nine, so the toggle looked like a data change — the founder read them as two different screens, correctly. Varying two things at once is how a comparison stops being a comparison.\n\nStill no Add button: the trailing row is the add, sitting where the new row appears. What helps at nine or twenty is Bulk, Tab off the last row, and pasting a query string."
     },
     {
       "id": "action-rule",

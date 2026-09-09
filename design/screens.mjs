@@ -31,13 +31,84 @@ const table = (head, body) => `
             <table>${head}<tbody>${body}</tbody></table>
           </div>`
 
+/**
+ * The nine query params, defined once.
+ *
+ * Screens 3 and 4 are the SAME screen in two modes — Table and Bulk — so they
+ * have to show the same nine parameters. The first pass gave the table four and
+ * the bulk view nine, which made the toggle look like a data change; the
+ * founder read them as two different screens, correctly.
+ */
+const QP = [
+  ['product', 'string', 'Agent', 'What the buyer is looking for, in their words', true],
+  ['city', 'string', 'Agent', 'Delivery city the buyer named', true],
+  ['phone', 'string', 'token', '', true],
+  ['limit', 'integer', 'fixed:10', 'Suppliers per reply', false],
+  ['sort', 'string', 'One of', 'price_asc, price_desc or rating', false],
+  ['min_rating', 'number', 'fixed:3', 'Hide suppliers rated below this', false],
+  ['verified_only', 'boolean', 'fixed:true', 'IndiaMART-verified suppliers only', false],
+  ['page', 'integer', 'Agent', 'Page number when the buyer asks for more', false],
+  ['locale', 'string', 'fixed:en-IN', '', false],
+]
+
+const source = (s) => {
+  if (s === 'token') return `<span class="sel"><span class="tok mono">{{customer_phone}}</span>${caret()}</span>`
+  if (s === 'One of') return `<span class="sel" style="color: ${T.teal}; font-weight: 500">One of${caret(T.teal)}</span>`
+  if (s.startsWith('fixed:')) return `<span class="sel">Fixed<span class="fix mono">${s.slice(6)}</span></span>`
+  return `<span class="sel">${s}${caret()}</span>`
+}
+
+const qpRows = QP.map(
+  ([k, t, s, d, req]) => `
+                <tr>
+                  <td class="tdc mono">${k}</td>
+                  <td class="tdc sub">${t}</td>
+                  <td class="tdc">${source(s)}</td>
+                  <td class="tdc sub">${d || dash}</td>
+                  <td class="tdc" style="text-align: center">${req ? tick : box(true)}</td>
+                </tr>`,
+).join('')
+
+/* --------------------------------------------------------- Params · Table */
+screen({
+  file: 'Params.dc.html',
+  tree: { open: 'supplier', sel: 'supplier_search' },
+  crumbs: [...SUP, { text: 'supplier_search', mono: true }],
+  bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
+  tabRow: tabs({ active: 'params', params: 9, headers: 1, body: 0, bodyOff: true }),
+  content: `
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px">
+            <span class="lbl">Query params</span>
+            <span style="margin-left: auto; display: inline-flex; border: 1px solid ${T.line}; border-radius: 8px; overflow: hidden">
+              <span style="font-size: 12px; padding: 6px 12px; background: #F4F4F5; font-weight: 600">Table</span>
+              <span style="font-size: 12px; padding: 6px 12px; color: ${T.muted}; border-left: 1px solid ${T.line}">Bulk</span>
+            </span>
+          </div>
+          <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
+            <table>
+              <thead><tr>${th('Key', 150)}${th('Type', 96)}${th('Source', 200)}${th('Description')}${th('Required', 80, 'center')}</tr></thead>
+              <tbody>${qpRows}
+                <tr style="background: #FCFCFD">
+                  <td class="tdc mono ghost" style="border-bottom: none">key</td>
+                  <td class="tdc ghost" style="border-bottom: none">string</td>
+                  <td class="tdc ghost" style="border-bottom: none">Agent</td>
+                  <td class="tdc ghost" style="border-bottom: none">description</td>
+                  <td class="tdc" style="border-bottom: none; text-align: center">${box(false)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size: 12px; color: ${T.muted}; margin: 10px 0 0">Scalars only. Objects and arrays belong in the body.</p>`,
+  resp: response('idle'),
+})
+
 /* ---------------------------------------------------------------- Headers */
 screen({
   file: 'Headers.dc.html',
   tree: { open: 'supplier', sel: 'supplier_search' },
   crumbs: [...SUP, { text: 'supplier_search', mono: true }],
   bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
-  tabRow: tabs({ active: 'headers', params: 4, headers: 1, body: 0, bodyOff: true }),
+  tabRow: tabs({ active: 'headers', params: 9, headers: 1, body: 0, bodyOff: true }),
   content: `
           <div class="lbl" style="display: block; margin-bottom: 8px">Headers</div>
           ${table(
@@ -75,7 +146,7 @@ screen({
   tree: { open: 'supplier', sel: 'supplier_search' },
   crumbs: [...SUP, { text: 'supplier_search', mono: true }],
   bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
-  tabRow: tabs({ active: 'auth', params: 4, headers: 1, body: 0, bodyOff: true }),
+  tabRow: tabs({ active: 'auth', params: 9, headers: 1, body: 0, bodyOff: true }),
   content: `
           <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 10px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${T.amber}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
@@ -247,17 +318,15 @@ screen({
           </div>
 
           <div class="mono" style="border: 1px solid ${T.line}; border-radius: 10px; background: #FCFCFD; padding: 12px 14px; line-height: 1.85; font-size: 12.5px">
-            <div><span class="k">product</span>: agent  <span class="ghost">// what the buyer is looking for</span></div>
-            <div><span class="k">city</span>: agent  <span class="ghost">// delivery city the buyer named</span></div>
-            <div><span class="k">phone</span>: {{customer_phone}}</div>
-            <div><span class="k">limit</span>: 10</div>
-            <div><span class="k">sort</span>: agent  <span class="ghost">// price_asc, price_desc or rating</span></div>
-            <div><span class="k">min_rating</span>: 3</div>
-            <div><span class="k">verified_only</span>: true</div>
-            <div><span class="k">page</span>: agent</div>
-            <div><span class="k">locale</span>: en-IN<span style="display: inline-block; width: 1.5px; height: 15px; background: ${T.teal}; vertical-align: -3px; margin-left: 2px"></span></div>
+${QP.map(([k, , s, d], i) => {
+  const val = s === 'token' ? '{{customer_phone}}' : s.startsWith('fixed:') ? s.slice(6) : 'agent'
+  const last = i === QP.length - 1
+  return `            <div><span class="k">${k}</span>: ${val}${d ? `  <span class="ghost">// ${d.toLowerCase()}</span>` : ''}${
+    last ? `<span style="display: inline-block; width: 1.5px; height: 15px; background: ${T.teal}; vertical-align: -3px; margin-left: 2px"></span>` : ''
+  }</div>`
+}).join('\n')}
           </div>
-          <p style="font-size: 12px; color: ${T.muted}; margin: 10px 0 0; max-width: 900px">One line per parameter: <span class="mono" style="font-size: 11.5px">key: source</span>, and anything after <span class="mono" style="font-size: 11.5px">//</span> is the description. Nine parameters is nine lines to type here and nine rows to tab through in the table &mdash; this is the same data, faster. Switching back to Table loses nothing.</p>
+          <p style="font-size: 12px; color: ${T.muted}; margin: 10px 0 0; max-width: 900px">The same nine parameters as the Table view &mdash; one line each: <span class="mono" style="font-size: 11.5px">key: source</span>, and anything after <span class="mono" style="font-size: 11.5px">//</span> is the description. Nine rows of dropdowns become nine lines of typing. Switching back to Table loses nothing.</p>
 
           <div style="display: flex; gap: 22px; margin-top: 22px">
             <div style="flex: 1">
@@ -289,7 +358,7 @@ screen({
   tree: { open: 'supplier', sel: 'supplier_search' },
   crumbs: [...SUP, { text: 'supplier_search', mono: true }],
   bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
-  tabRow: tabs({ active: 'docs', params: 4, headers: 1, body: 0, bodyOff: true }),
+  tabRow: tabs({ active: 'docs', params: 9, headers: 1, body: 0, bodyOff: true }),
   content: `
           <div class="lbl" style="display: block; margin-bottom: 8px">Description</div>
           <div style="border: 1px solid ${T.line}; border-radius: 12px; padding: 14px 16px; max-width: 820px">
@@ -445,4 +514,4 @@ screen({
   }),
 })
 
-console.log('wrote Headers ActionAuth BulkEdit Docs Body Kundli')
+console.log('wrote Params Headers ActionAuth ImportCurl BulkEdit Docs Body Kundli')

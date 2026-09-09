@@ -27,6 +27,53 @@ function updateAt(
   })
 }
 
+interface FlatField {
+  row: BodyFieldRow
+  /** Index path into the nested rows, for writing back. */
+  path: number[]
+  /** Dotted path as the user reads it: `customer.id`, `lines[].sku`. */
+  label: string
+  depth: number
+}
+
+/**
+ * The tree, flattened, each field carrying the path you would use to talk
+ * about it.
+ *
+ * A list of objects contributes `lines[]` and then `lines[].sku`, because that
+ * is what the field is: one per item. A list of scalars is a leaf — `tags[]` —
+ * with nothing underneath.
+ */
+function flatten(rows: BodyFieldRow[], prefix = '', path: number[] = []): FlatField[] {
+  return rows.flatMap((row, i) => {
+    const isList = row.type === 'array'
+    const label = `${prefix}${row.key}${isList ? '[]' : ''}`
+    const here: FlatField = { row, path: [...path, i], label, depth: path.length }
+    if (!holdsChildren(row)) return [here]
+    return [here, ...flatten(row.children ?? [], `${label}.`, [...path, i])]
+  })
+}
+
+function typeLabel(row: BodyFieldRow): string {
+  return row.type === 'array' ? `list of ${row.itemType ?? 'string'}` : row.type
+}
+
+/**
+ * The request body: an example of the JSON, and a table of what each field is.
+ *
+ * The founder: "If a user adds some body, Lets show the table below the body
+ * section or something which is for fields mapping and all."
+ *
+ * The JSON box stays because it is how you state a shape quickly — paste what
+ * the endpoint expects and every field appears. What replaced the indented tree
+ * below it is one flat table, each row named by its dotted path. The tree
+ * repeated the shape the JSON above already showed, and at two levels deep the
+ * indentation was doing the work a `customer.address.city` label does better.
+ *
+ * Container rows stay in the table: their description really is sent (see
+ * `buildBodyNode`). They get no fill control, because there is nothing to fill
+ * — the agent supplies the leaves and Meta assembles the shape around them.
+ */
 export default function ToolBodyEditor({
   rows,
   setRows,
@@ -34,7 +81,7 @@ export default function ToolBodyEditor({
 }: {
   rows: BodyFieldRow[]
   setRows: (updater: (prev: BodyFieldRow[]) => BodyFieldRow[]) => void
-  /** True while the form is saving — every control here freezes, matching the modal's own disable-on-save pattern. */
+  /** True while the form is saving — every control here freezes. */
   disabled?: boolean
 }) {
   // The JSON textarea is its own piece of state, not derived live from `rows` on every
@@ -60,179 +107,168 @@ export default function ToolBodyEditor({
     }
   }
 
-  return (
-    <div className="space-y-2">
-      <span className="block text-xs font-medium text-foreground">Request body</span>
-      <p className="text-xs text-muted-foreground">
-        Paste an example of the JSON this endpoint expects — nested objects and lists included.
-        Each field gets a row below where you choose whether the agent fills it in or it always
-        sends the same value.
-      </p>
-      <textarea
-        rows={5}
-        value={jsonText}
-        disabled={disabled}
-        onChange={(e) => setJsonText(e.target.value)}
-        onBlur={handleBlur}
-        placeholder={'{\n  "customer": { "id": 1024 },\n  "lines": [{ "sku": "TMT-12", "qty": 2 }]\n}'}
-        spellCheck={false}
-        className={`${jsonBoxCls} disabled:opacity-60`}
-      />
-      {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
-
-      {rows.length > 0 && (
-        <div className="space-y-2 rounded-lg border p-2">
-          {rows.map((row, i) => (
-            <FieldRow
-              key={row.key}
-              row={row}
-              path={[i]}
-              depth={0}
-              disabled={disabled}
-              setRows={setRows}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * One field, and its children if it has any.
- *
- * A container — an object, or a list of objects — gets no "who fills this in"
- * control and no fixed value, because there is nothing to fill: the agent
- * supplies the leaves and Meta assembles the shape around them. Showing a fill
- * selector there would offer a choice that has no meaning.
- *
- * Required is only offered at the top level. Meta carries body required-ness in
- * `body.required` as a top-level string array, and there is no verified place to
- * say it deeper — so rather than render a checkbox that silently does nothing,
- * nested rows say where required-ness lives.
- */
-function FieldRow({
-  row,
-  path,
-  depth,
-  disabled,
-  setRows,
-}: {
-  row: BodyFieldRow
-  path: number[]
-  depth: number
-  disabled: boolean
-  setRows: (updater: (prev: BodyFieldRow[]) => BodyFieldRow[]) => void
-}) {
-  const id = path.join('-')
-  const patch = (p: Partial<BodyFieldRow>) => setRows((prev) => updateAt(prev, path, p))
-  const container = holdsChildren(row)
-  const typeLabel =
-    row.type === 'array' ? `list of ${row.itemType ?? 'string'}` : row.type
+  const fields = flatten(rows)
 
   return (
-    <div className={depth > 0 ? 'border-l pl-3' : undefined}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-[6rem] rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">
-          {row.key}
-        </span>
-        <span className="text-xs text-muted-foreground">{typeLabel}</span>
-
-        {!container && (
-          <>
-            <label className="sr-only" htmlFor={`body-${id}-fill`}>
-              Who fills in {row.key}
-            </label>
-            <select
-              id={`body-${id}-fill`}
-              value={row.fill}
-              disabled={disabled}
-              onChange={(e) => patch({ fill: e.target.value as FillMode })}
-              className={`${inputCls} disabled:opacity-60`}
-            >
-              {FILL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-              <optgroup label="Advanced (rarely needed)">
-                {ADVANCED_FILL_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-            {row.fill === 'fixed' && (
-              <>
-                <label className="sr-only" htmlFor={`body-${id}-fixedvalue`}>
-                  Fixed value for {row.key}
-                </label>
-                <input
-                  id={`body-${id}-fixedvalue`}
-                  type="text"
-                  value={row.fixedValue}
-                  disabled={disabled}
-                  onChange={(e) => patch({ fixedValue: e.target.value })}
-                  placeholder="Value"
-                  className={`${inputCls} min-w-[7rem] disabled:opacity-60`}
-                />
-              </>
-            )}
-          </>
-        )}
-
-        <label className="sr-only" htmlFor={`body-${id}-description`}>
-          Description for {row.key}
-        </label>
-        <input
-          id={`body-${id}-description`}
-          type="text"
-          value={row.description}
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <span className="block text-xs font-medium text-foreground">Request body</span>
+        <p className="text-xs text-muted-foreground">
+          Paste an example of the JSON this endpoint expects — nested objects and lists included.
+          Every field appears in the table below.
+        </p>
+        <textarea
+          rows={5}
+          value={jsonText}
           disabled={disabled}
-          onChange={(e) => patch({ description: e.target.value })}
-          placeholder={
-            container
-              ? 'Description — what this part of the body represents'
-              : 'Description — the agent reads this to know what to put here'
-          }
-          className={`${inputCls} min-w-[10rem] flex-1 disabled:opacity-60`}
+          onChange={(e) => setJsonText(e.target.value)}
+          onBlur={handleBlur}
+          placeholder={'{\n  "customer": { "id": 1024 },\n  "lines": [{ "sku": "TMT-12", "qty": 2 }]\n}'}
+          spellCheck={false}
+          className={`${jsonBoxCls} disabled:opacity-60`}
         />
-
-        {depth === 0 ? (
-          <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground">
-            <input
-              id={`body-${id}-required`}
-              type="checkbox"
-              checked={row.required}
-              disabled={disabled}
-              onChange={(e) => patch({ required: e.target.checked })}
-              className="h-4 w-4 shrink-0"
-            />
-            Required
-          </label>
-        ) : null}
+        {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
       </div>
 
-      {container && (
-        <div className="mt-2 space-y-2 pl-3">
-          {(row.children ?? []).length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Nothing inside <span className="font-mono">{row.key}</span> yet — add it to the example
-              JSON above.
-            </p>
-          ) : (
-            (row.children ?? []).map((child, i) => (
-              <FieldRow
-                key={child.key}
-                row={child}
-                path={[...path, i]}
-                depth={depth + 1}
-                disabled={disabled}
-                setRows={setRows}
-              />
-            ))
-          )}
+      {fields.length > 0 && (
+        <div className="space-y-1.5">
+          <span className="block text-xs font-medium text-foreground">Fields</span>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+                  <th className="w-1/4 px-3 py-2 font-medium">Field</th>
+                  <th className="w-28 px-3 py-2 font-medium">Type</th>
+                  <th className="w-1/4 px-3 py-2 font-medium">Value</th>
+                  <th className="px-3 py-2 font-medium">Description</th>
+                  <th className="w-20 px-3 py-2 text-center font-medium">Required</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fields.map(({ row, path, label, depth }) => {
+                  const id = `body-${path.join('-')}`
+                  const patch = (p: Partial<BodyFieldRow>) =>
+                    setRows((prev) => updateAt(prev, path, p))
+                  const container = holdsChildren(row)
+                  return (
+                    <tr key={label} className="border-b align-top last:border-b-0">
+                      <td className="px-3 py-2">
+                        {/* The full path, so a row means the same thing read on
+                            its own as it does in context. */}
+                        <span
+                          className={`font-mono ${container ? 'text-muted-foreground' : 'text-foreground'}`}
+                        >
+                          {label}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-2 text-muted-foreground">{typeLabel(row)}</td>
+
+                      <td className="px-3 py-2">
+                        {container ? (
+                          <span
+                            className="text-muted-foreground"
+                            title="Meta assembles this from the fields inside it"
+                          >
+                            built from its fields
+                          </span>
+                        ) : (
+                          <>
+                            <label className="sr-only" htmlFor={`${id}-fill`}>
+                              Who fills in {label}
+                            </label>
+                            <select
+                              id={`${id}-fill`}
+                              value={row.fill}
+                              disabled={disabled}
+                              onChange={(e) => patch({ fill: e.target.value as FillMode })}
+                              className={`${inputCls} w-full`}
+                            >
+                              {FILL_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                              <optgroup label="Advanced (rarely needed)">
+                                {ADVANCED_FILL_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                            {row.fill === 'fixed' && (
+                              <>
+                                <label className="sr-only" htmlFor={`${id}-fixedvalue`}>
+                                  Fixed value for {label}
+                                </label>
+                                <input
+                                  id={`${id}-fixedvalue`}
+                                  type="text"
+                                  value={row.fixedValue}
+                                  disabled={disabled}
+                                  onChange={(e) => patch({ fixedValue: e.target.value })}
+                                  placeholder="Value"
+                                  className={`${inputCls} mt-1.5 w-full disabled:opacity-60`}
+                                />
+                              </>
+                            )}
+                          </>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <label className="sr-only" htmlFor={`${id}-description`}>
+                          Description for {label}
+                        </label>
+                        <input
+                          id={`${id}-description`}
+                          type="text"
+                          value={row.description}
+                          disabled={disabled}
+                          onChange={(e) => patch({ description: e.target.value })}
+                          placeholder={
+                            container
+                              ? 'What this part of the body represents'
+                              : 'What the agent should put here'
+                          }
+                          className={`${inputCls} w-full disabled:opacity-60`}
+                        />
+                      </td>
+
+                      <td className="px-3 py-2 text-center">
+                        {depth === 0 ? (
+                          <>
+                            <label className="sr-only" htmlFor={`${id}-required`}>
+                              {label} is required
+                            </label>
+                            <input
+                              id={`${id}-required`}
+                              type="checkbox"
+                              checked={row.required}
+                              disabled={disabled}
+                              onChange={(e) => patch({ required: e.target.checked })}
+                              className="h-4 w-4"
+                            />
+                          </>
+                        ) : (
+                          // Meta carries body required-ness in `body.required` as a
+                          // top-level array, with no verified place to say it deeper.
+                          // A checkbox here would silently do nothing.
+                          <span
+                            className="text-muted-foreground"
+                            title="Meta only records required-ness for top-level body fields"
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

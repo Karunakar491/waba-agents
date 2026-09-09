@@ -90,10 +90,12 @@ test.describe('@nested-body an enterprise payload can be configured', () => {
       .evaluateAll((nodes) => nodes.map((n) => n.id))
     expect(ids.filter((id) => /^body-\d+-\d+-fill$/.test(id)).length).toBeGreaterThanOrEqual(4)
 
-    // The list's item fields are rebuilt from the string-encoded items node.
-    await expect(page.getByText('sku', { exact: true })).toBeVisible()
-    await expect(page.getByText('qty', { exact: true })).toBeVisible()
-    await expect(page.getByText('vip', { exact: true })).toBeVisible()
+    // The list's item fields are rebuilt from the string-encoded items node,
+    // and each row is named by its full path — so a row means the same thing
+    // read on its own as it does in context.
+    await expect(page.getByText('lines[].sku', { exact: true })).toBeVisible()
+    await expect(page.getByText('lines[].qty', { exact: true })).toBeVisible()
+    await expect(page.getByText('customer.vip', { exact: true })).toBeVisible()
 
     // ---- clean up ---------------------------------------------------------
     await page.goto(connectorUrl)

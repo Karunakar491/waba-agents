@@ -30,11 +30,14 @@ test.describe('@shotswb the workbench, photographed', () => {
       await page.waitForLoadState('networkidle')
       await page.locator('div.w-72 button').filter({ hasText: /\w/ }).nth(i).click()
       if (!/\/library\/connectors\/\d+$/.test(page.url())) continue
-      // The actions query starts AFTER the connector is selected, so
-      // networkidle from the navigation proves nothing. Wait for the pane to
-      // have decided — a table, or the empty state.
+
+      // A connector opens on Details, so ask for Actions. On one with none
+      // that redirects into the request editor — which is the answer to "does
+      // this connector have any", and cheaper than waiting for a table that
+      // will never appear.
+      await connectorSection(page, 'Actions').click()
       await expect(
-        page.locator('table').or(page.getByText(/No actions yet/i)).first(),
+        page.locator('table').or(page.getByPlaceholder('e.g. product_search')).first(),
       ).toBeVisible({ timeout: 20_000 })
       if ((await page.locator('table tbody tr').count()) > 0) {
         opened = true
@@ -42,7 +45,7 @@ test.describe('@shotswb the workbench, photographed', () => {
       }
     }
     test.skip(!opened, 'no connector on this account has an action')
-    await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
+    await expect(page).toHaveURL(/\/library\/connectors\/\d+\?section=actions$/)
     await page.screenshot({ path: 'e2e-shots/wb-connector-actions.png' })
 
     for (const tab of ['Details', 'Authorization', 'Variables', 'Agents']) {

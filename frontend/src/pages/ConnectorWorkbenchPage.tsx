@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import api from '../lib/api'
@@ -10,8 +10,6 @@ import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
 import ToolPane from '../components/connectors/workbench/ToolPane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
-import { type WorkbenchTab } from '../components/connectors/workbench/WorkbenchTabs'
-import { META_MACROS } from '../components/connectors/workbench/metaMacros'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
 import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
@@ -49,10 +47,11 @@ interface WabaEntry {
  * URL, the auth and the certificate. Postman lets auth sit on either and would
  * have taught the wrong model.
  *
- * Both levels are tabbed, mapped onto Postman's own two levels: a connector is
- * a collection (Actions / Details / Authorization / Variables / Agents), an
- * action is a request (Params / Authorization / Headers / Body / Docs /
- * Response). The panes carry the notes on what was deliberately not copied —
+ * Only the action is tabbed (Params / Authorization / Headers / Body / Docs /
+ * Response), because a request has more in it than fits at once. The connector
+ * is one page: name, base URL, credential, its actions, its agents. It was
+ * tabbed too, and that put two tab strips on screen at the same time. The panes
+ * carry the notes on what was deliberately not copied from Postman —
  * collection-level headers and bodies, scripts, settings.
  *
  * An action's Authorization tab reports rather than edits, which is the one
@@ -81,23 +80,6 @@ export default function ConnectorWorkbenchPage() {
   const [newError, setNewError] = useState<string | null>(null)
   const [pendingDeleteConnector, setPendingDeleteConnector] = useState<LibraryConnector | null>(null)
   const [deleteConnectorError, setDeleteConnectorError] = useState<string | null>(null)
-
-  /**
-   * Which of the connector's sections is showing, in the URL rather than in
-   * state.
-   *
-   * It has to be. `/library/connectors/:id` and
-   * `/library/connectors/:id/actions/:actionId` are separate routes, so moving
-   * between them unmounts this page and remounts it — held in `useState`, the
-   * section silently reverted to Details on the way back from an action, and
-   * the test caught it showing the wrong panel.
-   *
-   * Details is the default: arriving at a connector, the connector is what you
-   * are looking at. Actions led with a table that is empty on every connector
-   * just created.
-   */
-  const [searchParams] = useSearchParams()
-  const connectorTab = searchParams.get('section') ?? 'details'
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -266,43 +248,6 @@ export default function ConnectorWorkbenchPage() {
       setDetailsError(err instanceof Error ? err.message : 'Could not save.'),
   })
 
-  /**
-   * The connector's sections, and what selecting one does.
-   *
-   * Actions is the odd one: on a connector with no actions it opens the
-   * request editor straight away ("add an action is always an extra step"),
-   * and from inside an action it goes back to the connector to show the table.
-   */
-  const connectorSections: WorkbenchTab[] = [
-    { id: 'actions', label: 'Actions', count: actions?.length ?? 0 },
-    { id: 'details', label: 'Details' },
-    { id: 'auth', label: 'Authorization' },
-    { id: 'variables', label: 'Variables', count: META_MACROS.length },
-    { id: 'agents', label: 'Agents', count: connector?.deployments.length ?? 0 },
-  ]
-
-  function selectConnectorSection(id: string) {
-    // One navigation covers every case: choosing a section from the connector,
-    // and leaving an open action for one of them. Whether Actions means "the
-    // table" or "the editor" is decided below, once the actions are known —
-    // deciding it here read `actions?.length === 0` before the query had
-    // answered, so a click during loading landed on an empty table.
-    navigate(`/library/connectors/${connectorId}?section=${id}`)
-  }
-
-  /**
-   * Actions on a connector with none IS the request editor — "add an action is
-   * always an extra step". Done here rather than on the click because it needs
-   * the actions to have loaded, and it covers a pasted `?section=actions` URL
-   * too. `replace` so Back does not bounce off it.
-   */
-  useEffect(() => {
-    if (actionId || connectorTab !== 'actions' || !connectorId) return
-    if (actions && actions.length === 0) {
-      navigate(`/library/connectors/${connectorId}/actions/new`, { replace: true })
-    }
-  }, [actionId, connectorTab, connectorId, actions, navigate])
-
   if (loadingConnectors) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
@@ -320,13 +265,12 @@ export default function ConnectorWorkbenchPage() {
 
   return (
     <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
-      {/* One line, and only ever ONE row of tabs on the screen.
+      {/* Where you are, and nothing else. There is only ever ONE row of tabs on
+          the screen, and it belongs to the open action.
 
-          The connector's sections were a second tab row under this, so an open
-          action put two strips on screen — with "Authorization" and "Headers"
-          appearing twice. They belong at breadcrumb level: small muted links on
-          the same line as the name, plainly navigation rather than a tab strip,
-          and still reachable from inside an action. */}
+          This line carried the connector's five sections as pills. It no longer
+          needs to: the connector is one page now, so there is nowhere to
+          navigate to. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b bg-card px-4 py-2.5">
         <Link
           to="/library/connectors"
@@ -337,40 +281,33 @@ export default function ConnectorWorkbenchPage() {
         {connector && (
           <>
             <span className="text-muted-foreground">/</span>
-            <span className="max-w-xs truncate text-sm font-medium text-foreground">
-              {connector.name}
-            </span>
+            {/* A link, not a label. With the connector's sections gone from
+                this line, this is the way back to the connector itself from an
+                open action — its base URL, its credential, its other actions. */}
+            {actionId ? (
+              <Link
+                to={`/library/connectors/${connector.id}`}
+                className="max-w-xs truncate text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {connector.name}
+              </Link>
+            ) : (
+              <span className="max-w-xs truncate text-sm font-medium text-foreground">
+                {connector.name}
+              </span>
+            )}
             <StatusIndicator
               label={connector.status === 'PUBLISHED' ? 'Published' : 'Draft'}
               tone={connector.status === 'PUBLISHED' ? 'positive' : 'neutral'}
             />
-
-            <nav aria-label="Connector sections" className="ml-auto flex items-center gap-1">
-              {connectorSections.map((section) => {
-                const current = (actionId ? 'actions' : connectorTab) === section.id
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    aria-current={current ? 'page' : undefined}
-                    onClick={() => selectConnectorSection(section.id)}
-                    className={
-                      'rounded-md px-2 py-1 text-xs transition-colors ' +
-                      (current
-                        ? 'bg-muted font-medium text-foreground'
-                        : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {section.label}
-                    {typeof section.count === 'number' && section.count > 0 && (
-                      <span className="ml-1 tabular-nums text-muted-foreground">
-                        {section.count}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </nav>
+            {action && (
+              <>
+                <span className="text-muted-foreground">/</span>
+                <span className="max-w-xs truncate text-sm font-medium text-foreground">
+                  {action.name}
+                </span>
+              </>
+            )}
           </>
         )}
       </div>
@@ -462,7 +399,7 @@ export default function ConnectorWorkbenchPage() {
               saveError={saveAction.error}
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}
               onRequestDelete={() => action && setPendingDeleteAction(action)}
-              onOpenConnectorAuth={() => selectConnectorSection('auth')}
+              onOpenConnectorAuth={() => navigate(`/library/connectors/${connectorId}`)}
             />
           ) : (
             <ConnectorPane
@@ -489,7 +426,6 @@ export default function ConnectorWorkbenchPage() {
                 setDeleteConnectorError(null)
                 setPendingDeleteConnector(connector)
               }}
-              tab={connectorTab}
             />
           )}
         </div>

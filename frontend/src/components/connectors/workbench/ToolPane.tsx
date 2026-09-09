@@ -3,6 +3,7 @@ import { Loader2, Trash2 } from 'lucide-react'
 import ErrorBanner from '../../shared/ErrorBanner'
 import RequestBar from './RequestBar'
 import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
+import AutoHeaders from './AutoHeaders'
 import ToolParamsEditor from '../../agent-detail/ToolParamsEditor'
 import ToolBodyEditor from '../../agent-detail/ToolBodyEditor'
 import {
@@ -43,6 +44,7 @@ export default function ToolPane({
   action,
   baseUrl,
   authLabel,
+  authHeaders,
   saving,
   saveError,
   onSave,
@@ -54,6 +56,8 @@ export default function ToolPane({
   baseUrl: string
   /** The connector's auth type, in words — this action inherits it. */
   authLabel: string
+  /** Credential header names from the connector, sent without being typed here. */
+  authHeaders: string[]
   saving: boolean
   saveError: unknown
   onSave: (payload: ActionPayload) => void
@@ -239,12 +243,15 @@ export default function ToolPane({
         )}
 
         {tab === 'headers' && (
-          <ToolParamsEditor
-            label="Headers"
-            rows={headerParams}
-            setRows={setHeaderParams}
-            disabled={saving}
-          />
+          <div className="space-y-4">
+            <ToolParamsEditor
+              label="Headers"
+              rows={headerParams}
+              setRows={setHeaderParams}
+              disabled={saving}
+            />
+            <AutoHeaders authHeaders={authHeaders} />
+          </div>
         )}
 
         {tab === 'body' && bodyAllowed && (

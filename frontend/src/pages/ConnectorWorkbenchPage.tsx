@@ -437,6 +437,9 @@ export default function ConnectorWorkbenchPage() {
               authLabel={
                 AUTH_TYPES.find((a) => a.value === connector.authType)?.label ?? connector.authType
               }
+              authHeaders={toFormValues(connector)
+                .headers.map((h) => h.fieldName.trim())
+                .filter(Boolean)}
               saving={saveAction.isPending}
               saveError={saveAction.error}
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}

@@ -131,9 +131,6 @@ connectorScreen({
         ${propTable(
           prop('Name', 'IndiaMART Supplier Search API') +
             prop('Description', 'Finds suppliers matching a buyer&rsquo;s requirement') +
-            prop('Base URL', '<span class="mono">https://script.google.com/macros/s/AKfycbz6VEDS7HQa1J/exec</span>') +
-            prop('Auth', 'API key <span class="sub">&middot;</span> <span class="mono">X-Api-Key</span> <span class="sub">header, prefix</span> <span class="mono">Bearer</span>') +
-            prop('Client certificate', `<span class="ghost">Not required</span>`) +
             prop(
               'Tags',
               `<span style="display: inline-flex; gap: 6px"><span style="font-size: 11.5px; background: #F4F4F5; border-radius: 6px; padding: 3px 8px; color: #52525B">e-commerce</span><span style="font-size: 11.5px; background: #F4F4F5; border-radius: 6px; padding: 3px 8px; color: #52525B">suppliers</span></span>`,
@@ -156,68 +153,6 @@ connectorScreen({
         ${agents(liveAgent)}`,
 })
 
-/* ------------------------------------------- the connector, auth expanded */
-connectorScreen({
-  file: 'ConnectorAuth.dc.html',
-  tree: { open: 'supplier', sel: null },
-  crumbs: [{ text: 'Connectors' }, { text: 'IndiaMART Supplier Search API' }],
-  content: `
-        ${propTable(
-          prop('Name', 'IndiaMART Supplier Search API') +
-            prop('Base URL', '<span class="mono">https://script.google.com/macros/s/AKfycbz6VEDS7HQa1J/exec</span>') +
-            prop('Auth', `<span class="sel">API key${caret()}</span>`) +
-            `
-              <tr>
-                <td style="width: 172px; font-size: 12.5px; color: ${T.muted}; padding: 13px 16px 0; vertical-align: top; border-bottom: 1px solid ${T.rowline}">Credentials</td>
-                <td style="padding: 10px 12px 12px 0; border-bottom: 1px solid ${T.rowline}">
-                  <div style="border: 1px solid ${T.line}; border-radius: 10px; overflow: hidden">
-                    <table>
-                      <thead><tr>
-                        <th class="th" style="width: 190px">Field</th>
-                        <th class="th" style="width: 116px">In</th>
-                        <th class="th" style="width: 116px">Prefix</th>
-                        <th class="th">Value</th>
-                      </tr></thead>
-                      <tbody>
-                        <tr>
-                          <td class="tdc mono">X-Api-Key</td>
-                          <td class="tdc"><span class="sel">Header${caret()}</span></td>
-                          <td class="tdc mono">Bearer</td>
-                          <td class="tdc ghost">Typed at publish &mdash; never stored here</td>
-                        </tr>
-                        <tr>
-                          <td class="tdc mono">account_id</td>
-                          <td class="tdc"><span class="sel" style="color: ${T.teal}; font-weight: 500">Query${caret(T.teal)}</span></td>
-                          <td class="tdc ghost">&mdash;</td>
-                          <td class="tdc ghost">Typed at publish &mdash; never stored here</td>
-                        </tr>
-                        <tr style="background: #FCFCFD">
-                          <td class="tdc mono ghost" style="border-bottom: none">field</td>
-                          <td class="tdc ghost" style="border-bottom: none">Header</td>
-                          <td class="tdc ghost" style="border-bottom: none">prefix</td>
-                          <td class="tdc ghost" style="border-bottom: none">&mdash;</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <p style="font-size: 12px; color: ${T.muted}; margin: 9px 2px 0">Header, query or body. Values go straight to Meta at publish.</p>
-                </td>
-              </tr>` +
-            prop('Client certificate', `<span class="sel">Not required${caret()}</span>`, true),
-        )}
-
-        <div style="display: flex; align-items: baseline; gap: 10px; margin: 24px 0 9px">
-          <span class="lbl">Actions</span>
-          <span style="font-size: 11px; color: ${T.ghost}; font-variant-numeric: tabular-nums">3</span>
-        </div>
-        <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
-          <table>${actionsHead}<tbody>
-            ${aRow('GET', 'supplier_search', '/exec', 'Suppliers for a product and city', 4, '&mdash;')}
-            ${aRow('POST', 'create_enquiry', '/exec', 'Raises an enquiry with a supplier', 1, 7)}
-          </tbody></table>
-        </div>`,
-})
-
 /* ----------------------------------------------- a connector with nothing */
 connectorScreen({
   file: 'NewConnector.dc.html',
@@ -227,9 +162,7 @@ connectorScreen({
         ${propTable(
           prop('Name', 'Google Sheets Export') +
             prop('Description', `<span class="ghost">what this API is for</span>`) +
-            prop('Base URL', '<span class="mono">https://sheets.googleapis.com/v4</span>') +
-            prop('Auth', `<span class="sel">API key${caret()}</span>`) +
-            prop('Client certificate', `<span class="ghost">Not required</span>`, true),
+            prop('Tags', `<span class="ghost">none yet</span>`, true),
         )}
 
         <div style="display: flex; align-items: baseline; gap: 10px; margin: 26px 0 9px">
@@ -248,4 +181,4 @@ connectorScreen({
         </div>`,
 })
 
-console.log('wrote Main.dc.html ConnectorAuth.dc.html NewConnector.dc.html')
+console.log('wrote Main.dc.html NewConnector.dc.html')

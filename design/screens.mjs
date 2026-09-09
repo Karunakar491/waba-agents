@@ -77,28 +77,64 @@ screen({
   bar: requestBar({ method: 'GET', host: 'script.google.com', path: '/exec' }),
   tabRow: tabs({ active: 'auth', params: 4, headers: 1, body: 0, bodyOff: true }),
   content: `
-          <div class="lbl" style="display: block; margin-bottom: 8px">Inherited from the connector</div>
-          <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden; max-width: 820px">
+          <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 10px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${T.amber}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+            <span style="font-size: 12.5px; color: ${T.amber}">Shared by all 3 actions on this connector &mdash; a change here changes it for every one of them.</span>
+          </div>
+
+          <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden; max-width: 900px">
             <table><tbody>
               <tr>
-                <td class="td" style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding-left: 16px">Auth</td>
-                <td class="td">API key</td>
+                <td style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding: 0 16px; height: 44px; border-bottom: 1px solid ${T.rowline}">Base URL</td>
+                <td class="td mono" style="border-bottom: 1px solid ${T.rowline}">https://script.google.com/macros/s/AKfycbz6VEDS7HQa1J/exec</td>
               </tr>
               <tr>
-                <td class="td" style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding-left: 16px">Credentials</td>
-                <td class="td"><span class="mono">X-Api-Key</span> <span class="sub">header, prefix</span> <span class="mono">Bearer</span></td>
+                <td style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding: 0 16px; height: 44px; border-bottom: 1px solid ${T.rowline}">Auth</td>
+                <td class="td" style="border-bottom: 1px solid ${T.rowline}"><span class="sel">API key${caret()}</span></td>
               </tr>
               <tr>
-                <td class="td" style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding-left: 16px; border-bottom: none">Client certificate</td>
-                <td class="td ghost" style="border-bottom: none">Not required</td>
+                <td style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding: 13px 16px 0; vertical-align: top; border-bottom: 1px solid ${T.rowline}">Credentials</td>
+                <td style="padding: 10px 12px 12px 0; border-bottom: 1px solid ${T.rowline}">
+                  <div style="border: 1px solid ${T.line}; border-radius: 10px; overflow: hidden">
+                    <table>
+                      <thead><tr>
+                        <th class="th" style="width: 180px">Field</th>
+                        <th class="th" style="width: 112px">In</th>
+                        <th class="th" style="width: 108px">Prefix</th>
+                        <th class="th">Value</th>
+                      </tr></thead>
+                      <tbody>
+                        <tr>
+                          <td class="tdc mono">X-Api-Key</td>
+                          <td class="tdc"><span class="sel">Header${caret()}</span></td>
+                          <td class="tdc mono">Bearer</td>
+                          <td class="tdc ghost">Typed at publish &mdash; never stored here</td>
+                        </tr>
+                        <tr>
+                          <td class="tdc mono">account_id</td>
+                          <td class="tdc"><span class="sel" style="color: ${T.teal}; font-weight: 500">Query${caret(T.teal)}</span></td>
+                          <td class="tdc ghost">&mdash;</td>
+                          <td class="tdc ghost">Typed at publish &mdash; never stored here</td>
+                        </tr>
+                        <tr style="background: #FCFCFD">
+                          <td class="tdc mono ghost" style="border-bottom: none">field</td>
+                          <td class="tdc ghost" style="border-bottom: none">Header</td>
+                          <td class="tdc ghost" style="border-bottom: none">prefix</td>
+                          <td class="tdc ghost" style="border-bottom: none">&mdash;</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p style="font-size: 12px; color: ${T.muted}; margin: 9px 2px 0">Header, query or body &mdash; Meta accepts a credential in all three.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="width: 168px; color: ${T.muted}; font-size: 12.5px; padding: 0 16px; height: 44px; border-bottom: none">Client certificate</td>
+                <td class="td" style="border-bottom: none"><span class="sel">Not required${caret()}</span></td>
               </tr>
             </tbody></table>
           </div>
-          <p style="font-size: 12.5px; color: #52525B; margin: 14px 0 0; max-width: 700px">An action cannot carry its own credential &mdash; Meta keeps auth on the connector, so every action under it signs in the same way.</p>
-          <div style="display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border: 1px solid ${T.line}; border-radius: 8px; margin-top: 14px">
-            <span style="font-size: 12.5px; font-weight: 500; color: ${T.teal}">Change it on the connector</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${T.teal}" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
-          </div>`,
+          <p style="font-size: 12px; color: ${T.muted}; margin: 12px 0 0; max-width: 820px">Editable here because this is where it is used. It cannot be per-action &mdash; Meta keeps <span class="mono" style="font-size: 11.5px">base_url</span> and <span class="mono" style="font-size: 11.5px">auth_config</span> on the connector, and a tool cannot carry a credential of its own.</p>`,
   resp: response('idle'),
 })
 

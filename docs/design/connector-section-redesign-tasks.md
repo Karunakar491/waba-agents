@@ -113,12 +113,100 @@ Stated here so this document does not end up with two plans again.
 | **T5** Agents as a table | Shrinks to the strip at the foot of the connector screen |
 | **T20** *(new)* remove the connector section nav | The header keeps only the breadcrumb. Deletes the code shipped on 2026-09-09 |
 | **T21** *(new)* Variables leaves the connector | Meta's three macros become a reference beside the Value cell, at the point a macro is chosen |
-| **T19** description column in the Actions table | Now definitely wanted — the Actions table is the connector screen's main content |
-| T1, T3, T4, T6, T7, T15–T18 | Unchanged |
+| **T19** description column in the Actions table | Now required, not optional — it is one of the four columns the trailing row needs to create an action |
+| **T22** *(new)* no `Add …` controls; every table's last row is empty and live | Replaces T4/T15 and removes `Add an action`, `Add query parameter`, `Add header`, `Add another header` |
+| **T23** *(new)* rewrite every label to the copy standard | Its own task, done in one pass, so the tone cannot drift back a string at a time |
+| T1, T3, T6, T7, T16–T18 | Unchanged |
 
 T20 and T21 both **delete** things I built this week. That is the honest cost of
 having designed per screenshot, and they are cheaper to delete now than to keep
 styling.
+
+## The second rule: nothing is created by a button that opens an empty form
+
+The founder: *"Why should we have add action as a separate button, Why cant we
+give a table or something where user can fill data. Why an extra step for every
+single thing."*
+
+Right, and it is the same defect eight times over. Today, to add anything you
+first press a control that produces an empty thing, then fill it:
+
+| To add | Today | Steps |
+| --- | --- | --- |
+| an action | `Add an action` → navigate to a blank editor → fill → `Add action` | 4 |
+| a query parameter | `Add query parameter` → a blank row appears → fill | 3 |
+| a header | `Add header` → blank row → fill | 3 |
+| a credential header | `Add another header` → blank pair → fill | 3 |
+| a body field | edit the JSON, then find the row it produced | 3 |
+
+**Rule: the last row of every table is empty and live. Typing in it creates the
+thing and grows a new empty row underneath.** No `Add …` control anywhere in
+the section.
+
+For actions that means the Actions table's trailing row takes method, name,
+path and description inline — the four things Meta requires — and the action
+exists as soon as they are filled. Parameters and body are added by opening it,
+because those are its contents rather than its identity. Creating an action
+stops being a navigation.
+
+This also deletes the `Still needed: Name, Description (Docs tab)` message:
+required fields are columns in the row you are typing in, so there is nowhere
+for one to hide.
+
+## The third rule: label like an API, not like a conversation
+
+The founder: *"the language should be professional dude, but the entire
+language of button or text is some cheap conversation style."*
+
+Correct. The section talks to the user instead of naming things. These are all
+real strings in it today:
+
+| Today | Should be |
+| --- | --- |
+| "What it can do" | **Actions** |
+| "This connector can't do anything yet" | **No actions** |
+| "Nothing it can do yet" | **No actions** |
+| "Where it runs" | **Deployments** |
+| "Where it is, and how it signs in" | *(nothing — it is the property table)* |
+| "Who fills this in" / "Value" | **Source** |
+| "Agent fills this in" | **Agent** |
+| "Fixed value" | **Fixed** |
+| "Customer's WhatsApp number" | **`WHATSAPP_PHONE_NUMBER`** |
+| "built from its fields" | **object** / **array** |
+| "set when you publish" | **At publish** |
+| "From the connector's Authorization" | **Connector auth** |
+| "Meta accepts no other value" | **Fixed by Meta** |
+| "Still needed: Name, Description (Docs tab)" | **Required: name, description** |
+| "Every action inherits:" | **Inherited** |
+| "Description — the agent reads this to know what it's for" | **Description** |
+| "What the agent should put here" | *(placeholder removed)* |
+| "Query and path values are single values only — Meta rejects an object or a list here. Nested shapes belong in the body." | **Scalars only. Objects and arrays belong in the body.** |
+| "Add an action so an agent has something to call. Until then, deploying it achieves nothing." | *(deleted — the trailing row is the affordance)* |
+| "Paste an example of the JSON this endpoint expects — nested objects and lists included. Every field appears in the table below." | **Example JSON** |
+
+### The standard
+
+1. **Nouns, not sentences.** A label names a thing. `Deployments`, not "where it
+   runs".
+2. **Meta's vocabulary where Meta has one.** `base_url`, `auth_type`,
+   `required`, `enum`, `WHATSAPP_PHONE_NUMBER`. These users read the API docs;
+   a private synonym is one more thing to map.
+3. **No second person.** No "you", no "your". The screen is not talking.
+4. **No explaining the obvious.** A `Description` column does not need to say
+   what a description is for.
+5. **Constraints stated once, flatly, where they bite.** "Scalars only" on the
+   params table. Not a paragraph of reasoning.
+6. **Empty states are a count, not encouragement.** `No actions`.
+7. **Sentence case. No exclamation marks, no hedging, no "just", no "simply".**
+
+### Where prose is still right
+
+Two places, and only these: a **destructive confirmation** must say what will
+be lost in a full sentence, and an **error** must say what happened and what to
+do. Both are moments where the user needs a sentence rather than a label.
+
+The rest of the section should read like a reference table, because that is
+what it is.
 
 ## The rule
 
@@ -223,13 +311,12 @@ because those two fields live apart.
 
 Fixes W3, W4, W8.
 
-### T4 — Empty tables show one blank row
+### T4 — *superseded by T22*
 
-A table with nothing in it renders its header and a single empty row, the way
-Postman's does. Typing in it makes it real and grows another. Remove the
-separate "Add …" links.
-
-Fixes W7. Also removes the dead space in the screenshot that started this.
+Was "empty tables show one blank row". T22 is the same idea taken all the way:
+*every* table's last row is empty and live, in every state, and every `Add …`
+control is deleted — including `Add an action`, which made creating an action a
+navigation to a blank form.
 
 ### T5 — Agents becomes a table
 
@@ -374,9 +461,9 @@ where an action's own description is styling rather than a column — **T19**.
 Structure copied, interaction not. These four are the ones that bite while
 actually configuring an API:
 
-- **T15 — A permanent empty trailing row.** Typing in it makes it real and
-  grows another. This is T4 stated the way Postman does it, and it is the
-  reason the screenshot showed a heading over blank space. Merge with T4.
+- **T15 — A permanent empty trailing row.** Now **T22**, and stronger than
+  Postman's version: it applies to the Actions table too, so nothing in the
+  section is created by a button that opens an empty form.
 - **T16 — `✕` on row hover, not a permanent column.** The delete column eats
   width on every row to serve the rare case.
 - **T17 — Bulk Edit.** Swap the table for a textarea of `key:value` lines. For
@@ -414,7 +501,8 @@ after. Two orders is no order.
 | 3 | **T10** API key in query params / body params | G1 | M | The most common auth style we cannot express. Backend + one column |
 | 4 | **T1** one table component | W1, W2, W6 | M | Every layout task after it is cheap; before it, each is a new implementation |
 | 5 | **T2** connector Details + Authorization as tables | W1, W2 | M | Largest surface still on the old pattern. Lands T10's new column with it |
-| 6 | **T4 + T15** permanent empty trailing row | W7 | S | Small, and it is the thing in the screenshot that started this |
+| 6 | **T22** empty live trailing row everywhere; delete every `Add …` control | W7 | M | Replaces T4/T15. Removes one step from every single thing you add, which was the founder's complaint |
+| 6a | **T23** rewrite every label to the copy standard | — | S | One pass, or the tone drifts back a string at a time |
 | 6b | **T16** `✕` on hover, **T17** Bulk Edit, **T18** drag to reorder | — | M | Interaction, not structure. T17 earns its place the first time someone configures twenty parameters |
 | 6c | **T19** description as a column in the Actions table | — | XS | The last place a description is styling instead of a column |
 | 7 | **T3** an action's own Details tab | W3, W4, W8 | S | Removes the `Still needed` workaround rather than rewording it |

@@ -112,7 +112,7 @@ Stated here so this document does not end up with two plans again.
 | **T2** connector Details + Authorization as tables | Becomes **one property table**, not two tabbed ones. Same work, one surface |
 | **T5** Agents as a table | Shrinks to the strip at the foot of the connector screen |
 | **T20** *(new)* remove the connector section nav | The header keeps only the breadcrumb. Deletes the code shipped on 2026-09-09 |
-| **T21** *(new)* Variables leaves the connector | Meta's three macros become a reference beside the Value cell, at the point a macro is chosen |
+| **T21** *(new)* Variables leaves the connector | The three variables become `{{customer_phone}}`-style tokens offered in the Source cell, at the point one is chosen — not a tab on every connector |
 | **T19** description column in the Actions table | Now required, not optional — it is one of the four columns the trailing row needs to create an action |
 | **T22** *(new)* no `Add …` controls; every table's last row is empty and live | Replaces T4/T15 and removes `Add an action`, `Add query parameter`, `Add header`, `Add another header` |
 | **T23** *(new)* rewrite every label to the copy standard | Its own task, done in one pass, so the tone cannot drift back a string at a time |
@@ -171,7 +171,7 @@ real strings in it today:
 | "Who fills this in" / "Value" | **Source** |
 | "Agent fills this in" | **Agent** |
 | "Fixed value" | **Fixed** |
-| "Customer's WhatsApp number" | **`WHATSAPP_PHONE_NUMBER`** |
+| "Customer's WhatsApp number" | **`{{customer_phone}}`** |
 | "built from its fields" | **object** / **array** |
 | "set when you publish" | **At publish** |
 | "From the connector's Authorization" | **Connector auth** |
@@ -188,9 +188,21 @@ real strings in it today:
 
 1. **Nouns, not sentences.** A label names a thing. `Deployments`, not "where it
    runs".
-2. **Meta's vocabulary where Meta has one.** `base_url`, `auth_type`,
-   `required`, `enum`, `WHATSAPP_PHONE_NUMBER`. These users read the API docs;
-   a private synonym is one more thing to map.
+2. **Standard technical vocabulary, not Meta's field names.** `Base URL`, not
+   `base_url`. `Auth`, `Query params`, `Path variables`, `Headers`, `Body`,
+   `Bearer`, `Allowed values`, `Required` — the words any engineer already
+   knows from HTTP and from Postman. Meta's identifiers are our wire format,
+   not our labels; a screen full of `snake_case` reads like a database dump,
+   and Meta's own names are sometimes worse than the standard ones
+   (`user_auth_injection_config`).
+
+   The exception is a **value the user must type or match exactly** — a macro,
+   an enum member, a header name. Those are literal and belong in `code`.
+   Macros are shown as variable tokens in the style everyone knows from
+   Postman — `{{customer_phone}}`, `{{customer_id}}`, `{{conversation_status}}`
+   — and mapped to `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_IDENTITY_HASH` and
+   `WHATSAPP_CURRENT_STATUS_ID` on the way out. The user should never have to
+   type or read a Meta constant.
 3. **No second person.** No "you", no "your". The screen is not talking.
 4. **No explaining the obvious.** A `Description` column does not need to say
    what a description is for.
@@ -536,6 +548,58 @@ wait. That is a scheduling call, not a design one.
 - `GET /reports/api-calls?outcome=FAILURE` returns HTTP 500, so the fastest way
   to find failures is unfiltered and filter client-side. Unrelated to this
   section but it is how you would investigate anything on this page.
+
+---
+
+## What this document cannot do
+
+Asked directly: *"So you think the doc will make the design Apple class and
+then it will be the best?"*
+
+No. Being straight about it, because overselling this is how we end up in
+another ten rounds.
+
+**What the doc does buy.** It removes the specific failure that caused the
+churn: five patterns for one job, three navigation systems for two objects,
+decisions made per screenshot. Those are structural mistakes and they are
+fixable in prose because they are about *what exists*, not about how it looks.
+Result: coherent and professional. That is a floor, not a ceiling.
+
+**What it cannot buy, and what actually separates good from best:**
+
+1. **Density and rhythm.** Row height, the spacing scale, where borders are and
+   where whitespace does the job instead, how a table breathes at eight rows
+   and at eighty. This is most of the perceived quality of a table-heavy screen
+   and none of it can be specified in a task list — it has to be looked at.
+2. **Type and hierarchy.** Two or three sizes doing all the work, weight rather
+   than colour for emphasis, numerals aligned. Currently this section uses
+   `text-xs` almost everywhere, which is not a hierarchy, it is a shrug.
+3. **Subtraction.** Apple-class is mostly what is *not* there. This document
+   still adds: fourteen tasks, then four more, then two rules. The best version
+   of this screen probably has fewer controls than my sketch, and I will not
+   find them by writing more tasks.
+4. **State.** Focus, hover, disabled, loading, error, saving, and the moment
+   between typing in a trailing row and the row existing. These are where a
+   competent screen and a beautiful one diverge, and they are invisible in a
+   plan.
+5. **The feel of the thing.** Whether editing forty parameters is pleasant.
+   Only usable by trying it.
+
+### So how do we avoid another ten rounds?
+
+Not by a longer document. By changing what gets reviewed:
+
+**Build one screen to final craft — the connector screen — and review that
+alone.** Not fourteen tasks across eight surfaces. One screen, at real density,
+with real data, in both themes, with every state. Iterate on that until it is
+right, then apply the settled result to the rest of the section mechanically.
+
+The rounds so far were expensive because each one changed a different surface,
+so nothing ever converged. One surface, converged, then copied, is how the
+round count drops.
+
+**What I need from the founder is judgement on that one screen**, not on a plan.
+The plan's job was to make sure the screen we build is the right screen.
 
 ## Not doing
 

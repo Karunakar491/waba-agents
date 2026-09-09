@@ -442,16 +442,6 @@ screen({
 })
 
 /* ----------------------------------------------- Kundli: the real mapping */
-const KUNDLI_JSON = `<div>{</div>
-<div>&nbsp;&nbsp;<span class="k">"detail"</span>: {</div>
-<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"name"</span>: <span class="s">"Test User"</span>, <span class="k">"gender"</span>: <span class="s">"Male"</span>,</div>
-<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"day"</span>: <span class="n">1</span>, <span class="k">"month"</span>: <span class="n">1</span>, <span class="k">"year"</span>: <span class="n">1990</span>,</div>
-<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"hour"</span>: <span class="n">12</span>, <span class="k">"min"</span>: <span class="n">0</span>, <span class="k">"sec"</span>: <span class="n">0</span>,</div>
-<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"lat"</span>: <span class="n">28.6139</span>, <span class="k">"lon"</span>: <span class="n">77.209</span>,</div>
-<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"place"</span>: <span class="s">"New Delhi, India"</span>, <span class="k">"tzone"</span>: <span class="n">5.5</span></div>
-<div>&nbsp;&nbsp;}</div>
-<div>}</div>`
-
 const kf = (name, type, source, desc, req) => `
                 <tr>
                   <td class="tdc mono">${name}</td>
@@ -467,40 +457,41 @@ screen({
   crumbs: [{ text: 'Connectors' }, { text: 'AstroTalk Kundli' }, { text: 'general_kundli', mono: true }],
   bar: requestBar({ method: 'POST', host: 'api.kundali.astrotalk.com', path: '/v1/combined/general' }),
   tabRow: tabs({ active: 'body', params: 0, headers: 0, body: 13 }),
+  /* Same layout as screen 7 — the collapsed JSON strip, then the Fields table
+     full width, then the response. It was a two-column split, which made the
+     same tab look like a different screen. */
   content: `
-          <div style="display: flex; gap: 18px; align-items: flex-start; height: 100%">
-            <div style="width: 340px; flex-shrink: 0">
-              <div style="display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid ${T.line}; border-radius: 8px; margin-bottom: 9px">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${T.muted}" stroke-width="2.4" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg>
-                <span style="font-size: 12.5px">Example JSON</span>
-              </div>
-              <div class="mono" style="border: 1px solid ${T.line}; border-radius: 10px; background: #FCFCFD; padding: 11px 13px; line-height: 1.55; font-size: 11px">${KUNDLI_JSON}</div>
-              <p style="font-size: 11.5px; color: ${T.muted}; margin: 10px 2px 0; line-height: 1.5">Thirteen fields under one object. <span class="mono" style="font-size: 11px">day</span>, <span class="mono" style="font-size: 11px">month</span>, <span class="mono" style="font-size: 11px">year</span>, <span class="mono" style="font-size: 11px">lat</span> and <span class="mono" style="font-size: 11px">lon</span> are required by the API and <strong>cannot be marked required</strong> &mdash; Meta records that only for top-level fields, and the only top-level field here is <span class="mono" style="font-size: 11px">detail</span>. So the constraint lives in the description.</p>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px">
+            <div style="display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid ${T.line}; border-radius: 8px">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="${T.muted}" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+              <span style="font-size: 12.5px">Example JSON</span>
             </div>
-            <div style="flex-grow: 1; min-width: 0">
-              <div class="lbl" style="display: block; margin-bottom: 8px">Fields</div>
-              <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
-                <table>
-                  <thead><tr>${th('Field', 128)}${th('Type', 78)}${th('Source', 128)}${th('Description &mdash; the agent reads this')}${th('Req.', 58, 'center')}</tr></thead>
-                  <tbody>
-                    ${kf('detail', 'object', dash, 'The person&rsquo;s birth data', tick)}
-                    ${kf('detail.name', 'string', 'Agent', 'Name they gave. &ldquo;Anonymous&rdquo; if none.', dash)}
-                    ${kf('detail.gender', 'string', `<span style="color: ${T.teal}; font-weight: 500">One of</span>`, 'Exactly <span class="mono" style="font-size: 11.5px">Male</span> or <span class="mono" style="font-size: 11.5px">Female</span>.', dash)}
-                    ${kf('detail.day', 'integer', 'Agent', 'Day of birth, 1&ndash;31. <strong>Required.</strong>', dash)}
-                    ${kf('detail.month', 'integer', 'Agent', 'Month as a number, 1&ndash;12. <strong>Required.</strong>', dash)}
-                    ${kf('detail.year', 'integer', 'Agent', 'Four-digit year. <strong>Required.</strong>', dash)}
-                    ${kf('detail.hour', 'integer', 'Agent', '24-hour clock, 0&ndash;23. Midnight is 0, not 24.', dash)}
-                    ${kf('detail.min', 'integer', 'Agent', 'Minute, 0&ndash;59.', dash)}
-                    ${kf('detail.sec', 'integer', '<span class="sel">Fixed<span class="fix mono">0</span></span>', dash, dash)}
-                    ${kf('detail.lat', 'number', 'Agent', 'Decimal degrees, e.g. 28.6139. Not a place name. <strong>Required.</strong>', dash)}
-                    ${kf('detail.lon', 'number', 'Agent', 'Decimal degrees, e.g. 77.209. East positive. <strong>Required.</strong>', dash)}
-                    ${kf('detail.place', 'string', 'Agent', 'Birth place as they said it.', dash)}
-                    ${kf('detail.tzone', 'number', '<span class="sel">Fixed<span class="fix mono">5.5</span></span>', 'UTC offset in hours. 5.5 for India.', dash)}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>`,
+            <span style="display: inline-flex; align-items: center; gap: 5px">${tick}<span style="font-size: 12px; color: #15803D">Valid</span></span>
+            <span style="margin-left: auto; display: inline-flex; gap: 14px; align-items: center">
+              <span style="font-size: 12px; color: ${T.teal}; font-weight: 500">Beautify</span>
+              <span style="font-size: 12px; color: ${T.teal}; font-weight: 500">Import cURL</span>
+              <span style="font-size: 12px; color: ${T.muted}">JSON only</span>
+            </span>
+          </div>
+
+          <div class="lbl" style="display: block; margin-bottom: 8px">Fields</div>
+          <div style="border: 1px solid ${T.line}; border-radius: 12px; overflow: hidden">
+            <table>
+              <thead><tr>${th('Field', 190)}${th('Type', 118)}${th('Source', 186)}${th('Description &mdash; the agent reads this')}${th('Required', 80, 'center')}</tr></thead>
+              <tbody>
+                ${kf('detail', 'object', dash, 'The person&rsquo;s birth data', tick)}
+                ${kf('detail.name', 'string', `<span class="sel">Agent${caret()}</span>`, 'Name they gave. &ldquo;Anonymous&rdquo; if none.', dash)}
+                ${kf('detail.gender', 'string', `<span class="sel" style="color: ${T.teal}; font-weight: 500">One of${caret(T.teal)}</span>`, 'Exactly <span class="mono" style="font-size: 11.5px">Male</span> or <span class="mono" style="font-size: 11.5px">Female</span>.', dash)}
+                ${kf('detail.day', 'integer', `<span class="sel">Agent${caret()}</span>`, 'Day of birth, 1&ndash;31. <strong>Required.</strong>', dash)}
+                ${kf('detail.month', 'integer', `<span class="sel">Agent${caret()}</span>`, 'Month as a number, 1&ndash;12. <strong>Required.</strong>', dash)}
+                ${kf('detail.year', 'integer', `<span class="sel">Agent${caret()}</span>`, 'Four-digit year. <strong>Required.</strong>', dash)}
+                ${kf('detail.hour', 'integer', `<span class="sel">Agent${caret()}</span>`, '24-hour clock, 0&ndash;23. Midnight is 0, not 24.', dash)}
+                ${kf('detail.lat', 'number', `<span class="sel">Agent${caret()}</span>`, 'Decimal degrees, e.g. 28.6139. Not a place name. <strong>Required.</strong>', dash)}
+                ${kf('detail.lon', 'number', `<span class="sel">Agent${caret()}</span>`, 'Decimal degrees, e.g. 77.209. East positive. <strong>Required.</strong>', dash)}
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size: 12px; color: ${T.muted}; margin: 10px 0 0">4 more below &mdash; <span class="mono" style="font-size: 11.5px">min</span>, <span class="mono" style="font-size: 11.5px">sec</span>, <span class="mono" style="font-size: 11.5px">place</span>, <span class="mono" style="font-size: 11.5px">tzone</span>. Thirteen fields and an open response pane do not fit on one screen; collapse the response with the chevron to see them all.</p>`,
   resp: response({
     ok: false,
     status: '200 OK',

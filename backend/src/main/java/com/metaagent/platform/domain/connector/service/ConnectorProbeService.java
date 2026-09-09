@@ -4,9 +4,8 @@ import com.metaagent.platform.domain.connector.dto.ConnectorProbeDtos;
 import com.metaagent.platform.domain.connector.entity.Connector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import com.metaagent.platform.common.exception.BusinessException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +73,18 @@ import java.util.Map;
 @Service
 public class ConnectorProbeService {
 
+    /*
+     * Every refusal here throws BusinessException, not ResponseStatusException.
+     *
+     * It threw ResponseStatusException for one deploy, and the reasons never
+     * reached anybody: GlobalExceptionHandler has no handler for it, so it fell
+     * through to the catch-all and an operator blocking on
+     * "that host points inside our own network" was shown "Internal server
+     * error". Caught by probing 169.254.169.254 on the deployed box and reading
+     * what came back, not by reading the code — which is the whole argument for
+     * verifying against production rather than against a diff.
+     */
+
     /** Anything past this is not worth reading in a response pane. */
     private static final int MAX_BODY_BYTES = 256 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
@@ -109,8 +120,7 @@ public class ConnectorProbeService {
      */
     private void requireEnabled() {
         if (!enabled) {
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE, "Sending a test request is turned off on this deployment.");
+            throw new BusinessException("Sending a test request is turned off on this deployment.");
         }
     }
 
@@ -128,7 +138,7 @@ public class ConnectorProbeService {
         try {
             target = guard.screen(uri);
         } catch (OutboundTargetGuard.BlockedTargetException e) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+            throw new BusinessException(e.getMessage());
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(TIMEOUT);
@@ -147,10 +157,10 @@ public class ConnectorProbeService {
         try (InputStream stream = response.body()) {
             return read(response, stream, startedAt);
         } catch (ProbeFailure e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, e.getMessage());
+            throw new BusinessException(e.getMessage());
         } catch (IOException e) {
             log.warn("Probe to {} could not be read: {}", target.host(), e.getClass().getSimpleName());
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "The response could not be read.");
+            throw new BusinessException("The response could not be read.");
         }
     }
 
@@ -231,8 +241,7 @@ public class ConnectorProbeService {
     URI resolve(String baseUrl, String path, Map<String, String> queryParams) {
         String base = baseUrl == null ? "" : baseUrl.trim();
         if (base.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "This connector has no base URL yet.");
+            throw new BusinessException("This connector has no base URL yet.");
         }
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
 
@@ -256,8 +265,7 @@ public class ConnectorProbeService {
         try {
             return new URI(url.toString());
         } catch (URISyntaxException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "That base URL and path do not form a valid URL.");
+            throw new BusinessException("That base URL and path do not form a valid URL.");
         }
     }
 

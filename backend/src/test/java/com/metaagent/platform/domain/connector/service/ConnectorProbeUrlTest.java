@@ -2,7 +2,7 @@ package com.metaagent.platform.domain.connector.service;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
+import com.metaagent.platform.common.exception.BusinessException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -123,7 +123,7 @@ class ConnectorProbeUrlTest {
     @DisplayName("a connector with no base URL says so instead of building a broken URL")
     void refusesAnEmptyBase() {
         assertThatThrownBy(() -> service.resolve("   ", "/orders", Map.of()))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("no base URL");
     }
 
@@ -131,7 +131,7 @@ class ConnectorProbeUrlTest {
     @DisplayName("a base URL with a space in it is refused rather than silently mangled")
     void refusesAnUnparsableUrl() {
         assertThatThrownBy(() -> service.resolve("https://api.example.com/a b", "/orders", Map.of()))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("valid URL");
     }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Loader2 } from 'lucide-react'
@@ -8,7 +8,8 @@ import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 import StatusIndicator from '../components/shared/StatusIndicator'
 import { useActionFeedback } from '../components/shared/ActionFeedback'
 import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSidebar'
-import ToolPane from '../components/connectors/workbench/ToolPane'
+import ToolPane, { type ProbeRequestPayload } from '../components/connectors/workbench/ToolPane'
+import { type ProbeResult } from '../components/connectors/workbench/ResponsePane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
@@ -141,6 +142,38 @@ export default function ConnectorWorkbenchPage() {
       }
     },
   })
+
+  /**
+   * Sending one test request.
+   *
+   * A mutation rather than a query, and not cached: it has a side effect on
+   * someone else's system, so it must happen once per press and never be
+   * replayed on a refocus or a remount. The secrets in the payload exist only
+   * for the duration of the call — no query key holds them, so nothing keeps
+   * them in the cache.
+   */
+  const probeMutation = useMutation({
+    mutationFn: (payload: ProbeRequestPayload) =>
+      api
+        .post(`/connector-library/${connectorId}/probe`, payload)
+        .then((r) => r.data.data as ProbeResult),
+  })
+
+  /**
+   * A response belongs to the action it was sent from.
+   *
+   * ToolPane is keyed on the action id so it remounts and resets its draft, but
+   * this mutation lives here and survives that — so opening another action
+   * showed the previous one's response under its Response tab. Cleared on the
+   * way in rather than filtered on the way out, because a result that is not
+   * this action's is not a result to reason about.
+   */
+  useEffect(() => {
+    probeMutation.reset()
+    // Only when the action changes. probeMutation is stable across renders, and
+    // depending on it would clear the result the moment one arrived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionId])
 
   const deleteAction = useMutation({
     mutationFn: (id: string) => api.delete(`/connector-library/${connectorId}/actions/${id}`),
@@ -400,6 +433,21 @@ export default function ConnectorWorkbenchPage() {
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}
               onRequestDelete={() => action && setPendingDeleteAction(action)}
               onOpenConnectorAuth={() => navigate(`/library/connectors/${connectorId}`)}
+              onSend={(payload) => probeMutation.mutate(payload)}
+              probe={{
+                result: probeMutation.data ?? null,
+                // The backend's message, which is the useful half: it says
+                // "that host points inside our own network" or "the API did not
+                // answer within 10 seconds" rather than "Request failed".
+                error: probeMutation.error
+                  ? (probeMutation.error as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message ??
+                    (probeMutation.error instanceof Error
+                      ? probeMutation.error.message
+                      : 'The request could not be sent.')
+                  : null,
+                pending: probeMutation.isPending,
+              }}
             />
           ) : (
             <ConnectorPane

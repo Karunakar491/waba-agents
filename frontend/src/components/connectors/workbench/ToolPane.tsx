@@ -4,6 +4,7 @@ import ErrorBanner from '../../shared/ErrorBanner'
 import RequestBar from './RequestBar'
 import WorkbenchTabs, { type WorkbenchTab } from './WorkbenchTabs'
 import AutoHeaders from './AutoHeaders'
+import ResponsePane, { type ProbeResult } from './ResponsePane'
 import ToolParamsEditor from '../../agent-detail/ToolParamsEditor'
 import ToolBodyEditor from '../../agent-detail/ToolBodyEditor'
 import {
@@ -21,8 +22,19 @@ const inputCls =
   'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition'
 
-const TEST_UNAVAILABLE =
-  'Testing needs this connector deployed to an agent — Meta makes the call, not us.'
+/**
+ * What Send posts. Mirrors the backend's ProbeRequest, with `secrets` separate
+ * from `headers` for the same reason it is separate there: it is the one field
+ * nothing may persist.
+ */
+export interface ProbeRequestPayload {
+  method: string
+  path: string
+  queryParams: Record<string, string>
+  headers: Record<string, string>
+  secrets: Record<string, string>
+  body?: string
+}
 
 /**
  * One action, laid out like a Postman request: name, the method+path bar, then
@@ -50,6 +62,8 @@ export default function ToolPane({
   onSave,
   onRequestDelete,
   onOpenConnectorAuth,
+  onSend,
+  probe,
 }: {
   /** Null when adding a new action. */
   action: ConnectorAction | null
@@ -63,6 +77,9 @@ export default function ToolPane({
   onSave: (payload: ActionPayload) => void
   onRequestDelete: () => void
   onOpenConnectorAuth: () => void
+  /** Sends the request as it stands, saved or not — that is the point of it. */
+  onSend: (payload: ProbeRequestPayload) => void
+  probe: { result: ProbeResult | null; error: string | null; pending: boolean }
 }) {
   const prefill = useMemo(
     () => (action ? parseRequestDefinition(action.requestDefinition) : null),
@@ -81,6 +98,21 @@ export default function ToolPane({
     Object.fromEntries((prefill?.pathParams ?? []).map((row) => [row.key, row])),
   )
   const [rowError, setRowError] = useState<string | null>(null)
+
+  /**
+   * Credential values, for this call only.
+   *
+   * They have to be typed here because the product deliberately never stores
+   * them — they are entered at publish time and go straight to Meta. So a test
+   * call has no credential to reuse, and the honest thing is to ask for it,
+   * say it is not being saved, and mean it: this is component state, it dies
+   * with the component, and the server that receives it writes it nowhere.
+   */
+  const [secrets, setSecrets] = useState<Record<string, string>>({})
+
+  /** Body to send, as JSON text. Separate from the field table: the table
+   *  describes the shape for the agent, a test needs actual values. */
+  const [probeBody, setProbeBody] = useState('')
 
   // Derived from the Path field each render rather than synced in an effect.
   const pathTokens = extractPathParamNames(path)
@@ -119,8 +151,60 @@ export default function ToolPane({
         : 'A GET request sends no body — Meta drops it, so configuring one here would lie.',
     },
     { id: 'docs', label: 'Docs', filled: !!description.trim() },
-    { id: 'response', label: 'Response', unavailable: TEST_UNAVAILABLE },
+    { id: 'response', label: 'Response', filled: !!probe.result },
   ]
+
+  /**
+   * Why Send is refused, or null when it can go.
+   *
+   * Deliberately shorter than the list Save needs: a name and a description are
+   * required to save an action, but neither affects the HTTP call, and refusing
+   * to send until they are filled would make testing the last step instead of
+   * the first.
+   */
+  const sendUnavailable = !path.trim() ? 'Add a path first.' : null
+
+  function handleSend() {
+    const query: Record<string, string> = {}
+    for (const row of queryParams) {
+      // Only rows with a value of their own. A row the agent fills has no value
+      // to send here, and sending an empty one would test a different request.
+      if (row.key.trim() && row.fill === 'fixed' && row.fixedValue.trim()) {
+        query[row.key.trim()] = row.fixedValue
+      }
+    }
+
+    const headers: Record<string, string> = {}
+    for (const row of headerParams) {
+      if (row.key.trim() && row.fill === 'fixed' && row.fixedValue.trim()) {
+        headers[row.key.trim()] = row.fixedValue
+      }
+    }
+    if (bodyAllowed && probeBody.trim()) headers['Content-Type'] = 'application/json'
+
+    // Path tokens have to be real values, not {braces}, or the API sees a
+    // literal placeholder and 404s in a way that looks like our bug.
+    let resolvedPath = path.trim()
+    for (const row of pathParamRows) {
+      if (row.fill === 'fixed' && row.fixedValue.trim()) {
+        resolvedPath = resolvedPath.replace(`{${row.key}}`, encodeURIComponent(row.fixedValue))
+      }
+    }
+
+    onSend({
+      method,
+      path: resolvedPath,
+      queryParams: query,
+      headers,
+      secrets,
+      body: bodyAllowed && probeBody.trim() ? probeBody : undefined,
+    })
+    setTab('response')
+  }
+
+  const unresolvedTokens = pathTokens.filter(
+    (token) => !pathParamMeta[token]?.fixedValue?.trim(),
+  )
 
   const stillNeeded = [
     !name.trim() && 'Name',
@@ -182,9 +266,9 @@ export default function ToolPane({
         disabled={saving}
         onMethodChange={setMethod}
         onPathChange={setPath}
-        onTest={() => setTab('response')}
-        testing={false}
-        testUnavailable={TEST_UNAVAILABLE}
+        onSend={handleSend}
+        sending={probe.pending}
+        sendUnavailable={sendUnavailable}
       />
 
       <WorkbenchTabs tabs={tabs} active={tab} onSelect={setTab} />
@@ -240,6 +324,36 @@ export default function ToolPane({
             >
               Change it on the connector
             </button>
+
+            {/* The one place a credential value is typed outside publishing.
+                It is here rather than on the Response tab because this is where
+                someone looks when a call comes back 401. */}
+            {authHeaders.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs font-medium text-foreground">
+                  Credential values for sending a test request
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Needed because nothing here stores them. Typed for this call only — not saved,
+                  not sent to Meta, gone when you leave this page.
+                </p>
+                {authHeaders.map((header) => (
+                  <label key={header} className="block max-w-md space-y-1">
+                    <span className="block font-mono text-xs text-muted-foreground">{header}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={secrets[header] ?? ''}
+                      onChange={(e) =>
+                        setSecrets((prev) => ({ ...prev, [header]: e.target.value }))
+                      }
+                      placeholder="Paste the value to test with"
+                      className={`${inputCls} font-mono`}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -283,10 +397,40 @@ export default function ToolPane({
         )}
 
         {tab === 'response' && (
-          <p className="text-sm text-muted-foreground">
-            Nothing to show yet. Meta's runtime makes this call, not us, so an action can only be
-            tested once this connector is deployed to an agent.
-          </p>
+          <div className="space-y-4">
+            {/* Actual values to send, which is a different thing from the Body
+                tab's field table: that table tells the agent what shape to
+                build, and a shape cannot be sent. */}
+            {bodyAllowed && (
+              <label className="block max-w-2xl space-y-1">
+                <span className="block text-xs font-medium text-foreground">
+                  Body for this call
+                </span>
+                <textarea
+                  rows={5}
+                  value={probeBody}
+                  onChange={(e) => setProbeBody(e.target.value)}
+                  placeholder={'{\n  "query": "biryani",\n  "city": "Delhi"\n}'}
+                  spellCheck={false}
+                  className={`${inputCls} resize-y font-mono`}
+                />
+                <span className="block text-xs text-muted-foreground">
+                  Real values, not the field shapes on the Body tab. Sent as
+                  <code className="mx-1">application/json</code>.
+                </span>
+              </label>
+            )}
+
+            {unresolvedTokens.length > 0 && (
+              <p className="max-w-2xl text-xs text-warning">
+                {unresolvedTokens.map((t) => `{${t}}`).join(', ')} has no value, so it will be sent
+                literally and the API will most likely reject it. Give it a fixed value on the
+                Params tab to test with.
+              </p>
+            )}
+
+            <ResponsePane result={probe.result} error={probe.error} />
+          </div>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { openConnectorPage, removeConnectorIfPresent } from './fixtures/connectors'
+import { openConnectorPage, removeConnectorIfPresent, setProperty } from './fixtures/connectors'
 
 /**
  * Proves that a completed action now says so, and that deleting a connector
@@ -29,18 +29,20 @@ test.describe('@feedback a finished action says so', () => {
 
     await page.locator('div.w-72').getByRole('button', { name: 'New connector' }).click()
 
-    // By placeholder, not label: "Name" matches more than one control here,
-    // and the placeholders are unique.
-    await page.getByPlaceholder('e.g. Shopify Order Management').fill(NAME)
-    await page
-      .getByPlaceholder(/Checks real order and delivery status/i)
-      .fill('Created by an automated check of the success-confirmation mechanism. Safe to delete.')
-    await page.getByPlaceholder('https://api.example.com').fill('https://example.invalid')
+    // The New connector screen is the same property table the saved connector
+    // shows, so each row is clicked and then typed into.
+    await setProperty(page, 'Name', NAME)
+    await setProperty(
+      page,
+      'Description',
+      'Created by an automated check of the success-confirmation mechanism. Safe to delete.',
+    )
 
-    // The panel says what is still missing rather than leaving a dead button —
-    // assert that, then satisfy it.
-    await expect(page.getByText(/Still needed:/)).toContainText(/header that carries a credential/i)
-    await page.getByPlaceholder('e.g. X-API-Key').fill('X-Api-Key')
+    // It says what is still missing rather than leaving a dead button — assert
+    // that, then satisfy it. A credential is no longer among them: auth moved
+    // to an action's Authorization tab, where it is used.
+    await expect(page.getByText(/Still needed:/)).toContainText(/base URL/i)
+    await setProperty(page, 'Base URL', 'https://example.invalid')
     await expect(page.getByText(/Still needed:/)).toHaveCount(0)
 
     await page.getByRole('button', { name: /^Create connector$/ }).click()

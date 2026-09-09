@@ -1,6 +1,11 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector, openConnectorPage } from './fixtures/connectors'
+import {
+  addActionInRow,
+  createThrowawayConnector,
+  deleteOpenConnector,
+  openConnectorPage,
+} from './fixtures/connectors'
 
 /**
  * Proves a connector can be deleted, and that a deployed one is refused up
@@ -85,7 +90,17 @@ test.describe('@connector-delete publish is the word for reaching Meta', () => {
     // "Publish" used to flip a local flag that gated nothing, while "Deploy"
     // was the thing that reached Meta — so the button named Publish was the one
     // that did not publish.
-    await page.getByRole('button', { name: /Publish to an agent/i }).click()
+    // Publish is greyed until the connector can actually do something — the
+    // artboard says "Add an action first", and an agent given a connector with
+    // no actions has nothing to call.
+    await expect(page.getByRole('button', { name: /^Publish$/ })).toBeDisabled()
+    await addActionInRow(page, {
+      name: 'ping',
+      path: '/ping',
+      description: 'Checks the API answers.',
+    })
+
+    await page.getByRole('button', { name: /^Publish$/ }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByText(/Publish “/)).toBeVisible()

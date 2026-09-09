@@ -43,10 +43,21 @@ test.describe('@workbench the connector workbench', () => {
     // the assertion: no clicking, no tab row, all four things visible
     // together. "When someone clicks on actions why are other sections
     // closed?" cannot be asked of a page with no sections.
-    await expect(page.getByPlaceholder('https://api.example.com')).toBeVisible()
-    await expect(page.getByText(/Headers that carry a credential/i)).toBeVisible()
+    // The property table shows stored values, so this asserts the value rather
+    // than a placeholder — a row is an input only while being edited. Name,
+    // Description and Tags only: base URL, auth and the certificate are on an
+    // action's Authorization tab, which is where Main.dc.html puts them.
+    await expect(page.getByRole('rowheader', { name: 'Name' })).toBeVisible()
+    await expect(page.getByRole('rowheader', { name: 'Tags' })).toBeVisible()
+    await expect(page.getByRole('rowheader', { name: 'Base URL' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Actions' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: /Variables you can substitute/ })).toBeVisible()
+    // Collapsed at the foot of the page, because Main.dc.html has no variables
+    // section at all and this is a reference nobody edits. Its summary is on
+    // screen; the macros are one click away rather than behind navigation.
+    const variables = page.getByText(/Variables you can substitute/)
+    await expect(variables).toBeVisible()
+    await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeHidden()
+    await variables.click()
     await expect(page.getByText('WHATSAPP_PHONE_NUMBER')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible()
 
@@ -64,7 +75,8 @@ test.describe('@workbench the connector workbench', () => {
     // The breadcrumb's connector name is the way back, and it lands on the
     // whole connector rather than on one remembered section.
     await openConnectorPage(page)
-    await expect(page.getByText('WHATSAPP_IDENTITY_HASH')).toBeVisible()
+    // The whole connector: its property table, not a remembered section.
+    await expect(page.getByRole('rowheader', { name: 'Name' })).toBeVisible()
     await addAction(page)
 
     // Save is refused with the reason stated, not silently disabled.
@@ -80,9 +92,10 @@ test.describe('@workbench the connector workbench', () => {
       .getByPlaceholder(/Search the catalogue/i)
       .fill('Looks up one order by its id and reports the delivery status.')
 
-    // Auth is reported, not editable — Meta has no per-tool auth override.
+    // Auth is editable here, and says it is shared — it is the connector's.
     await page.getByRole('tab', { name: 'Authorization' }).click()
-    await expect(page.getByText(/Inherited from the connector/i)).toBeVisible()
+    await expect(page.getByText(/Shared by all/i)).toBeVisible()
+    await expect(page.getByRole('rowheader', { name: 'Base URL' })).toBeVisible()
 
     // Method + path live on one bar.
     await page.locator('#wb-method').selectOption('POST')
@@ -90,6 +103,17 @@ test.describe('@workbench the connector workbench', () => {
 
     // A path token becomes a parameter row without being asked for twice.
     await page.getByRole('tab', { name: /^Params/ }).click()
+
+    // Bulk is the same parameters as text, and switching back loses nothing.
+    await page.getByRole('button', { name: 'bulk' }).click()
+    const bulk = page.getByLabel('Query parameters as text')
+    await expect(bulk).toBeVisible()
+    await bulk.fill('city: Delhi  // where the buyer is')
+    await bulk.blur()
+    await page.getByRole('button', { name: 'table' }).click()
+    await expect(page.locator('#query-parameters-0-key')).toHaveValue('city')
+    await expect(page.locator('#query-parameters-0-fixedvalue')).toHaveValue('Delhi')
+    await expect(page.locator('#query-parameters-0-description')).toHaveValue('where the buyer is')
     await expect(page.getByText('Path parameters', { exact: true }).first()).toBeVisible()
     await page.screenshot({ path: 'e2e-shots/wb-action-params.png' })
 

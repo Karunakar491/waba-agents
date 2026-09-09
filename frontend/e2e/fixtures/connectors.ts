@@ -30,18 +30,36 @@ export async function openConnectorPage(page: Page): Promise<void> {
 }
 
 /**
- * Opens the request editor from the connector's Actions table.
+ * Opens an empty request editor.
  *
- * Scoped to that section, because the sidebar tree carries an "Add an action"
- * of its own and by name alone the two matched together — which is also why
- * the section is a named region in the app rather than an anonymous div.
+ * From the SIDEBAR's per-connector "Add an action", not the main pane's — the
+ * pane's button is gone. On the connector screen the Actions table's trailing
+ * row IS the add, and it creates the action outright rather than opening an
+ * editor, so it cannot serve a test that wants to fill a request in.
+ *
+ * Scoped to the tree, because the two were indistinguishable by name.
  */
 export async function addAction(page: Page): Promise<void> {
-  await page
-    .getByRole('region', { name: 'Actions' })
-    .getByRole('button', { name: /Add an action/i })
-    .click()
-  await expect(page).toHaveURL(/\/actions\/new$/)
+  await page.locator('div.w-72').getByRole('button', { name: /Add an action/i }).click()
+  await expect(page).toHaveURL(/[/]actions[/]new$/)
+}
+
+/**
+ * Adds an action from the Actions table's trailing row — the screen's own add.
+ *
+ * Leaves the browser on the connector, because that is what the row does: no
+ * navigation, the row typed in becomes the row above it.
+ */
+export async function addActionInRow(
+  page: Page,
+  action: { name: string; path: string; description: string },
+): Promise<void> {
+  const table = page.getByRole('region', { name: 'Actions' })
+  await table.getByLabel('Name for the new action').fill(action.name)
+  await table.getByLabel('Path for the new action').fill(action.path)
+  await table.getByLabel('Description for the new action').fill(action.description)
+  await table.getByRole('button', { name: /^Add$/ }).click()
+  await expect(page.getByRole('status')).toContainText(/Action added/i, { timeout: 20_000 })
 }
 
 /** Removes a leftover from an interrupted run, if one is there. */
@@ -60,8 +78,10 @@ export async function removeConnectorIfPresent(page: Page, name: string): Promis
 /**
  * Creates one and leaves the browser on its page.
  *
- * The API-key header is filled because the panel refuses to save without one
- * and says so — satisfying it here keeps every caller from repeating that.
+ * Fills the property table on the New connector screen, which is the same
+ * table the saved connector shows: click a row's value, type, move on. Auth is
+ * not set here — it lives on an action's Authorization tab now — so a
+ * connector this makes has no credential until a spec adds one.
  */
 export async function createThrowawayConnector(
   page: Page,
@@ -70,20 +90,42 @@ export async function createThrowawayConnector(
 ): Promise<void> {
   await removeConnectorIfPresent(page, name)
 
-  // The sidebar's "+". The main pane's empty state offers the same thing, which
+  // The sidebar's +. The main pane's empty state offers the same thing, which
   // is fine for a user and ambiguous for a test, so this says which.
   await page.locator('div.w-72').getByRole('button', { name: 'New connector' }).click()
-  await expect(page).toHaveURL(/\/library\/connectors\/new$/)
+  await expect(page).toHaveURL(/[/]library[/]connectors[/]new$/)
 
-  await page.getByPlaceholder('e.g. Shopify Order Management').fill(name)
-  await page.getByPlaceholder(/Checks real order and delivery status/i).fill(description)
-  await page.getByPlaceholder('https://api.example.com').fill('https://example.invalid')
-  await page.getByPlaceholder('e.g. X-API-Key').fill('X-Api-Key')
+  await setProperty(page, 'Name', name)
+  await setProperty(page, 'Description', description)
+  await setProperty(page, 'Base URL', 'https://example.invalid')
 
   await page.getByRole('button', { name: /^Create connector$/ }).click()
   await expect(page.getByRole('status')).toContainText(/Connector saved/i, { timeout: 20_000 })
   // Saving navigates to the connector's own page, so callers can act on it.
   await expect(page).toHaveURL(/\/library\/connectors\/\d+$/, { timeout: 20_000 })
+}
+
+/**
+ * Sets one row of a property table.
+ *
+ * The row is a value until it is clicked and an input after, which is the
+ * point of the pattern — so a test has to click it before it can type, exactly
+ * as a person does.
+ */
+export async function chooseProperty(page: Page, label: string, value: string): Promise<void> {
+  await openProperty(page, label)
+  await page.getByLabel(label, { exact: true }).selectOption(value)
+}
+
+/** Turns one row from a value into its input. */
+async function openProperty(page: Page, label: string): Promise<void> {
+  await page.getByRole('rowheader', { name: label }).locator('..').getByRole('button').click()
+}
+
+export async function setProperty(page: Page, label: string, value: string): Promise<void> {
+  await openProperty(page, label)
+  await page.getByLabel(label, { exact: true }).fill(value)
+  await page.getByLabel(label, { exact: true }).blur()
 }
 
 /**

@@ -1,6 +1,11 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector } from './fixtures/connectors'
+import {
+  addActionInRow,
+  chooseProperty,
+  createThrowawayConnector,
+  deleteOpenConnector,
+} from './fixtures/connectors'
 
 /**
  * Proves a connector can carry more than one credential header.
@@ -25,35 +30,58 @@ test.describe('@multi-auth more than one credential header', () => {
   }) => {
     test.setTimeout(180_000)
 
-    // The helper creates it with one header and leaves us on its page.
+    // A new connector starts with no auth at all now: the create screen
+    // collects a name, a description and a host, and nothing else.
     await createThrowawayConnector(page, CONNECTOR)
     const connectorUrl = page.url()
 
-    // ---- add a second header, which was impossible before -----------------
-    // Auth is on the connector's own page, because in Meta only a connector
-    // can hold a credential — and it is on screen, not behind a tab.
-    await page.getByPlaceholder(/^Prefix, e.g. Bearer/).first().fill('Bearer')
+    // An action, because the credential lives on the screen where it is used —
+    // an action's Authorization tab — and because Publish needs one later.
+    await addActionInRow(page, {
+      name: 'ping',
+      path: '/ping',
+      description: 'Checks the API answers.',
+    })
+    // The Actions table's row, not the sidebar's copy of the same name.
+    await page
+      .getByRole('region', { name: 'Actions' })
+      .getByRole('button', { name: 'ping', exact: true })
+      .click()
+    await page.getByRole('tab', { name: 'Authorization' }).click()
+
+    // It says out loud that this is shared, because it is the connector's.
+    await expect(page.getByText(/Shared by all 1 action on this connector/i)).toBeVisible()
+
+    // ---- two headers, which was impossible before -------------------------
+    await chooseProperty(page, 'Auth', 'API_KEY')
+
+    await page.getByLabel('Credential field 1').fill('X-Api-Key')
+    await page.getByLabel('Prefix for credential 1').fill('Bearer')
     await page.getByRole('button', { name: /Add another header/i }).click()
-    const names = page.locator('input[placeholder="e.g. X-API-Key"]')
-    await expect(names).toHaveCount(2)
-    await names.nth(1).fill('X-Account-Id')
+    await page.getByLabel('Credential field 2').fill('X-Account-Id')
+
+    // The value column never offers a place to type one.
+    await expect(page.getByText(/Typed at publish — never stored here/).first()).toBeVisible()
 
     await page.getByRole('button', { name: /^Save connector$/ }).click()
-    await expect(page.getByRole('status')).toContainText(/saved/i, { timeout: 20_000 })
+    await expect(page.getByRole('status')).toContainText(/Saved/i, { timeout: 20_000 })
 
     // ---- reload and confirm BOTH survived ---------------------------------
     await page.reload()
     await page.waitForLoadState('networkidle')
+    await page.getByRole('tab', { name: 'Authorization' }).click()
 
-    const reopened = page.locator('input[placeholder="e.g. X-API-Key"]')
-    await expect(reopened).toHaveCount(2, { timeout: 20_000 })
-    await expect(reopened.nth(0)).toHaveValue('X-Api-Key')
-    await expect(reopened.nth(1)).toHaveValue('X-Account-Id')
+    await expect(page.getByLabel('Credential field 1')).toHaveValue('X-Api-Key', {
+      timeout: 20_000,
+    })
+    await expect(page.getByLabel('Credential field 2')).toHaveValue('X-Account-Id')
     // The prefix rode along with its own header rather than being lost.
-    await expect(page.locator('input[placeholder^="Prefix"]').nth(0)).toHaveValue('Bearer')
+    await expect(page.getByLabel('Prefix for credential 1')).toHaveValue('Bearer')
 
     // ---- publishing asks for a value per header, and stores none ----------
-    await page.getByRole('button', { name: /Publish to an agent/i }).click()
+    await page.goto(connectorUrl)
+    await page.waitForLoadState('networkidle')
+    await page.getByRole('button', { name: /^Publish$/ }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Value for X-Api-Key/i)).toBeVisible()
     await expect(dialog.getByText(/Value for X-Account-Id/i)).toBeVisible()

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import api from '../lib/api'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
@@ -11,12 +11,13 @@ import WorkbenchSidebar from '../components/connectors/workbench/WorkbenchSideba
 import ToolPane, { type ProbeRequestPayload } from '../components/connectors/workbench/ToolPane'
 import { type ProbeResult } from '../components/connectors/workbench/ResponsePane'
 import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
+import NewConnectorPane from '../components/connectors/workbench/NewConnectorPane'
+import { buildRequestDefinition } from '../components/agent-detail/toolRequestDefinition'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
-import ConnectorDefinitionEditor from '../components/connectors/ConnectorDefinitionEditor'
 import type { ConnectorRow } from '../components/connectors/ConnectorsTable'
 import {
-  AUTH_TYPES,
+
   EMPTY_CONNECTOR_FORM,
   toFormValues,
   toRequestBody,
@@ -72,8 +73,8 @@ export default function ConnectorWorkbenchPage() {
     connectorId ? { [connectorId]: true } : {},
   )
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ConnectorAction | null>(null)
-  const [detailsForm, setDetailsForm] = useState<ConnectorFormValues | null>(null)
-  const [detailsError, setDetailsError] = useState<string | null>(null)
+  /** A draft, held only for the credential-header rows — see ConnectorPane. */
+  const [headerDraft, setHeaderDraft] = useState<ConnectorFormValues | null>(null)
   const [publishTarget, setPublishTarget] = useState<LibraryConnector | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
   const creating = connectorId === 'new'
@@ -140,6 +141,39 @@ export default function ConnectorWorkbenchPage() {
         const newId = (res as { data?: { data?: { id?: string } } })?.data?.data?.id
         if (newId) navigate(`/library/connectors/${connectorId}/actions/${newId}`, { replace: true })
       }
+    },
+  })
+
+  /**
+   * The Actions table's trailing row.
+   *
+   * Creates the action and stays on the connector, unlike "Add an action",
+   * which navigated into an empty editor. The row that was being typed in
+   * becomes the row above it, which is the whole point of the shape: "why
+   * should we have add action as a separate button".
+   *
+   * Method, name, path and description only — parameters and a body are added
+   * by opening the action, because they need the tabbed editor and most
+   * actions have neither.
+   */
+  const createFromRow = useMutation({
+    mutationFn: (draft: { method: string; name: string; path: string; description: string }) =>
+      api.post(`/connector-library/${connectorId}/actions`, {
+        name: draft.name,
+        description: draft.description,
+        requestDefinition: buildRequestDefinition({
+          method: draft.method,
+          path: draft.path,
+          pathParams: [],
+          queryParams: [],
+          headerParams: [],
+          bodyFields: [],
+        }),
+        userAuthRequired: false,
+      }),
+    onSuccess: (_res, draft) => {
+      void queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
+      confirm('Action added', `${draft.name} — open it to add parameters or a body`)
     },
   })
 
@@ -274,11 +308,15 @@ export default function ConnectorWorkbenchPage() {
       api.put(`/connector-library/${connectorId}`, toRequestBody(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
-      setDetailsForm(null)
-      confirm('Connector details saved')
+      // No detail in the toast: the value is on screen in the row that was
+      // just left, so naming it again says nothing.
+      setHeaderDraft(null)
+      confirm('Saved')
     },
+    // Surfaced as feedback rather than as a banner: there is no form left to
+    // put a banner above, and the row that failed is the one being looked at.
     onError: (err: unknown) =>
-      setDetailsError(err instanceof Error ? err.message : 'Could not save.'),
+      confirm('Could not save', err instanceof Error ? err.message : 'Try again.'),
   })
 
   if (loadingConnectors) {
@@ -297,23 +335,25 @@ export default function ConnectorWorkbenchPage() {
   }
 
   return (
-    <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
+    /* One scrollbar on the screen, and it is the app's.
+
+       This was `h-[calc(100vh-4rem)] overflow-hidden` around an inner
+       `overflow-y-auto`, sitting inside the shell's `<main className="flex-1
+       overflow-auto">`. Two scroll containers, one nested in the other, so the
+       page showed two vertical scrollbars side by side and the outer one moved
+       a page that had nowhere to go. The 4rem was wrong as well — there are two
+       bars above this, not one. */
+    <div className="-m-6 flex flex-col">
       {/* Where you are, and nothing else. There is only ever ONE row of tabs on
           the screen, and it belongs to the open action.
 
-          This line carried the connector's five sections as pills. It no longer
-          needs to: the connector is one page now, so there is nowhere to
-          navigate to. */}
+          This line used to open with its own "← Connectors" link, directly
+          under the app header's "Connectors ›" — the same word twice, one above
+          the other. The header already says which section this is, so this line
+          starts at the connector. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b bg-card px-4 py-2.5">
-        <Link
-          to="/library/connectors"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Connectors
-        </Link>
         {connector && (
           <>
-            <span className="text-muted-foreground">/</span>
             {/* A link, not a label. With the connector's sections gone from
                 this line, this is the way back to the connector itself from an
                 open action — its base URL, its credential, its other actions. */}
@@ -369,18 +409,14 @@ export default function ConnectorWorkbenchPage() {
 
         <div className="min-w-0 flex-1 overflow-y-auto p-5">
           {creating ? (
-            <div className="max-w-3xl space-y-3">
-              <h2 className="text-sm font-semibold text-foreground">New connector</h2>
-              <ConnectorDefinitionEditor
-                isEditing={false}
-                form={newForm}
-                error={newError}
-                saving={createConnector.isPending}
-                onChange={setNewForm}
-                onSave={() => createConnector.mutate(newForm)}
-                onCancel={() => navigate('/library/connectors')}
-              />
-            </div>
+            <NewConnectorPane
+              form={newForm}
+              error={newError}
+              saving={createConnector.isPending}
+              onChange={setNewForm}
+              onCreate={() => createConnector.mutate(newForm)}
+              onCancel={() => navigate('/library/connectors')}
+            />
           ) : !connector ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
@@ -422,9 +458,6 @@ export default function ConnectorWorkbenchPage() {
               key={actionId}
               action={action}
               baseUrl={connector.baseUrl}
-              authLabel={
-                AUTH_TYPES.find((a) => a.value === connector.authType)?.label ?? connector.authType
-              }
               authHeaders={toFormValues(connector)
                 .headers.map((h) => h.fieldName.trim())
                 .filter(Boolean)}
@@ -432,7 +465,12 @@ export default function ConnectorWorkbenchPage() {
               saveError={saveAction.error}
               onSave={(payload) => saveAction.mutate({ id: action?.id ?? null, payload })}
               onRequestDelete={() => action && setPendingDeleteAction(action)}
-              onOpenConnectorAuth={() => navigate(`/library/connectors/${connectorId}`)}
+              connectorForm={headerDraft ?? toFormValues(connector)}
+              actionCount={actions?.length ?? 0}
+              savingConnector={saveDetails.isPending}
+              connectorDirty={headerDraft !== null}
+              onConnectorChange={setHeaderDraft}
+              onConnectorSave={() => headerDraft && saveDetails.mutate(headerDraft)}
               onSend={(payload) => probeMutation.mutate(payload)}
               probe={{
                 result: probeMutation.data ?? null,
@@ -453,19 +491,21 @@ export default function ConnectorWorkbenchPage() {
             <ConnectorPane
               connector={connector}
               actions={actions}
-              form={detailsForm ?? toFormValues(connector)}
-              detailsError={detailsError}
+              form={headerDraft ?? toFormValues(connector)}
               saving={saveDetails.isPending}
-              onFormChange={setDetailsForm}
-              onSave={() => saveDetails.mutate(detailsForm ?? toFormValues(connector))}
-              onResetForm={() => {
-                setDetailsForm(null)
-                setDetailsError(null)
-              }}
+              /* One field at a time, because the property table is the form:
+                 there is no Save button to press, so a row that has been left
+                 has to be a row that is stored. The patch is merged onto the
+                 connector's current values rather than onto a held draft, so
+                 two quick edits cannot save one and drop the other. */
+              onFieldChange={(patch) =>
+                saveDetails.mutate({ ...toFormValues(connector), ...patch })
+              }
               onOpenAction={(aid) =>
                 navigate(`/library/connectors/${connector.id}/actions/${aid}`)
               }
-              onAddAction={() => navigate(`/library/connectors/${connector.id}/actions/new`)}
+              onCreateAction={(draft) => createFromRow.mutate(draft)}
+              creatingAction={createFromRow.isPending}
               onPublish={() => {
                 setPublishError(null)
                 setPublishTarget(connector)

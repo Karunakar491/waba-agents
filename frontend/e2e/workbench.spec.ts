@@ -1,6 +1,11 @@
 import { expect } from '@playwright/test'
 import { test } from './fixtures/auth'
-import { createThrowawayConnector, deleteOpenConnector, openConnectorPage } from './fixtures/connectors'
+import {
+  addAction,
+  createThrowawayConnector,
+  deleteOpenConnector,
+  openConnectorPage,
+} from './fixtures/connectors'
 
 /**
  * Proves the workbench: the tree, the request bar, the tabs, and that an action
@@ -53,16 +58,14 @@ test.describe('@workbench the connector workbench', () => {
     // The Actions table's own control, always there rather than appearing only
     // once the table is non-empty. It opens as its own view because the editor
     // has a tab row, and nesting it put two rows on screen.
-    await page.getByRole('button', { name: /Add an action/i }).click()
-    await expect(page).toHaveURL(/\/actions\/new$/)
+    await addAction(page)
     await expect(page.getByPlaceholder('e.g. product_search')).toBeVisible()
 
     // The breadcrumb's connector name is the way back, and it lands on the
     // whole connector rather than on one remembered section.
     await openConnectorPage(page)
     await expect(page.getByText('WHATSAPP_IDENTITY_HASH')).toBeVisible()
-    await page.getByRole('button', { name: /Add an action/i }).click()
-    await expect(page).toHaveURL(/\/actions\/new$/)
+    await addAction(page)
 
     // Save is refused with the reason stated, not silently disabled.
     await expect(page.getByText(/Still needed:/)).toBeVisible()

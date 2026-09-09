@@ -29,6 +29,21 @@ export async function openConnectorPage(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/library\/connectors\/\d+$/)
 }
 
+/**
+ * Opens the request editor from the connector's Actions table.
+ *
+ * Scoped to that section, because the sidebar tree carries an "Add an action"
+ * of its own and by name alone the two matched together — which is also why
+ * the section is a named region in the app rather than an anonymous div.
+ */
+export async function addAction(page: Page): Promise<void> {
+  await page
+    .getByRole('region', { name: 'Actions' })
+    .getByRole('button', { name: /Add an action/i })
+    .click()
+  await expect(page).toHaveURL(/\/actions\/new$/)
+}
+
 /** Removes a leftover from an interrupted run, if one is there. */
 export async function removeConnectorIfPresent(page: Page, name: string): Promise<void> {
   await page.goto('/library/connectors')

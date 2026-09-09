@@ -81,7 +81,10 @@ export default function ConnectorPane({
         />
       </section>
 
-      <section className="space-y-2">
+      {/* Named, because the sidebar tree carries an "Add an action" of its own
+          and the two were indistinguishable to anything addressing the page by
+          role — a screen reader included. */}
+      <section aria-label="Actions" className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-foreground">Actions</h2>

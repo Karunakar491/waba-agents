@@ -1,0 +1,18 @@
+Shared chrome contract for every artboard in this canvas (they cannot import
+each other, so this is copied into each file verbatim):
+
+  pink rule        3px  #E73590
+  top bar         44px  #0A0A0A
+  icon rail       56px  #0A0A0A
+  sidebar        288px  #FCFCFD, 1px #E4E4E7 right border
+  breadcrumb      48px  1px #E4E4E7 bottom border
+  pane padding    20px 24px
+
+Action screens: request bar 40px, ONE tab row 36px, tab content flexes,
+Response pane pinned to the bottom of the pane — collapsed to a 44px strip
+until a Send happens, expanded to 280px after.
+
+Connector screens: property table, Actions table, Agents strip. No tab row.
+
+Type: 15px/600 object name · 13px table body · 12.5px meta · 11px/600 uppercase
+section labels · 44px table rows · 12px mono for anything literal.

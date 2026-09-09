@@ -1,55 +1,43 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "title": "Connector — light", "x": 0, "y": 0, "w": 1440, "h": 900 },
-    { "file": "Action.dc.html", "title": "Action · Params — light", "x": 1560, "y": 0, "w": 1440, "h": 900 },
-    { "file": "Send.dc.html", "title": "Action · Body + Send + Response", "x": 3120, "y": 0, "w": 1440, "h": 900 },
-    { "file": "Auth.dc.html", "title": "Auth on the connector", "x": 0, "y": 1120, "w": 1180, "h": 1000 },
-    { "file": "BodyDark.dc.html", "title": "Action · Body — dark", "x": 1300, "y": 1120, "w": 1440, "h": 900 },
-    { "file": "States.dc.html", "title": "Creating without a button", "x": 2860, "y": 1120, "w": 1180, "h": 1240 },
-    { "file": "Kundli.dc.html", "title": "AstroTalk Kundli — a real API mapped", "x": 0, "y": 2500, "w": 1300, "h": 1560 }
+    { "file": "Main.dc.html", "title": "1 · Connector", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "ConnectorAuth.dc.html", "title": "2 · Connector — auth open", "x": 1560, "y": 0, "w": 1440, "h": 900 },
+    { "file": "NewConnector.dc.html", "title": "3 · Connector — nothing in it yet", "x": 3120, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Params.dc.html", "title": "4 · Action — Params", "x": 0, "y": 1080, "w": 1440, "h": 900 },
+    { "file": "ActionAuth.dc.html", "title": "5 · Action — Auth", "x": 1560, "y": 1080, "w": 1440, "h": 900 },
+    { "file": "Headers.dc.html", "title": "6 · Action — Headers", "x": 3120, "y": 1080, "w": 1440, "h": 900 },
+    { "file": "Body.dc.html", "title": "7 · Action — Body, sent", "x": 0, "y": 2160, "w": 1440, "h": 900 },
+    { "file": "Docs.dc.html", "title": "8 · Action — Docs", "x": 1560, "y": 2160, "w": 1440, "h": 900 },
+    { "file": "Kundli.dc.html", "title": "9 · AstroTalk Kundli mapped", "x": 3120, "y": 2160, "w": 1440, "h": 900 }
   ],
   "annotations": [
     {
-      "id": "one-nav",
+      "id": "chrome",
       "x": 0,
-      "y": -210,
-      "w": 460,
-      "text": "One screen per connector, no tabs.\n\nSeven fields, a static macro list and a deployment fact used to be five tabs. Everything is on screen at once, so nothing is closed — which is what \"why are other sections closed?\" was actually asking for.\n\nNavigation: the sidebar, and an action's tabs. Two rows of tabs are now impossible."
+      "y": -230,
+      "w": 520,
+      "text": "Nine full screens, one chrome, light only.\n\nThe first pass hand-copied the chrome and it drifted — some artboards had no nav at all and the response pane moved between them. These are generated from one template (build.mjs), so the top bar, rail, 288px tree, breadcrumb and pane padding are identical by construction, not by care.\n\nRow 1 is the connector. Rows 2–3 are one action's tabs. The last is the founder's own API."
     },
     {
-      "id": "one-tab-row",
+      "id": "connector-rule",
       "x": 1560,
-      "y": -210,
+      "y": -230,
       "w": 460,
-      "text": "Tabs survive in exactly one place: inside an action, where Params / Headers / Body really are alternative views of one request.\n\nEvery table is the same five columns: Key · Type · Source · Description · Required. No enable/disable checkbox — Meta has no disabled parameter, so Required is the only real one."
+      "text": "A connector has no tabs. Property table, Actions table, Agents strip — all on screen at once.\n\nAuth is two rows of that table; screen 2 shows the credentials open, with the In column (Header / Query / Body) that makes an ?api_key= API configurable at all.\n\nScreen 3 is a connector with nothing in it: no empty-state message, no Add button — the last row of the table is the affordance."
     },
     {
-      "id": "send-note",
-      "x": 3120,
-      "y": -300,
-      "w": 470,
-      "text": "Send and Response — the correction that matters.\n\nI had been saying a test was impossible because Meta makes the call at runtime. Wrong: for VERIFICATION our own server can make it and show you the response. Without that you configure blind and find out from a customer.\n\nWhat this needs, and what it costs:\n• the credential typed for the test, held for that one request, never stored\n• an SSRF guard — the server must refuse private ranges, localhost and 169.254.169.254, with a timeout and a response cap\n• honesty: our egress is not Meta's, so a request that passes here can still be refused there by an IP allowlist"
-    },
-    {
-      "id": "auth-note",
+      "id": "action-rule",
       "x": 0,
-      "y": 2180,
-      "w": 470,
-      "text": "Auth is two rows of the connector's property table, and the credentials are a table.\n\nThe In column (Header / Query / Body) is the whole of gap G1: Meta accepts credentials in all three and we only ever built headers, so every ?api_key= API was unconfigurable.\n\nAn action's Auth tab reports what it inherits and links here — Meta ignores a per-tool override, so offering one would lie."
+      "y": 2020,
+      "w": 460,
+      "text": "One tab row, ever, and it lives inside an action.\n\nResponse is pinned to the foot of the pane on EVERY action screen — a 44px \"Not sent yet\" strip until you Send, then 268px with the status line and the body. It does not move between tabs.\n\nEvery table is the same five columns: Key · Type · Source · Description · Required."
     },
     {
-      "id": "kundli-note",
-      "x": 1380,
-      "y": 2500,
+      "id": "kundli-rule",
+      "x": 4680,
+      "y": 2160,
       "w": 470,
-      "text": "The founder's question: \"if I have to map fields of the body and all with the agent how do I give the description?\"\n\nAnswer, from mapping his API: the description is not documentation, it is the contract. Meta records required-ness only for TOP-LEVEL body fields, and this API nests everything under one — so day, month, year, lat and lon are all genuinely required and none of them can be marked required. There is no min, no max, no pattern either.\n\nSo the description carries the range, the unit, the format and the word required, in words. lat wants decimal degrees and will not geocode a place name; hour wants 0 for midnight, never 24.\n\nAnd a failed call returns HTTP 200 with status:failed — so the ACTION's description, not a field's, has to tell the agent to read status before trusting the body."
-    },
-    {
-      "id": "copy-note",
-      "x": 4200,
-      "y": 1120,
-      "w": 420,
-      "text": "Copy standard, visible rather than described: nouns, not sentences. Actions. Agents. Source. Agent. Fixed. Up to date. JSON only.\n\nGone: \"What it can do\", \"Who fills this in\", \"Agent fills this in\", \"built from its fields\", \"Still needed: Name, Description (Docs tab)\".\n\nMacros read as {{customer_phone}} — standard token style, mapped to Meta's constant on the way out, so nobody reads a Meta constant."
+      "text": "The founder's own API, mapped: 13 fields under one `detail` object.\n\nday, month, year, lat and lon are required by the API and every one shows a dash — Meta records required-ness only for TOP-LEVEL body fields, and the only top-level field here is `detail`. So the description carries the range, the unit and the word required. There is no min, max or pattern either.\n\nAnd the response: 200 OK with status:failed. A green tick on the status line would report success on a failed call, so the pane shows the body and the strip says read status, not the code."
     }
   ],
   "launch": { "view": "canvas" }

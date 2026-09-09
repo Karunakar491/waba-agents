@@ -77,10 +77,17 @@ the test pass while leaving the page ambiguous.
 
 ## Two operational notes
 
-- **The documented bastion `ec2-user@13.232.241.246` timed out** for this whole
-  session. The undocumented fallback `ubuntu@13.206.206.254` worked on the
-  first try, same key. Both are in the runbook; the fallback is no longer
-  "undocumented, confirmed once".
+- **The documented bastion `ec2-user@13.232.241.246` timed out, and I blamed
+  the bastion. It was the VPN.** The runbook's very first prerequisite says a
+  timeout means no route and to check the VPN before suspecting anything else;
+  I had read it and still recorded "the documented bastion is unreachable".
+  With the VPN up it answers immediately.
+
+  The real finding is more useful than the wrong one: **`ubuntu@13.206.206.254`
+  is reachable without the VPN.** A whole deploy — scp, backup, swap, verify —
+  went through it off-VPN. That is a route into the private network that the
+  VPN does not gate, which is worth someone's attention for reasons that have
+  nothing to do with convenience.
 - `prettier --write` on an e2e spec reformats the entire file (111 and 164
   lines on two specs) — the repo's e2e specs are not prettier-formatted. Wrap
   long lines by hand, or extract a helper, which is what happened here.

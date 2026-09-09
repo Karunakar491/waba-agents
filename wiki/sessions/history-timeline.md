@@ -22,7 +22,7 @@ tags: [history, timeline, index, sessions]
 - **2026-09-03** — Master Deploy Flagged · first traceable deploy since 08-25; Flyway CRC32 recovery; mvn compile without clean gives false passes
 - **2026-09-03** — Batch 2 Deploy · 4 features live from an exact commit; backend suite red on master; non-hermetic Testcontainers
 - **2026-09-03** — Playwright Harness · browser tests live against prod (first ever); read-only by design
-- **2026-09-09** — Connector One Page · five section pills removed, everything on one screen; deployed, 8 e2e specs green; documented bastion timed out, fallback worked
+- **2026-09-09** — Connector One Page · five section pills removed, everything on one screen; deployed, 8 e2e specs green; VPN was down and I blamed the bastion; fallback 13.206.206.254 reaches prod off-VPN
 
 ## 2026-08
 

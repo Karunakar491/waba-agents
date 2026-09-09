@@ -11,8 +11,17 @@ tags: [deployment, runbook]
 
 ## Bastions (two confirmed working, 2026-08-04)
 Either reaches the same private network and can SSH on to `ubuntu@10.1.17.16`:
-- `ec2-user@13.232.241.246` (documented, prefer this one)
-- `ubuntu@13.206.206.254` (undocumented fallback, confirmed working — same key)
+- `ec2-user@13.232.241.246` (documented, prefer this one) — **needs the VPN**
+- `ubuntu@13.206.206.254` (undocumented fallback, same key) — **reachable
+  WITHOUT the VPN.** Confirmed 2026-09-09: a full frontend deploy (scp, backup,
+  swap, curl verify) went through it from an off-VPN machine. So the
+  prerequisite above is true of the documented bastion only, and a timeout on
+  `13.232.241.246` while this one answers means the VPN is down, not that the
+  bastion is.
+
+  Treat that as a finding, not a convenience: it is a route into the private
+  network that the VPN does not gate. Worth raising with whoever owns the
+  security groups.
 
 ## SSH Commands
 ```bash

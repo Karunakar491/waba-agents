@@ -345,7 +345,13 @@ is the real one. Deleting a body row updates the JSON.
 
 Fixes W10, and the rest of W6.
 
-### T7 — Remove the Response tab until Test works
+### T7 — *superseded by T24*
+
+Was "remove the Response tab until Test works", on the assumption that a test
+was impossible. It is not — see the correction under the coverage check. The tab
+stays and gets a response in it.
+
+### T7 (original text, kept for the record)
 
 It cannot open. When T8 lands it comes back with something in it.
 
@@ -415,7 +421,8 @@ kind. It is not nothing.
 | **G5** | **Duplicate key across query and body** is rejected by Meta with a clear message; the editor lets you build it and fail on save | Anyone who names a query param and a body field the same |
 | **G6** | **Meta's rejection reason is discarded.** Every failure reaches the caller as `{"success":false,"error":"Meta API error: 400"}`; the real text sits in `api_call_log` | Everyone, on every mistake. This is why the matrix had to be probed rather than read |
 | **G7** | **Nothing says which body formats Meta refuses.** The Body tab invites JSON without stating that JSON is the *only* thing Meta will send | Anyone whose API takes a form POST, SOAP or a file upload — they configure a body and find out at publish |
-| **G8** | **A saved action never becomes a Meta tool.** Saving stores a template; nothing calls `/{phoneNumberId}/agent_connectors/{id}/tools` | Everyone. The agent cannot call anything configured here, and `Test` can never work |
+| **G8** | **A saved action never becomes a Meta tool.** Saving stores a template; nothing calls `/{phoneNumberId}/agent_connectors/{id}/tools` | Everyone. The agent cannot call anything configured here |
+| **G9** | **You cannot send the request and see the response.** So an endpoint is configured blind and first proved by a real customer's message failing | Everyone, on every connector. See the correction below |
 
 ### Cannot be built at all — Meta's wall, not ours
 
@@ -430,6 +437,39 @@ older enterprise and payment APIs are exactly this.
 The UI must say so rather than let someone configure a body and discover it at
 publish — that is G7 above, and it is the one gap on this page that is not
 fixable by building more. All we can do is tell the truth early.
+
+### Correction: a test call is not impossible
+
+I had been asserting throughout this section — in the UI copy, in the disabled
+`Test` button, and in T7 above — that an action cannot be tested because
+**Meta's runtime makes the call, not us**. The founder: *"we need text boxes
+where user can paste the request, make an API call and receive the response
+right. Else how will it work?"*
+
+That is correct and my reasoning was wrong. Meta making the call **at runtime**
+says nothing about whether *we* can make the same call **for verification**. Our
+own backend can issue it and show the response, which is the difference between
+configuring an endpoint and guessing at one. Today the first proof a connector
+works is a real customer's message failing.
+
+So `Send` and a response pane are real, and `Response` stops being a tab that
+can never open. What it costs, stated up front because none of it is optional:
+
+- **A credential for the test.** Values are deliberately never stored — they are
+  typed at publish and go straight to Meta. So a test needs the value typed for
+  that one request, held in memory for its duration and never persisted.
+- **An SSRF guard, which does not exist today.** The backend would be issuing
+  HTTP to a URL a user typed. It must refuse private ranges, loopback, and the
+  cloud metadata endpoint `169.254.169.254`, resolve DNS before connecting and
+  re-check the resolved address, cap the response size, cap redirects, and time
+  out. Every outbound call the backend makes today goes to a fixed known host,
+  so there is no existing guard to reuse — `grep` for one returns nothing.
+- **An honest caveat in the UI.** Our egress is not Meta's. A request that
+  succeeds from our server can still be refused at runtime by an IP allowlist,
+  and the pane has to say so rather than implying a pass means it will work.
+
+That is **T24**, and it is not a layout task — it is the second thing on this
+list that changes what the product can do.
 
 ### Extra tasks from this audit
 
@@ -519,7 +559,7 @@ after. Two orders is no order.
 | 6c | **T19** description as a column in the Actions table | — | XS | The last place a description is styling instead of a column |
 | 7 | **T3** an action's own Details tab | W3, W4, W8 | S | Removes the `Still needed` workaround rather than rewording it |
 | 8 | **T6** Body: table first, JSON collapsed | W10, W6 | M | Needs T1 |
-| 9 | **T7** drop the Response tab | W9 | XS | Do it in the same pass as T6; it comes back with T8 |
+| 9 | **T24** Send + Response, server-side, with an SSRF guard | G9, W9 | L | **Supersedes T7** — the Response pane stops being a tab that can never open. Second only to T8 in what it changes for a user |
 | 10 | **T5** Agents as a table | W5 | S | Last non-table list |
 | 11 | **T9** honest connector status | W11 | S | Needs a decision from the founder more than it needs code |
 | 12 | **T12** `enum` on a parameter | G3 | S | Real capability, small surface — one column or one Value mode |

@@ -52,3 +52,6 @@ replay_pid*.log
 frontend/e2e-report/
 frontend/e2e-walk/
 frontend/test-results/
+
+# Seeded design-canvas payload — a 2MB build artifact; the .dc.html sources beside it are the source of truth
+design/connector-section.html

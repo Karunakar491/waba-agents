@@ -243,6 +243,58 @@ fixable by building more. All we can do is tell the truth early.
 
 ---
 
+## Where a Description column exists today
+
+Asked directly: is `description` a column inside the table layout? In three
+places yes, and the gaps are exactly the surfaces still on the old pattern.
+
+| Surface | Columns today | Description a column? |
+| --- | --- | --- |
+| Query / path parameters, Headers | `Key · Type · Value · Description · Required · ✕` | **Yes** |
+| Body fields | `Field · Type · Value · Description · Required` | **Yes** |
+| Sent-automatically headers | `Name · Value · Why` (read-only) | Yes, as "Why" |
+| Connector `Variables` | `Variable · Resolves to` (read-only) | Yes, as "Resolves to" |
+| Connector `Actions` | `Method · Name · Path · Params · Body` | **No** — the description is a muted second line under the name |
+| Connector `Details` | not a table | **No** — still a form (T2) |
+| Connector `Authorization` | not a table | **No** — still a form (T2) |
+| `Agents` | not a table | **No** — still a list (T5) |
+
+Every field Meta records a `description` for now has a column for it. What is
+missing is on the surfaces that are not tables yet, plus the Actions table,
+where an action's own description is styling rather than a column — **T19**.
+
+## Postman row behaviours we do not have
+
+Structure copied, interaction not. These four are the ones that bite while
+actually configuring an API:
+
+- **T15 — A permanent empty trailing row.** Typing in it makes it real and
+  grows another. This is T4 stated the way Postman does it, and it is the
+  reason the screenshot showed a heading over blank space. Merge with T4.
+- **T16 — `✕` on row hover, not a permanent column.** The delete column eats
+  width on every row to serve the rare case.
+- **T17 — Bulk Edit.** Swap the table for a textarea of `key:value` lines. For
+  an API with twenty query parameters our one-row-at-a-time table is painful,
+  and this is the single highest-leverage borrow on the list.
+- **T18 — Drag to reorder rows.** Cheap, and parameter order is how people
+  read their own API.
+
+Two more Postman details already borrowed: greyed read-only auto rows, and a
+`Description` column rather than a `ⓘ` tooltip. Ours is always visible where
+Postman hides it behind an icon — deliberate, because the agent reads that
+sentence to decide what to send, so it is content here, not an annotation.
+
+### The one part of Postman's layout that cannot transfer
+
+Postman's Body tab leads with a radio row: none / form-data /
+x-www-form-urlencoded / raw / binary / GraphQL. Five of those six would be dead
+controls, because Meta's `content_type` accepts `application/json` alone.
+
+So the Body tab is JSON-only by force, and the honest design is to say that
+where the radio row would have been — which is G7, and now T14.
+
+---
+
 ## The order
 
 One list, all fourteen. There were two order tables in this document at one
@@ -256,7 +308,9 @@ after. Two orders is no order.
 | 3 | **T10** API key in query params / body params | G1 | M | The most common auth style we cannot express. Backend + one column |
 | 4 | **T1** one table component | W1, W2, W6 | M | Every layout task after it is cheap; before it, each is a new implementation |
 | 5 | **T2** connector Details + Authorization as tables | W1, W2 | M | Largest surface still on the old pattern. Lands T10's new column with it |
-| 6 | **T4** empty tables show a blank row | W7 | S | Small, and it is the thing in the screenshot that started this |
+| 6 | **T4 + T15** permanent empty trailing row | W7 | S | Small, and it is the thing in the screenshot that started this |
+| 6b | **T16** `✕` on hover, **T17** Bulk Edit, **T18** drag to reorder | — | M | Interaction, not structure. T17 earns its place the first time someone configures twenty parameters |
+| 6c | **T19** description as a column in the Actions table | — | XS | The last place a description is styling instead of a column |
 | 7 | **T3** an action's own Details tab | W3, W4, W8 | S | Removes the `Still needed` workaround rather than rewording it |
 | 8 | **T6** Body: table first, JSON collapsed | W10, W6 | M | Needs T1 |
 | 9 | **T7** drop the Response tab | W9 | XS | Do it in the same pass as T6; it comes back with T8 |

@@ -471,6 +471,47 @@ can never open. What it costs, stated up front because none of it is optional:
 That is **T24**, and it is not a layout task — it is the second thing on this
 list that changes what the product can do.
 
+### What mapping a real API exposed
+
+The founder handed over the AstroTalk combined Kundli contract —
+`POST api.kundali.astrotalk.com/v1/combined/general`, thirteen fields inside one
+nested `detail` object — and asked how field descriptions get given to the
+agent. Mapping it found three things the artboards had glossed over.
+
+**1. The `Required` column is nearly useless, and the design was hiding it.**
+Meta records required-ness only as `body.required`, a list of **top-level**
+field names. This API's only top-level field is `detail`. So `day`, `month`,
+`year`, `lat` and `lon` — which the API rejects the call without — cannot be
+marked required at all. Every one shows a dash.
+
+That answers the question directly: **the description is not documentation, it
+is the contract.** It is the only place a constraint can live — Meta has no
+`min`, no `max`, no `pattern` either — so it carries the range, the unit, the
+format and the word "required" in words. It is also the highest-consequence copy
+on the screen, since Meta hands it to the model verbatim, which is why the
+Description column stays visible rather than hiding behind Postman's `ⓘ`.
+
+**2. Some fields need the agent to convert, not relay.** A customer says "born
+in Bankura"; this API wants `lat: 23.23`, `lon: 87.07` and will not geocode
+`place`. So those descriptions must say *decimal degrees, not a place name*,
+with an example. `hour` is the same trap — "12 midnight" has to become `0`.
+
+**3. A failure arrives as HTTP 200.** `{"status":"failed","reason":"lat and lon
+are required"}` comes back `200 OK`. Nothing in Meta's tool model expresses "200
+but check a field", so the **action's** description — not a field's — has to
+tell the agent to read `status` before trusting the body and to relay `reason`.
+Without it the agent reports success on a failed call. It also means T24's
+response pane cannot lead with a green `200 OK`: it has to show the body.
+
+Two consequences for the task list:
+
+- **T25** — the Description cell needs room to hold a real constraint sentence,
+  and a length that does not encourage one-word entries. It is the field that
+  most affects whether an agent calls the action correctly.
+- **T26** — where a description is empty on a field the API requires, that is
+  worth flagging, because `Required` cannot flag it. This is the one place the
+  section should nag.
+
 ### Extra tasks from this audit
 
 - **T10 — API key in query params and body params (G1).** Backend + one column

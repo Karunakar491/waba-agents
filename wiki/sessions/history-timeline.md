@@ -12,6 +12,7 @@ tags: [history, timeline, index, sessions]
 
 ## 2026-09
 
+- **2026-09-15** — Astrotalk Agent Built Through the UI · agent `887643060282855424` on +91 96422 01123; 2 connectors published ACTIVE (Kundli, astrologer recommendation with `X-Api-Key`), 7 conversational skills, 6 Hinglish FAQs, persona rewritten from a wrong-company draft; both APIs proven live (200 + real chart, 200 + real astrologer). NOT published to customers, persona NOT deployed. Found: persona's 8 fields have no addressable labels, FAQ add duplicated a row once and is eventually consistent, persona Save draft fires no toast, publish dialog groups the agent under the wrong number. See [[sessions/astrotalk-agent-build-2026-09-15|writeup]]
 - **2026-09-07** — Postman-Shaped Connectors · both levels tabbed to match Postman (connector=collection, action=request); collection headers/body NOT copied because Meta's connector object has neither; auth tab reports inheritance since Meta forbids per-tool auth; Variables surfaces Meta's three closed macros
 - **2026-09-06** — Connectors Became One Screen · list page deleted, sidebar is the only list; "Publish" repointed at Meta after being the button that flipped a local flag gating nothing while "Deploy" did the publishing; library tables everywhere; logrotate after a third disk-full
 - **2026-09-03** — Daily User Challenges Audit · 31 evidence-backed user problems on the real WABA; token refresh unwired (logged out every 15 min), no human can reply, nothing ever closes

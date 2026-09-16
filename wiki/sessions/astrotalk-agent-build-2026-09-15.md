@@ -57,11 +57,38 @@ Specs kept (scripted operator sessions, not app tests):
   the truth.
 - `npx tsc --noEmit` clean.
 
-## Where the line was drawn
+## Going live (same day, founder's call)
 
-**Publish & Test was never pressed.** It puts the agent live on +91 96422 01123 and
-starts it answering real customers — the founder's call, not a build step. The
-persona draft was likewise saved and not deployed.
+The build stopped short of Publish & Test on purpose and asked. The founder said
+"take it live", so both remaining steps were done, in this order and for a reason:
+
+1. **Persona deployed**, so Meta stopped holding the previous one. Going live first
+   would have answered customers with the wrong persona.
+2. **Publish & Test** → agent is **Active** / **Live** on +91 96422 01123
+   (`POST /api/v1/agents/887643060282855424/deploy` → 200). The header now offers
+   Pause and Test Agent instead of Publish.
+
+Two things the UI taught us on the way:
+
+- Publish & Test's confirmation is **inline in the header, not a `role="dialog"`**:
+  "This number already has 7 skills configured; connected to: … Continue?" A handler
+  that only looked for a dialog reported "no dialog", left the warning unanswered,
+  and the next navigation silently cancelled the publish. The agent stayed a Draft
+  and nothing said why.
+- After deploying, the persona tab shows only "Published — Live since …". The
+  published persona's **text is not rendered there at all**, so "is the right
+  company's persona live" can only be asserted from the Agents list, which does
+  show it.
+
+Post-go-live fix: the pricing FAQ — the one whose accidental duplicate had been
+unpublished — came back **"Not synced"**, i.e. shown in the product but absent from
+Meta. On a paid consultation product that is the single most likely question, so it
+was republished (`@astro-faq-sync`) and now reads clean. The row offers no sync
+control of its own; the only repair available is unpublish-and-re-add.
+
+Verified after the fact by `@astro-verify`: Active, Pause offered, 6 FAQs with none
+unsynced, both connectors ACTIVE, the Astrotalk persona live on the list with no
+trace of the courier text.
 
 The API key was passed as `ASTROTALK_API_KEY` on the command line only. It is not
 in the repository, and the product does not store it either: the library holds the
@@ -87,10 +114,13 @@ workbench's per-call credential is "gone when you leave this page".
 
 ## Open, needs the founder
 
-- **Deploy the persona?** Astrotalk text is a draft; Meta still has the previous
-  published version.
-- **Publish & Test?** Nothing about this agent is testable end to end otherwise —
-  there is still no test WABA.
+- **The agent is live and has never held a real conversation.** Nothing verifies its
+  actual WhatsApp behaviour: the skills, the persona and the connectors are each
+  proven present and the APIs proven to answer, but no message has gone through the
+  journey end to end. First real customer is the first test. Test Agent on the
+  header is the obvious next move.
+- **Knowledge Base holds 2 draft FAQs** — residue from the duplicate and the
+  resync. Not live, harmless, but worth clearing.
 - **Kundli API needs lat/lon**, and the conversation only ever collects a city
   name. The action tells the model to supply coordinates for the named city: fine
   for cities it knows, drifting for small towns. A geocoding step or a

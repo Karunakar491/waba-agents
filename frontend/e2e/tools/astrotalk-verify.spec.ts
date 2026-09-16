@@ -76,22 +76,51 @@ test('the built Astrotalk agent, read back @astro-verify', async ({ authedPage: 
   }
   console.log('--- agent Connectors tab ---\n' + connectorText.slice(0, 1200))
 
-  // ---- persona ----------------------------------------------------------
+  // No FAQ should be sitting unsynced: an answer the product shows but Meta
+  // does not have is worse than no answer, because nobody notices.
+  await expect(page.getByText('Not synced')).toHaveCount(0)
+
+  /*
+   * ---- persona ----------------------------------------------------------
+   *
+   * Once deployed, this tab shows only "Published — Live since …": the
+   * published persona's TEXT is not rendered here at all, and the Drafts list
+   * is empty because the draft went out. So the tab is checked for having
+   * published something and nothing pending, and the words themselves are read
+   * off the Agents list below, which is the one screen that does show them.
+   */
   const persona = await tab(page, 'Business Persona')
   const personaText = await persona.innerText()
-  expect(personaText, 'the Astrotalk persona draft should be there').toContain(
+  expect(personaText, 'a persona should be published').toContain('Published')
+  expect(personaText, 'no persona draft should still be waiting').not.toContain(
     "Astrotalk is India's largest astrology",
   )
-  // Say out loud whether Meta still has the courier text.
-  console.log(
-    personaText.includes('SMSA')
-      ? 'NOTE: the SMSA Express persona is STILL the published/live version on Meta.'
-      : 'The SMSA Express persona is no longer present.',
-  )
 
-  // ---- the agent is still a draft ---------------------------------------
+  // ---- the agent is live ------------------------------------------------
   await page.goto(AGENT)
   await page.waitForLoadState('networkidle')
-  await expect(page.locator('main').first()).toContainText('Draft')
-  console.log('agent is still a Draft — not answering customers.')
+  const header = page.locator('main').first()
+  await expect(header).toContainText('Active')
+  // Exact, not a substring: the Knowledge Base pane has a "Drafts" disclosure,
+  // and "Draft" matches inside it — which failed a check on an Active agent.
+  await expect(page.getByText('Draft', { exact: true })).toHaveCount(0)
+  // Active means Pause is the offer, not Publish.
+  await expect(page.getByRole('button', { name: /^Pause$/ })).toBeVisible()
+
+  // The Agents list is where the live persona's own words are visible, so this
+  // is where "the right company's persona is live" can actually be asserted.
+  await page.goto('/agents')
+  await page.waitForLoadState('networkidle')
+  const row = page
+    .getByRole('row')
+    .filter({ has: page.getByText(JOB.agentName, { exact: true }) })
+    .first()
+  const rowText = await row.innerText()
+  expect(rowText, 'the live persona should be the Astrotalk one').toContain(
+    "Astrotalk is India's largest astrology",
+  )
+  expect(rowText, 'no trace of the courier persona should remain').not.toContain('SMSA')
+  expect(rowText, 'the list should call it Live').toContain('Live')
+  await page.screenshot({ path: `${SHOTS}/astrotalk-live-list.png`, fullPage: true })
+  console.log('agent is Active and Live — answering customers on its number.')
 })

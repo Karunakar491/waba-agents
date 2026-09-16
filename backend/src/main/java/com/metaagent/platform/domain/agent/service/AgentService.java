@@ -10,8 +10,10 @@ import com.metaagent.platform.domain.agent.dto.UiSkillRequest;
 import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.*;
 import com.metaagent.platform.domain.agent.repository.*;
+import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.conversation.repository.ConversationRepository;
 import com.metaagent.platform.domain.conversation.repository.MessageRepository;
+import com.metaagent.platform.domain.skill.entity.AgentSkillAttachment;
 import com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot;
 import com.metaagent.platform.domain.waba.entity.Waba;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
@@ -387,39 +389,193 @@ public class AgentService {
     }
 
     /**
+     * What happens to one child table when the agent is kept as a draft instead
+     * of deleted.
+     *
+     * KEEP      — the rows carry over to the draft untouched.
+     * NULL_OUT  — the rows carry over, but their Meta identifiers are cleared:
+     *             teardown deleted the objects those ids point at, so leaving
+     *             them set would have a republish PATCH ids Meta no longer knows.
+     * DELETE    — the rows go, even in preserve mode.
+     */
+    private enum DraftPolicy { KEEP, NULL_OUT, DELETE }
+
+    /**
+     * One child table, its delete, and what preserving the agent does to it
+     * instead. {@code prepareForDraft} runs only for KEEP and NULL_OUT.
+     */
+    private record ChildTable(String name, Runnable delete, DraftPolicy policy, Runnable prepareForDraft) {}
+
+    /**
+     * The single source of truth for the agent's child tables, in FK-safe order.
+     *
+     * <p>Both {@link #deleteAgent(Long)} and {@link #convertToDraft(Long, Long)}
+     * iterate this list and nothing else. That is deliberate: this cascade was
+     * hand-maintained until 2026-08-13, when a real delete against an agent with
+     * connector history failed with an FK violation on agent_connector because
+     * the list was never updated after that table was added. A second
+     * hand-maintained copy for the preserve path would double the odds of the
+     * same failure, so there is exactly one list and adding a table to it forces
+     * you to state both a delete and a draft policy.
+     *
+     * <p>Website pages -> websites -> faqs -> skills -> files use plain derived
+     * deleteAllByAgentId (entity-by-entity) — fine, these are low-cardinality per
+     * agent. Messages, conversations and webhook_raw use explicit @Modifying
+     * @Query bulk DELETE instead — an agent can have thousands of these, so
+     * entity-by-entity would N+1.
+     *
+     * <p>Child tables use ON DELETE RESTRICT (a defensive default from migration
+     * time, not a data-retention policy — no compliance/audit requirement was
+     * found for conversation data; webhook_raw already auto-purges after 30 days
+     * via WebhookRetentionJob), so child rows are removed explicitly, in order,
+     * before the agent row.
+     */
+    private List<ChildTable> childTables(Long id) {
+        return List.of(
+                new ChildTable("agent_website_page",
+                        () -> agentWebsitePageRepository.deleteAllByAgentId(id),
+                        DraftPolicy.KEEP, () -> {}),
+                new ChildTable("agent_website",
+                        () -> agentWebsiteRepository.deleteAllByAgentId(id),
+                        DraftPolicy.NULL_OUT, () -> {
+                            List<AgentWebsite> websites = agentWebsiteRepository.findAllByAgentId(id);
+                            websites.forEach(w -> {
+                                w.setMetaWebsiteId(null);
+                                w.setMetaSynced(false);
+                            });
+                            agentWebsiteRepository.saveAll(websites);
+                        }),
+                new ChildTable("agent_faq",
+                        () -> agentFaqRepository.deleteAllByAgentId(id),
+                        DraftPolicy.NULL_OUT, () -> {
+                            List<AgentFaq> faqs = agentFaqRepository.findAllByAgentId(id);
+                            faqs.forEach(f -> {
+                                f.setMetaFaqId(null);
+                                f.setMetaSynced(false);
+                            });
+                            agentFaqRepository.saveAll(faqs);
+                        }),
+                // Agent-owned skills are not preserved yet — promoting them into
+                // the Skill Library is a later phase. Teardown has already deleted
+                // them from Meta and locally by the time we get here; this delete
+                // is the backstop for when that step failed.
+                new ChildTable("agent_skill",
+                        () -> agentSkillRepository.deleteAllByAgentId(id),
+                        DraftPolicy.DELETE, () -> {}),
+                new ChildTable("agent_skill_attachment",
+                        () -> agentSkillAttachmentRepository.deleteAllByAgentId(id),
+                        DraftPolicy.NULL_OUT, () -> {
+                            List<AgentSkillAttachment> attachments =
+                                    agentSkillAttachmentRepository.findAllByAgentId(id);
+                            attachments.forEach(a -> {
+                                a.setMetaSkillId(null);
+                                a.setDeployedAt(null);
+                            });
+                            agentSkillAttachmentRepository.saveAll(attachments);
+                        }),
+                new ChildTable("agent_ui_skill",
+                        () -> agentUiSkillRepository.deleteAllByAgentId(id),
+                        DraftPolicy.NULL_OUT, () -> {
+                            List<AgentUiSkill> uiSkills = agentUiSkillRepository.findAllByAgentId(id);
+                            uiSkills.forEach(s -> s.setMetaUiSkillId(null));
+                            agentUiSkillRepository.saveAll(uiSkills);
+                        }),
+                // We never held the bytes — addFile streams them straight to Meta
+                // and keeps only the metaFileId — and teardown has just deleted
+                // them there. A preserved row would be a filename pointing at
+                // nothing, so the draft shows no files and the delete dialog says
+                // so before the operator commits.
+                new ChildTable("agent_file",
+                        () -> agentFileRepository.deleteAllByAgentId(id),
+                        DraftPolicy.DELETE, () -> {}),
+                new ChildTable("connector_deployment",
+                        () -> connectorDeploymentRepository.deleteAllByAgentId(id),
+                        DraftPolicy.NULL_OUT, () -> {
+                            List<ConnectorDeployment> deployments =
+                                    connectorDeploymentRepository.findAllByAgentId(id);
+                            deployments.forEach(d -> {
+                                d.setMetaConnectorId(null);
+                                d.setPhoneNumberId(null);
+                                d.setDeployedAt(null);
+                            });
+                            connectorDeploymentRepository.saveAll(deployments);
+                        }),
+                // Pure mirror of what Meta holds, keyed by meta_connector_id and
+                // phone_number_id. After teardown every row describes something
+                // that no longer exists; ConnectorMirrorService rebuilds it on the
+                // next deploy.
+                new ChildTable("agent_connector",
+                        () -> agentConnectorRepository.deleteAllByAgentId(id),
+                        DraftPolicy.DELETE, () -> {}),
+                new ChildTable("message",
+                        () -> messageRepository.deleteAllByAgentId(id),
+                        DraftPolicy.KEEP, () -> {}),
+                new ChildTable("conversation",
+                        () -> conversationRepository.deleteAllByAgentId(id),
+                        DraftPolicy.KEEP, () -> {}),
+                new ChildTable("webhook_raw",
+                        () -> webhookRawRepository.deleteAllByAgentId(id),
+                        DraftPolicy.KEEP, () -> {}));
+    }
+
+    /**
      * Full cascade delete — matches the Danger Zone UI promise ("permanently deletes
-     * this agent and all its data"). Child tables use ON DELETE RESTRICT (a defensive
-     * default from migration time, not a data-retention policy — no compliance/audit
-     * requirement was found for conversation data; webhook_raw already auto-purges after
-     * 30 days via WebhookRetentionJob), so we delete child rows explicitly, in FK-safe
-     * order, before the agent row.
-     * Website pages -> websites -> faqs -> skills -> files use plain derived
-     * deleteAllByAgentId (entity-by-entity) — fine, these are low-cardinality per agent.
-     * Messages, conversations, and webhook_raw use explicit @Modifying @Query bulk
-     * DELETE instead — an agent can have thousands of these, so entity-by-entity would N+1.
+     * this agent and all its data"). Every child table in {@link #childTables(Long)}
+     * is emptied, in order, then the agent row.
      */
     @Transactional
     public void deleteAgent(Long id) {
         Agent agent = getAgent(id);
 
-        agentWebsitePageRepository.deleteAllByAgentId(id);
-        agentWebsiteRepository.deleteAllByAgentId(id);
-        agentFaqRepository.deleteAllByAgentId(id);
-        agentSkillRepository.deleteAllByAgentId(id);
-        agentSkillAttachmentRepository.deleteAllByAgentId(id);
-        agentUiSkillRepository.deleteAllByAgentId(id);
-        agentFileRepository.deleteAllByAgentId(id);
-        // Added later than the rest of this cascade (connector-mirror + connector-library
-        // features) — caught live, 2026-08-13: a real delete against an agent with any
-        // connector history failed with a FK violation on agent_connector because this
-        // cascade was never updated when that table was added.
-        connectorDeploymentRepository.deleteAllByAgentId(id);
-        agentConnectorRepository.deleteAllByAgentId(id);
-        messageRepository.deleteAllByAgentId(id);
-        conversationRepository.deleteAllByAgentId(id);
-        webhookRawRepository.deleteAllByAgentId(id);
+        childTables(id).forEach(table -> table.delete().run());
 
         agentRepository.delete(agent);
+    }
+
+    /** What survived a preserve-as-draft delete, for the operator-facing summary. */
+    public record DraftPreservationCounts(int faqsKept, int websitesKept, int filesDropped) {}
+
+    /**
+     * Preserve-as-draft counterpart to {@link #deleteAgent(Long)}: keeps the agent
+     * row and its content, and removes only what teardown has already invalidated.
+     *
+     * <p>The agent is re-loaded here rather than handed in. By the time this runs,
+     * {@code AgentDeployService.deleteFromMeta} has saved its own copy of the row
+     * (nulling the phone number, WABA and Meta agent id), so any Agent instance the
+     * caller captured before teardown is stale. Only the WABA id travels in, as a
+     * plain value.
+     *
+     * @param wabaIdToRestore the WABA the agent belonged to before teardown cleared
+     *                        it. The draft must keep it: the Skill and Connector
+     *                        libraries are WABA-scoped, so a draft with no WABA
+     *                        cannot see its own content or be rebound without one.
+     */
+    @Transactional
+    public DraftPreservationCounts convertToDraft(Long id, Long wabaIdToRestore) {
+        Agent agent = getAgent(id);
+
+        DraftPreservationCounts counts = new DraftPreservationCounts(
+                agentFaqRepository.findAllByAgentId(id).size(),
+                agentWebsiteRepository.findAllByAgentId(id).size(),
+                agentFileRepository.findAllByAgentId(id).size());
+
+        List<String> dropped = new ArrayList<>();
+        for (ChildTable table : childTables(id)) {
+            if (table.policy() == DraftPolicy.DELETE) {
+                table.delete().run();
+                dropped.add(table.name());
+            } else {
+                table.prepareForDraft().run();
+            }
+        }
+        log.info("Agent {} kept as a draft; cleared {}", id, dropped);
+
+        agent.setWabaId(wabaIdToRestore);
+        agent.setStatus(Agent.Status.draft);
+        agent.setEnabled(false);
+        agentRepository.save(agent);
+
+        return counts;
     }
 
     // --- Skills Management ---

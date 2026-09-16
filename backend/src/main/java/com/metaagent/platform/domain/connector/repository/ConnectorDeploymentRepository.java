@@ -17,6 +17,8 @@ public interface ConnectorDeploymentRepository extends JpaRepository<ConnectorDe
     /** Batched — the library rollup would otherwise do one query per connector. */
     List<ConnectorDeployment> findAllByConnectorIdIn(Collection<Long> connectorIds);
 
+    List<ConnectorDeployment> findAllByAgentId(Long agentId);
+
     List<ConnectorDeployment> findAllByAgentIdIn(Collection<Long> agentIds);
 
     List<ConnectorDeployment> findAllByConnectorId(Long connectorId);

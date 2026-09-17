@@ -35,8 +35,12 @@ export interface LibraryDeployment {
   phoneNumberId: string | null
   metaConnectorId: string | null
   deployedAt: string | null
-  /** LIVE = matches the current definition. OUT_OF_SYNC = definition edited since. */
-  status: 'LIVE' | 'OUT_OF_SYNC' | 'FAILED' | 'PENDING'
+  /**
+   * LIVE = matches the current definition. OUT_OF_SYNC = definition edited since.
+   * PARTIAL = the connector is on Meta but some actions could not be set up as
+   * tools, so the agent cannot perform them.
+   */
+  status: 'LIVE' | 'OUT_OF_SYNC' | 'PARTIAL' | 'FAILED' | 'PENDING'
   lastError: string | null
 }
 

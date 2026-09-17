@@ -4,7 +4,49 @@ import ConnectorActionsTable from './ConnectorActionsTable'
 import PropertyTable, { type PropertyRow } from './PropertyTable'
 import { META_MACROS } from './metaMacros'
 import { type ConnectorAction } from '../connectorActions'
-import { type ConnectorFormValues, type LibraryConnector } from '../connectorLibrary'
+import {
+  type ConnectorFormValues,
+  type LibraryConnector,
+  type LibraryDeployment,
+} from '../connectorLibrary'
+import { type StatusTone } from '../../shared/StatusIndicator'
+
+/**
+ * How each deployment status reads in the Agents strip.
+ *
+ * This used to be `status === 'OUT_OF_SYNC' ? 'Behind' : 'Up to date'`, so every
+ * other status — including a deploy that only partly worked — rendered as a
+ * green "Up to date". That is how a connector the agent could not actually call
+ * sat on a live number looking healthy.
+ *
+ * Keyed by the status union, not by string, ON PURPOSE: adding a status to
+ * LibraryDeployment without adding it here is then a build failure rather than
+ * a silent fallback. An unrecognised status still shows its raw name in neutral
+ * — never a green "Up to date", because defaulting unknown to healthy is the
+ * same fail-open mistake one layer up.
+ *
+ * Deliberately duplicated, not shared: a richer DEPLOYMENT_STATE mapping in
+ * deploymentState.ts is still unreviewed and is not shipping with this change.
+ * When it lands, these two maps should be REPLACED by it, not kept alongside it
+ * — and the reason text below should move from a `title` to something keyboard
+ * and screen-reader accessible at the same time (see the strip below).
+ */
+const DEPLOYMENT_LABEL: Record<LibraryDeployment['status'], string> = {
+  OUT_OF_SYNC: 'Behind — republish',
+  PARTIAL: 'Missing actions',
+  FAILED: 'Failed',
+  PENDING: 'Pending',
+  LIVE: 'Up to date',
+}
+
+const DEPLOYMENT_TONE: Record<LibraryDeployment['status'], StatusTone> = {
+  OUT_OF_SYNC: 'warning',
+  // Negative, not warning: the agent cannot perform these actions at all.
+  PARTIAL: 'negative',
+  FAILED: 'negative',
+  PENDING: 'neutral',
+  LIVE: 'positive',
+}
 
 /**
  * The connector, built to `design/Main.dc.html`.
@@ -147,13 +189,31 @@ export default function ConnectorPane({
                 <span
                   key={`${d.agentId}-${d.metaConnectorId ?? 'none'}`}
                   className="flex items-center gap-2 text-sm"
+                  // The status says something is wrong; this says what. Without
+                  // it the operator is told "Missing actions" and has no way to
+                  // learn which, or why.
+                  //
+                  // KNOWN GAP, tracked: `title` is hover-only — not focusable,
+                  // not reliable on touch, inconsistently announced by screen
+                  // readers. The status LABEL itself is real text, so the fact
+                  // that something is wrong is accessible; only this detail is
+                  // not. Fix it properly when deploymentState.ts lands.
+                  title={d.lastError ?? undefined}
                 >
                   <span className="max-w-[200px] truncate text-foreground">
                     {d.agentName ?? d.agentId}
                   </span>
+                  {/*
+                    PARTIAL is called out separately, and negative rather than
+                    warning. It means the connector reached Meta but some of its
+                    actions did not, so the agent cannot perform them — and an
+                    agent that cannot call an API answers from its own
+                    imagination instead. Rendering that as a green "Up to date"
+                    is how it went unnoticed on a live number for days.
+                  */}
                   <StatusIndicator
-                    label={d.status === 'OUT_OF_SYNC' ? 'Behind — republish' : 'Up to date'}
-                    tone={d.status === 'OUT_OF_SYNC' ? 'warning' : 'positive'}
+                    label={DEPLOYMENT_LABEL[d.status] ?? d.status}
+                    tone={DEPLOYMENT_TONE[d.status] ?? 'neutral'}
                   />
                 </span>
               ))}

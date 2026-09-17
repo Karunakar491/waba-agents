@@ -6,6 +6,7 @@ import com.metaagent.platform.domain.agent.service.AgentDeployService;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.connector.dto.ConnectorLibraryDtos;
 import com.metaagent.platform.domain.connector.entity.Connector;
+import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
 import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
@@ -44,19 +45,25 @@ class ConnectorLibraryServiceTest {
     private ConnectorLibraryService service;
     private ConnectorRepository connectorRepository;
     private ConnectorActionRepository connectorActionRepository;
+    private ConnectorDeploymentRepository deploymentRepository;
+    private AgentService agentService;
+    private AgentDeployService agentDeployService;
 
     @BeforeEach
     void setUp() {
         authenticateAs(1L);
         connectorRepository = mock(ConnectorRepository.class);
         connectorActionRepository = mock(ConnectorActionRepository.class);
+        deploymentRepository = mock(ConnectorDeploymentRepository.class);
+        agentService = mock(AgentService.class);
+        agentDeployService = mock(AgentDeployService.class);
         service = new ConnectorLibraryService(
                 connectorRepository,
                 connectorActionRepository,
-                mock(ConnectorDeploymentRepository.class),
+                deploymentRepository,
                 mock(AgentRepository.class),
-                mock(AgentService.class),
-                mock(AgentDeployService.class),
+                agentService,
+                agentDeployService,
                 mock(WabaAccessGuard.class),
                 new ObjectMapper());
     }
@@ -228,6 +235,348 @@ class ConnectorLibraryServiceTest {
                     "should reject " + bad);
         }
         verify(connectorActionRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------------
+    // Tool sync — deploying a connector must instantiate its actions as Meta
+    // tools. It never did, so every connector we deployed arrived on Meta with
+    // zero tools and the agent had nothing it could call. Confirmed in
+    // production 2026-09-18 on a live WhatsApp number that had made zero API
+    // calls in its life and was inventing prices to cover the gap.
+    // ---------------------------------------------------------------------
+
+    private static final String DEF = "{\"method\":\"POST\",\"path\":\"/v1/general\"}";
+
+    /** Wires up the happy path for deploy(), leaving the tool behaviour to each test. */
+    private Connector givenDeployableConnector() {
+        Connector connector = Connector.builder()
+                .id(10L)
+                .wabaId(7L)
+                .name("astrotalk kundli api")
+                .description("d")
+                .baseUrl("https://api.kundali.astrotalk.com")
+                .authType("NONE")
+                .requiresCertificate(false)
+                .build();
+        connector.setUpdatedAt(java.time.LocalDateTime.now().minusDays(1));
+        when(connectorRepository.findById(10L)).thenReturn(Optional.of(connector));
+
+        com.metaagent.platform.domain.agent.entity.Agent agent =
+                com.metaagent.platform.domain.agent.entity.Agent.builder()
+                        .id(20L).wabaId(7L).phoneNumberId("555").displayName("Astrotalk").build();
+        when(agentService.getAgent(20L)).thenReturn(agent);
+        when(deploymentRepository.findByConnectorIdAndAgentId(10L, 20L)).thenReturn(Optional.empty());
+        when(deploymentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(agentDeployService.createConnector(eq(20L), any())).thenReturn(Map.of("id", "meta-conn-1"));
+        return connector;
+    }
+
+    private static ConnectorAction action(String name, String description, String definition) {
+        return ConnectorAction.builder()
+                .id(1L).accountId(1L).connectorId(10L)
+                .name(name).description(description)
+                .requestDefinition(definition).userAuthRequired(false)
+                .build();
+    }
+
+    private ConnectorLibraryDtos.DeploymentView deploy() {
+        return service.deploy(10L, new ConnectorLibraryDtos.DeployRequest("20", Map.of()));
+    }
+
+    @Test
+    void should_create_every_action_as_a_tool_when_meta_holds_none() {
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of());
+
+        ConnectorLibraryDtos.DeploymentView view = deploy();
+
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(agentDeployService).createTool(eq(20L), eq("meta-conn-1"), payload.capture());
+        assertEquals("general_kundli", payload.getValue().get("name"));
+        assertEquals("Fetch the Kundli", payload.getValue().get("description"));
+        assertEquals(false, payload.getValue().get("user_auth_required"));
+        assertEquals(objectNode(DEF), payload.getValue().get("request_definition"),
+                "the stored definition is Meta's own JSON and must go out verbatim, not as a quoted string");
+        assertEquals("LIVE", view.status());
+    }
+
+    @Test
+    void should_not_rewrite_a_tool_meta_already_holds_unchanged() {
+        // The whole point of matching by name. Without it every redeploy would
+        // either duplicate the tools or rewrite all of them every time.
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(Map.of(
+                "id", "tool-1",
+                "name", "general_kundli",
+                "description", "Fetch the Kundli",
+                "user_auth_required", false,
+                // Meta returns its own key order — a string comparison would call
+                // this changed and rewrite it on every single deploy.
+                "request_definition", Map.of("path", "/v1/general", "method", "POST"))));
+
+        assertEquals("LIVE", deploy().status());
+
+        verify(agentDeployService, never()).createTool(any(), any(), any());
+        verify(agentDeployService, never()).updateTool(any(), any(), any(), any());
+    }
+
+    @Test
+    void should_update_a_tool_whose_definition_drifted() {
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(Map.of(
+                "id", "tool-1",
+                "name", "general_kundli",
+                "description", "an older description",
+                "user_auth_required", false,
+                "request_definition", Map.of("method", "POST", "path", "/v1/general"))));
+
+        deploy();
+
+        verify(agentDeployService).updateTool(eq(20L), eq("meta-conn-1"), eq("tool-1"), any());
+        verify(agentDeployService, never()).createTool(any(), any(), any());
+    }
+
+    @Test
+    void should_leave_a_meta_tool_alone_when_the_library_no_longer_has_it() {
+        // A customer can be mid-conversation on that tool call. Removing it is a
+        // separate deliberate act, never a side effect of deploying.
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(
+                Map.of("id", "tool-1", "name", "general_kundli", "description", "Fetch the Kundli",
+                        "user_auth_required", false,
+                        "request_definition", Map.of("method", "POST", "path", "/v1/general")),
+                Map.of("id", "tool-2", "name", "a_retired_action", "description", "gone from the library",
+                        "user_auth_required", false, "request_definition", Map.of())));
+
+        deploy();
+
+        verify(agentDeployService, never()).deleteTool(any(), any(), any());
+    }
+
+    /**
+     * Meta requires nested body nodes as JSON-ENCODED STRINGS, and we store that
+     * shape verbatim (see should_store_the_request_definition_verbatim... above
+     * and docs/meta-api/connector-tools-capability-matrix.md).
+     *
+     * What we do NOT know is which encoding Meta uses when it hands the
+     * definition back from a GET. Both are tested, because betting on one is how
+     * this whole incident started: if a redeploy sees the other encoding and
+     * calls it "changed", every nested-body tool is rewritten on every single
+     * deploy, forever, while the deploy still reports success.
+     */
+    private static final String NESTED_DEF =
+            "{\"method\":\"POST\",\"path\":\"/\",\"body\":{\"content_type\":\"application/json\","
+                    + "\"params\":{\"home\":{\"type\":\"object\",\"properties\":"
+                    + "{\"delhi\":\"{\\\"type\\\":\\\"string\\\"}\"}}}}}";
+
+    @Test
+    void should_not_rewrite_a_nested_body_tool_meta_echoes_back_in_string_encoding() {
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("nested", "Nested body", NESTED_DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(Map.of(
+                "id", "tool-1", "name", "nested", "description", "Nested body",
+                "user_auth_required", false,
+                "request_definition", Map.of(
+                        "method", "POST", "path", "/",
+                        "body", Map.of("content_type", "application/json",
+                                "params", Map.of("home", Map.of("type", "object",
+                                        // same encoding we sent: the leaf is a STRING
+                                        "properties", Map.of("delhi", "{\"type\":\"string\"}"))))))));
+
+        deploy();
+
+        verify(agentDeployService, never()).updateTool(any(), any(), any(), any());
+    }
+
+    @Test
+    void should_not_rewrite_a_nested_body_tool_meta_echoes_back_already_parsed() {
+        // The dangerous one: Meta validates these definitions, so it may well
+        // return the leaf parsed into a real object rather than the string we
+        // sent. Same content, different depth of encoding — must not count as a
+        // change, or every nested tool is rewritten on every deploy for ever.
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("nested", "Nested body", NESTED_DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(Map.of(
+                "id", "tool-1", "name", "nested", "description", "Nested body",
+                "user_auth_required", false,
+                "request_definition", Map.of(
+                        "method", "POST", "path", "/",
+                        "body", Map.of("content_type", "application/json",
+                                "params", Map.of("home", Map.of("type", "object",
+                                        // parsed, not a string
+                                        "properties", Map.of("delhi", Map.of("type", "string")))))))));
+
+        deploy();
+
+        verify(agentDeployService, never()).updateTool(any(), any(), any(), any());
+    }
+
+    @Test
+    void should_still_detect_a_real_change_inside_a_nested_body() {
+        // The normalisation must not be so forgiving that genuine drift stops
+        // being noticed — that would be the opposite failure, a tool left wrong.
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("nested", "Nested body", NESTED_DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of(Map.of(
+                "id", "tool-1", "name", "nested", "description", "Nested body",
+                "user_auth_required", false,
+                "request_definition", Map.of(
+                        "method", "POST", "path", "/",
+                        "body", Map.of("content_type", "application/json",
+                                "params", Map.of("home", Map.of("type", "object",
+                                        "properties", Map.of("delhi", "{\"type\":\"number\"}"))))))));
+
+        deploy();
+
+        verify(agentDeployService).updateTool(eq(20L), eq("meta-conn-1"), eq("tool-1"), any());
+    }
+
+    @Test
+    void should_report_partial_not_failed_when_the_existing_tools_cannot_be_listed() {
+        /*
+         * The connector was created on Meta seconds earlier. If only the
+         * read-back of its tools fails, reporting "Meta rejected this connector"
+         * is false, and it files the reason under lastError where the PARTIAL
+         * status never looks — the same conflation the separate column exists to
+         * prevent.
+         */
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1"))
+                .thenThrow(new RuntimeException("upstream timeout"));
+
+        ConnectorLibraryDtos.DeploymentView view = deploy();
+
+        assertEquals("PARTIAL", view.status());
+        assertNotNull(view.deployedAt(), "the connector itself did reach Meta");
+        assertTrue(view.lastError().contains("could not be checked"));
+        // Nothing may be created blind: we do not know what is already there.
+        verify(agentDeployService, never()).createTool(any(), any(), any());
+    }
+
+    @Test
+    void should_report_partial_when_one_action_fails_but_still_sync_the_others() {
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L)).thenReturn(List.of(
+                action("check_payment_status", "a", DEF),
+                action("create_payment_link", "b", DEF),
+                action("find_payment_link", "c", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of());
+        when(agentDeployService.createTool(eq(20L), eq("meta-conn-1"), argThat(
+                (Map<String, Object> p) -> "create_payment_link".equals(p.get("name")))))
+                .thenThrow(new RuntimeException("Meta said no"));
+
+        ConnectorLibraryDtos.DeploymentView view = deploy();
+
+        // The other two still landed — one bad definition must not cost the rest.
+        verify(agentDeployService, times(3)).createTool(eq(20L), eq("meta-conn-1"), any());
+        assertEquals("PARTIAL", view.status());
+        assertTrue(view.lastError().contains("create_payment_link"),
+                "the operator must be told WHICH action failed, not just that something did");
+        assertTrue(view.lastError().contains("1 of 3"));
+        assertNotNull(view.deployedAt(), "the connector itself genuinely reached Meta");
+    }
+
+    @Test
+    void should_report_partial_for_an_action_whose_stored_definition_is_not_valid_json() {
+        // A broken template must cost only itself. The risk here is the opposite:
+        // requireDefinitionJson throws a BusinessException, and it is easy to
+        // assume that escapes and fails the whole deploy. It must be caught by
+        // the per-action try like any other failure.
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L)).thenReturn(List.of(
+                action("bad_json", "broken template", "{not valid"),
+                action("general_kundli", "Fetch the Kundli", DEF)));
+        when(agentDeployService.listTools(20L, "meta-conn-1")).thenReturn(List.of());
+
+        ConnectorLibraryDtos.DeploymentView view = deploy();
+
+        assertEquals("PARTIAL", view.status());
+        assertTrue(view.lastError().contains("bad_json"));
+        // The healthy one still landed, and Meta was never called for the broken one.
+        verify(agentDeployService, times(1)).createTool(eq(20L), eq("meta-conn-1"), any());
+    }
+
+    @Test
+    void should_clear_partial_once_the_failing_action_is_deleted_and_redeployed() {
+        // The natural way out of PARTIAL: the operator removes the broken action
+        // and deploys again. If the note did not clear, the connector would read
+        // "Missing actions" for ever with nothing left to fix.
+        givenDeployableConnector();
+        ConnectorDeployment existing = ConnectorDeployment.builder()
+                .connectorId(10L).agentId(20L)
+                .metaConnectorId("meta-conn-1")
+                .deployedAt(java.time.LocalDateTime.now().minusHours(2))
+                .toolSyncError("Connector deployed, but 1 of 1 actions could not be set up: bad_json")
+                .build();
+        when(deploymentRepository.findByConnectorIdAndAgentId(10L, 20L)).thenReturn(Optional.of(existing));
+        when(agentDeployService.updateConnector(eq(20L), eq("meta-conn-1"), any()))
+                .thenReturn(Map.of("id", "meta-conn-1"));
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L)).thenReturn(List.of());
+
+        ConnectorLibraryDtos.DeploymentView view = deploy();
+
+        assertEquals("LIVE", view.status(), "with the broken action gone there is nothing left to report");
+        assertNull(view.lastError());
+        assertNull(existing.getToolSyncError());
+    }
+
+    @Test
+    void should_clear_a_stale_partial_note_when_the_connector_call_itself_fails() {
+        /*
+         * The bug this guards, caught at the EM gate before it shipped.
+         *
+         * deploy() loads an EXISTING deployment row. A row already marked PARTIAL
+         * carries a toolSyncError. If a later redeploy throws at the CONNECTOR
+         * level, the catch sets lastError but leaves deployedAt alone — so
+         * without clearing toolSyncError the row still reports PARTIAL, and the
+         * operator reads "missing actions" while the real, worse failure sits in
+         * lastError where the status function never looks.
+         */
+        Connector connector = givenDeployableConnector();
+        ConnectorDeployment existing = ConnectorDeployment.builder()
+                .connectorId(10L).agentId(20L)
+                .metaConnectorId("meta-conn-1")
+                .deployedAt(java.time.LocalDateTime.now().minusHours(2))
+                .toolSyncError("Connector deployed, but 1 of 3 actions could not be set up: create_payment_link")
+                .build();
+        when(deploymentRepository.findByConnectorIdAndAgentId(10L, 20L)).thenReturn(Optional.of(existing));
+        when(agentDeployService.updateConnector(eq(20L), eq("meta-conn-1"), any()))
+                .thenThrow(new RuntimeException("Meta rejected the base URL"));
+
+        assertThrows(BusinessException.class, this::deploy);
+
+        assertNull(existing.getToolSyncError(),
+                "a stale partial-tools note must not survive to mask a fresh connector-level failure");
+        assertNotNull(existing.getLastError());
+        assertNotNull(connector);
+    }
+
+    @Test
+    void should_not_touch_meta_tools_at_all_when_the_kill_switch_is_off() {
+        // This is the kill switch. If it does not actually stop the calls it is
+        // not a kill switch, and the Kill Switch mandate is not satisfied.
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "toolSyncEnabled", false);
+        givenDeployableConnector();
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(10L))
+                .thenReturn(List.of(action("general_kundli", "Fetch the Kundli", DEF)));
+
+        assertEquals("LIVE", deploy().status());
+
+        verify(agentDeployService, never()).listTools(any(), any());
+        verify(agentDeployService, never()).createTool(any(), any(), any());
     }
 
     private static com.fasterxml.jackson.databind.JsonNode objectNode(String json) {

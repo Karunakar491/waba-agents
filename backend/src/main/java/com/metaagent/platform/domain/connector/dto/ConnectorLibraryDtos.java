@@ -86,7 +86,8 @@ public final class ConnectorLibraryDtos {
             String phoneNumberId,
             String metaConnectorId,
             String deployedAt,
-            String status, // "LIVE" | "OUT_OF_SYNC" | "FAILED" | "PENDING"
+            // PARTIAL = on Meta, but some actions could not be set up as tools.
+            String status, // "LIVE" | "OUT_OF_SYNC" | "PARTIAL" | "FAILED" | "PENDING"
             String lastError
     ) {}
 

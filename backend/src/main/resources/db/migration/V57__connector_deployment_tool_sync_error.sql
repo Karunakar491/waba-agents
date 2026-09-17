@@ -1,0 +1,31 @@
+-- 2026-09-18. Why a partial deploy needs its own column.
+--
+-- Deploying a library connector to an agent now also instantiates the
+-- connector's actions as real Meta tools (what V56's header always said would
+-- happen, and never did). That second step can fail on its own: the connector
+-- lands on Meta perfectly, and one of its tools does not.
+--
+-- The obvious shortcut is to reuse last_error for that and derive "partial"
+-- from "deployed_at set AND last_error set". It does not work, and the way it
+-- breaks is worth writing down because it nearly shipped:
+--
+--   deploy() loads an EXISTING deployment row. If that connector deployed
+--   successfully once, deployed_at is already non-null. If a later redeploy
+--   throws at the connector level, the catch sets last_error and never clears
+--   deployed_at. The row then carries stale deployed_at + fresh last_error —
+--   which is exactly the pattern "partial" would have keyed on. A total
+--   failure would have rendered as "some tools are missing", telling the
+--   operator the connector redeployed fine when it had not.
+--
+-- So the two failures get two columns. last_error keeps meaning "the connector
+-- call itself failed"; tool_sync_error means "the connector is on Meta, but
+-- these actions could not be set up". A status function can then tell them
+-- apart without parsing a string.
+--
+-- Additive only: one nullable column, no existing column touched, no backfill,
+-- no default. Same shape and length as last_error (V46 line 60), which is the
+-- column doing the identical job for the other failure mode. NULL on every
+-- existing row means "no tool-sync failure recorded", which is true of all of
+-- them — nothing ever attempted a tool sync before this release.
+ALTER TABLE connector_deployment
+    ADD COLUMN tool_sync_error VARCHAR(1024) NULL AFTER last_error;

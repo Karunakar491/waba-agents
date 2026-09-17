@@ -21,6 +21,7 @@ import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -64,6 +65,20 @@ public class ConnectorLibraryService {
     private final AgentDeployService agentDeployService;
     private final WabaAccessGuard wabaAccessGuard;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Kill switch for the tool sync in {@link #deploy}. Default ON, matching
+     * {@code ratelimit.enabled}: this is the fix for a live agent that could not
+     * call any API at all, so shipping it dormant would leave that agent broken
+     * until someone remembered to flip a toggle. The flag exists to turn the
+     * behaviour back OFF in under five minutes, by config and restart, if tool
+     * sync starts failing broadly against Meta — not to dark-launch it.
+     *
+     * Not final, and not in the Lombok constructor: {@code @Value} is field
+     * injection by design here.
+     */
+    @Value("${connector.tool-sync.enabled:true}")
+    private boolean toolSyncEnabled = true;
 
     // ---------------------------------------------------------------------
     // Library CRUD — DB only, never touches Meta.
@@ -182,16 +197,199 @@ public class ConnectorLibraryService {
                 uploadCertificateIfSupplied(agentId, metaId, secrets);
             }
 
+            // The connector exists on Meta; now give it something to do. Guarded
+            // on metaId for the same reason the certificate step above is — a
+            // null id would be sent to Meta as the literal path segment "null".
+            String toolSyncError = null;
+            if (metaId != null) {
+                toolSyncError = syncToolsToMeta(agentId, metaId, connectorId);
+            }
+
             deployment.setDeployedAt(LocalDateTime.now());
             deployment.setLastError(null);
+            deployment.setToolSyncError(toolSyncError);
         } catch (Exception e) {
             log.warn("Connector deploy failed: connectorId={} agentId={} error={}", connectorId, agentId, e.getMessage());
             deployment.setLastError(truncate(e.getMessage(), 1024));
+            // A stale "some tools are missing" note must not outlive the deploy
+            // that recorded it. Without this, a row already marked PARTIAL that
+            // then fails at the CONNECTOR level keeps reporting PARTIAL — the
+            // operator reads "missing actions" while the real, worse failure
+            // sits in lastError where the status function never looks.
+            deployment.setToolSyncError(null);
             deploymentRepository.save(deployment);
             throw new BusinessException("Meta rejected this connector: " + e.getMessage());
         }
         deployment = deploymentRepository.save(deployment);
         return toDeploymentView(deployment, agent, connector);
+    }
+
+    /**
+     * Instantiates the library connector's actions as real Meta tools on this
+     * agent — the step {@code ConnectorAction}'s own contract has always
+     * described ("This is the template; deploying instantiates it as a real Meta
+     * tool per agent") and which was never built. Until this existed, every
+     * connector we deployed arrived on Meta with zero tools, so the agent had
+     * nothing it could call and no error to show for it.
+     *
+     * Matched by NAME, not by a stored Meta id. One template deploys to many
+     * phone numbers and Meta scopes tool ids per phone number, so a single
+     * denormalised id on the template would conflate instances. Name is already
+     * unique per connector on our side and on Meta's.
+     *
+     * Tools on Meta that no longer exist in the library are LEFT ALONE. A
+     * customer can be mid-conversation on a tool call; removing it is a separate
+     * deliberate act, the same rule {@code deleteAction} already states.
+     *
+     * Each action is synced independently so one bad definition cannot cost the
+     * others.
+     *
+     * @return null if everything synced, otherwise a message naming what did not
+     */
+    private String syncToolsToMeta(Long agentId, String metaConnectorId, Long connectorId) {
+        if (!toolSyncEnabled) {
+            log.debug("Tool sync disabled by connector.tool-sync.enabled; skipping for connector {}", connectorId);
+            return null;
+        }
+
+        List<ConnectorAction> actions = connectorActionRepository.findAllByConnectorIdOrderByNameAsc(connectorId);
+        if (actions.isEmpty()) return null;
+
+        /*
+         * Listing is not inside the per-action loop's try: if we cannot read
+         * Meta's current tools we do not know what to create, and guessing would
+         * duplicate them. But it must not escape as a CONNECTOR-level error
+         * either — the connector was created perfectly a few lines ago, and
+         * letting this propagate would report "Meta rejected this connector",
+         * which is simply untrue, and would file the reason under lastError
+         * where the PARTIAL status never looks.
+         */
+        Map<String, Map<String, Object>> existingByName = new LinkedHashMap<>();
+        try {
+            for (Object tool : agentDeployService.listTools(agentId, metaConnectorId)) {
+                if (tool instanceof Map<?, ?> m && m.get("name") != null) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typed = (Map<String, Object>) m;
+                    existingByName.put(String.valueOf(m.get("name")), typed);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Tool sync could not list existing tools: connectorId={} error={}", connectorId, e.getMessage());
+            return truncate("Connector deployed, but its existing actions could not be checked: "
+                    + e.getMessage() + ". The agent may not be able to use this connector yet."
+                    + " Try deploying again.", 1024);
+        }
+
+        List<String> failed = new ArrayList<>();
+        for (ConnectorAction action : actions) {
+            try {
+                Map<String, Object> existing = existingByName.get(action.getName());
+                if (existing == null) {
+                    agentDeployService.createTool(agentId, metaConnectorId, toolPayload(action));
+                } else if (differs(action, existing)) {
+                    agentDeployService.updateTool(
+                            agentId, metaConnectorId, String.valueOf(existing.get("id")), toolPayload(action));
+                }
+            } catch (Exception e) {
+                log.warn("Tool sync failed: connectorId={} action={} error={}",
+                        connectorId, action.getName(), e.getMessage());
+                failed.add(action.getName());
+            }
+        }
+        return failed.isEmpty() ? null : partialMessage(failed, actions.size());
+    }
+
+    /** Meta's tool shape. requestDefinition is stored as Meta's own JSON, so it goes out verbatim. */
+    private Map<String, Object> toolPayload(ConnectorAction action) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("name", action.getName());
+        payload.put("description", action.getDescription());
+        payload.put("user_auth_required", action.isUserAuthRequired());
+        payload.put("request_definition", requireDefinitionJson(action.getRequestDefinition()));
+        return payload;
+    }
+
+    /**
+     * Whether Meta's copy has drifted from the template. Compared as parsed JSON,
+     * not as text — Meta returns the definition with its own key order and
+     * spacing, so a string comparison would report every tool as changed and
+     * rewrite all of them on every single deploy.
+     */
+    private boolean differs(ConnectorAction action, Map<String, Object> existing) {
+        if (!String.valueOf(action.getDescription()).equals(String.valueOf(existing.get("description")))) return true;
+        if (action.isUserAuthRequired() != Boolean.TRUE.equals(existing.get("user_auth_required"))) return true;
+        JsonNode ours = normalizeForCompare(requireDefinitionJson(action.getRequestDefinition()));
+        JsonNode theirs = normalizeForCompare(objectMapper.valueToTree(existing.get("request_definition")));
+        return !ours.equals(theirs);
+    }
+
+    /**
+     * Makes two definitions comparable regardless of how deeply each side
+     * happens to be JSON-encoded.
+     *
+     * Meta requires nested body nodes as JSON-encoded STRINGS — a "properties"
+     * value is the text {@code "{\"type\":\"string\"}"}, not an object (see
+     * docs/meta-api/connector-tools-capability-matrix.md). We store that shape
+     * verbatim. What Meta hands back from a GET is NOT verified to use the same
+     * encoding, and we should not bet on it: if it parses those leaves before
+     * returning them, a direct comparison is false forever, every nested-body
+     * tool is rewritten on every single deploy, and this method's whole purpose
+     * is defeated — quietly, because the deploy still reports success.
+     *
+     * So both sides are normalised the same way first: any string that is itself
+     * a JSON object or array is parsed, recursively. Encoding depth stops
+     * mattering and only real content differences remain. Applied symmetrically
+     * and only for comparison — what we SEND is always the stored shape,
+     * untouched.
+     */
+    private JsonNode normalizeForCompare(JsonNode node) {
+        if (node.isTextual()) {
+            String text = node.textValue().trim();
+            if (text.startsWith("{") || text.startsWith("[")) {
+                try {
+                    return normalizeForCompare(objectMapper.readTree(text));
+                } catch (Exception e) {
+                    return node; // just a string that happens to start with a brace
+                }
+            }
+            return node;
+        }
+        if (node.isObject()) {
+            com.fasterxml.jackson.databind.node.ObjectNode out = objectMapper.createObjectNode();
+            node.fields().forEachRemaining(e -> out.set(e.getKey(), normalizeForCompare(e.getValue())));
+            return out;
+        }
+        if (node.isArray()) {
+            com.fasterxml.jackson.databind.node.ArrayNode out = objectMapper.createArrayNode();
+            node.forEach(child -> out.add(normalizeForCompare(child)));
+            return out;
+        }
+        return node;
+    }
+
+    /**
+     * Parses a stored definition for SENDING to Meta.
+     *
+     * Deliberately not the static {@code readJson} below, which returns an empty
+     * object when a row is unreadable so one bad row cannot break a list. That
+     * is right for rendering and wrong here: an empty object is a valid-looking
+     * payload, so a corrupt template would be pushed to Meta as a tool that
+     * silently does nothing. Here it must fail, and be named in the partial
+     * message.
+     */
+    private JsonNode requireDefinitionJson(String raw) {
+        try {
+            return objectMapper.readTree(raw == null || raw.isBlank() ? "{}" : raw);
+        } catch (Exception e) {
+            throw new BusinessException("This action's request definition is not valid JSON.");
+        }
+    }
+
+    /** Plain enough for a business owner: what still works, what does not, what to do. */
+    private static String partialMessage(List<String> failed, int total) {
+        return truncate("Connector deployed, but " + failed.size() + " of " + total
+                + " actions could not be set up: " + String.join(", ", failed)
+                + ". The agent will keep working, but cannot do these yet. Try deploying again.", 1024);
     }
 
     /**
@@ -333,6 +531,12 @@ public class ConnectorLibraryService {
         String status;
         if (deployment.getDeployedAt() == null) {
             status = deployment.getLastError() != null ? "FAILED" : "PENDING";
+        } else if (deployment.getToolSyncError() != null) {
+            // The connector is genuinely on Meta but some of its actions are not,
+            // so the agent cannot do those things. Ranked above OUT_OF_SYNC:
+            // "stale" is a definition drift the operator can take their time
+            // over; this is the agent being unable to act at all.
+            status = "PARTIAL";
         } else if (connector != null && deployment.getDeployedAt().isBefore(connector.getUpdatedAt())) {
             status = "OUT_OF_SYNC";
         } else {
@@ -345,7 +549,11 @@ public class ConnectorLibraryService {
                 deployment.getMetaConnectorId(),
                 deployment.getDeployedAt() == null ? null : deployment.getDeployedAt().toString(),
                 status,
-                deployment.getLastError());
+                // Whichever failure this status is actually about — the tool-sync
+                // note when PARTIAL, otherwise the connector-level error.
+                deployment.getToolSyncError() != null && deployment.getDeployedAt() != null
+                        ? deployment.getToolSyncError()
+                        : deployment.getLastError());
     }
 
     private ConnectorLibraryDtos.ConnectorResponse toResponse(

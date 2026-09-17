@@ -56,6 +56,19 @@ public class ConnectorDeployment {
     @Column(name = "last_error", length = 1024)
     private String lastError;
 
+    /**
+     * The connector reached Meta, but these actions could not be set up as tools.
+     *
+     * Deliberately NOT folded into lastError: the two failures overlap in a way
+     * that makes them indistinguishable afterwards. A redeploy of an
+     * already-deployed connector that fails at the connector level leaves stale
+     * deployedAt + fresh lastError, which is the same shape as "deployed, some
+     * tools missing" — so a total failure would report itself as a partial one
+     * (V57 carries the full reasoning). Separate column, no string parsing.
+     */
+    @Column(name = "tool_sync_error", length = 1024)
+    private String toolSyncError;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

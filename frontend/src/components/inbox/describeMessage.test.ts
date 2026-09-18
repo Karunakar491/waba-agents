@@ -105,6 +105,96 @@ describe('describeMessage', () => {
     })
   })
 
+  /*
+   * What the business SENT, not what the customer tapped. Until 2026-09-18 the
+   * outbound side was discarded before it ever reached this file, so a customer
+   * shown five prices appeared in the Inbox as a blank bubble.
+   *
+   * This payload is real — copied from the stored webhook for WhatsApp
+   * +91 85916 89475 (docs/e2e-test-runs/2026-09-17-astrotalk-webhooks.md).
+   */
+  it('shows every option in a list the agent sent, not just that it sent one', () => {
+    const json = JSON.stringify({
+      interactive: {
+        type: 'list',
+        body: { text: 'Select your session duration for Astro Sneha:' },
+        action: {
+          button: 'View Options',
+          sections: [
+            {
+              rows: [
+                { id: 'biz_ai_list_duration_5', title: '5 minutes', description: '₹225' },
+                { id: 'biz_ai_list_duration_10', title: '10 minutes', description: '₹450' },
+                { id: 'biz_ai_list_duration_30', title: '30 minutes', description: '₹1350' },
+              ],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(describeMessage('interactive', null, json)).toEqual({
+      text: 'Sent a list: View Options',
+      // Every row, with its price. Someone handling "I was charged the wrong
+      // amount" needs the whole set that was on screen, not a preview.
+      detail: '5 minutes (₹225) · 10 minutes (₹450) · 30 minutes (₹1350)',
+      kind: 'Interactive list',
+    })
+  })
+
+  it('shows the label on a link button, since that is what the customer tapped', () => {
+    const json = JSON.stringify({
+      interactive: {
+        type: 'cta_url',
+        body: { text: 'Ready to book Ritambari Ji for 10 minutes?' },
+        action: { parameters: { display_text: 'Pay ₹100', url: 'https://rzp.io/rzp/KYRO0aqw' } },
+      },
+    })
+
+    expect(describeMessage('interactive', null, json)).toEqual({
+      text: 'Ready to book Ritambari Ji for 10 minutes?',
+      detail: 'Button: Pay ₹100',
+      kind: 'Link button',
+    })
+  })
+
+  it('names the buttons the agent offered', () => {
+    const json = JSON.stringify({
+      interactive: {
+        type: 'button',
+        body: { text: 'Shall I connect you now?' },
+        action: {
+          buttons: [
+            { type: 'reply', reply: { id: 'yes', title: 'Haan, abhi' } },
+            { type: 'reply', reply: { id: 'later', title: 'Baad mein' } },
+          ],
+        },
+      },
+    })
+
+    expect(describeMessage('interactive', null, json)).toEqual({
+      text: 'Shall I connect you now?',
+      detail: 'Haan, abhi · Baad mein',
+      kind: 'Buttons',
+    })
+  })
+
+  it('falls back to the body when a list somehow carries no rows', () => {
+    const json = JSON.stringify({
+      interactive: {
+        type: 'list',
+        body: { text: 'Pick a duration' },
+        action: { button: 'View Options', sections: [] },
+      },
+    })
+
+    expect(describeMessage('interactive', null, json)).toEqual({
+      text: 'Sent a list: View Options',
+      detail: 'Pick a duration',
+      kind: 'Interactive list',
+    })
+  })
+
   it('never throws on junk, and still says something', () => {
     expect(describeMessage('interactive', null, 'not json at all')).toEqual({
       text: 'Sent a interactive',

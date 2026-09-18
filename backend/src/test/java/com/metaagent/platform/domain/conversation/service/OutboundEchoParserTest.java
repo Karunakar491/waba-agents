@@ -157,4 +157,65 @@ class OutboundEchoParserTest {
         assertEquals("wamid.echo003", echo.metaMessageId());
         assertEquals("Flat-shape fallback reply", echo.textBody());
     }
+
+    /**
+     * A real interactive echo, copied from the stored webhook for WhatsApp
+     * +91 85916 89475 on 2026-09-17
+     * (docs/e2e-test-runs/2026-09-17-astrotalk-webhooks.md).
+     *
+     * The parser used to read `type`, see it was not "text", set textBody to
+     * null, and hand back a record with nowhere to put the component.
+     * ConversationService then dropped the whole echo. The customer had a list
+     * of five prices on their phone and our Inbox showed nothing at all.
+     */
+    @Test
+    void keeps_the_component_of_an_interactive_reply() {
+        String payload = """
+                {"entry":[{"changes":[{"field":"standby","value":{"standby":{"message_echoes":[{
+                  "id":"wamid.echoList001",
+                  "message":{
+                    "to":"917207917796",
+                    "type":"interactive",
+                    "interactive":{
+                      "body":{"text":"Select your session duration for Astro Sneha:"},
+                      "type":"list",
+                      "action":{"button":"View Options","sections":[{"rows":[
+                        {"id":"biz_ai_list_duration_5","title":"5 minutes","description":"\\u20b9225"},
+                        {"id":"biz_ai_list_duration_10","title":"10 minutes","description":"\\u20b9450"}
+                      ]}]}
+                    }
+                  },
+                  "timestamp":"1789616721"}]}}}]}]}
+                """;
+
+        Optional<OutboundEcho> result = parser.parse(payload);
+
+        assertTrue(result.isPresent(), "an interactive echo must not be discarded");
+        OutboundEcho echo = result.get();
+        assertEquals("917207917796", echo.recipientPhone());
+        assertEquals("wamid.echoList001", echo.metaMessageId());
+        assertEquals("interactive", echo.type());
+        assertNull(echo.textBody(), "there is no plain-text body on a list");
+        assertTrue(echo.isRichContent(), "the component is what makes this worth storing");
+        // The rows survive, because they are what the customer actually saw.
+        assertTrue(echo.contentJson().contains("5 minutes"));
+        assertTrue(echo.contentJson().contains("View Options"));
+    }
+
+    @Test
+    void a_plain_text_reply_carries_no_component() {
+        String payload = """
+                {"entry":[{"changes":[{"field":"standby","value":{"standby":{"message_echoes":[{
+                  "id":"wamid.echoText001",
+                  "message":{"to":"919876543210","type":"text","text":{"body":"Namaste!"}}
+                }]}}}]}]}
+                """;
+
+        OutboundEcho echo = parser.parse(payload).orElseThrow();
+
+        assertEquals("Namaste!", echo.textBody());
+        assertEquals("text", echo.type());
+        assertNull(echo.contentJson(), "a text reply has no component to keep");
+        assertFalse(echo.isRichContent());
+    }
 }

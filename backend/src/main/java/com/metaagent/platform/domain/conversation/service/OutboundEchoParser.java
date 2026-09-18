@@ -53,7 +53,25 @@ public class OutboundEchoParser {
             String type = contentNode.path("type").asText("unknown");
             String textBody = "text".equals(type) ? contentNode.path("text").path("body").asText(null) : null;
 
-            return Optional.of(new OutboundEcho(metaMessageId, recipientPhone, textBody));
+            /*
+             * Anything that is not plain text keeps its payload.
+             *
+             * This used to read `type` and throw it away, so a reply that was a
+             * five-row list or a carousel became textBody=null and was dropped
+             * entirely a few lines downstream. The customer saw a list of
+             * options; our own Inbox showed nothing at all, and the only way to
+             * find out what they had been shown was to read raw webhook JSON by
+             * hand.
+             *
+             * Stored raw, exactly as the inbound path already does
+             * (InboundMessageParser sets contentJson for interactive messages),
+             * and summarised for humans at render time — not here. Baking a
+             * summary into the row would freeze today's reading of Meta's shapes
+             * into every historical message.
+             */
+            String contentJson = "text".equals(type) ? null : contentNode.toString();
+
+            return Optional.of(new OutboundEcho(metaMessageId, recipientPhone, textBody, type, contentJson));
         } catch (Exception e) {
             String preview = rawPayload != null && rawPayload.length() > 200
                     ? rawPayload.substring(0, 200) + "..." : rawPayload;

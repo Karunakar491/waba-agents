@@ -215,9 +215,21 @@ public class ConversationService {
             // recipientPhone is the customer — findOrCreate gets or creates the conversation.
             // Content is null: we have no access to the message text from a status event.
             Conversation conversation = conversationStore.findOrCreate(accountId, agentId, su.recipientPhone());
-            conversationStore.saveOutbound(accountId, conversation.getId(), agentId,
+            /*
+             * Upsert, not insert. This used to call saveOutbound unconditionally,
+             * so when the ECHO webhook arrived first it created the row and this
+             * one inserted a SECOND row for the same metaMessageId — there is no
+             * unique constraint on meta_message_id to catch it, so the same reply
+             * appeared twice in the thread.
+             *
+             * Rare before, because an echo with no plain text was discarded
+             * outright and only text echoes could win the race. Now that a list
+             * or a button creates a row too, echo-first is ordinary traffic, so
+             * this had to be closed with the change that caused it.
+             */
+            conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
                     su.metaMessageId(), null, webhookRawId);
-            log.info("Outbound record created: metaMessageId={} conversationId={}",
+            log.info("Outbound record created or matched: metaMessageId={} conversationId={}",
                     su.metaMessageId(), conversation.getId());
         } else {
             conversationStore.updateMessageStatus(su.metaMessageId(), newStatus);
@@ -226,18 +238,43 @@ public class ConversationService {
     }
 
     private void processOutboundEcho(OutboundEcho echo, Long accountId, Long agentId, Long webhookRawId) {
-        if (echo.textBody() == null) {
-            return; // rich/template reply with no plain-text body — nothing to fill in
+        /*
+         * An echo with no text body used to be discarded here outright. That is
+         * exactly what a list, a carousel or a button looks like — so every
+         * component this agent ever sent a customer was thrown away, and the
+         * Inbox showed nothing for a message the customer plainly saw.
+         *
+         * Now only an echo carrying NEITHER text NOR a component is skipped;
+         * that one really has nothing to record.
+         */
+        if (echo.textBody() == null && !echo.isRichContent()) {
+            return;
         }
         if (echo.recipientPhone() == null || echo.recipientPhone().isBlank()) {
             log.warn("Outbound echo missing recipient phone, skipping: metaMessageId={}", echo.metaMessageId());
             return;
         }
         Conversation conversation = conversationStore.findOrCreate(accountId, agentId, echo.recipientPhone());
-        conversationStore.upsertOutboundEcho(accountId, agentId, conversation.getId(),
-                echo.metaMessageId(), echo.textBody(), webhookRawId);
-        log.info("Outbound echo applied: metaMessageId={} conversationId={}",
-                echo.metaMessageId(), conversation.getId());
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                echo.metaMessageId(), echo.textBody(),
+                contentTypeOf(echo), echo.contentJson(), webhookRawId);
+        log.info("Outbound echo applied: metaMessageId={} conversationId={} type={}",
+                echo.metaMessageId(), conversation.getId(), echo.type());
+    }
+
+    /**
+     * Meta's message type onto ours. Anything we do not have a column value for
+     * is stored as `interactive` rather than dropped — the raw component is in
+     * contentJson either way, and a message rendered under a slightly wrong
+     * label is far better than one that silently never existed.
+     */
+    private static Message.ContentType contentTypeOf(OutboundEcho echo) {
+        if (!echo.isRichContent()) return Message.ContentType.text;
+        try {
+            return Message.ContentType.valueOf(echo.type());
+        } catch (IllegalArgumentException e) {
+            return Message.ContentType.interactive;
+        }
     }
 
     private Message.Status resolveMessageStatus(String metaStatus) {

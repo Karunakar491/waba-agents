@@ -69,6 +69,23 @@ public class ConnectorDeployment {
     @Column(name = "tool_sync_error", length = 1024)
     private String toolSyncError;
 
+    /**
+     * How many tools Meta listed for this connector, and how many of them the
+     * backfill could actually store, the last time it ran. Equal on a clean
+     * import; they differ when a tool's request_definition could not be read,
+     * which is the only record that the library's action list is incomplete.
+     *
+     * Integer, NOT int, and this matters: deploy() saves this row on every
+     * deploy, so a primitive would let Hibernate stamp 0/0 onto rows the
+     * backfill has never touched — destroying "NULL means never back-filled",
+     * which is the distinction the whole thing rests on.
+     */
+    @Column(name = "tools_reported_by_meta")
+    private Integer toolsReportedByMeta;
+
+    @Column(name = "tools_imported")
+    private Integer toolsImported;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

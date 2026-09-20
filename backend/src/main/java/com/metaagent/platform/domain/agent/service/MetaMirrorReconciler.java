@@ -10,6 +10,7 @@ import com.metaagent.platform.domain.agent.repository.AgentFileRepository;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.agent.repository.AgentSkillRepository;
 import com.metaagent.platform.domain.agent.repository.AgentWebsiteRepository;
+import com.metaagent.platform.domain.connector.service.ConnectorBackfillService;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,19 +42,34 @@ public class MetaMirrorReconciler {
     private final AgentFileRepository agentFileRepository;
     private final AgentWebsiteRepository agentWebsiteRepository;
     private final MetaApiClient metaApiClient;
+    /**
+     * The fifth backfill lives in the connector domain rather than here: it
+     * writes WABA-scoped library rows reached through connector_deployment,
+     * not the agent-scoped rows this class owns, and keeping it out avoids
+     * dragging three connector repositories into an agent-domain service.
+     * This class stays the single entry point the scheduler calls.
+     */
+    private final ConnectorBackfillService connectorBackfillService;
 
     private static final long META_RECONCILE_TTL_MINUTES = 10;
 
     /**
      * Scheduler entry point — bundles every per-domain backfill+reconcile pair
-     * (Skills/FAQs/Files/Websites) for one agent, called from a background
+     * (Skills/FAQs/Files/Websites/Connectors) for one agent, called from a
+     * background
      * job with no request/SecurityContext, hence the explicit accountId param
      * instead of AgentService's getSkills()/getFaqs()/etc. public methods
      * (which require SecurityContextHelper.getRequiredAccountId() through
      * getAgent()'s access check — never call that from an async/scheduled
-     * thread, no context to read). Each of the 4 calls is already
-     * independently try/catch/log.warn safe, so one domain failing never
-     * blocks the other 3 for this agent.
+     * thread, no context to read). Every call is independently
+     * try/catch/log.warn safe, so one domain failing never blocks the rest for
+     * this agent.
+     *
+     * Connectors joined this list on 2026-09-20. They had never synced from
+     * Meta at all, by any path, which is how this account's connector library
+     * and Meta drifted far enough apart that two connectors here pointed at
+     * Meta ids Meta had already deleted. Everything this app shows should come
+     * from Meta, through the database, to the screen.
      */
     public void syncAgentDetails(Agent agent, Long accountId) {
         ensureSkillsBackfilled(agent, accountId);
@@ -63,6 +79,11 @@ public class MetaMirrorReconciler {
         reconcileFiles(agent);
         ensureWebsitesBackfilled(agent, accountId);
         reconcileWebsites(agent);
+        // Last, and it takes no accountId: a connector's actions inherit the
+        // account from the library connector that owns them, not from whichever
+        // account's sweep happened to reach this agent first. Like the four
+        // above it never throws, so its position cannot affect them.
+        connectorBackfillService.ensureConnectorsBackfilled(agent);
     }
 
     /**

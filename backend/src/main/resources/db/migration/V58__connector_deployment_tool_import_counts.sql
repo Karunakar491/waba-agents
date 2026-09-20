@@ -1,0 +1,35 @@
+-- 2026-09-20. Recording what we could NOT read back from Meta.
+--
+-- A connector can be live on Meta while our library holds none of the actions
+-- it is made of. Three IndiaMART connectors were in exactly that state, live
+-- on the oldest agent on the account with zero connector_action rows between
+-- them, which left them un-publishable, un-deletable and un-editable at once.
+-- The backfill added in this release reads their tools back off Meta.
+--
+-- It can only read back the tools it can parse. A tool whose request_definition
+-- is missing or unparseable is skipped rather than stored as "{}" — an empty
+-- object is a valid-LOOKING payload, so storing one would push a tool to Meta
+-- on the next deploy that silently does nothing.
+--
+-- Skipping is the honest choice, but on its own it produces a quieter lie: a
+-- connector that imported 3 of its 5 tools looks complete. The library shows
+-- three actions, nothing says two are missing, and the operator acts on a
+-- picture we know to be partial. A fact that only reached the log is a fact
+-- we lost.
+--
+-- So the two counts get columns. tools_reported_by_meta is how many Meta
+-- listed; tools_imported is how many we could actually store. They are equal
+-- on a clean import and differ on a partial one, which is the whole point.
+--
+-- NULLABLE, and the entity fields are Integer rather than int, deliberately:
+-- ConnectorLibraryService.deploy() saves this row on every deploy. With
+-- primitives, Hibernate would stamp 0/0 onto rows the backfill has never
+-- touched, and "NULL means never back-filled" — the meaning this design rests
+-- on — would be destroyed by ordinary traffic within a day.
+--
+-- Additive only: two nullable columns, no existing column touched, no
+-- backfill, no default. NULL on every existing row means "never back-filled",
+-- which is true of all of them.
+ALTER TABLE connector_deployment
+    ADD COLUMN tools_reported_by_meta INT NULL AFTER tool_sync_error,
+    ADD COLUMN tools_imported INT NULL AFTER tools_reported_by_meta;

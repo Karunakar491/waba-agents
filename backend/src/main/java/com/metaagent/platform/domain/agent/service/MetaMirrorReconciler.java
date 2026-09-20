@@ -11,6 +11,7 @@ import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.agent.repository.AgentSkillRepository;
 import com.metaagent.platform.domain.agent.repository.AgentWebsiteRepository;
 import com.metaagent.platform.domain.connector.service.ConnectorBackfillService;
+import com.metaagent.platform.domain.persona.service.BusinessProfileDeployService;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,13 +51,21 @@ public class MetaMirrorReconciler {
      * This class stays the single entry point the scheduler calls.
      */
     private final ConnectorBackfillService connectorBackfillService;
+    /**
+     * Persona was the other domain that only synced when a human opened its
+     * page. Neither this nor the connector service depends on anything in this
+     * package, so neither closes a bean cycle back through AgentService —
+     * persona reaches only PhoneNumberAccessGuard, WabaAccessGuard and
+     * repositories.
+     */
+    private final BusinessProfileDeployService businessProfileDeployService;
 
     private static final long META_RECONCILE_TTL_MINUTES = 10;
 
     /**
      * Scheduler entry point — bundles every per-domain backfill+reconcile pair
-     * (Skills/FAQs/Files/Websites/Connectors) for one agent, called from a
-     * background
+     * (Skills/FAQs/Files/Websites/Connectors/Persona) for one agent, called
+     * from a background
      * job with no request/SecurityContext, hence the explicit accountId param
      * instead of AgentService's getSkills()/getFaqs()/etc. public methods
      * (which require SecurityContextHelper.getRequiredAccountId() through
@@ -65,11 +74,13 @@ public class MetaMirrorReconciler {
      * try/catch/log.warn safe, so one domain failing never blocks the rest for
      * this agent.
      *
-     * Connectors joined this list on 2026-09-20. They had never synced from
-     * Meta at all, by any path, which is how this account's connector library
-     * and Meta drifted far enough apart that two connectors here pointed at
-     * Meta ids Meta had already deleted. Everything this app shows should come
-     * from Meta, through the database, to the screen.
+     * Connectors and Persona joined this list on 2026-09-20 — the last two
+     * domains a human had to open a page to sync. Persona at least did it
+     * lazily; connectors had never synced from Meta at all, by any path, which
+     * is how this account's library and Meta drifted far enough apart that two
+     * connectors here pointed at Meta ids Meta had already deleted. Everything
+     * this app shows should come from Meta, through the database, to the
+     * screen — never fetched because someone happened to look.
      */
     public void syncAgentDetails(Agent agent, Long accountId) {
         ensureSkillsBackfilled(agent, accountId);
@@ -84,6 +95,11 @@ public class MetaMirrorReconciler {
         // account's sweep happened to reach this agent first. Like the four
         // above it never throws, so its position cannot affect them.
         connectorBackfillService.ensureConnectorsBackfilled(agent);
+        // agent.getAccountId(), not the sweep's accountId: on a shared WABA the
+        // sweep reaches this agent under whichever account's loop got there
+        // first, and an adopted persona row would be attributed differently
+        // from one run to the next.
+        businessProfileDeployService.ensureLiveBackfilled(agent.getPhoneNumberId(), agent.getAccountId());
     }
 
     /**

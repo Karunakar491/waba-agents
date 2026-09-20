@@ -148,7 +148,16 @@ public class ConnectorLibraryService {
 
     public void delete(Long connectorId) {
         Connector connector = loadOwned(connectorId);
-        if (!deploymentRepository.findAllByConnectorId(connectorId).isEmpty()) {
+        // "Deployed" means a deployment that actually reached Meta, which is
+        // the same test usedByAgentCount uses one screen away. It used to be
+        // "any deployment row exists at all", and the two disagreed the moment
+        // the backfill started clearing deployedAt on connectors Meta no longer
+        // lists: the library would say "used by 0 agents" while this still
+        // refused the delete, leaving the operator with a connector that is on
+        // nothing and cannot be removed.
+        boolean liveSomewhere = deploymentRepository.findAllByConnectorId(connectorId).stream()
+                .anyMatch(d -> d.getDeployedAt() != null);
+        if (liveSomewhere) {
             throw new BusinessException(
                     "This connector is deployed to at least one agent. Remove it from those agents first.");
         }

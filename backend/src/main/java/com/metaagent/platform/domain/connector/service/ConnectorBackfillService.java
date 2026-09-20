@@ -96,10 +96,12 @@ public class ConnectorBackfillService {
             Map<String, ConnectorDeployment> byMetaId = deploymentsByMetaId(agent);
             if (byMetaId.isEmpty()) return;
 
+            java.util.Set<String> liveOnMeta = new java.util.HashSet<>();
             for (Object item : remote) {
                 if (!(item instanceof Map<?, ?> metaConnector)) continue;
                 String metaId = str(metaConnector.get("id"));
                 if (metaId == null) continue;
+                liveOnMeta.add(metaId);
 
                 ConnectorDeployment deployment = byMetaId.get(metaId);
                 if (deployment == null) continue;          // not ours — orphan adoption is a later diff
@@ -108,51 +110,63 @@ public class ConnectorBackfillService {
                 // One bad connector must not cost this agent the rest of them.
                 try {
                     backfillActions(agent, deployment, metaId);
-                } catch (MetaApiException e) {
-                    if (e.isNotFound()) {
-                        markGoneFromMeta(agent, deployment);
-                    } else {
-                        log.warn("Connector action backfill failed: agentId={} connectorId={} status={}",
-                                agent.getId(), deployment.getConnectorId(), e.getStatusCode());
-                    }
                 } catch (Exception e) {
                     log.warn("Connector action backfill failed: agentId={} connectorId={} error={}",
                             agent.getId(), deployment.getConnectorId(), e.getMessage());
                 }
             }
+
+            markAnythingMetaNoLongerLists(agent, byMetaId, liveOnMeta);
         } catch (Exception e) {
             log.warn("Connector backfill failed: agentId={} error={}", agent.getId(), e.getMessage());
         }
     }
 
     /**
-     * Meta says it has never heard of this connector, so our record that it is
-     * deployed is simply out of date — it was deleted or rebuilt on Meta and
-     * nothing told us.
+     * A connector we believe is deployed, which Meta's own list of this
+     * number's connectors does not contain, is not there any more — deleted or
+     * rebuilt on Meta with nothing telling us.
      *
-     * Clearing deployedAt is what makes the screen honest: the founder's rule is
-     * "Published means published to Meta", so a connector Meta does not have is
-     * a draft. Until this ran, two connectors on this account read "live on 1
-     * agent" while Meta 404'd on both of them.
+     * Driven off ABSENCE FROM THE LIST, not off a 404 on the per-connector
+     * tools call. An earlier version did the latter and was wrong twice over:
+     * a connector Meta has deleted never appears in the list, so it was never
+     * visited and this could not fire for the case it exists for; and the only
+     * way it COULD fire was a 404 for a connector Meta had just listed, which
+     * this codebase already documents as benign ("404 means no connectors
+     * configured on this number yet", WabaService) — so it would have marked a
+     * live connector unpublished for the crime of having no tools yet.
      *
-     * ONLY on a definitive 404. A timeout, a 500 or a rate-limit says nothing
-     * about whether the connector exists, and treating those the same way would
-     * wipe a perfectly good deployment record during a Meta outage.
+     * Clearing deployedAt is what makes the screen honest: published means
+     * published to Meta, so a connector Meta does not have is a draft. Two
+     * connectors on this account read "live on 1 agent" while Meta 404s on both.
+     *
+     * Only ever called with a list Meta actually returned. A timeout or a 500
+     * throws before this point and leaves every row alone, which is the
+     * behaviour that matters — an outage must never look like a mass deletion.
      */
-    private void markGoneFromMeta(Agent agent, ConnectorDeployment deployment) {
-        if (deployment.getDeployedAt() == null) return; // already recorded
-        deployment.setDeployedAt(null);
-        deployment.setLastError("Meta no longer has this connector (404). It was deleted or rebuilt there.");
-        deployment.setToolSyncError(null);
-        deploymentRepository.save(deployment);
-        log.warn("Connector is gone from Meta, marked not published: agentId={} connectorId={} metaConnectorId={}",
-                agent.getId(), deployment.getConnectorId(), deployment.getMetaConnectorId());
+    private void markAnythingMetaNoLongerLists(
+            Agent agent, Map<String, ConnectorDeployment> byMetaId, java.util.Set<String> liveOnMeta) {
+        for (Map.Entry<String, ConnectorDeployment> entry : byMetaId.entrySet()) {
+            if (liveOnMeta.contains(entry.getKey())) continue;
+            ConnectorDeployment deployment = entry.getValue();
+            if (deployment.getDeployedAt() == null) continue; // already recorded
+
+            try {
+                deployment.setDeployedAt(null);
+                deployment.setLastError("Meta no longer lists this connector. It was deleted or rebuilt there.");
+                deployment.setToolSyncError(null);
+                deploymentRepository.save(deployment);
+                log.warn("Connector gone from Meta, marked not published: agentId={} connectorId={} metaConnectorId={}",
+                        agent.getId(), deployment.getConnectorId(), deployment.getMetaConnectorId());
+            } catch (Exception e) {
+                log.warn("Could not mark connector as gone: agentId={} connectorId={} error={}",
+                        agent.getId(), deployment.getConnectorId(), e.getMessage());
+            }
+        }
     }
 
     private Map<String, ConnectorDeployment> deploymentsByMetaId(Agent agent) {
         Map<String, ConnectorDeployment> byMetaId = new java.util.HashMap<>();
-        // findAllByAgentIdIn, not findAllByAgentId — the single-argument finder
-        // does not exist on this repository.
         for (ConnectorDeployment d : deploymentRepository.findAllByAgentIdIn(List.of(agent.getId()))) {
             if (d.getMetaConnectorId() != null) byMetaId.put(d.getMetaConnectorId(), d);
         }

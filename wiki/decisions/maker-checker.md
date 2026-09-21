@@ -1,11 +1,23 @@
 ---
 title: Maker-Checker Process
-tags: [decisions, process, non-negotiable]
+tags: [decisions, process, superseded]
+status: deprecated
+superseded-by: CLAUDE.md, STATE.md, scripts/orient.js
 ---
 
 # Maker-Checker Process
 
-**Non-negotiable. No exceptions. No self-approval.**
+> **Deprecated 2026-09-21. Do not follow this.** The persona gates below were
+> largely never built — `wiki/lessons/process.md` recorded that as far back as
+> the 2026-09-03 overhaul, while `CLAUDE.md` went on describing them for another
+> eighteen days. They are replaced by a five-beat loop (ORIENT, ACT, VERIFY,
+> REPORT, WRITE BACK) with three machine-enforced hooks, and by one reviewer that
+> sees the whole task instead of seven that each saw a slice blind.
+>
+> Kept, not deleted, because what these gates were *trying* to encode is still
+> right and is written up in `wiki/lessons/`. The lesson worth carrying is the
+> one this document is evidence for: **a process that exists only in a document
+> is not a process.**
 
 ## Three Gates
 

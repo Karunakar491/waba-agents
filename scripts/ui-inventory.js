@@ -35,7 +35,17 @@ function repoRoot() {
 const REPO = repoRoot()
 const SRC = path.join(REPO, 'frontend', 'src')
 const E2E = path.join(REPO, 'frontend', 'e2e')
-const OUT = path.join(REPO, 'docs', 'UI-INVENTORY.md')
+const OUT = path.join(REPO, 'docs', 'ui-inventory')
+
+// The output is regenerated constantly and the commit gate caps a diff at 400
+// lines, so it is split the same way the knowledge index is: by area, each file
+// reviewable on its own, all of them greppable in one call.
+function area(file) {
+  const parts = rel(file).split('/') // frontend/src/<a>/<b>/...
+  if (parts[2] === 'pages') return 'pages'
+  if (parts[2] === 'components') return `components-${parts[3] || 'root'}`
+  return parts[2] || 'root'
+}
 
 function walk(dir, ext, acc = []) {
   if (!fs.existsSync(dir)) return acc
@@ -201,59 +211,82 @@ function main() {
 
   const pct = totalControls ? Math.round((totalCovered / totalControls) * 100) : 0
 
-  const out = []
-  out.push('# UI inventory')
-  out.push('')
-  out.push('Every route, every control a user can press, and whether an e2e spec drives it.')
-  out.push('')
-  out.push('**Generated — do not edit.** Run `node scripts/ui-inventory.js`.')
-  out.push('')
-  out.push('Coverage is matched on accessible name, because that is what the e2e suite')
-  out.push('selects by (this repo has no `data-testid` and must keep it that way). A control')
-  out.push('with no accessible name is listed as a defect: it cannot be tested by name, and a')
-  out.push('screen reader cannot announce it.')
-  out.push('')
-  out.push(`- **${routeList.length}** routes`)
-  out.push(`- **${totalControls}** named controls, **${totalCovered}** driven by a test (**${pct}%**)`)
-  out.push(`- **${totalUnnamed}** controls with no accessible name`)
-  out.push('')
+  const preamble = [
+    '**Generated — do not edit.** Run `node scripts/ui-inventory.js`.',
+    '',
+    'Coverage is matched on accessible name, because that is what the e2e suite',
+    'selects by (this repo has no `data-testid` and must keep it that way). A control',
+    'with no accessible name is listed as a defect: it cannot be tested by name, and a',
+    'screen reader cannot announce it.',
+    '',
+    'To find a control, grep this directory for its on-screen label.',
+    '',
+  ]
 
-  out.push('## Routes')
-  out.push('')
-  out.push('| Path | Screen |')
-  out.push('|---|---|')
-  for (const r of routeList) out.push(`| \`${r.path}\` | ${r.component} |`)
-  out.push('')
+  fs.mkdirSync(OUT, { recursive: true })
+  for (const f of fs.readdirSync(OUT)) fs.unlinkSync(path.join(OUT, f))
 
-  out.push('## Controls')
-  out.push('')
-  for (const { file, named, unnamed } of byFile) {
-    out.push(`### ${rel(file)}`)
-    out.push('')
-    if (named.length) {
-      out.push('| Control | Name | Covered by |')
-      out.push('|---|---|---|')
-      for (const c of named) {
-        const specs = cover.get(c.name)
-        out.push(
-          `| ${c.kind} | ${c.name.replace(/\|/g, '\\|')} | ${specs ? [...specs].join(', ') : '**—**'} |`
-        )
+  // README: the numbers, the routes, and the uncovered list — the page to read
+  // when the question is "what has nobody tested?"
+  const readme = ['# UI inventory', '', ...preamble]
+  readme.push(`- **${routeList.length}** routes`)
+  readme.push(`- **${totalControls}** named controls, **${totalCovered}** driven by a test (**${pct}%**)`)
+  readme.push(`- **${totalUnnamed}** controls with no accessible name`)
+  readme.push('')
+  readme.push('## Routes')
+  readme.push('')
+  readme.push('| Path | Screen |')
+  readme.push('|---|---|')
+  for (const r of routeList) readme.push(`| \`${r.path}\` | ${r.component} |`)
+  readme.push('')
+  readme.push('## By area')
+  readme.push('')
+  readme.push('| Area | Controls | Covered | Unnamed |')
+  readme.push('|---|---|---|---|')
+
+  const groups = {}
+  for (const entry of byFile) (groups[area(entry.file)] ||= []).push(entry)
+
+  for (const [name, entries] of Object.entries(groups).sort()) {
+    const n = entries.reduce((s, e) => s + e.named.length, 0)
+    const c = entries.reduce(
+      (s, e) => s + e.named.filter((x) => cover.has(x.name)).length,
+      0
+    )
+    const u = entries.reduce((s, e) => s + e.unnamed.length, 0)
+    readme.push(`| [${name}](${name}.md) | ${n} | ${c} | ${u} |`)
+
+    const body = [`# UI inventory: ${name}`, '', ...preamble]
+    for (const { file, named, unnamed } of entries) {
+      body.push(`## ${rel(file)}`)
+      body.push('')
+      if (named.length) {
+        body.push('| Control | Name | Covered by |')
+        body.push('|---|---|---|')
+        for (const ctl of named) {
+          const specs = cover.get(ctl.name)
+          body.push(
+            `| ${ctl.kind} | ${ctl.name.replace(/\|/g, '\\|')} | ${specs ? [...specs].join(', ') : '**—**'} |`
+          )
+        }
+        body.push('')
       }
-      out.push('')
+      if (unnamed.length) {
+        const icons = [...new Set(unnamed.map((x) => x.icon).filter(Boolean))]
+        body.push(
+          `> **${unnamed.length} control(s) here have no accessible name**` +
+            (icons.length ? ` (icon-only: ${icons.join(', ')})` : '') +
+            '. Untestable by name, and a screen reader cannot announce them.'
+        )
+        body.push('')
+      }
     }
-    if (unnamed.length) {
-      const icons = [...new Set(unnamed.map((u) => u.icon).filter(Boolean))]
-      out.push(
-        `> **${unnamed.length} control(s) here have no accessible name**` +
-          (icons.length ? ` (icon-only: ${icons.join(', ')})` : '') +
-          '. Untestable by name, and a screen reader cannot announce them.'
-      )
-      out.push('')
-    }
+    fs.writeFileSync(path.join(OUT, `${name}.md`), body.join('\n') + '\n')
   }
 
-  fs.writeFileSync(OUT, out.join('\n') + '\n')
-  console.log(`${rel(OUT)} written`)
+  fs.writeFileSync(path.join(OUT, 'README.md'), readme.join('\n') + '\n')
+
+  console.log(`${rel(OUT)}/ written — ${Object.keys(groups).length} area files`)
   console.log(`  ${routeList.length} routes`)
   console.log(`  ${totalControls} named controls, ${totalCovered} covered (${pct}%)`)
   console.log(`  ${totalUnnamed} with no accessible name`)

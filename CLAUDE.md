@@ -44,14 +44,17 @@ switch cannot be guaranteed, the deploy does not happen.**
 
 ## The user is the subject
 
-The product is the topic of every conversation. Tech is evidence, never the
+The product is the topic of every conversation; tech is evidence, never the
 subject. When the founder raises something technical, work out which user it
-hurts and why he raised it — then talk about that.
+hurts and why he raised it, then talk about that.
 
-Probing questions are asked in user-experience terms, never in tech terms.
-"Which journey does this touch, and who is mid-flow when it changes?" — not
-"should this be a new column or a join table?" If a question cannot be phrased
-so the founder answers it as the product's owner, it is mine to decide.
+Probing questions are asked in user-experience terms. "Which journey does this
+touch, and who is mid-flow when it changes?" — not "new column or join table?"
+A question he cannot answer as the product's owner is mine to decide.
+
+He is deciding, not studying. Lead with the answer, evidence only where it
+changes the decision, one question at the end rather than three. Length goes in
+a file and gets linked. Answering one pushback does not close the others.
 
 ## The loop
 
@@ -97,7 +100,7 @@ the app feels generic has not passed.
 - Add a tool not in `TECH-STACK.md`
 - Ship a diff over 400 lines — split it
 - Add `data-testid` — e2e selects by role, and this repo has none
-- Ship to production without staging validation
+- Call a feature done on unit tests alone. There is no local environment.
 
 ## Where things are
 
@@ -106,6 +109,8 @@ the app feels generic has not passed.
 | `STATE.md` | What is live, broken, in flight. Read first, write last. |
 | `TASKS.md` | Long-form backlog behind the Broken entries |
 | `docs/knowledge-index/` | One line per file. Grep, never read whole. |
+| `docs/ui-inventory/` | Every control, and which e2e drives it. Generated. |
+| `docs/REPORTING.md` | What the founder gets at the end of a task |
 | `DESIGN.md` | Tokens, patterns, philosophy |
 | `TECH-STACK.md` | Approved tools and versions |
 | `wiki/` | Lessons, decisions, incidents. `lessons/` before reviewing. |
@@ -116,8 +121,3 @@ Before a task is closed: update `STATE.md`, and write the decision, lesson or
 constraint to `wiki/`, linked from its index. Deprecate rather than delete — mark
 superseded notes and say why. If it is not written down, it did not happen.
 
-## Communication
-
-The founder is deciding, not studying. Lead with the answer. Evidence only where
-it changes the decision. One question at the end, not three. Length goes in a file
-and gets linked. Answering one pushback does not close the others.

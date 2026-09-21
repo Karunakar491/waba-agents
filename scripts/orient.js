@@ -205,8 +205,14 @@ function topBroken(state, limit = 3) {
 // Files that are loaded every session, or that a rule tells us to load before
 // touching anything. Their cost is paid on every task whether or not it is
 // used, so it is the cost worth watching.
+// The caps are budgets, not targets. CLAUDE.md's was 1200, set before the
+// founder added three standing requirements on 2026-09-21 (the user is the
+// subject, there is no local environment, every task ends in a report). Raised
+// to 1500 because the content grew for a stated reason — never to spare the
+// prose a trim. When this is breached again, read the file first: the answer is
+// usually that something in it has stopped being load-bearing.
 const ALWAYS_ON = [
-  { file: 'CLAUDE.md', cap: 1200, why: 'loaded every turn' },
+  { file: 'CLAUDE.md', cap: 1500, why: 'loaded every turn' },
   { file: 'STATE.md', cap: 2000, why: 'injected at SessionStart' },
 ]
 

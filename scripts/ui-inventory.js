@@ -167,23 +167,63 @@ function controls(file) {
 
 // ---------------------------------------------------------------- coverage
 
-/** Accessible names the e2e suite actually drives, and which spec drives them. */
+/**
+ * What the e2e suite actually drives, and which spec drives it.
+ *
+ * Two forms, and missing the second is why this first reported 5 controls
+ * covered out of 240 when the committed specs contain 84 button interactions:
+ * Playwright names are as often a regex as a string
+ * (`getByRole('button', { name: /^save|save changes|update/i })`), and a matcher
+ * that reads only quoted literals scores a well-tested app at 2%.
+ *
+ * Returns { exact, patterns } — exact names, and regexes to test names against.
+ */
 function covered() {
-  const map = new Map()
-  for (const spec of walk(E2E, /\.spec\.ts$/)) {
-    const text = fs.readFileSync(spec, 'utf8')
-    for (const m of text.matchAll(/getBy(?:Role|Label|Text)\(\s*(?:['"`](\w+)['"`]\s*,\s*)?\{[^}]*name:\s*['"`]([^'"`]+)['"`]/g)) {
-      const name = m[2]
-      if (!map.has(name)) map.set(name, new Set())
-      map.get(name).add(path.basename(spec))
+  const exact = new Map()
+  const patterns = []
+
+  const add = (map, name, spec) => {
+    if (!map.has(name)) map.set(name, new Set())
+    map.get(name).add(spec)
+  }
+
+  for (const specPath of walk(E2E, /\.spec\.ts$/)) {
+    const spec = path.basename(specPath)
+    const text = fs.readFileSync(specPath, 'utf8')
+
+    for (const m of text.matchAll(
+      /getBy(?:Role|Label|Text)\(\s*(?:['"`]\w+['"`]\s*,\s*)?\{[^}]*?name:\s*['"`]([^'"`]+)['"`]/g
+    )) {
+      add(exact, m[1], spec)
     }
+
+    for (const m of text.matchAll(
+      /getBy(?:Role|Label|Text)\(\s*(?:['"`]\w+['"`]\s*,\s*)?\{[^}]*?name:\s*\/((?:[^/\\]|\\.)+)\/([gimsuy]*)/g
+    )) {
+      try {
+        patterns.push({ re: new RegExp(m[1], m[2].replace(/g/g, '')), spec })
+      } catch {
+        // An unparseable pattern is skipped rather than failing the run: this
+        // report exists to be run, and a crash on one odd spec stops that.
+      }
+    }
+
     for (const m of text.matchAll(/getBy(?:Text|Label)\(\s*['"`]([^'"`]+)['"`]/g)) {
-      const name = m[1]
-      if (!map.has(name)) map.set(name, new Set())
-      map.get(name).add(path.basename(spec))
+      add(exact, m[1], spec)
     }
   }
-  return map
+
+  return { exact, patterns }
+}
+
+/** Specs driving this control, by exact name or by a regex that matches it. */
+function specsFor(cover, name) {
+  const hits = new Set(cover.exact.get(name) || [])
+  for (const { re, spec } of cover.patterns) {
+    re.lastIndex = 0
+    if (re.test(name)) hits.add(spec)
+  }
+  return hits
 }
 
 // ------------------------------------------------------------------- main
@@ -205,7 +245,7 @@ function main() {
     const unnamed = list.filter((c) => !c.name)
     totalControls += named.length
     totalUnnamed += unnamed.length
-    for (const c of named) if (cover.has(c.name)) totalCovered++
+    for (const c of named) if (specsFor(cover, c.name).size) totalCovered++
     byFile.push({ file, named, unnamed })
   }
 
@@ -218,6 +258,12 @@ function main() {
     'selects by (this repo has no `data-testid` and must keep it that way). A control',
     'with no accessible name is listed as a defect: it cannot be tested by name, and a',
     'screen reader cannot announce it.',
+    '',
+    '**Read coverage as an upper bound.** Names are matched as strings and as the',
+    'regexes Playwright specs actually use, so two different buttons that read',
+    '"Continue" on two different screens both count as driven by any spec clicking',
+    'either. It answers "has anything ever pressed a control by this name?", not',
+    '"is this journey tested?". Only the uncovered column is exact.',
     '',
     'To find a control, grep this directory for its on-screen label.',
     '',
@@ -250,7 +296,7 @@ function main() {
   for (const [name, entries] of Object.entries(groups).sort()) {
     const n = entries.reduce((s, e) => s + e.named.length, 0)
     const c = entries.reduce(
-      (s, e) => s + e.named.filter((x) => cover.has(x.name)).length,
+      (s, e) => s + e.named.filter((x) => specsFor(cover, x.name).size).length,
       0
     )
     const u = entries.reduce((s, e) => s + e.unnamed.length, 0)
@@ -264,9 +310,9 @@ function main() {
         body.push('| Control | Name | Covered by |')
         body.push('|---|---|---|')
         for (const ctl of named) {
-          const specs = cover.get(ctl.name)
+          const specs = specsFor(cover, ctl.name)
           body.push(
-            `| ${ctl.kind} | ${ctl.name.replace(/\|/g, '\\|')} | ${specs ? [...specs].join(', ') : '**—**'} |`
+            `| ${ctl.kind} | ${ctl.name.replace(/\|/g, '\\|')} | ${specs.size ? [...specs].join(', ') : '**—**'} |`
           )
         }
         body.push('')

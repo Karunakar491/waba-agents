@@ -37,6 +37,13 @@ const SRC = path.join(REPO, 'frontend', 'src')
 const E2E = path.join(REPO, 'frontend', 'e2e')
 const OUT = path.join(REPO, 'docs', 'ui-inventory')
 
+// Founder, 2026-09-21: "Ignore template studio completely. Lets focus on
+// Business Agents as a feature." Still inventoried, because it is still in the
+// product and a control nobody watches is how a regression ships — but kept out
+// of the headline numbers, so the percentage answers a question about the thing
+// being worked on.
+const OUT_OF_SCOPE = /^(components-templatestudio|templatestudio)$/
+
 // The output is regenerated constantly and the commit gate caps a diff at 400
 // lines, so it is split the same way the knowledge index is: by area, each file
 // reviewable on its own, all of them greppable in one call.
@@ -238,15 +245,22 @@ function main() {
   let totalCovered = 0
   let totalUnnamed = 0
 
+  let skippedControls = 0
+
   for (const file of files) {
     const list = controls(file)
     if (!list.length) continue
     const named = list.filter((c) => c.name)
     const unnamed = list.filter((c) => !c.name)
+    byFile.push({ file, named, unnamed })
+
+    if (OUT_OF_SCOPE.test(area(file))) {
+      skippedControls += named.length
+      continue
+    }
     totalControls += named.length
     totalUnnamed += unnamed.length
     for (const c of named) if (specsFor(cover, c.name).size) totalCovered++
-    byFile.push({ file, named, unnamed })
   }
 
   const pct = totalControls ? Math.round((totalCovered / totalControls) * 100) : 0
@@ -275,9 +289,19 @@ function main() {
   // README: the numbers, the routes, and the uncovered list — the page to read
   // when the question is "what has nobody tested?"
   const readme = ['# UI inventory', '', ...preamble]
+  readme.push('## Business Agents')
+  readme.push('')
   readme.push(`- **${routeList.length}** routes`)
   readme.push(`- **${totalControls}** named controls, **${totalCovered}** driven by a test (**${pct}%**)`)
   readme.push(`- **${totalUnnamed}** controls with no accessible name`)
+  if (skippedControls) {
+    readme.push('')
+    readme.push(
+      `> Template Studio is **out of scope** (founder, 2026-09-21) and its ` +
+        `${skippedControls} controls are excluded from these numbers. Its area file ` +
+        `is still generated, because a control nobody watches is how a regression ships.`
+    )
+  }
   readme.push('')
   readme.push('## Routes')
   readme.push('')
@@ -300,7 +324,8 @@ function main() {
       0
     )
     const u = entries.reduce((s, e) => s + e.unnamed.length, 0)
-    readme.push(`| [${name}](${name}.md) | ${n} | ${c} | ${u} |`)
+    const scope = OUT_OF_SCOPE.test(name) ? ' _(out of scope)_' : ''
+    readme.push(`| [${name}](${name}.md)${scope} | ${n} | ${c} | ${u} |`)
 
     const body = [`# UI inventory: ${name}`, '', ...preamble]
     for (const { file, named, unnamed } of entries) {

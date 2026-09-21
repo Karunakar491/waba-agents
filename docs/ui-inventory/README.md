@@ -15,9 +15,13 @@ either. It answers "has anything ever pressed a control by this name?", not
 
 To find a control, grep this directory for its on-screen label.
 
+## Business Agents
+
 - **27** routes
-- **230** named controls, **71** driven by a test (**31%**)
-- **82** controls with no accessible name
+- **181** named controls, **61** driven by a test (**34%**)
+- **73** controls with no accessible name
+
+> Template Studio is **out of scope** (founder, 2026-09-21) and its 49 controls are excluded from these numbers. Its area file is still generated, because a control nobody watches is how a regression ships.
 
 ## Routes
 
@@ -64,6 +68,6 @@ To find a control, grep this directory for its on-screen label.
 | [components-router](components-router.md) | 3 | 0 | 0 |
 | [components-shared](components-shared.md) | 6 | 2 | 6 |
 | [components-skills](components-skills.md) | 1 | 1 | 0 |
-| [components-templatestudio](components-templatestudio.md) | 49 | 10 | 9 |
+| [components-templatestudio](components-templatestudio.md) _(out of scope)_ | 49 | 10 | 9 |
 | [components-waba](components-waba.md) | 4 | 2 | 3 |
 | [pages](pages.md) | 78 | 25 | 28 |

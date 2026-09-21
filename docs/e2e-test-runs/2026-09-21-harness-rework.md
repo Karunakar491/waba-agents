@@ -145,4 +145,82 @@ CONTEXT
 
 CLAUDE.md is deliberately still over budget here — the rewrite is the next commit.
 
-<!-- Section 5 (agent collapse) appended when that commit lands. -->
+## 5. CLAUDE.md
+
+```
+lines: 103  (was 349)
+CONTEXT
+  OK CLAUDE.md — ~1197 tok (cap 1200, loaded every turn)
+  OK STATE.md — ~1430 tok (cap 2000, injected at SessionStart)
+  · always-on total ~2627 tok
+```
+
+The budget was read as breached by 3 tokens until the estimator was corrected to
+measure content rather than bytes on disk: CRLF adds a byte per line, inflating
+CLAUDE.md by ~25 tokens. The fix was to the measurement, not to the prose — a cap
+missed by a line-ending convention is a broken ruler, not a broken rule.
+
+Cache-stability check — no dates and no SHAs in the always-on prefix, so an edit
+does not invalidate the cached system prompt:
+
+```
+grep -nE '20[0-9]{2}-[0-9]{2}-[0-9]{2}|\b[0-9a-f]{7,40}\b' CLAUDE.md
+(no output)
+```
+
+Done in two commits rather than one: a full-file rewrite is 349 deletions plus
+104 additions, which cannot fit the 400-line cap the gate enforces. The fiction
+was deleted first, then the replacement written — which reads better in history
+anyway.
+
+## 6. Agent collapse
+
+Seven files (1,287 lines) to two:
+
+| Was | Lines | Becomes |
+|---|---|---|
+| `persona-el.md`, `persona-ux.md`, `QA.md`, `devops-skill.md` | 713 | `reviewer.md` (99) |
+| `persona-design-evaluator.md` | 79 | `design-evaluator.md` (114) |
+| `persona-pm.md`, `persona-em.md` | 495 | deleted — judgment moves into ORIENT |
+
+`.claude/agents/` is now tracked. The existing `!.claude/settings.json` negation
+had never actually been doing anything: git does not descend into an excluded
+directory, so no negation under `.claude/` can match. `settings.json` stayed
+tracked only because it was added in `aaacc42` and `.gitignore` does not apply to
+tracked files. The rule is now per-entry (`.claude/*`), verified:
+
+```
+git check-ignore -v .claude/settings.local.json .claude/agents/reviewer.md
+.gitignore:30:.claude/*          .claude/settings.local.json     ← still ignored
+.gitignore:38:!.claude/agents/*.md .claude/agents/reviewer.md    ← now tracked
+```
+
+## 7. Branch hygiene — a finding against my own work
+
+The nine commits were made on `feature/draft-on-delete`, an unrelated feature
+branch, because that is where the checkout happened to be. Merging that would
+have carried 11 commits of unmerged draft-on-delete work into master under a
+harness commit message — the exact failure the "stage files, not directories"
+lesson records.
+
+Fixed by cherry-picking all nine onto `master` in an isolated worktree, leaving
+the working tree untouched:
+
+```
+git worktree add -b harness/rework-clean /d/hwt master
+git cherry-pick 62b72c3..d3b1dfa
+=== result: 9 commits ===
+does harness/rework contain draft-on-delete work? 0 — clean
+```
+
+Verified from that bare master checkout: `orient.js` runs, `STATE.md` and all
+three scripts present, `AGENT-WORKFLOW.md` gone, `CLAUDE.md` at 104 lines.
+
+Two traps hit on the way, both recorded because they will recur on this machine:
+the first worktree failed with `Filename too long` under the scratchpad path
+(Windows limit plus deep Java package paths — use a short path like `/d/hwt`),
+and `git cherry-pick A..B` excludes A, which silently dropped the first commit.
+
+The main checkout was deliberately **not** moved to the clean branch: 41
+uncommitted files sit in the tree, 14 of them overlapping
+`feature/draft-on-delete`, so switching would have risked work that is not mine.

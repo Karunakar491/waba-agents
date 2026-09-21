@@ -1,18 +1,16 @@
-# Knowledge index — meta-api
+# Knowledge index: meta-api
 
-One line per file: `path — purpose`. **Grep it. Never read it whole.**
+One line per file, `path — purpose`. **Grep it. Never read it whole.**
 
     Grep pattern="AgentService" path=docs/knowledge-index/
 
 A line points at a file; it does not narrate its history. Keep each under ~200
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
-`TASKS.md`, or in `wiki/`.
+chars. A purpose needing a paragraph belongs in the file, in `TASKS.md`, or in
+`wiki/`, not here.
 
-Split by area so each file stays reviewable; a grep across the directory
+Split by area so each file stays reviewable. A grep across the directory
 searches all of them at once.
 
-# Knowledge index — meta-api
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
 docs/meta-api/agent-eval.md — GET/POST /agent-eval — test and evaluate agent performance
 docs/meta-api/agent-event.md — POST/GET /agent_event — trigger agent from business events
 docs/meta-api/agent-onboarding.md — POST /agent_onboarding?channel=whatsapp — first-time BizAI entity creation.

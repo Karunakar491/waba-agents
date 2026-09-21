@@ -1,18 +1,16 @@
-# Knowledge index — backend
+# Knowledge index: backend
 
-One line per file: `path — purpose`. **Grep it. Never read it whole.**
+One line per file, `path — purpose`. **Grep it. Never read it whole.**
 
     Grep pattern="AgentService" path=docs/knowledge-index/
 
 A line points at a file; it does not narrate its history. Keep each under ~200
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
-`TASKS.md`, or in `wiki/`.
+chars. A purpose needing a paragraph belongs in the file, in `TASKS.md`, or in
+`wiki/`, not here.
 
-Split by area so each file stays reviewable; a grep across the directory
+Split by area so each file stays reviewable. A grep across the directory
 searches all of them at once.
 
-# Knowledge index — backend
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
 backend/lombok.config — Lombok config — copyableAnnotations includes @Qualifier so it forwards to generated constructors
 backend/pom.xml — Maven build — Spring Boot 3.3.2, Java 21, JJWT RS256, Testcontainers MySQL+Redis, RestClient (no WebFlux)
 backend/src/main/java/com/metaagent/platform/common/exception/BusinessException.java — 400 exception — thrown for business rule violations

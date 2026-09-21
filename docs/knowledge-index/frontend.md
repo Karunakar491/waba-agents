@@ -1,18 +1,16 @@
-# Knowledge index — frontend
+# Knowledge index: frontend
 
-One line per file: `path — purpose`. **Grep it. Never read it whole.**
+One line per file, `path — purpose`. **Grep it. Never read it whole.**
 
     Grep pattern="AgentService" path=docs/knowledge-index/
 
 A line points at a file; it does not narrate its history. Keep each under ~200
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
-`TASKS.md`, or in `wiki/`.
+chars. A purpose needing a paragraph belongs in the file, in `TASKS.md`, or in
+`wiki/`, not here.
 
-Split by area so each file stays reviewable; a grep across the directory
+Split by area so each file stays reviewable. A grep across the directory
 searches all of them at once.
 
-# Knowledge index — frontend
-chars — when a purpose needs a paragraph, the paragraph belongs in the file, in
 frontend/.oxlintrc.json — Oxlint config for frontend
 frontend/components.json — Shadcn config — default style, CSS variables, @ alias, component output to src/components/ui/
 frontend/index.html — Vite HTML entry — Inter font import lives here (DESIGN.md token location)

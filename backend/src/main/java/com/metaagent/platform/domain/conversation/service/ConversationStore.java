@@ -69,6 +69,24 @@ public class ConversationStore {
     @Transactional
     public Message saveOutbound(Long accountId, Long conversationId, Long agentId,
                                 String metaMessageId, String replyText, Long webhookRawId) {
+        return saveOutbound(accountId, conversationId, agentId, metaMessageId, replyText,
+                Message.ContentType.text, null, webhookRawId);
+    }
+
+    /**
+     * Same, for a reply that was not plain text — a list, a carousel, a button.
+     *
+     * The three-argument content shape exists because this method used to
+     * hardcode ContentType.text and never set contentJson, so an interactive
+     * reply was stored as an empty text message: the customer saw five options
+     * and the Inbox showed a blank bubble. The inbound path has stored
+     * contentJson for interactive messages all along; this is outbound catching
+     * up.
+     */
+    @Transactional
+    public Message saveOutbound(Long accountId, Long conversationId, Long agentId,
+                                String metaMessageId, String replyText,
+                                Message.ContentType contentType, String contentJson, Long webhookRawId) {
         conversationRepository.findById(conversationId).ifPresent(c -> {
             c.setLastMessageAt(LocalDateTime.now());
             conversationRepository.save(c);
@@ -80,8 +98,9 @@ public class ConversationStore {
                         .agentId(agentId)
                         .direction(Message.Direction.outbound)
                         .metaMessageId(metaMessageId)
-                        .contentType(Message.ContentType.text)
+                        .contentType(contentType == null ? Message.ContentType.text : contentType)
                         .content(replyText) // nullable — unknown when created from status webhook
+                        .contentJson(contentJson)
                         .status(Message.Status.sent)
                         .sentAt(LocalDateTime.now())
                         .webhookRawId(webhookRawId)
@@ -90,25 +109,55 @@ public class ConversationStore {
     }
 
     /**
-     * The "sent" status webhook and the message_echoes webhook both describe the same
-     * outbound BizAI reply but can arrive in either order. If the status webhook already
-     * created the row (with null content), fill in the text now — its webhookRawId (set
-     * by whichever webhook created the row first) is never touched here. If the echo
-     * arrives first, create the row here instead — same as saveOutbound's "sent" path,
-     * originated by this echo webhook.
+     * One outbound reply, however many webhooks describe it.
+     *
+     * The "sent" status webhook and the message_echoes webhook both describe the
+     * SAME reply and arrive in either order, so BOTH call this — whichever gets
+     * here first creates the row and the other fills in what it knows. It was
+     * named upsertOutboundEcho while the status path called saveOutbound
+     * directly and inserted a second row for the same metaMessageId; nothing
+     * constrains that column, so the reply appeared twice in the thread.
+     *
+     * webhookRawId belongs to whichever webhook created the row and is never
+     * touched again here.
      */
     @Transactional
-    public Message upsertOutboundEcho(Long accountId, Long agentId, Long conversationId,
+    public Message upsertOutbound(Long accountId, Long agentId, Long conversationId,
                                        String metaMessageId, String textBody, Long webhookRawId) {
+        return upsertOutbound(accountId, agentId, conversationId, metaMessageId, textBody,
+                Message.ContentType.text, null, webhookRawId);
+    }
+
+    /**
+     * Same, carrying the component a rich reply was made of.
+     *
+     * A row created first by the "sent" status webhook has no content AND no
+     * contentJson, so both are filled in when the echo arrives — otherwise which
+     * webhook happened to win the race would decide whether the Inbox can show
+     * what the customer saw.
+     */
+    @Transactional
+    public Message upsertOutbound(Long accountId, Long agentId, Long conversationId,
+                                       String metaMessageId, String textBody,
+                                       Message.ContentType contentType, String contentJson,
+                                       Long webhookRawId) {
         return messageRepository.findByMetaMessageId(metaMessageId)
                 .map(message -> {
-                    if (message.getContent() == null) {
+                    boolean changed = false;
+                    if (message.getContent() == null && textBody != null) {
                         message.setContent(textBody);
-                        messageRepository.save(message);
+                        changed = true;
                     }
+                    if (message.getContentJson() == null && contentJson != null) {
+                        message.setContentJson(contentJson);
+                        message.setContentType(contentType);
+                        changed = true;
+                    }
+                    if (changed) messageRepository.save(message);
                     return message;
                 })
-                .orElseGet(() -> saveOutbound(accountId, conversationId, agentId, metaMessageId, textBody, webhookRawId));
+                .orElseGet(() -> saveOutbound(accountId, conversationId, agentId, metaMessageId, textBody,
+                        contentType, contentJson, webhookRawId));
     }
 
     @Transactional

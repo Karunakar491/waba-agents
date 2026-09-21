@@ -188,4 +188,85 @@ class ConversationStoreTest extends IntegrationTestBase {
         assertThat(all).hasSize(1);
         assertThat(all.get(0).getDirection()).isEqualTo(Message.Direction.outbound);
     }
+
+    /*
+     * The two webhooks that describe one outbound reply — the "sent" status and
+     * the message echo — arrive in either order, and until 2026-09-18 only one
+     * of those orders worked properly:
+     *
+     *  - status first, echo second: the echo filled in the text. Fine.
+     *  - echo first, status second: the echo created the row, then the status
+     *    handler inserted a SECOND one, because it called saveOutbound
+     *    unconditionally and nothing constrains meta_message_id. The same reply
+     *    appeared twice in the thread.
+     *
+     * It was rare, because an echo carrying no plain text was thrown away and
+     * only text could win the race. Rich replies now create rows too, so
+     * echo-first became ordinary traffic.
+     *
+     * A real interactive payload, from the live agent on 2026-09-17.
+     */
+    private static final String LIST_JSON = """
+            {"type":"interactive","interactive":{"type":"list",
+              "body":{"text":"Select your session duration"},
+              "action":{"button":"View Options","sections":[{"rows":[
+                {"title":"5 minutes","description":"\\u20b9225"},
+                {"title":"10 minutes","description":"\\u20b9450"}]}]}}}
+            """;
+
+    @Test
+    void should_keep_the_component_when_the_echo_arrives_first() {
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, "919876543210");
+
+        // Echo first: a list, which carries no plain text at all.
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race001", null, Message.ContentType.interactive, LIST_JSON, 1L);
+
+        // Then the "sent" status for the very same message.
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race001", null, 2L);
+
+        List<Message> all = messageRepository.findAllByConversationId(conversation.getId());
+        assertThat(all).as("one reply must be one row, whichever webhook won").hasSize(1);
+        assertThat(all.get(0).getContentType()).isEqualTo(Message.ContentType.interactive);
+        assertThat(all.get(0).getContentJson())
+                .as("the rows the customer saw must survive the status webhook")
+                .contains("5 minutes");
+        // The creating webhook owns this field and no later webhook may take it.
+        assertThat(all.get(0).getWebhookRawId()).isEqualTo(1L);
+    }
+
+    @Test
+    void should_fill_in_the_component_when_the_status_arrives_first() {
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, "919876543210");
+
+        // Status first: a bare row, no content of any kind.
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race002", null, 1L);
+
+        // Then the echo, carrying the component.
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race002", null, Message.ContentType.interactive, LIST_JSON, 2L);
+
+        List<Message> all = messageRepository.findAllByConversationId(conversation.getId());
+        assertThat(all).hasSize(1);
+        assertThat(all.get(0).getContentType()).isEqualTo(Message.ContentType.interactive);
+        assertThat(all.get(0).getContentJson()).contains("View Options");
+        assertThat(all.get(0).getWebhookRawId()).isEqualTo(1L);
+    }
+
+    @Test
+    void should_not_overwrite_text_that_is_already_there() {
+        Conversation conversation = conversationStore.findOrCreate(accountId, agentId, "919876543210");
+
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race003", "Namaste!", 1L);
+        // A later status webhook carries no text; it must not blank the reply.
+        conversationStore.upsertOutbound(accountId, agentId, conversation.getId(),
+                "wamid.race003", null, 2L);
+
+        List<Message> all = messageRepository.findAllByConversationId(conversation.getId());
+        assertThat(all).hasSize(1);
+        assertThat(all.get(0).getContent()).isEqualTo("Namaste!");
+    }
 }

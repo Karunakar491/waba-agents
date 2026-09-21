@@ -35,6 +35,15 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+/**
+ * Treats an unknown as an object so a missing branch reads as empty rather than
+ * throwing. Same tolerance as `str`: this file's whole contract is that a
+ * payload it does not recognise still renders something, never an error.
+ */
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
 function describeInteractive(node: Record<string, unknown>): MessageDescription | null {
   const type = str(node.type)
   if (!type) return null
@@ -50,6 +59,64 @@ function describeInteractive(node: Record<string, unknown>): MessageDescription 
         detail: str(payload.description),
         kind: type === 'list_reply' ? 'Chose from a list' : 'Tapped a button',
       }
+
+    /*
+     * The OUTBOUND side of the same component: what the business SENT, not what
+     * the customer picked from it. Everything above describes a reply; without
+     * these the agent's own list rendered as a bare "Sent a list", which tells
+     * whoever is handling a complaint nothing about what the customer was
+     * actually offered.
+     *
+     * Every row is listed, not the first two and a count: someone resolving
+     * "I was charged the wrong amount" needs the whole set of prices that were
+     * on screen.
+     */
+    case 'list': {
+      const action = asRecord(node.action)
+      const sections = Array.isArray(action.sections) ? action.sections : []
+      const rows = sections.flatMap((s) => {
+        const section = asRecord(s)
+        return Array.isArray(section.rows) ? section.rows : []
+      })
+      const options = rows
+        .map((r) => {
+          const row = asRecord(r)
+          const title = str(row.title)
+          const description = str(row.description)
+          if (!title) return null
+          return description ? `${title} (${description})` : title
+        })
+        .filter((o): o is string => o !== null)
+      const heading = str(action.button) ?? str(asRecord(node.header).text) ?? 'a list'
+      return {
+        text: `Sent a list: ${heading}`,
+        detail: options.length ? options.join(' · ') : str(asRecord(node.body).text),
+        kind: 'Interactive list',
+      }
+    }
+
+    case 'button': {
+      const action = asRecord(node.action)
+      const buttons = Array.isArray(action.buttons) ? action.buttons : []
+      const labels = buttons
+        .map((b) => str(asRecord(asRecord(b).reply).title) ?? str(asRecord(b).title))
+        .filter((l): l is string => Boolean(l))
+      return {
+        text: str(asRecord(node.body).text) ?? 'Sent buttons',
+        detail: labels.length ? labels.join(' · ') : undefined,
+        kind: 'Buttons',
+      }
+    }
+
+    case 'cta_url': {
+      const params = asRecord(asRecord(node.action).parameters)
+      const label = str(params.display_text)
+      return {
+        text: str(asRecord(node.body).text) ?? 'Sent a link button',
+        detail: label ? `Button: ${label}` : str(params.url),
+        kind: 'Link button',
+      }
+    }
 
     case 'call_permission_reply': {
       const response = str(payload.response)

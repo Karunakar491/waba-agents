@@ -12,6 +12,9 @@ import {
   PanelLeftClose,
   PanelLeft,
   BarChart3,
+  BookOpen,
+  Zap,
+  Plug,
   FileText,
   Settings as SettingsIcon,
   Plus,
@@ -31,11 +34,21 @@ import ErrorBoundary from '../shared/ErrorBoundary'
 // local mirror — TASK-060 Persona, TASK-065 Knowledge Base/Files — local
 // mirror, Files+Websites as tabs on one page) — they always route there
 // instead of an agent deep-link.
+//
+// Icons are the same four AgentDetailPage's LEFT_TABS already use for these
+// exact concepts (BookOpen/Zap/Plug/FileText) — the agent's own tabs and the
+// account-wide library pages are the same four ideas, and giving them two icon
+// vocabularies would be the app disagreeing with itself.
+//
+// They exist because these four used to VANISH from a collapsed rail: the block
+// below was gated on `!iconOnly`, so a rail the user could collapse at any time
+// silently removed four of the product's main destinations. Hover-to-peek did
+// reveal them, which is a gesture a weekly, non-technical user never learns.
 const AGENT_SUB_NAV = [
-  { tab: 'knowledge',  label: 'Knowledge Base',   to: '/library/files' },
-  { tab: 'skills',     label: 'Skills',           to: '/library/skills' },
-  { tab: 'connectors', label: 'Connectors',       to: '/library/connectors' },
-  { tab: 'persona',    label: 'Business Persona', to: '/library/persona' },
+  { tab: 'knowledge',  icon: BookOpen, label: 'Knowledge Base',   to: '/library/files' },
+  { tab: 'skills',     icon: Zap,      label: 'Skills',           to: '/library/skills' },
+  { tab: 'connectors', icon: Plug,     label: 'Connectors',       to: '/library/connectors' },
+  { tab: 'persona',    icon: FileText, label: 'Business Persona', to: '/library/persona' },
 ]
 
 const NAV = [
@@ -73,10 +86,17 @@ export default function AppShell() {
   const user = useAuthStore((s) => s.user)
   const logout = useLogout()
   const location = useLocation()
-  // Collapsed by default (modern-app convention) — only stays expanded if the
-  // user explicitly expanded it before (localStorage holds '0').
+  // Expanded by default, per DESIGN.md §5: the rail "defaults to
+  // expanded/labeled (discoverable for a first-time, non-technical user),
+  // collapse is opt-in and persisted". It had drifted to collapsed, justified
+  // in a comment as "modern-app convention" — so this restores the spec rather
+  // than proposing a new opinion.
+  //
+  // `=== '1'` rather than `!== '0'` deliberately: toggle() writes '1' when the
+  // user collapses and '0' when they expand, so this flips the default for
+  // people who never touched it while leaving BOTH explicit choices intact.
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSE_KEY) !== '0',
+    () => localStorage.getItem(COLLAPSE_KEY) === '1',
   )
   // Below md the sidebar is an off-canvas drawer — closed by default, overlays content
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -227,7 +247,18 @@ export default function AppShell() {
         </Link>
 
         {/* Nav */}
-        <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
+        {/* min-h-0 + overflow-y-auto, not just flex-1: a flex child will not
+            shrink below its content without min-h-0, so before this the rail
+            did not scroll — it pushed the account block and Sign out past the
+            bottom of the viewport, unreachable. Adding the Library group put
+            expanded content at ~636px against ~616px on a 1366x768 laptop,
+            which is what most of these users are on (DESIGN.md §0.1). */}
+        {/* Named so a test can target this nav specifically — there is only one
+            today, and a second would otherwise break every selector silently. */}
+        <nav
+          aria-label="Main"
+          className={cn('min-h-0 flex-1 space-y-1 overflow-y-auto py-4', iconOnly ? 'px-2' : 'px-3')}
+        >
           {activeNav.map(({ to, icon: Icon, label, soon, end }) => (
             <div key={to}>
               <NavLink
@@ -261,28 +292,80 @@ export default function AppShell() {
                 {iconOnly && <span className="sr-only">{label}</span>}
               </NavLink>
 
-              {/* Agents sub-nav — always expanded, hidden entirely in the
-                  collapsed rail (sub-items don't fit a 64px icon-only rail). */}
-              {to === '/agents' && !iconOnly && (
-                <div className="mt-1 space-y-1">
-                  {AGENT_SUB_NAV.map(({ tab, label: subLabel, to: subTo }) => {
+              {/* Agents sub-nav. Renders in BOTH rail states — collapsed it
+                  borrows the main nav's own grammar one row up (icon +
+                  `title` + sr-only label) rather than inventing a second one.
+                  It used to be gated on `!iconOnly`, which meant collapsing
+                  the rail deleted four destinations with no trace of them.
+
+                  Headed "Library" because that is what they are: these route
+                  to account-wide /library/* pages, never to an agent, so
+                  reading as four unlabelled rows under "Agents" sent anyone
+                  hunting for their uploaded files to the wrong place. */}
+              {to === '/agents' && (
+                <div
+                  role="group"
+                  aria-labelledby="nav-library-heading"
+                  className={cn('space-y-1', iconOnly ? 'mt-2' : 'mt-1')}
+                >
+                  {/* Always rendered, visually hidden in the 64px rail where no
+                      word fits. It used to be dropped entirely when collapsed,
+                      so a screen-reader user heard twelve flat sibling links —
+                      the same defect this change exists to fix, reproduced in
+                      the audio channel. Caption token per DESIGN.md §4 (11px
+                      Medium, +6%); white/50 is 5.33:1 — white/30 is this file's
+                      DISABLED shade (used for "Soon") and computes to 2.59:1. */}
+                  <p
+                    id="nav-library-heading"
+                    className={cn(
+                      'text-[11px] font-medium uppercase tracking-[0.06em] text-white/50',
+                      iconOnly ? 'sr-only' : 'pl-11 pr-3 pt-2',
+                    )}
+                  >
+                    Library
+                  </p>
+                  {/* Collapsed, every row is centred, so indentation cannot show
+                      where the group starts. A rule above it opened the group
+                      and nothing closed it — which read as a NEW top-level group
+                      swallowing Reports and everything below. Bounded both ends,
+                      and the inset active pill below is what carries the
+                      nesting. */}
+                  {iconOnly && <div className="mx-auto h-px w-6 bg-white/10" aria-hidden="true" />}
+                  {AGENT_SUB_NAV.map(({ tab, icon: SubIcon, label: subLabel, to: subTo }) => {
                     const isActive = location.pathname === subTo
                     return (
                       <NavLink
                         key={tab}
                         to={subTo}
+                        title={iconOnly ? subLabel : undefined}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          'block rounded-lg py-2 pl-11 pr-3 text-sm transition-colors',
+                          'flex items-center gap-3 rounded-lg py-2 text-sm transition-colors',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60',
+                          // Inset when collapsed: a 32px active pill against a
+                          // main item's 48px is the nesting cue a user actually
+                          // sees at 64px. mx-2, not mx-2.5 — DESIGN.md §3 is a
+                          // strict 4px grid and 10px is off it.
+                          iconOnly ? 'mx-2 justify-center px-0' : 'pl-11 pr-3',
                           isActive
                             ? 'bg-white/15 text-white'
                             : 'text-white/50 hover:bg-white/10 hover:text-white/80',
                         )}
                       >
-                        {subLabel}
+                        <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                        {iconOnly ? (
+                          <span className="sr-only">{subLabel}</span>
+                        ) : (
+                          // A label longer than "Business Persona" would wrap
+                          // and break the row height without this.
+                          <span className="truncate">{subLabel}</span>
+                        )}
                       </NavLink>
                     )
                   })}
+                  {/* Closes the group. Without this the rule above reads as the
+                      start of a new top-level section running to the bottom. */}
+                  {iconOnly && <div className="mx-auto h-px w-6 bg-white/10" aria-hidden="true" />}
                 </div>
               )}
 

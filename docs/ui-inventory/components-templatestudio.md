@@ -22,12 +22,6 @@ To find a control, grep this directory for its on-screen label.
 |---|---|---|
 | button | Choose file | **—** |
 
-## frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| button | Focus → | **—** |
-
 ## frontend/src/components/templatestudio/DebugFiltersPanel.tsx
 
 | Control | Name | Covered by |
@@ -56,7 +50,7 @@ To find a control, grep this directory for its on-screen label.
 | button | Attach a template sample sheet | **—** |
 | button | Stop | **—** |
 | button | Send | **—** |
-| link | Settings | astrotalk-85916-golive.spec.ts, astrotalk-move.spec.ts, edit-flows.spec.ts |
+| link | Settings | edit-flows.spec.ts |
 
 ## frontend/src/components/templatestudio/IrisConfirmPanel.tsx
 
@@ -71,7 +65,7 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Retry | **—** |
-| button | Save changes | apply-indiamart-skills.spec.ts |
+| button | Save changes | **—** |
 | button | Back | **—** |
 | button | Next Step | **—** |
 | button | Submit for approval | **—** |

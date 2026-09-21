@@ -65,17 +65,11 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Import a cURL command | curl-import.spec.ts, astrotalk-connectors.spec.ts, astrotalk-journey.spec.ts, astrotalk-payments.spec.ts |
+| button | Import a cURL command | curl-import.spec.ts |
 | button | Cancel | **—** |
 | button | Check it | **—** |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
-
-## frontend/src/components/connectors/workbench/LiveOnMetaTable.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| button | Refresh | **—** |
 
 ## frontend/src/components/connectors/workbench/NewConnectorPane.tsx
 
@@ -107,7 +101,7 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | New connector | action-feedback.spec.ts, astrotalk-connectors.spec.ts, astrotalk-payments.spec.ts |
+| button | New connector | action-feedback.spec.ts |
 | button | ${isOpen ? | **—** |
 | button | Add an action | **—** |
 | button | on agent | **—** |

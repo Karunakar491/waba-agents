@@ -23,7 +23,7 @@ To find a control, grep this directory for its on-screen label.
 | button | Release to agent | **—** |
 | button | Add FAQ | **—** |
 | button | Add | **—** |
-| button | Unpublish | apply-indiamart-skills.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-verify.spec.ts |
+| button | Unpublish | **—** |
 | button | Delete FAQ: <…> | **—** |
 | button | Websites | **—** |
 | button | Delete website: <…> | **—** |
@@ -38,7 +38,7 @@ To find a control, grep this directory for its on-screen label.
 | button | Delete connector <…> | **—** |
 | button | Delete connector | **—** |
 | button | Publish handoff to Meta | **—** |
-| button | Save changes | apply-indiamart-skills.spec.ts |
+| button | Save changes | **—** |
 | button | Connect phone number | **—** |
 | button | Trigger event | **—** |
 | button | Delete agent | **—** |
@@ -76,22 +76,11 @@ To find a control, grep this directory for its on-screen label.
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
-## frontend/src/pages/ConnectorEditPage.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| link | Back to Connectors | **—** |
-| button | Edit | **—** |
-| button | Add an action | **—** |
-| button | Edit action <…> | **—** |
-| button | Delete action <…> | **—** |
-| button | Done | **—** |
-
 ## frontend/src/pages/ConnectorWorkbenchPage.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | New connector | action-feedback.spec.ts, astrotalk-connectors.spec.ts, astrotalk-payments.spec.ts |
+| button | New connector | action-feedback.spec.ts |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
@@ -154,14 +143,6 @@ To find a control, grep this directory for its on-screen label.
 | button | Run rollup | **—** |
 
 > **2 control(s) here have no accessible name** (icon-only: Icon). Untestable by name, and a screen reader cannot announce them.
-
-## frontend/src/pages/SettingsPage.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| a | Manage billing | **—** |
-| button | Delete account | **—** |
-| a | support@karix.com | **—** |
 
 ## frontend/src/pages/SkillEditPage.tsx
 

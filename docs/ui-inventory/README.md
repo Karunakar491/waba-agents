@@ -10,7 +10,7 @@ screen reader cannot announce it.
 To find a control, grep this directory for its on-screen label.
 
 - **27** routes
-- **241** named controls, **14** driven by a test (**6%**)
+- **230** named controls, **5** driven by a test (**2%**)
 - **82** controls with no accessible name
 
 ## Routes
@@ -49,8 +49,8 @@ To find a control, grep this directory for its on-screen label.
 
 | Area | Controls | Covered | Unnamed |
 |---|---|---|---|
-| [components-agent-detail](components-agent-detail.md) | 36 | 6 | 5 |
-| [components-connectors](components-connectors.md) | 23 | 2 | 13 |
+| [components-agent-detail](components-agent-detail.md) | 36 | 0 | 5 |
+| [components-connectors](components-connectors.md) | 22 | 2 | 13 |
 | [components-create-agent](components-create-agent.md) | 16 | 0 | 10 |
 | [components-debug](components-debug.md) | 6 | 0 | 1 |
 | [components-files](components-files.md) | 2 | 0 | 1 |
@@ -58,6 +58,6 @@ To find a control, grep this directory for its on-screen label.
 | [components-router](components-router.md) | 3 | 0 | 0 |
 | [components-shared](components-shared.md) | 6 | 0 | 6 |
 | [components-skills](components-skills.md) | 1 | 0 | 0 |
-| [components-templatestudio](components-templatestudio.md) | 50 | 2 | 9 |
+| [components-templatestudio](components-templatestudio.md) | 49 | 1 | 9 |
 | [components-waba](components-waba.md) | 4 | 0 | 3 |
-| [pages](pages.md) | 87 | 4 | 28 |
+| [pages](pages.md) | 78 | 2 | 28 |

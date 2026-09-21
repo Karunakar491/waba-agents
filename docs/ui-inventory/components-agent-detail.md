@@ -42,7 +42,7 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Drafts | **—** |
-| button | Republish | apply-indiamart-skills.spec.ts |
+| button | Republish | **—** |
 
 ## frontend/src/components/agent-detail/EvalTab.tsx
 
@@ -72,11 +72,11 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Sync skills | **—** |
-| button | Add skill | apply-indiamart-skills.spec.ts |
+| button | Add skill | **—** |
 | button | Dismiss | **—** |
 | button | Clear search | **—** |
 | button | Promote to Library — share this skill across agents on this WABA | **—** |
-| button | Unpublish | apply-indiamart-skills.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-verify.spec.ts |
+| button | Unpublish | **—** |
 | button | Delete skill <…> | **—** |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
@@ -113,9 +113,9 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Add UI skill | apply-indiamart-skills.spec.ts |
+| button | Add UI skill | **—** |
 | button | — | **—** |
-| button | Unpublish | apply-indiamart-skills.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-verify.spec.ts |
+| button | Unpublish | **—** |
 | button | Delete UI skill <…> | **—** |
 
 ## frontend/src/components/agent-detail/UnpublishConfirmModal.tsx
@@ -123,5 +123,5 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Cancel | **—** |
-| button | Unpublish | apply-indiamart-skills.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-verify.spec.ts |
+| button | Unpublish | **—** |
 

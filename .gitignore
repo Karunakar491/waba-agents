@@ -24,11 +24,18 @@ Thumbs.db
 *.zip
 *.tar.gz
 
-# Claude internal
-.claude/
+# Claude internal. Excluded per-entry, not as a directory: git does not descend
+# into an excluded directory, so a `.claude/` rule makes every negation below
+# it dead letter.
+.claude/*
 # ...except the enforcement config. Hooks must be tracked so that weakening
 # one shows up as a reviewable diff rather than a silent local change.
 !.claude/settings.json
+# Reviewers are part of the harness for the same reason: loosening a review
+# standard should be a diff someone can read, not a local file nobody sees.
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/*.md
 
 .superpowers/
 

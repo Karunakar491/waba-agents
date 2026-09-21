@@ -210,9 +210,16 @@ const ALWAYS_ON = [
   { file: 'STATE.md', cap: 2000, why: 'injected at SessionStart' },
 ]
 
-/** ~4 bytes per token. Crude, but stable enough to catch drift. */
-function tokens(bytes) {
-  return Math.round(bytes / 4)
+/**
+ * ~4 bytes per token. Crude, but stable enough to catch drift.
+ *
+ * Measures content, not the file on disk: CRLF adds a byte per line, which on
+ * Windows inflated CLAUDE.md by ~25 tokens and made the budget look breached by
+ * a line-ending convention rather than by anything written.
+ */
+function tokens(file) {
+  const text = fs.readFileSync(file, 'utf8').replace(/\r/g, '')
+  return Math.round(text.length / 4)
 }
 
 function contextBudget() {
@@ -227,7 +234,7 @@ function contextBudget() {
       console.log(`  ? ${file} — missing (${why})`)
       continue
     }
-    const t = tokens(fs.statSync(full).size)
+    const t = tokens(full)
     total += t
     const breach = t > cap
     if (breach) over = true
@@ -244,9 +251,7 @@ function contextBudget() {
   const legacy = path.join(REPO, 'docs', 'knowledge-index.json')
   if (fs.existsSync(legacy)) {
     console.log(
-      `  !! docs/knowledge-index.json still present — ~${tokens(
-        fs.statSync(legacy).size
-      )} tok if read whole. Grep docs/knowledge-index/ instead.`
+      `  !! docs/knowledge-index.json still present — ~${tokens(legacy)} tok if read whole. Grep docs/knowledge-index/ instead.`
     )
     over = true
   }

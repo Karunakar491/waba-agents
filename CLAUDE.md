@@ -77,7 +77,6 @@ the app feels generic has not passed.
 - Add a tool not in `TECH-STACK.md`
 - Ship a diff over 400 lines — split it
 - Add `data-testid` — e2e selects by role, and this repo has none
-- Read `docs/knowledge-index/` whole. **Grep it.**
 - Ship to production without staging validation
 
 ## Where things are

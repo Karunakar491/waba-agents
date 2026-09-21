@@ -12,6 +12,9 @@ link into the detail. Long-form writeups live in `TASKS.md`, `wiki/` and
 
 _Last updated: 2026-09-21_
 
+> The harness itself — `STATE.md`, the loop, the hooks, the two reviewers — is on
+> `harness/rework`, nine commits on top of `master`, not yet merged.
+
 ## Live
 
 - Production host: `13.127.221.54` (`/opt/metaagent`)
@@ -55,8 +58,14 @@ and is doing nobody any good.
 - `fix/outbound-echo-components` — 2 commits. **Fixes a top-ranked Broken entry.**
 - `feature/image-header-preview` — 1 commit
 - `fix/subnav-reachable-when-collapsed` — 1 commit. **Fixes a top-ranked Broken entry.**
+- `harness/rework` — 9 commits. This system. Clean on master, mergeable.
+- `harness/rework-on-draft` — the same 9 commits sitting on top of `feature/draft-on-delete`, kept only because the working tree has 41 uncommitted files that overlap that branch. Delete it once those are resolved.
 
 Run `node scripts/orient.js` for live counts rather than trusting this list.
+
+**41 uncommitted files sit in the working tree**, 14 of them overlapping
+`feature/draft-on-delete`. Until they are committed or discarded, the checkout
+cannot move between those branches safely.
 
 ## Constraints
 

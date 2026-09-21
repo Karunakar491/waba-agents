@@ -17,9 +17,10 @@ _Last updated: 2026-09-21_
 
 ## Live
 
-- Production host: `13.127.221.54` (`/opt/metaagent`)
-- Frontend: traceable to a commit since 2026-09-03; **exact deployed SHA not recorded here yet** — record it on the next deploy
-- Backend: **maps to no revision.** The running jar is built on the box from a synced source tree, not from a commit. `/opt/metaagent/src` is stale (V54 vs V56)
+- Production: `ubuntu@10.1.17.16`, reached through the bastion `ec2-user@13.232.241.246` (key `/d/karix-mcp/karix-interna-AI-POC.pem`). `13.127.221.54` in older notes is not reachable with the dev key.
+- **Backend runs `feature/connector-action-backfill`, not `master`.** Jar built 2026-09-21 04:49, carries migrations through **V58**; master stops at V57, and only that branch has V58. All four of V55–V58 md5-match the branch exactly. The branch is 7 commits, unmerged. **`master` does not mirror production.**
+- **`/opt/metaagent/src` is a fossil** — newest file 2026-09-09, twelve days older than the running jar. The jar was not built from it. Do not diff against it; read the jar.
+- Frontend: traceable to a commit since 2026-09-03; **exact deployed SHA still not recorded** — record it on the next deploy.
 - `master` at time of writing: `80b4223`
 
 > Deploy traps, verified 2026-09-18: master is production's line, not the feature

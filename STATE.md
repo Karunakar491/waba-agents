@@ -19,6 +19,7 @@ _Last updated: 2026-09-21_
 
 - Production: `ubuntu@10.1.17.16`, reached through the bastion `ec2-user@13.232.241.246` (key `/d/karix-mcp/karix-interna-AI-POC.pem`). `13.127.221.54` in older notes is not reachable with the dev key.
 - **Backend runs `feature/connector-action-backfill`, not `master`.** Jar built 2026-09-21 04:49, carries migrations through **V58**; master stops at V57, and only that branch has V58. All four of V55–V58 md5-match the branch exactly. The branch is 7 commits, unmerged. **`master` does not mirror production.**
+- **Connector backfill Phase B is DONE**, not pending. Both flags were set true at 04:53 on 2026-09-21 and the sweep ran at 05:00:04: "Back-filled 1 of 1 Meta tools", "Connector gone from Meta" exactly twice and never repeated, zero partial imports, zero floor-guard fires, zero failures — matching the checklist's predictions line for line. The two marked-gone connectors are the IndiaMART pair named in `wiki/deployment/connector-sync-2026-09-21-rollback-capture.md`; their pre-state is recorded there and restoring them needs founder sign-off.
 - **`/opt/metaagent/src` is a fossil** — newest file 2026-09-09, twelve days older than the running jar. The jar was not built from it. Do not diff against it; read the jar.
 - Frontend: traceable to a commit since 2026-09-03; **exact deployed SHA still not recorded** — record it on the next deploy.
 - `master` at time of writing: `80b4223`
@@ -48,6 +49,9 @@ Ranked by user impact. The top entry is what a low-value task gets measured agai
 - **Skill detach has no UI.** Backend `SkillLibraryService.detachSkill` exists uncommitted (+65 lines) and the founder confirmed 2026-09-21 it is wanted. Until it ships, a library skill attached to three agents can only be removed from all three. Meta has no "detach" concept — skills belong to one agent there; the library is ours, so detach calls Meta's `DELETE /{skill_id}` scoped to that agent and keeps the library row.
 - **No UI inventory.** Nobody can say which screens and controls exist, let alone which are covered. `docs/UI-INVENTORY.md` is the fix and is not built.
 - **The ledger was wrong about Astrotalk.** Memory recorded agent `887643060282855424` live on `+91 96422 01123`; that number is now `MIGRATED` and unbound, and an "Astrotalk 85916" sits on `+91 85916 89475`. Corrected here 2026-09-21. Assume other recorded Meta-side state has drifted too.
+- **One RabbitMQ line is flooding the log** — "Failed to check/redeclare auto-delete queue(s)", 18,944 of 19,066 errors in a single day, roughly 1,400/hour. Harmless to users, and it is why the disk keeps filling.
+- **Meta is rate-limiting us.** 429s ongoing since the backfill sweep went live: 89 in the 10:00 hour on 2026-09-21, still 3 at 13:00. The sweep raised per-agent GETs from ~4 to ~5. Nothing has failed yet; nothing is watching it either.
+- **The delete path is still unproven.** `ConnectorLibraryService.delete()` orders deployment-row deletes before the connector against a RESTRICT foreign key, and no test can cover it (a stub repository cannot see MySQL 1451, and Testcontainers is dead on Docker 25+). The checklist's last step — delete ONE marked-gone IndiaMART connector through the UI and watch for 1451 — has not been done.
 - **No disk alerting.** `logrotate` landed 2026-09-06 after a third disk-full, but nothing warns before the next one. `/tmp` and `/var/www` hold ~500M of manual-deploy residue. → `wiki/bugs-violations/disk-full-app-log-2026-09-06.md`
 
 ## In flight

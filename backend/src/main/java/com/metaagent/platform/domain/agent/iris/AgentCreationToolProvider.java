@@ -3,9 +3,11 @@ package com.metaagent.platform.domain.agent.iris;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
+import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.entity.AgentFaq;
 import com.metaagent.platform.domain.agent.entity.AgentSkill;
+import com.metaagent.platform.domain.agent.entity.AgentWebsite;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.persona.entity.BusinessProfile;
 import com.metaagent.platform.domain.persona.repository.BusinessProfileRepository;
@@ -120,6 +122,34 @@ public class AgentCreationToolProvider implements IrisToolProvider {
                             "agentId", Map.of("type", "string"),
                             "faqId", Map.of("type", "string")),
                             "required", List.of("agentId", "faqId")),
+                    true),
+            new AiToolSpec("add_knowledge_website",
+                    "Add a website for Meta to crawl as this agent's knowledge. Requires a phone number in Basics. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "url", Map.of("type", "string", "description", "Public https URL.")),
+                            "required", List.of("agentId", "url")),
+                    true),
+            new AiToolSpec("list_knowledge_websites",
+                    "List knowledge websites on one Business Agent.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string")),
+                            "required", List.of("agentId")),
+                    false),
+            new AiToolSpec("update_knowledge_website",
+                    "Replace a knowledge website URL. Requires a phone number. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "websiteId", Map.of("type", "string"),
+                            "url", Map.of("type", "string")),
+                            "required", List.of("agentId", "websiteId", "url")),
+                    true),
+            new AiToolSpec("delete_knowledge_website",
+                    "Delete a knowledge website. Requires a phone number. Confirmation required.",
+                    Map.of("type", "object", "properties", Map.of(
+                            "agentId", Map.of("type", "string"),
+                            "websiteId", Map.of("type", "string")),
+                            "required", List.of("agentId", "websiteId")),
                     true)
     );
 
@@ -190,6 +220,10 @@ public class AgentCreationToolProvider implements IrisToolProvider {
             case "get_faq" -> getFaq(parseAgentId(args), parseId(args, "faqId"));
             case "update_faq" -> updateFaq(parseAgentId(args), parseId(args, "faqId"), args);
             case "delete_faq" -> deleteFaq(parseAgentId(args), parseId(args, "faqId"));
+            case "add_knowledge_website" -> addWebsite(parseAgentId(args), args);
+            case "list_knowledge_websites" -> listWebsites(parseAgentId(args));
+            case "update_knowledge_website" -> updateWebsite(parseAgentId(args), parseId(args, "websiteId"), args);
+            case "delete_knowledge_website" -> deleteWebsite(parseAgentId(args), parseId(args, "websiteId"));
             default -> throw new BusinessException("Unknown tool: " + toolName);
         };
     }
@@ -203,6 +237,10 @@ public class AgentCreationToolProvider implements IrisToolProvider {
         if ("list_faqs".equals(toolName)) {
             int n = result.get("count") instanceof Number num ? num.intValue() : 0;
             return n == 0 ? "No FAQs on this agent yet." : "Found " + n + " FAQs.";
+        }
+        if ("list_knowledge_websites".equals(toolName)) {
+            int n = result.get("count") instanceof Number num ? num.intValue() : 0;
+            return n == 0 ? "No websites on this agent yet." : "Found " + n + " websites.";
         }
         if ("get_skill".equals(toolName)) {
             Object title = result.get("title");
@@ -310,6 +348,49 @@ public class AgentCreationToolProvider implements IrisToolProvider {
         view.put("id", String.valueOf(faq.getId()));
         view.put("question", faq.getQuestion());
         view.put("answer", faq.getAnswer());
+        return view;
+    }
+
+    private Map<String, Object> addWebsite(Long agentId, Map<String, Object> args) {
+        requirePhoneForWebsite(agentService.getAgent(agentId));
+        WebsiteRequest request = websiteRequest(args);
+        validateOrThrow(request);
+        return toWebsiteView(agentService.addWebsite(agentId, request));
+    }
+
+    private Map<String, Object> listWebsites(Long agentId) {
+        agentService.getAgent(agentId);
+        List<Map<String, Object>> websites = agentService.getWebsites(agentId).stream().map(this::toWebsiteView).toList();
+        return Map.of("websites", websites, "count", websites.size());
+    }
+
+    private Map<String, Object> updateWebsite(Long agentId, Long websiteId, Map<String, Object> args) {
+        requirePhoneForWebsite(agentService.getAgent(agentId));
+        WebsiteRequest request = websiteRequest(args);
+        validateOrThrow(request);
+        return toWebsiteView(agentService.updateWebsite(agentId, websiteId, request));
+    }
+
+    private Map<String, Object> deleteWebsite(Long agentId, Long websiteId) {
+        requirePhoneForWebsite(agentService.getAgent(agentId));
+        agentService.deleteWebsite(agentId, websiteId);
+        return Map.of("deleted", true, "websiteId", String.valueOf(websiteId));
+    }
+
+    private static void requirePhoneForWebsite(Agent agent) {
+        if (agent.getPhoneNumberId() == null || agent.getPhoneNumberId().isBlank()) {
+            throw new BusinessException("Connect a phone number in Basics before adding a website.");
+        }
+    }
+
+    private static WebsiteRequest websiteRequest(Map<String, Object> args) {
+        return new WebsiteRequest(String.valueOf(args.get("url")));
+    }
+
+    private Map<String, Object> toWebsiteView(AgentWebsite website) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", String.valueOf(website.getId()));
+        view.put("url", website.getUrl());
         return view;
     }
 

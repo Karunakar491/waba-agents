@@ -3,9 +3,11 @@ package com.metaagent.platform.domain.agent.iris;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.domain.agent.dto.FaqRequest;
 import com.metaagent.platform.domain.agent.dto.SkillRequest;
+import com.metaagent.platform.domain.agent.dto.WebsiteRequest;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.entity.AgentFaq;
 import com.metaagent.platform.domain.agent.entity.AgentSkill;
+import com.metaagent.platform.domain.agent.entity.AgentWebsite;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.iris.AiToolSpec;
 import com.metaagent.platform.domain.persona.repository.BusinessProfileRepository;
@@ -53,7 +55,9 @@ class AgentCreationToolProviderTest {
         assertThat(tools).extracting(AiToolSpec::name)
                 .contains(
                         "create_skill", "list_skills", "get_skill", "update_skill", "delete_skill",
-                        "create_faq", "list_faqs", "get_faq", "update_faq", "delete_faq");
+                        "create_faq", "list_faqs", "get_faq", "update_faq", "delete_faq",
+                        "add_knowledge_website", "list_knowledge_websites",
+                        "update_knowledge_website", "delete_knowledge_website");
         assertThat(named(tools, "create_skill").requiresConfirmation()).isTrue();
         assertThat(named(tools, "list_skills").requiresConfirmation()).isFalse();
         assertThat(named(tools, "get_skill").requiresConfirmation()).isFalse();
@@ -64,6 +68,10 @@ class AgentCreationToolProviderTest {
         assertThat(named(tools, "get_faq").requiresConfirmation()).isFalse();
         assertThat(named(tools, "update_faq").requiresConfirmation()).isTrue();
         assertThat(named(tools, "delete_faq").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "add_knowledge_website").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "list_knowledge_websites").requiresConfirmation()).isFalse();
+        assertThat(named(tools, "update_knowledge_website").requiresConfirmation()).isTrue();
+        assertThat(named(tools, "delete_knowledge_website").requiresConfirmation()).isTrue();
         assertThat(named(tools, "create_skill").description()).containsIgnoringCase("library");
     }
 
@@ -265,6 +273,48 @@ class AgentCreationToolProviderTest {
         verify(agentService).getFaq(agentId, faqId);
         verify(agentService).updateFaq(eq(agentId), eq(faqId), any());
         verify(agentService).deleteFaq(agentId, faqId);
+    }
+
+    @Test
+    void execute_addWebsite_requiresPhoneThenCallsService() {
+        Long agentId = 42L;
+        when(agentService.getAgent(agentId)).thenReturn(Agent.builder().id(agentId).phoneNumberId("pn").build());
+        AgentWebsite saved = AgentWebsite.builder().id(3L).url("https://example.com").build();
+        when(agentService.addWebsite(eq(agentId), any())).thenReturn(saved);
+
+        Map<String, Object> result = provider.execute("add_knowledge_website", Map.of(
+                "agentId", "42", "url", "https://example.com"), 1L);
+
+        ArgumentCaptor<WebsiteRequest> captor = ArgumentCaptor.forClass(WebsiteRequest.class);
+        verify(agentService).addWebsite(eq(agentId), captor.capture());
+        assertThat(captor.getValue().url()).isEqualTo("https://example.com");
+        assertThat(result.get("id")).isEqualTo("3");
+    }
+
+    @Test
+    void execute_addWebsite_withoutPhone_throws() {
+        when(agentService.getAgent(42L)).thenReturn(Agent.builder().id(42L).phoneNumberId(null).build());
+
+        assertThatThrownBy(() -> provider.execute("add_knowledge_website", Map.of(
+                "agentId", "42", "url", "https://example.com"), 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Connect a phone number in Basics");
+    }
+
+    @Test
+    void execute_listUpdateDeleteWebsites() {
+        Long agentId = 42L;
+        when(agentService.getAgent(agentId)).thenReturn(Agent.builder().id(agentId).phoneNumberId("pn").build());
+        AgentWebsite site = AgentWebsite.builder().id(3L).url("https://example.com").build();
+        when(agentService.getWebsites(agentId)).thenReturn(List.of(site));
+        when(agentService.updateWebsite(eq(agentId), eq(3L), any())).thenReturn(site);
+
+        Map<String, Object> listed = provider.execute("list_knowledge_websites", Map.of("agentId", "42"), 1L);
+        assertThat(provider.summarizeResult("list_knowledge_websites", listed)).isEqualTo("Found 1 websites.");
+        provider.execute("update_knowledge_website", Map.of("agentId", "42", "websiteId", "3", "url", "https://example.com/a"), 1L);
+        provider.execute("delete_knowledge_website", Map.of("agentId", "42", "websiteId", "3"), 1L);
+        verify(agentService).updateWebsite(eq(agentId), eq(3L), any());
+        verify(agentService).deleteWebsite(agentId, 3L);
     }
 
     private static AiToolSpec named(List<AiToolSpec> tools, String name) {

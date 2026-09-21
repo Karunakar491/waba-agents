@@ -131,6 +131,37 @@ public class BusinessProfileDeployService {
         }
     }
 
+    /**
+     * The same adoption getLive() does, but callable from the login sweep.
+     *
+     * Until 2026-09-20 this only ever fired when someone opened the persona
+     * page, so a number whose business_info lives on Meta and nowhere here
+     * showed "no persona yet" until a human happened to look. Every other
+     * domain — skills, FAQs, files, websites — already backfills on login;
+     * persona and connectors were the two that did not. The founder's rule is
+     * Meta → DB → UI, so the UI should never be the thing that triggers the
+     * fetch.
+     *
+     * Takes accountId explicitly and never touches SecurityContextHelper or
+     * PhoneNumberAccessGuard: this runs on a scheduled/async thread that has
+     * no SecurityContext, and the sweep has already established access by
+     * loading the agent. getLive() keeps both checks for the request path.
+     *
+     * Never throws — four other backfills run alongside this one and the
+     * caller has no try/catch of its own.
+     */
+    public void ensureLiveBackfilled(String phoneNumberId, Long accountId) {
+        if (phoneNumberId == null || accountId == null) return;
+        try {
+            // Cheap guard first: the common case is a row already being here,
+            // and that costs one indexed lookup rather than a Meta call.
+            if (repository.findByPhoneNumberIdAndStatus(phoneNumberId, Status.DEPLOYED).isPresent()) return;
+            ensureBackfilled(phoneNumberId, accountId);
+        } catch (Exception e) {
+            log.warn("Business persona backfill failed: phoneNumberId={} error={}", phoneNumberId, e.getMessage());
+        }
+    }
+
     public List<BusinessProfile> getHistory(String phoneNumberId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         phoneNumberAccessGuard.requireAccess(accountId, phoneNumberId);

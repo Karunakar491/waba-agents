@@ -10,9 +10,12 @@ import com.metaagent.platform.domain.agent.repository.AgentFileRepository;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.agent.repository.AgentSkillRepository;
 import com.metaagent.platform.domain.agent.repository.AgentWebsiteRepository;
+import com.metaagent.platform.domain.connector.service.ConnectorBackfillService;
+import com.metaagent.platform.domain.persona.service.BusinessProfileDeployService;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -41,19 +44,58 @@ public class MetaMirrorReconciler {
     private final AgentFileRepository agentFileRepository;
     private final AgentWebsiteRepository agentWebsiteRepository;
     private final MetaApiClient metaApiClient;
+    /**
+     * The fifth backfill lives in the connector domain rather than here: it
+     * writes WABA-scoped library rows reached through connector_deployment,
+     * not the agent-scoped rows this class owns, and keeping it out avoids
+     * dragging three connector repositories into an agent-domain service.
+     * This class stays the single entry point the scheduler calls.
+     */
+    private final ConnectorBackfillService connectorBackfillService;
+    /**
+     * Persona was the other domain that only synced when a human opened its
+     * page. Neither this nor the connector service depends on anything in this
+     * package, so neither closes a bean cycle back through AgentService —
+     * persona reaches only PhoneNumberAccessGuard, WabaAccessGuard and
+     * repositories.
+     */
+    private final BusinessProfileDeployService businessProfileDeployService;
+
+    /**
+     * Kill switch for the persona half. Field injection, outside the Lombok
+     * constructor, matching ConnectorLibraryService's flags.
+     *
+     * The write it guards is old and unchanged — ensureBackfilled has been in
+     * production since August. What is new is the TRIGGER: it used to need a
+     * human to open the persona page, and now it INSERTs a DEPLOYED
+     * business_profile row for every agent on every login and every hourly
+     * sweep, unattended. A flag on an old write with a new trigger is still a
+     * flag on new behaviour.
+     */
+    @Value("${persona.login-backfill.enabled:true}")
+    private boolean personaBackfillEnabled = true;
 
     private static final long META_RECONCILE_TTL_MINUTES = 10;
 
     /**
      * Scheduler entry point — bundles every per-domain backfill+reconcile pair
-     * (Skills/FAQs/Files/Websites) for one agent, called from a background
+     * (Skills/FAQs/Files/Websites/Connectors/Persona) for one agent, called
+     * from a background
      * job with no request/SecurityContext, hence the explicit accountId param
      * instead of AgentService's getSkills()/getFaqs()/etc. public methods
      * (which require SecurityContextHelper.getRequiredAccountId() through
      * getAgent()'s access check — never call that from an async/scheduled
-     * thread, no context to read). Each of the 4 calls is already
-     * independently try/catch/log.warn safe, so one domain failing never
-     * blocks the other 3 for this agent.
+     * thread, no context to read). Every call is independently
+     * try/catch/log.warn safe, so one domain failing never blocks the rest for
+     * this agent.
+     *
+     * Connectors and Persona joined this list on 2026-09-20 — the last two
+     * domains a human had to open a page to sync. Persona at least did it
+     * lazily; connectors had never synced from Meta at all, by any path, which
+     * is how this account's library and Meta drifted far enough apart that two
+     * connectors here pointed at Meta ids Meta had already deleted. Everything
+     * this app shows should come from Meta, through the database, to the
+     * screen — never fetched because someone happened to look.
      */
     public void syncAgentDetails(Agent agent, Long accountId) {
         ensureSkillsBackfilled(agent, accountId);
@@ -63,6 +105,18 @@ public class MetaMirrorReconciler {
         reconcileFiles(agent);
         ensureWebsitesBackfilled(agent, accountId);
         reconcileWebsites(agent);
+        // Last, and it takes no accountId: a connector's actions inherit the
+        // account from the library connector that owns them, not from whichever
+        // account's sweep happened to reach this agent first. Like the four
+        // above it never throws, so its position cannot affect them.
+        connectorBackfillService.ensureConnectorsBackfilled(agent);
+        // agent.getAccountId(), not the sweep's accountId: on a shared WABA the
+        // sweep reaches this agent under whichever account's loop got there
+        // first, and an adopted persona row would be attributed differently
+        // from one run to the next.
+        if (personaBackfillEnabled) {
+            businessProfileDeployService.ensureLiveBackfilled(agent.getPhoneNumberId(), agent.getAccountId());
+        }
     }
 
     /**

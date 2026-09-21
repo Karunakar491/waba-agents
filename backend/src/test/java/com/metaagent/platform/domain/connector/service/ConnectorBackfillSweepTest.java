@@ -63,6 +63,8 @@ class ConnectorBackfillSweepTest {
         final List<String> paths = new ArrayList<>();
         private final List<?> connectors;
         private final List<?> tools;
+        /** When set, the list call throws this instead of answering. */
+        RuntimeException listFailure;
 
         StubMeta(List<?> connectors, List<?> tools) {
             super(RestClient.builder(), "http://meta.test", "token", "v1", "http://graph.test", "v1", null);
@@ -74,6 +76,7 @@ class ConnectorBackfillSweepTest {
         @SuppressWarnings("unchecked")
         public <T> T get(String path, Class<T> responseType) {
             paths.add(path);
+            if (listFailure != null && !path.contains("/tools")) throw listFailure;
             return (T) (path.contains("/tools") ? tools : connectors);
         }
     }
@@ -180,6 +183,63 @@ class ConnectorBackfillSweepTest {
 
         assertNotNull(untouched.getDeployedAt());
         assertTrue(rig.savedDeployments().isEmpty());
+    }
+
+    @Test
+    void should_leave_everything_alone_when_the_meta_call_fails() {
+        // The javadoc promises an outage cannot read as a mass deletion. A null
+        // body is not the same thing as Meta throwing, and only one of the two
+        // was covered.
+        ConnectorDeployment untouched = deployedAgainst(LIVE_ID);
+        Rig rig = rig(List.of(Map.of("id", DELETED_ID)), List.of(), untouched, true);
+        rig.meta().listFailure = new com.metaagent.platform.infrastructure.meta.MetaApiException(503);
+
+        rig.service().ensureConnectorsBackfilled(agent());
+
+        assertNotNull(untouched.getDeployedAt(), "a 503 says nothing about whether the connector exists");
+        assertNotNull(untouched.getMetaConnectorId());
+        assertTrue(rig.savedDeployments().isEmpty());
+    }
+
+    @Test
+    void should_clear_the_meta_id_so_a_gone_connector_can_be_published_again() {
+        // deploy() sends an UPDATE whenever metaConnectorId is set. Keeping an
+        // id Meta has just denied would make republishing 404 forever, closing
+        // the last exit the connector had.
+        ConnectorDeployment gone = deployedAgainst(DELETED_ID);
+        Rig rig = rig(List.of(Map.of("id", LIVE_ID)), List.of(), gone, true);
+
+        rig.service().ensureConnectorsBackfilled(agent());
+
+        assertNull(gone.getMetaConnectorId(), "an id naming something Meta does not have records nothing");
+    }
+
+    @Test
+    void should_refuse_to_mark_every_connector_gone_at_once() {
+        // Absence from one list response is the only trigger for clearing a
+        // row, so a response short for a reason we did not anticipate would
+        // wipe the agent in a single sweep. "Meta listed none of the three we
+        // know about" is likelier a bad response than three simultaneous
+        // deletions.
+        ConnectorDeployment first = deployedAgainst("pfbid0one");
+        ConnectorDeployment second = deployedAgainst("pfbid0two");
+        List<Object> savedActions = new ArrayList<>();
+        List<Object> savedDeployments = new ArrayList<>();
+        StubMeta meta = new StubMeta(List.of(), List.of());
+        ConnectorBackfillService service = new ConnectorBackfillService(
+                stubRepo(ConnectorRepository.class, Map.of("findById", Optional.of(connector())), new ArrayList<>()),
+                stubRepo(ConnectorActionRepository.class,
+                        Map.of("findAllByConnectorIdOrderByNameAsc", List.of()), savedActions),
+                stubRepo(ConnectorDeploymentRepository.class,
+                        Map.of("findAllByAgentIdIn", List.of(first, second)), savedDeployments),
+                meta, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "enabled", true);
+
+        service.ensureConnectorsBackfilled(agent());
+
+        assertNotNull(first.getDeployedAt());
+        assertNotNull(second.getDeployedAt());
+        assertTrue(savedDeployments.isEmpty(), "refuse the wholesale case and let a human look");
     }
 
     @Test

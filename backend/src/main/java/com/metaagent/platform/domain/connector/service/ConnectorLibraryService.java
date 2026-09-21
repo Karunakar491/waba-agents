@@ -146,20 +146,35 @@ public class ConnectorLibraryService {
                 .getOrDefault(connector.getId(), List.of()));
     }
 
+    /**
+     * Transactional because it now writes two tables. deploy() deliberately is
+     * not — its reasoning is that a Meta call cannot be rolled back — and none
+     * of that applies here: this touches only our own rows, and a failure
+     * between the two deletes would orphan deployment rows against a connector
+     * that no longer exists.
+     */
+    @Transactional
     public void delete(Long connectorId) {
         Connector connector = loadOwned(connectorId);
-        // "Deployed" means a deployment that actually reached Meta, which is
-        // the same test usedByAgentCount uses one screen away. It used to be
-        // "any deployment row exists at all", and the two disagreed the moment
-        // the backfill started clearing deployedAt on connectors Meta no longer
-        // lists: the library would say "used by 0 agents" while this still
-        // refused the delete, leaving the operator with a connector that is on
-        // nothing and cannot be removed.
-        boolean liveSomewhere = deploymentRepository.findAllByConnectorId(connectorId).stream()
-                .anyMatch(d -> d.getDeployedAt() != null);
-        if (liveSomewhere) {
+        // "Deployed" means a deployment that actually reached Meta — the same
+        // test usedByAgentCount uses one screen away. It used to be "any
+        // deployment row exists at all", and the two disagreed the moment the
+        // backfill started clearing deployedAt on connectors Meta no longer
+        // lists: the library said "used by 0 agents" while this refused the
+        // delete.
+        List<ConnectorDeployment> deployments = deploymentRepository.findAllByConnectorId(connectorId);
+        if (deployments.stream().anyMatch(d -> d.getDeployedAt() != null)) {
             throw new BusinessException(
                     "This connector is deployed to at least one agent. Remove it from those agents first.");
+        }
+        // The rows that never reached Meta have to go first. fk_connector_deployment
+        // _connector (V46:66) has no ON DELETE clause, so MySQL defaults to
+        // RESTRICT — the old guard was silently doing double duty, reading as a
+        // product rule while also guaranteeing zero children. Relaxing it
+        // without this would turn Delete into a 1451 constraint error on
+        // exactly the connectors the backfill has just marked as gone.
+        if (!deployments.isEmpty()) {
+            deploymentRepository.deleteAll(deployments);
         }
         connectorRepository.delete(connector);
     }

@@ -146,6 +146,26 @@ public class ConnectorBackfillService {
      */
     private void markAnythingMetaNoLongerLists(
             Agent agent, Map<String, ConnectorDeployment> byMetaId, java.util.Set<String> liveOnMeta) {
+        // Floor guard. Absence from one list response is the sole trigger for
+        // clearing a row, so a response that is short for a reason we did not
+        // anticipate — silent truncation, an edge that starts paginating —
+        // would wipe every deployment for the agent in one sweep.
+        //
+        // Meta's docs give no paging params for this edge (the only `limit` in
+        // connectors.md belongs to /logs) and AgentDeployService:335 records it
+        // returning a bare array, confirmed against api_call_log on 2026-07-28.
+        // Neither rules out truncation, and "Meta lists none of the connectors
+        // we believe we have" is likelier a bad response than every one being
+        // deleted between two sweeps. Refuse the wholesale case and say so; a
+        // genuinely emptied agent then needs a human, which is the right way
+        // round for a write nobody asked for.
+        boolean noneStillListed = byMetaId.keySet().stream().noneMatch(liveOnMeta::contains);
+        if (noneStillListed && byMetaId.size() > 1) {
+            log.warn("Meta listed none of this agent's {} known connectors — refusing to mark them all gone: agentId={}",
+                    byMetaId.size(), agent.getId());
+            return;
+        }
+
         for (Map.Entry<String, ConnectorDeployment> entry : byMetaId.entrySet()) {
             if (liveOnMeta.contains(entry.getKey())) continue;
             ConnectorDeployment deployment = entry.getValue();
@@ -153,6 +173,14 @@ public class ConnectorBackfillService {
 
             try {
                 deployment.setDeployedAt(null);
+                // The id goes too. deploy() branches on metaConnectorId: a
+                // non-null one sends an UPDATE to that object, and Meta has
+                // just told us it does not have it — so keeping it "for
+                // forensics" would make republishing fail with a 404 forever,
+                // closing the last exit this connector had. lastError records
+                // what happened; an id naming something that does not exist
+                // records nothing.
+                deployment.setMetaConnectorId(null);
                 deployment.setLastError("Meta no longer lists this connector. It was deleted or rebuilt there.");
                 deployment.setToolSyncError(null);
                 deploymentRepository.save(deployment);

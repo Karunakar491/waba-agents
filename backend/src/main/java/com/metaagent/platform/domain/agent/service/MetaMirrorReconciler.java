@@ -15,6 +15,7 @@ import com.metaagent.platform.domain.persona.service.BusinessProfileDeployServic
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -60,6 +61,20 @@ public class MetaMirrorReconciler {
      */
     private final BusinessProfileDeployService businessProfileDeployService;
 
+    /**
+     * Kill switch for the persona half. Field injection, outside the Lombok
+     * constructor, matching ConnectorLibraryService's flags.
+     *
+     * The write it guards is old and unchanged — ensureBackfilled has been in
+     * production since August. What is new is the TRIGGER: it used to need a
+     * human to open the persona page, and now it INSERTs a DEPLOYED
+     * business_profile row for every agent on every login and every hourly
+     * sweep, unattended. A flag on an old write with a new trigger is still a
+     * flag on new behaviour.
+     */
+    @Value("${persona.login-backfill.enabled:true}")
+    private boolean personaBackfillEnabled = true;
+
     private static final long META_RECONCILE_TTL_MINUTES = 10;
 
     /**
@@ -99,7 +114,9 @@ public class MetaMirrorReconciler {
         // sweep reaches this agent under whichever account's loop got there
         // first, and an adopted persona row would be attributed differently
         // from one run to the next.
-        businessProfileDeployService.ensureLiveBackfilled(agent.getPhoneNumberId(), agent.getAccountId());
+        if (personaBackfillEnabled) {
+            businessProfileDeployService.ensureLiveBackfilled(agent.getPhoneNumberId(), agent.getAccountId());
+        }
     }
 
     /**

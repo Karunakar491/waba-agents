@@ -8,6 +8,7 @@ import com.metaagent.platform.domain.conversation.dto.ConversationListItem;
 import com.metaagent.platform.domain.conversation.entity.Conversation;
 import com.metaagent.platform.domain.conversation.entity.Message;
 import com.metaagent.platform.domain.conversation.service.ConversationService;
+import com.metaagent.platform.domain.conversation.service.HumanReplyService;
 import com.metaagent.platform.domain.waba.entity.PhoneNumberSnapshot;
 import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class ConversationController {
 
     private final ConversationService conversationService;
+    private final HumanReplyService humanReplyService;
     private final AgentRepository agentRepository;
     private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
 
@@ -90,4 +92,28 @@ public class ConversationController {
         List<Message> messages = conversationService.getConversationMessages(conversationId, page, size);
         return ApiResponse.ok(messages);
     }
+
+    /**
+     * A person answers the customer.
+     *
+     * This also takes thread control from Meta's agent — per
+     * docs/meta-api/thread-control.md, sending is what takes control, so there
+     * is no separate call and no way to reply without taking over.
+     */
+    @PostMapping("/conversations/{conversationId}/reply")
+    public ApiResponse<Message> reply(
+            @PathVariable Long conversationId,
+            @RequestBody ReplyRequest request
+    ) {
+        return ApiResponse.ok(humanReplyService.reply(conversationId, request.text()));
+    }
+
+    /** Hand the conversation back. The agent resumes on the next new message. */
+    @PostMapping("/conversations/{conversationId}/release")
+    public ApiResponse<Void> release(@PathVariable Long conversationId) {
+        humanReplyService.release(conversationId);
+        return ApiResponse.ok(null);
+    }
+
+    public record ReplyRequest(String text) {}
 }

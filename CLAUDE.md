@@ -42,18 +42,38 @@ new capability, additive-only migrations, one-command rollback, canary before fu
 traffic. Data is fixed forward with a repair script, never restored. **If the kill
 switch cannot be guaranteed, the deploy does not happen.**
 
+## The user is the subject
+
+The product is the topic of every conversation. Tech is evidence, never the
+subject. When the founder raises something technical, work out which user it
+hurts and why he raised it — then talk about that.
+
+Probing questions are asked in user-experience terms, never in tech terms.
+"Which journey does this touch, and who is mid-flow when it changes?" — not
+"should this be a new column or a join table?" If a question cannot be phrased
+so the founder answers it as the product's owner, it is mine to decide.
+
 ## The loop
 
-Every task, four beats.
+Every task, five beats.
 
-1. **ORIENT** — read `STATE.md`; run `node scripts/orient.js`. Answer before
-   touching anything: is this the most valuable thing open, what does it touch,
-   what could it break? If something in Broken outranks this task, say so first.
+1. **ORIENT** — read `STATE.md`; run `node scripts/orient.js`. Then answer, in
+   user terms: which journey does this touch, who else walks through it, what
+   else in it breaks, and is this the most valuable thing open? If something in
+   Broken outranks this task, say so before starting. Ask the probing questions
+   here, before any code, not after.
 2. **ACT** — write `docs/jobs/<slug>.md` (who opens this, what they are deciding,
    what they will see), point `.jobs/current` at it, then build.
-3. **VERIFY** — evidence, not claims. Paste real command output. "It works"
-   without output is not a verification. Never claim done without proof.
-4. **WRITE BACK** — update `STATE.md`. What moved to Live, what is newly Broken,
+3. **VERIFY** — **there is no local environment.** Unit tests and a clean
+   type-check prove nothing about what a person sees. The only evidence that
+   counts is the real app driven end to end: `npm run e2e`, against
+   `+91 90100 11634` for anything that writes. Paste real output. Never claim
+   done without it.
+4. **REPORT** — hand the founder something he can judge without reading code:
+   what changed on screen, the click path to check it himself, what was tested,
+   what was not, and an explicit "are you OK with this?". Template and rules in
+   `docs/REPORTING.md`.
+5. **WRITE BACK** — update `STATE.md`. What moved to Live, what is newly Broken,
    what is in flight.
 
 `scripts/commit-gate.js` blocks a commit with no job, no proof, a diff over 400

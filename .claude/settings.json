@@ -70,6 +70,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/git-guard.js\"",
+            "timeout": 15,
+            "statusMessage": "Checking nothing uncommitted is about to be destroyed..."
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/commit-gate.js\"",
             "timeout": 30,
             "statusMessage": "Checking commit gate (job + proof + diff)..."

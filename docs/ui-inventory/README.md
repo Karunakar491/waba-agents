@@ -7,10 +7,16 @@ selects by (this repo has no `data-testid` and must keep it that way). A control
 with no accessible name is listed as a defect: it cannot be tested by name, and a
 screen reader cannot announce it.
 
+**Read coverage as an upper bound.** Names are matched as strings and as the
+regexes Playwright specs actually use, so two different buttons that read
+"Continue" on two different screens both count as driven by any spec clicking
+either. It answers "has anything ever pressed a control by this name?", not
+"is this journey tested?". Only the uncovered column is exact.
+
 To find a control, grep this directory for its on-screen label.
 
 - **27** routes
-- **230** named controls, **5** driven by a test (**2%**)
+- **230** named controls, **71** driven by a test (**31%**)
 - **82** controls with no accessible name
 
 ## Routes
@@ -49,15 +55,15 @@ To find a control, grep this directory for its on-screen label.
 
 | Area | Controls | Covered | Unnamed |
 |---|---|---|---|
-| [components-agent-detail](components-agent-detail.md) | 36 | 0 | 5 |
-| [components-connectors](components-connectors.md) | 22 | 2 | 13 |
-| [components-create-agent](components-create-agent.md) | 16 | 0 | 10 |
-| [components-debug](components-debug.md) | 6 | 0 | 1 |
+| [components-agent-detail](components-agent-detail.md) | 36 | 12 | 5 |
+| [components-connectors](components-connectors.md) | 22 | 14 | 13 |
+| [components-create-agent](components-create-agent.md) | 16 | 4 | 10 |
+| [components-debug](components-debug.md) | 6 | 1 | 1 |
 | [components-files](components-files.md) | 2 | 0 | 1 |
 | [components-layout](components-layout.md) | 7 | 0 | 6 |
 | [components-router](components-router.md) | 3 | 0 | 0 |
-| [components-shared](components-shared.md) | 6 | 0 | 6 |
-| [components-skills](components-skills.md) | 1 | 0 | 0 |
-| [components-templatestudio](components-templatestudio.md) | 49 | 1 | 9 |
-| [components-waba](components-waba.md) | 4 | 0 | 3 |
-| [pages](pages.md) | 78 | 2 | 28 |
+| [components-shared](components-shared.md) | 6 | 2 | 6 |
+| [components-skills](components-skills.md) | 1 | 1 | 0 |
+| [components-templatestudio](components-templatestudio.md) | 49 | 10 | 9 |
+| [components-waba](components-waba.md) | 4 | 2 | 3 |
+| [pages](pages.md) | 78 | 25 | 28 |

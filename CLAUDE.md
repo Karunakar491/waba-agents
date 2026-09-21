@@ -37,10 +37,10 @@ It never authorizes risk to production data.
 
 ## The kill switch
 
-Every deploy reversible in under 5 minutes without touching data. Feature flags on
-new capability, additive-only migrations, one-command rollback, canary before full
-traffic. Data is fixed forward with a repair script, never restored. **If the kill
-switch cannot be guaranteed, the deploy does not happen.**
+Every deploy reversible in under 5 minutes without touching data: feature flags on
+new capability, additive-only migrations, one-command rollback, canary first. Data
+is fixed forward with a repair script, never restored. **If it cannot be
+guaranteed, the deploy does not happen.**
 
 ## The user is the subject
 
@@ -67,11 +67,11 @@ Every task, five beats.
    here, before any code, not after.
 2. **ACT** — write `docs/jobs/<slug>.md` (who opens this, what they are deciding,
    what they will see), point `.jobs/current` at it, then build.
-3. **VERIFY** — **there is no local environment.** Unit tests and a clean
-   type-check prove nothing about what a person sees. The only evidence that
-   counts is the real app driven end to end: `npm run e2e`, against
-   `+91 90100 11634` for anything that writes. Paste real output. Never claim
-   done without it.
+3. **VERIFY** — **there is no local environment, and Meta is never mocked.**
+   Unit tests, a clean type-check and a mocked `MetaApiClient` prove only that
+   our code calls our mock. Evidence means the real app driven end to end
+   (`npm run e2e`, writing only to `+91 90100 11634`) and real Meta calls
+   (`node scripts/meta-check.js`). Paste the output. Never claim done without it.
 4. **REPORT** — hand the founder something he can judge without reading code:
    what changed on screen, the click path to check it himself, what was tested,
    what was not, and an explicit "are you OK with this?". Template and rules in
@@ -85,12 +85,12 @@ lines, or a banned pattern. It is not advisory.
 ## The standard
 
 The best code is the code you fully understand. If you cannot explain every line,
-it does not ship. Simple over clever. Flat over nested. If a function needs a
-comment to say what it does, rename it or rewrite it. No abstraction until three
+it does not ship. Simple over clever, flat over nested. A function needing a
+comment to say what it does gets renamed or rewritten. No abstraction until three
 concrete cases need it. Read the actual code before writing anything near it.
 
-Review the whole product, not the diff. A screen that passes in isolation while
-the app feels generic has not passed.
+Review the whole product, not the diff: a screen that passes alone while the app
+feels generic has not passed.
 
 ## Never
 
@@ -100,14 +100,14 @@ the app feels generic has not passed.
 - Add a tool not in `TECH-STACK.md`
 - Ship a diff over 400 lines — split it
 - Add `data-testid` — e2e selects by role, and this repo has none
-- Call a feature done on unit tests alone. There is no local environment.
+- Call a feature done on unit tests alone, or validate Meta behaviour with a
+  mock — that is how agent creation stayed broken for a week
 
 ## Where things are
 
 | | |
 |---|---|
 | `STATE.md` | What is live, broken, in flight. Read first, write last. |
-| `TASKS.md` | Long-form backlog behind the Broken entries |
 | `docs/knowledge-index/` | One line per file. Grep, never read whole. |
 | `docs/ui-inventory/` | Every control, and which e2e drives it. Generated. |
 | `docs/REPORTING.md` | What the founder gets at the end of a task |

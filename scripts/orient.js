@@ -200,6 +200,60 @@ function topBroken(state, limit = 3) {
   }
 }
 
+// --------------------------------------------------------- context budget
+
+// Files that are loaded every session, or that a rule tells us to load before
+// touching anything. Their cost is paid on every task whether or not it is
+// used, so it is the cost worth watching.
+const ALWAYS_ON = [
+  { file: 'CLAUDE.md', cap: 1200, why: 'loaded every turn' },
+  { file: 'STATE.md', cap: 2000, why: 'injected at SessionStart' },
+]
+
+/** ~4 bytes per token. Crude, but stable enough to catch drift. */
+function tokens(bytes) {
+  return Math.round(bytes / 4)
+}
+
+function contextBudget() {
+  console.log('\nCONTEXT')
+
+  let total = 0
+  let over = false
+
+  for (const { file, cap, why } of ALWAYS_ON) {
+    const full = path.join(REPO, file)
+    if (!fs.existsSync(full)) {
+      console.log(`  ? ${file} — missing (${why})`)
+      continue
+    }
+    const t = tokens(fs.statSync(full).size)
+    total += t
+    const breach = t > cap
+    if (breach) over = true
+    console.log(
+      `  ${breach ? '!!' : 'OK'} ${file} — ~${t} tok (cap ${cap}, ${why})`
+    )
+  }
+
+  console.log(`  · always-on total ~${total} tok`)
+
+  // The rule that was meant to save context was its largest consumer: a
+  // 56k-token JSON index read whole to avoid reading a 300-line file. The .md
+  // is the same knowledge on one line per file, so a lookup costs a few lines.
+  const legacy = path.join(REPO, 'docs', 'knowledge-index.json')
+  if (fs.existsSync(legacy)) {
+    console.log(
+      `  !! docs/knowledge-index.json still present — ~${tokens(
+        fs.statSync(legacy).size
+      )} tok if read whole. Grep docs/knowledge-index.md instead.`
+    )
+    over = true
+  }
+
+  if (over) console.log('  → something is over budget. Trim it or move it off the always-on path.')
+}
+
 // ------------------------------------------------------------------- main
 
 function main() {
@@ -213,6 +267,7 @@ function main() {
   unmerged()
   openJob()
   topBroken(state)
+  contextBudget()
 
   console.log('\nBefore acting: is this the most valuable thing open, what does')
   console.log('it touch, and what could it break?')

@@ -7,6 +7,12 @@ selects by (this repo has no `data-testid` and must keep it that way). A control
 with no accessible name is listed as a defect: it cannot be tested by name, and a
 screen reader cannot announce it.
 
+**Read coverage as an upper bound.** Names are matched as strings and as the
+regexes Playwright specs actually use, so two different buttons that read
+"Continue" on two different screens both count as driven by any spec clicking
+either. It answers "has anything ever pressed a control by this name?", not
+"is this journey tested?". Only the uncovered column is exact.
+
 To find a control, grep this directory for its on-screen label.
 
 ## frontend/src/pages/AgentDetailPage.tsx
@@ -14,15 +20,15 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Back to Agents | **—** |
-| button | Retry resolving this agent | **—** |
+| button | Retry resolving this agent | astrotalk-faq-sync.spec.ts |
 | button | Thread Control | **—** |
-| button | Pause | **—** |
-| button | Test Agent | **—** |
-| button | Cancel | **—** |
-| button | Continue | **—** |
+| button | Pause | astrotalk-move.spec.ts, astrotalk-verify.spec.ts |
+| button | Test Agent | astrotalk-test-agent.spec.ts |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
+| button | Continue | session-refresh.spec.ts, astrotalk-85916-golive.spec.ts, astrotalk-85916.spec.ts, create-agent.spec.ts, edit-flows.spec.ts, handoff-shot.spec.ts, indiamart-body.spec.ts, journey-editable.spec.ts, shots.spec.ts, walk.spec.ts, walk2.spec.ts, walk3.spec.ts, xml-api-in-ui.spec.ts |
 | button | Release to agent | **—** |
-| button | Add FAQ | **—** |
-| button | Add | **—** |
+| button | Add FAQ | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
+| button | Add | astrotalk-85916-golive.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, xml-api-in-ui.spec.ts |
 | button | Unpublish | apply-indiamart-skills.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-verify.spec.ts |
 | button | Delete FAQ: <…> | **—** |
 | button | Websites | **—** |
@@ -30,23 +36,23 @@ To find a control, grep this directory for its on-screen label.
 | button | Delete file: <…> | **—** |
 | button | Add Tool | xml-api-in-ui.spec.ts |
 | button | Run tool <…> | **—** |
-| button | Edit tool <…> | **—** |
+| button | Edit tool <…> | deployed-features.spec.ts |
 | button | Delete tool <…> | **—** |
-| button | Delete tool | **—** |
-| button | Add Connector | **—** |
-| button | Edit connector <…> | **—** |
+| button | Delete tool | xml-api-in-ui.spec.ts |
+| button | Add Connector | xml-api-in-ui.spec.ts |
+| button | Edit connector <…> | deployed-features.spec.ts |
 | button | Delete connector <…> | **—** |
-| button | Delete connector | **—** |
+| button | Delete connector | action-feedback.spec.ts, connector-delete.spec.ts, xml-api-in-ui.spec.ts |
 | button | Publish handoff to Meta | **—** |
-| button | Save changes | apply-indiamart-skills.spec.ts |
+| button | Save changes | apply-indiamart-skills.spec.ts, astrotalk-85916-golive.spec.ts, astrotalk-update-skills.spec.ts, edit-flows.spec.ts |
 | button | Connect phone number | **—** |
 | button | Trigger event | **—** |
 | button | Delete agent | **—** |
-| button | Remove from Meta | **—** |
-| button | Publish | **—** |
+| button | Remove from Meta | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, astrotalk-move.spec.ts |
+| button | Publish | connector-delete.spec.ts, multi-header-auth.spec.ts, astrotalk-fix-recommend.spec.ts, astrotalk-payments.spec.ts, astrotalk-publish-connectors.spec.ts, astrotalk-publish-dialog-check.spec.ts |
 | button | Discard draft | **—** |
-| button | Remove | **—** |
-| button | Close test panel | **—** |
+| button | Remove | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
+| button | Close test panel | edit-flows.spec.ts |
 | button | Send message | **—** |
 
 > **8 control(s) here have no accessible name** (icon-only: Loader2, Icon, ChevronDown). Untestable by name, and a screen reader cannot announce them.
@@ -58,8 +64,8 @@ To find a control, grep this directory for its on-screen label.
 | button | Create Agent | **—** |
 | button | Filters | **—** |
 | button | Add a label | **—** |
-| button | Continue setup | **—** |
-| button | Delete agent <…> | **—** |
+| button | Continue setup | session-refresh.spec.ts, astrotalk-85916.spec.ts, create-agent.spec.ts, edit-flows.spec.ts, handoff-shot.spec.ts, indiamart-body.spec.ts, journey-editable.spec.ts, shots.spec.ts, walk.spec.ts, walk2.spec.ts, walk3.spec.ts, xml-api-in-ui.spec.ts |
+| button | Delete agent <…> | inbox-and-delete.spec.ts |
 | button | Create your first agent | **—** |
 
 > **2 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
@@ -68,24 +74,13 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Save current persona | **—** |
-| button | Publish | **—** |
+| button | Save current persona | astrotalk-update-skills.spec.ts, edit-flows.spec.ts |
+| button | Publish | connector-delete.spec.ts, multi-header-auth.spec.ts, astrotalk-fix-recommend.spec.ts, astrotalk-payments.spec.ts, astrotalk-publish-connectors.spec.ts, astrotalk-publish-dialog-check.spec.ts |
 | button | Delete persona draft <…> | **—** |
-| button | Cancel | **—** |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
 | button | Deploy now | **—** |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
-
-## frontend/src/pages/ConnectorEditPage.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| link | Back to Connectors | **—** |
-| button | Edit | **—** |
-| button | Add an action | **—** |
-| button | Edit action <…> | **—** |
-| button | Delete action <…> | **—** |
-| button | Done | **—** |
 
 ## frontend/src/pages/ConnectorWorkbenchPage.tsx
 
@@ -111,7 +106,7 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Add | **—** |
+| button | Add | astrotalk-85916-golive.spec.ts, astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts, xml-api-in-ui.spec.ts |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
@@ -126,8 +121,8 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Conversations | **—** |
-| button | Webhooks | **—** |
-| button | Conversation with <…> | **—** |
+| button | Webhooks | handoff-shot.spec.ts |
+| button | Conversation with <…> | inbox-and-delete.spec.ts |
 | button | View originating webhook | **—** |
 | button | Go to Agents | **—** |
 
@@ -155,20 +150,12 @@ To find a control, grep this directory for its on-screen label.
 
 > **2 control(s) here have no accessible name** (icon-only: Icon). Untestable by name, and a screen reader cannot announce them.
 
-## frontend/src/pages/SettingsPage.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| a | Manage billing | **—** |
-| button | Delete account | **—** |
-| a | support@karix.com | **—** |
-
 ## frontend/src/pages/SkillEditPage.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
 | link | Back to Skills Library | **—** |
-| button | Cancel | **—** |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
 
 > **1 control(s) here have no accessible name** (icon-only: Loader2). Untestable by name, and a screen reader cannot announce them.
 
@@ -230,12 +217,12 @@ To find a control, grep this directory for its on-screen label.
 |---|---|---|
 | button | Add WABA | **—** |
 | button | Previous | **—** |
-| button | Next | **—** |
-| button | Disconnect | **—** |
+| button | Next | astrotalk-85916.spec.ts, create-agent.spec.ts, walk2.spec.ts |
+| button | Disconnect | action-feedback.spec.ts |
 | button | View | **—** |
-| button | Cancel | **—** |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
 | button | Validate | **—** |
 | button | Back | **—** |
-| button | Confirm &amp; Register | **—** |
+| button | Confirm &amp; Register | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
 | button | Add your first WABA | **—** |
 

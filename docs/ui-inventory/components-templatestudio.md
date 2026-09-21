@@ -7,6 +7,12 @@ selects by (this repo has no `data-testid` and must keep it that way). A control
 with no accessible name is listed as a defect: it cannot be tested by name, and a
 screen reader cannot announce it.
 
+**Read coverage as an upper bound.** Names are matched as strings and as the
+regexes Playwright specs actually use, so two different buttons that read
+"Continue" on two different screens both count as driven by any spec clicking
+either. It answers "has anything ever pressed a control by this name?", not
+"is this journey tested?". Only the uncovered column is exact.
+
 To find a control, grep this directory for its on-screen label.
 
 ## frontend/src/components/templatestudio/AiProviderPanel.tsx
@@ -14,7 +20,7 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Replace | **—** |
-| button | Save key | **—** |
+| button | Save key | astrotalk-update-skills.spec.ts, edit-flows.spec.ts |
 
 ## frontend/src/components/templatestudio/BulkImportPanel.tsx
 
@@ -22,18 +28,12 @@ To find a control, grep this directory for its on-screen label.
 |---|---|---|
 | button | Choose file | **—** |
 
-## frontend/src/components/templatestudio/CrossWabaHealthStrip.tsx
-
-| Control | Name | Covered by |
-|---|---|---|
-| button | Focus → | **—** |
-
 ## frontend/src/components/templatestudio/DebugFiltersPanel.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Clear all | **—** |
-| button | Done | **—** |
+| button | Clear all | astrotalk-test-agent.spec.ts |
+| button | Done | xml-api-in-ui.spec.ts |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
@@ -43,7 +43,7 @@ To find a control, grep this directory for its on-screen label.
 |---|---|---|
 | button | · | **—** |
 | button | Scroll to latest message | **—** |
-| button | Retry | **—** |
+| button | Retry | astrotalk-faq-sync.spec.ts |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
@@ -51,18 +51,18 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Remove attachment | **—** |
+| button | Remove attachment | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
 | button | Attach an image | **—** |
 | button | Attach a template sample sheet | **—** |
 | button | Stop | **—** |
-| button | Send | **—** |
+| button | Send | astrotalk-send.spec.ts, astrotalk-test-agent.spec.ts |
 | link | Settings | astrotalk-85916-golive.spec.ts, astrotalk-move.spec.ts, edit-flows.spec.ts |
 
 ## frontend/src/components/templatestudio/IrisConfirmPanel.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Cancel | **—** |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
 
 > **1 control(s) here have no accessible name** (icon-only: Check). Untestable by name, and a screen reader cannot announce them.
 
@@ -70,18 +70,18 @@ To find a control, grep this directory for its on-screen label.
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Retry | **—** |
-| button | Save changes | apply-indiamart-skills.spec.ts |
+| button | Retry | astrotalk-faq-sync.spec.ts |
+| button | Save changes | apply-indiamart-skills.spec.ts, astrotalk-85916-golive.spec.ts, astrotalk-update-skills.spec.ts, edit-flows.spec.ts |
 | button | Back | **—** |
-| button | Next Step | **—** |
+| button | Next Step | astrotalk-85916.spec.ts, create-agent.spec.ts, walk2.spec.ts |
 | button | Submit for approval | **—** |
 
 ## frontend/src/components/templatestudio/TemplateFiltersPanel.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Clear all | **—** |
-| button | Done | **—** |
+| button | Clear all | astrotalk-test-agent.spec.ts |
+| button | Done | xml-api-in-ui.spec.ts |
 
 > **2 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
 
@@ -90,7 +90,7 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | link | Go to Settings | **—** |
-| button | Clear filters | **—** |
+| button | Clear filters | astrotalk-test-agent.spec.ts |
 | button | New template | **—** |
 | button | Create manually | **—** |
 
@@ -116,7 +116,7 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Previous | **—** |
-| button | Next | **—** |
+| button | Next | astrotalk-85916.spec.ts, create-agent.spec.ts, walk2.spec.ts |
 
 > **1 control(s) here have no accessible name** (icon-only: Pencil). Untestable by name, and a screen reader cannot announce them.
 
@@ -125,14 +125,14 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Add button ( / ) | **—** |
-| button | Remove button | **—** |
+| button | Remove button | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
 
 ## frontend/src/components/templatestudio/builder/CarouselEditor.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
 | button | Card | **—** |
-| button | Remove card <…> | **—** |
+| button | Remove card <…> | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
 | button | Add card ( /10) | **—** |
 
 > **1 control(s) here have no accessible name**. Untestable by name, and a screen reader cannot announce them.
@@ -152,15 +152,15 @@ To find a control, grep this directory for its on-screen label.
 | Control | Name | Covered by |
 |---|---|---|
 | button | Fetch phone numbers | **—** |
-| button | Cancel | **—** |
-| button | Confirm &amp; register | **—** |
+| button | Cancel | edit-flows.spec.ts, journey-editable.spec.ts, xml-api-in-ui.spec.ts |
+| button | Confirm &amp; register | astrotalk-agent.spec.ts, astrotalk-faq-sync.spec.ts |
 | button | Back | **—** |
 
 ## frontend/src/components/templatestudio/settings/PhoneMappingTable.tsx
 
 | Control | Name | Covered by |
 |---|---|---|
-| button | Save mappings | **—** |
+| button | Save mappings | astrotalk-update-skills.spec.ts, edit-flows.spec.ts |
 
 ## frontend/src/components/templatestudio/settings/WabaBlock.tsx
 

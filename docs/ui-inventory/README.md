@@ -7,11 +7,21 @@ selects by (this repo has no `data-testid` and must keep it that way). A control
 with no accessible name is listed as a defect: it cannot be tested by name, and a
 screen reader cannot announce it.
 
+**Read coverage as an upper bound.** Names are matched as strings and as the
+regexes Playwright specs actually use, so two different buttons that read
+"Continue" on two different screens both count as driven by any spec clicking
+either. It answers "has anything ever pressed a control by this name?", not
+"is this journey tested?". Only the uncovered column is exact.
+
 To find a control, grep this directory for its on-screen label.
 
+## Business Agents
+
 - **27** routes
-- **241** named controls, **14** driven by a test (**6%**)
-- **82** controls with no accessible name
+- **182** named controls, **96** driven by a test (**53%**)
+- **73** controls with no accessible name
+
+> Template Studio is **out of scope** (founder, 2026-09-21) and its 49 controls are excluded from these numbers. Its area file is still generated, because a control nobody watches is how a regression ships.
 
 ## Routes
 
@@ -49,15 +59,15 @@ To find a control, grep this directory for its on-screen label.
 
 | Area | Controls | Covered | Unnamed |
 |---|---|---|---|
-| [components-agent-detail](components-agent-detail.md) | 36 | 6 | 5 |
-| [components-connectors](components-connectors.md) | 23 | 2 | 13 |
-| [components-create-agent](components-create-agent.md) | 16 | 0 | 10 |
-| [components-debug](components-debug.md) | 6 | 0 | 1 |
+| [components-agent-detail](components-agent-detail.md) | 36 | 25 | 5 |
+| [components-connectors](components-connectors.md) | 23 | 17 | 13 |
+| [components-create-agent](components-create-agent.md) | 16 | 11 | 10 |
+| [components-debug](components-debug.md) | 6 | 3 | 1 |
 | [components-files](components-files.md) | 2 | 0 | 1 |
-| [components-layout](components-layout.md) | 7 | 0 | 6 |
+| [components-layout](components-layout.md) | 7 | 1 | 6 |
 | [components-router](components-router.md) | 3 | 0 | 0 |
-| [components-shared](components-shared.md) | 6 | 0 | 6 |
-| [components-skills](components-skills.md) | 1 | 0 | 0 |
-| [components-templatestudio](components-templatestudio.md) | 50 | 2 | 9 |
-| [components-waba](components-waba.md) | 4 | 0 | 3 |
-| [pages](pages.md) | 87 | 4 | 28 |
+| [components-shared](components-shared.md) | 6 | 3 | 6 |
+| [components-skills](components-skills.md) | 1 | 1 | 0 |
+| [components-templatestudio](components-templatestudio.md) _(out of scope)_ | 49 | 20 | 9 |
+| [components-waba](components-waba.md) | 4 | 2 | 3 |
+| [pages](pages.md) | 78 | 33 | 28 |

@@ -246,7 +246,7 @@ function contextBudget() {
     console.log(
       `  !! docs/knowledge-index.json still present — ~${tokens(
         fs.statSync(legacy).size
-      )} tok if read whole. Grep docs/knowledge-index.md instead.`
+      )} tok if read whole. Grep docs/knowledge-index/ instead.`
     )
     over = true
   }

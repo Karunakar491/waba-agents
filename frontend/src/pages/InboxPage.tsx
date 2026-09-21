@@ -10,6 +10,7 @@ import CopyButton from '../components/shared/CopyButton'
 import { formatListTimestampIST, formatDateTimeIST } from '../lib/dateFormat'
 import WebhookLogPanel from '../components/debug/WebhookLogPanel'
 import { describeMessage } from '../components/inbox/describeMessage'
+import ReplyComposer from '../components/inbox/ReplyComposer'
 
 type ConversationFilter = 'ALL' | 'OPEN' | 'CLOSED'
 
@@ -32,6 +33,11 @@ interface Conversation {
   // deleted or the number never synced.
   displayPhoneNumber: string | null
   agentDisplayName: string | null
+  // True once Meta hands the conversation to us rather than answering it — the
+  // structural standby signal in docs/meta-api/webhook-standby-handoff.md. It
+  // has been in this API response since V13 and nothing read it, so a customer
+  // waiting for a person looked exactly like one who was not.
+  needsHuman: boolean
 }
 
 interface Message {
@@ -277,6 +283,11 @@ export default function InboxPage() {
                 ))
               )}
             </div>
+
+            <ReplyComposer
+              conversationId={selectedConv.id}
+              needsHuman={selectedConv.needsHuman}
+            />
           </>
         )}
       </div>
@@ -305,7 +316,11 @@ function ConversationRow({
       // Without this the button's accessible name is every scrap of text inside
       // it read end to end — the number, the timestamp, the routing line and the
       // status, as one run-on string.
-      aria-label={`Conversation with ${conv.externalId}`}
+      aria-label={
+        conv.needsHuman
+          ? `Conversation with ${conv.externalId}, waiting for a person`
+          : `Conversation with ${conv.externalId}`
+      }
       aria-current={isSelected ? 'true' : undefined}
       className={cn(
         'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors border-b',
@@ -318,6 +333,14 @@ function ConversationRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground truncate">{conv.externalId}</p>
+          {/* A dot, not a coloured pill — DESIGN.md's status pattern, and the
+              one a 2026-08-05 audit found reinvented as pills in nine files. */}
+          {conv.needsHuman && (
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-accent-teal-solid">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-teal-solid" aria-hidden="true" />
+              Waiting
+            </span>
+          )}
           <time
             dateTime={conv.lastMessageAt ?? undefined}
             className="text-xs text-muted-foreground shrink-0"

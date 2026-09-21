@@ -205,14 +205,17 @@ function topBroken(state, limit = 3) {
 // Files that are loaded every session, or that a rule tells us to load before
 // touching anything. Their cost is paid on every task whether or not it is
 // used, so it is the cost worth watching.
-// The caps are budgets, not targets. CLAUDE.md's was 1200, set before the
-// founder added three standing requirements on 2026-09-21 (the user is the
-// subject, there is no local environment, every task ends in a report). Raised
-// to 1500 because the content grew for a stated reason — never to spare the
-// prose a trim. When this is breached again, read the file first: the answer is
-// usually that something in it has stopped being load-bearing.
+// The caps are budgets, not targets. CLAUDE.md's was 1200, then 1500, now 1600
+// — five standing requirements arrived on 2026-09-21 (the user is the subject,
+// no local environment, real Meta not mocks, every task ends in a report, ask
+// approval only for product decisions) and each raise came after the prose was
+// actually compressed, not instead of it: 1617 down to 1533 on the last pass.
+//
+// Two raises in one day is the signal to watch. A third means this file has
+// started collecting rules rather than invariants, and the fix then is to move
+// something out to a doc that loads on demand — not to move this number again.
 const ALWAYS_ON = [
-  { file: 'CLAUDE.md', cap: 1500, why: 'loaded every turn' },
+  { file: 'CLAUDE.md', cap: 1600, why: 'loaded every turn' },
   { file: 'STATE.md', cap: 2000, why: 'injected at SessionStart' },
 ]
 

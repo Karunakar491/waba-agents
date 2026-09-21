@@ -20,7 +20,9 @@ _Last updated: 2026-09-21_
 - Production: `ubuntu@10.1.17.16`, reached through the bastion `ec2-user@13.232.241.246` (key `/d/karix-mcp/karix-interna-AI-POC.pem`). `13.127.221.54` in older notes is not reachable with the dev key.
 - **Backend: `master` mirrors production** as of 2026-09-21 — V57 and V58 md5-match the running jar (built 04:49). Verified by reading the jar, which is the only reliable source: `/opt/metaagent/src` on the box is a fossil twelve days older than the jar, so never diff against it.
 - **Connector backfill is fully live.** Phase B ran 05:00:04 on 2026-09-21 and matched its checklist prediction for prediction; the UI delete proved the RESTRICT ordering. Two IndiaMART connectors were marked gone from Meta — pre-state and the sign-off needed to restore them are in `wiki/deployment/connector-sync-2026-09-21-rollback-capture.md`.
-- Frontend: traceable to a commit since 2026-09-03; **exact deployed SHA still not recorded** — record it on the next deploy.
+- Frontend and backend both deployed from `master` 2026-09-21. Rollback commands, byte sizes and the previous-bundle path are in `docs/e2e-test-runs/2026-09-21-human-reply.md`.
+- **`frontend/.env.production` is gitignored**, so a clean worktree builds `VITE_API_URL` as `localhost:8080` — a dead app. Copy it in, then grep the bundle for `/api/v1` before uploading.
+- **`smoke.spec.ts`'s "Unpublish UI is dark" test is stale**, not a regression — the flag was deliberately turned on 2026-09-11 and the test predates it.
 
 > Deploy traps: build locally, never on the box; `unzip` is missing there; diff
 > the jar's class list before every swap. `reference_production_deploy_traps_2026_09_18`.
@@ -29,7 +31,7 @@ _Last updated: 2026-09-21_
 
 Ranked by user impact. The top entry is what a low-value task gets measured against.
 
-- **No human can ever reply in the Inbox.** The agent is the only voice; there is no takeover path. A customer needing a person cannot reach one. → `project_daily_user_challenges_audit_2026_09_03`
+- **A human reply has never reached a real phone.** The Inbox composer, `POST /conversations/{id}/reply` and hand-back shipped 2026-09-21 and are live; 3 e2e pass against production and 9 unit tests cover the refusals. But the delivery path has only ever run against a mock. Until someone messages `+91 90100 11634` and gets a reply back, treat this as deployed and unverified. → `docs/e2e-test-runs/2026-09-21-human-reply.md`
 - **No conversation ever closes.** Threads accumulate forever with no resolved state, so the Inbox cannot be worked as a queue. → same audit
 - **Agent latency is 11.6s.** Far outside what a WhatsApp user will wait for. → same audit
 - **Customer names are discarded** even though they are present in the webhook payload. Every conversation is anonymous for no reason. → same audit

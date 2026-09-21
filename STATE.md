@@ -18,15 +18,12 @@ _Last updated: 2026-09-21_
 ## Live
 
 - Production: `ubuntu@10.1.17.16`, reached through the bastion `ec2-user@13.232.241.246` (key `/d/karix-mcp/karix-interna-AI-POC.pem`). `13.127.221.54` in older notes is not reachable with the dev key.
-- **Backend runs `feature/connector-action-backfill`, not `master`.** Jar built 2026-09-21 04:49, carries migrations through **V58**; master stops at V57, and only that branch has V58. All four of V55–V58 md5-match the branch exactly. The branch is 7 commits, unmerged. **`master` does not mirror production.**
-- **Connector backfill Phase B is DONE**, not pending. Both flags were set true at 04:53 on 2026-09-21 and the sweep ran at 05:00:04: "Back-filled 1 of 1 Meta tools", "Connector gone from Meta" exactly twice and never repeated, zero partial imports, zero floor-guard fires, zero failures — matching the checklist's predictions line for line. The two marked-gone connectors are the IndiaMART pair named in `wiki/deployment/connector-sync-2026-09-21-rollback-capture.md`; their pre-state is recorded there and restoring them needs founder sign-off.
-- **`/opt/metaagent/src` is a fossil** — newest file 2026-09-09, twelve days older than the running jar. The jar was not built from it. Do not diff against it; read the jar.
+- **Backend: `master` mirrors production** as of 2026-09-21 — V57 and V58 md5-match the running jar (built 04:49). Verified by reading the jar, which is the only reliable source: `/opt/metaagent/src` on the box is a fossil twelve days older than the jar, so never diff against it.
+- **Connector backfill is fully live.** Phase B ran 05:00:04 on 2026-09-21 and matched its checklist prediction for prediction; the UI delete proved the RESTRICT ordering. Two IndiaMART connectors were marked gone from Meta — pre-state and the sign-off needed to restore them are in `wiki/deployment/connector-sync-2026-09-21-rollback-capture.md`.
 - Frontend: traceable to a commit since 2026-09-03; **exact deployed SHA still not recorded** — record it on the next deploy.
-- `master` at time of writing: `80b4223`
 
-> Deploy traps, verified 2026-09-18: master is production's line, not the feature
-> branch; `unzip` is missing on the box; diff the jar's class list before every
-> swap. See `reference_production_deploy_traps_2026_09_18` in memory.
+> Deploy traps: build locally, never on the box; `unzip` is missing there; diff
+> the jar's class list before every swap. `reference_production_deploy_traps_2026_09_18`.
 
 ## Broken
 
@@ -44,48 +41,37 @@ Ranked by user impact. The top entry is what a low-value task gets measured agai
 - **`bindPhone`'s onboarding gate is per-agent-row, not per-phone.** Rebinding to a different number scopes the settings call with the wrong `agent_id`. → `TASKS.md` #16
 - **Backend test suite is red on master** (`ModuleAccessFilterTest`, `RateLimitFilterTest`), so it cannot gate a deploy.
 - **The whole integration suite is dead on Docker 25+** until `testcontainers.version` is bumped. → `reference_testcontainers_docker_api_2026_09_16`
-- **11 of 53 backend test files mock `MetaApiClient`**, so they assert that our code calls our mock. All of them were green through the 2026-08-25..09-01 outage when no customer could create an agent, because Meta's `agent_config/settings` had silently stopped creating the entity. `node scripts/meta-check.js` covers the read paths against real Meta; the write paths are still mock-only.
+- **11 of 53 backend test files mock `MetaApiClient`** — all green through the 2026-08-25..09-01 outage when nobody could create an agent. `scripts/meta-check.js` now covers the read paths against real Meta; writes are still mock-only.
 - **Nothing that writes is tested.** The e2e suite is read-only by default, so every button that *does* something — publish, deploy, send, delete — is unverified. A reserved test number now exists (see Constraints); the mutating journeys do not.
-- **Skill detach has no UI.** Backend `SkillLibraryService.detachSkill` exists uncommitted (+65 lines) and the founder confirmed 2026-09-21 it is wanted. Until it ships, a library skill attached to three agents can only be removed from all three. Meta has no "detach" concept — skills belong to one agent there; the library is ours, so detach calls Meta's `DELETE /{skill_id}` scoped to that agent and keeps the library row.
+- **Skill detach has no UI**, so a library skill on three agents can still only be removed from all three. Backend is done and tested on `feature/skill-detach`. → `docs/jobs/skill-detach.md`
 - **No UI inventory.** Nobody can say which screens and controls exist, let alone which are covered. `docs/UI-INVENTORY.md` is the fix and is not built.
 - **The ledger was wrong about Astrotalk.** Memory recorded agent `887643060282855424` live on `+91 96422 01123`; that number is now `MIGRATED` and unbound, and an "Astrotalk 85916" sits on `+91 85916 89475`. Corrected here 2026-09-21. Assume other recorded Meta-side state has drifted too.
 - **One RabbitMQ line is flooding the log** — "Failed to check/redeclare auto-delete queue(s)", 18,944 of 19,066 errors in a single day, roughly 1,400/hour. Harmless to users, and it is why the disk keeps filling.
 - **Meta is rate-limiting us.** 429s ongoing since the backfill sweep went live: 89 in the 10:00 hour on 2026-09-21, still 3 at 13:00. The sweep raised per-agent GETs from ~4 to ~5. Nothing has failed yet; nothing is watching it either.
-- ~~The delete path is unproven.~~ **Proven 2026-09-21.** The founder deleted a marked-gone connector through the UI; production shows zero `SQLIntegrityConstraintViolationException`, zero real MySQL `1451` and zero `fk_connector_deployment_connector` (the ten `1451` greps are thread ids like `Consumer@1451b4d3`). The RESTRICT flush ordering in `ConnectorLibraryService.delete()` holds. Still no automated cover — Testcontainers is dead on Docker 25+ — so a regression here would be silent.
+- **Connector delete has no automated cover.** Proven once by hand on 2026-09-21 (UI delete, no MySQL `1451`), but a stub repository cannot see a RESTRICT violation and Testcontainers is dead on Docker 25+, so a regression here would be silent.
 - **No disk alerting.** `logrotate` landed 2026-09-06 after a third disk-full, but nothing warns before the next one. `/tmp` and `/var/www` hold ~500M of manual-deploy residue. → `wiki/bugs-violations/disk-full-app-log-2026-09-06.md`
 
 ## In flight
 
-Eight branches, 37 commits, none merged. Every one of these is work that exists
-and is doing nobody any good.
+`node scripts/orient.js` lists the branches and their counts. Only what it
+cannot work out for itself belongs here:
 
-- `feature/draft-on-delete` — 11 commits. Backend only, no UI. PM's "preserved draft" marker overridden and still open. → `project_draft_on_delete_2026_09_16`
-- `iris/phase-1-agent-creation-tools` — 8 commits
-- `astrotalk-agent-build` — 7 commits
-- `feature/connector-action-backfill` — 7 commits
-- `fix/connector-published-badge` — 2 commits
-- `fix/outbound-echo-components` — 2 commits. **Fixes a top-ranked Broken entry.**
-- `feature/image-header-preview` — 1 commit
-- `fix/subnav-reachable-when-collapsed` — 1 commit. **Fixes a top-ranked Broken entry.**
-- `harness/rework` — 9 commits. This system. Clean on master, mergeable.
-- `harness/rework-on-draft` — the same 9 commits sitting on top of `feature/draft-on-delete`, kept only because the working tree has 41 uncommitted files that overlap that branch. Delete it once those are resolved.
+- `harness/rework` — this system. Clean on master, pushed, unmerged.
+- `feature/skill-detach` — backend done, no UI. → `docs/jobs/skill-detach.md`
+- `feature/draft-on-delete` — backend only, no UI; PM's "preserved draft" marker overridden and still open. → `project_draft_on_delete_2026_09_16`
+- `harness/rework-on-draft` — scratch. Same commits on top of draft-on-delete, kept only because the working tree overlaps that branch. Delete once that clears.
 
-Run `node scripts/orient.js` for live counts rather than trusting this list.
-
-**41 uncommitted files sit in the working tree**, 14 of them overlapping
-`feature/draft-on-delete`. Until they are committed or discarded, the checkout
-cannot move between those branches safely.
+**The working tree holds a lot of uncommitted work**, some overlapping
+`feature/draft-on-delete`, so the checkout cannot move between branches safely.
+Two files were destroyed on 2026-09-21 by a command that assumed otherwise;
+`scripts/git-guard.js` now blocks that class of command.
 
 ## Constraints
 
-Bounds on any task. These are not preferences.
+Facts that bound a task. The rules themselves live in `CLAUDE.md` and are not
+repeated here — both files load every session, so a duplicated rule costs twice
+and drifts in one place first.
 
-- **Production data is sacrosanct.** No destructive SQL, no unbacked migration, no config overwrite, ever, under any framing. Full rules in `CLAUDE.md`.
-- **Every deploy is reversible in under 5 minutes without touching data.**
-- **`+91 90100 11634` (`674661285722401`) is the reserved test number.** Free, CONNECTED, GREEN, on WABA `494227720434920`. Mutating e2e runs bind here and nowhere else. Do not give it to a customer or bind another agent to it.
-- **Every other number on the demo account is somebody's agent.** `+91 91520 04492` (smsa, paused), `+91 91520 04283`, `+91 91520 04195` (IndiaMART), `+91 85916 89475` (Astrotalk 85916), `+91 90100 82954` (Test-Internal, draft). Never touched by a test.
-- **`+1 555-061-1133`** on WABA `100730486010852` is a Meta sandbox number. It only reaches pre-verified recipients, so it cannot prove a real customer journey.
-- **There is no local environment.** A green unit test says nothing about what a user sees. Only a Playwright run against the real app is evidence.
-- **Diff cap is 400 lines**, enforced by `scripts/commit-gate.js`. Not advisory.
-- **No `data-testid` anywhere in this repo.** E2E selects by role. Keep it that way.
-- **The founder is deciding, not studying.** Lead with the answer; essays go in files.
+- **`+91 90100 11634` (`674661285722401`) is the reserved test number.** Free, CONNECTED, GREEN, on WABA `494227720434920`. Mutating e2e binds here and nowhere else. Never give it to a customer.
+- **Every other number on the demo account is somebody's agent** and is never touched by a test: `+91 91520 04492` (smsa, paused), `+91 91520 04283`, `+91 91520 04195` (IndiaMART), `+91 85916 89475` (Astrotalk 85916), `+91 90100 82954` (Test-Internal, draft).
+- **`+1 555-061-1133`** on WABA `100730486010852` is a Meta sandbox number — pre-verified recipients only, so it cannot prove a real customer journey.

@@ -102,9 +102,11 @@ public final class SkillDtos {
             String status, // "LIVE" | "OUT_OF_SYNC"
             boolean canPromote,
             String librarySkillId, // set only when source = LIBRARY
-            /** "published" | "draft" — Unpublish/Draft only applies to source=AGENT rows
-             * today; LIBRARY-attached skills always report "published" here (out of scope,
-             * they have their own promote/detach lifecycle). */
+            /** "published" | "draft" — Unpublish/Draft only applies to source=AGENT rows;
+             * LIBRARY-attached skills always report "published" here. Their per-agent lever
+             * is Detach (SkillLibraryService.detachSkill), which this comment claimed existed
+             * for weeks before it did — until 2026-09-11 a LIBRARY row carried no way off
+             * one agent at all. */
             String publishStatus
     ) {}
 

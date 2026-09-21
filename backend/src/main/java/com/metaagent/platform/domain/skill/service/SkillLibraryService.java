@@ -229,6 +229,56 @@ public class SkillLibraryService {
         );
     }
 
+    /**
+     * Removes ONE agent's use of a Library skill, leaving every other agent's
+     * alone and leaving the Library skill itself in place.
+     *
+     * This is the "explicit detach" that deleteSkill's FK comment below has
+     * always assumed existed. It did not. Until now the only levers on a
+     * shared skill were editing its body — which changes it for every agent
+     * attached — and deleting it WABA-wide, which the FK refuses while anyone
+     * is attached. So a skill that was wrong for one agent and right for the
+     * others could not be taken off that one agent at all. Found on the live
+     * IndiaMART agent (2026-09-11), where three Library skills contradicted
+     * the agent's own new skill set and could not be retired.
+     *
+     * Meta first, then our row. If Meta refuses, this throws and the
+     * attachment stays: metaSkillId is the only handle we have on that
+     * agent's Meta-side skill, so dropping the row first would leave the
+     * skill live on a real phone number with nothing here pointing at it.
+     * Failing loudly is recoverable; orphaning is not.
+     */
+    @Transactional
+    public void detachSkill(Long agentId, Long attachmentId) {
+        Agent agent = agentService.getAgent(agentId); // access-checked
+        AgentSkillAttachment attachment = attachmentRepository
+                .findByIdAndAgentId(attachmentId, agentId)
+                .orElseThrow(() -> new NotFoundException("This skill is not attached to this agent."));
+
+        if (attachment.getMetaSkillId() != null) {
+            if (agent.getPhoneNumberId() == null) {
+                throw new BusinessException(
+                        "This agent has no phone number, so the skill cannot be removed from Meta. "
+                                + "Connect the number first.");
+            }
+            String path = MetaApiClient.scopedPath(
+                    String.format("/%s/agent_config/skills/%s",
+                            agent.getPhoneNumberId(), attachment.getMetaSkillId()),
+                    agent.getMetaAgentId());
+            try {
+                metaApiClient.delete(path);
+            } catch (Exception e) {
+                log.warn("Skill detach failed at Meta: agentId={} attachmentId={} error={}",
+                        agentId, attachmentId, e.getMessage());
+                throw new BusinessException(
+                        "Meta refused to remove this skill from the agent: " + e.getMessage()
+                                + ". Nothing was changed here, so this can be retried.");
+            }
+        }
+
+        attachmentRepository.delete(attachment);
+    }
+
     public void deleteSkill(Long skillId) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Skill skill = skillRepository.findById(skillId)

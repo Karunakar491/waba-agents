@@ -48,6 +48,21 @@ public class SkillLibraryController {
         return ApiResponse.ok();
     }
 
+    /**
+     * Detach — take a shared Library skill off ONE agent.
+     *
+     * Deliberately addressed by ATTACHMENT id, not skill id: the attachment is
+     * the thing being removed, and it is what the agent's Skills view already
+     * carries per row. A path under /skills/{id} would also collide with the
+     * legacy agent-scoped skill delete, which removes a different kind of
+     * object entirely.
+     */
+    @DeleteMapping("/api/v1/agents/{agentId}/skill-attachments/{attachmentId}")
+    public ApiResponse<Void> detach(@PathVariable Long agentId, @PathVariable Long attachmentId) {
+        skillLibraryService.detachSkill(agentId, attachmentId);
+        return ApiResponse.ok();
+    }
+
     @PostMapping("/api/v1/agents/{agentId}/skills/sync")
     public ApiResponse<SkillDtos.SyncSkillsResponse> sync(@PathVariable Long agentId) {
         return ApiResponse.ok(skillLibraryService.syncSkills(agentId));

@@ -72,6 +72,7 @@ Facts that bound a task. The rules themselves live in `CLAUDE.md` and are not
 repeated here — both files load every session, so a duplicated rule costs twice
 and drifts in one place first.
 
+- **The product is Business Agents. Template Studio is out of scope** (founder, 2026-09-21) — no new work, no new tests, excluded from the inventory headline. It still ships, so a regression there is still a regression. Don't open a job on `/templates/*` without asking.
 - **`+91 90100 11634` (`674661285722401`) is the reserved test number.** Free, CONNECTED, GREEN, on WABA `494227720434920`. Mutating e2e binds here and nowhere else. Never give it to a customer.
 - **Every other number on the demo account is somebody's agent** and is never touched by a test: `+91 91520 04492` (smsa, paused), `+91 91520 04283`, `+91 91520 04195` (IndiaMART), `+91 85916 89475` (Astrotalk 85916), `+91 90100 82954` (Test-Internal, draft).
 - **`+1 555-061-1133`** on WABA `100730486010852` is a Meta sandbox number — pre-verified recipients only, so it cannot prove a real customer journey.

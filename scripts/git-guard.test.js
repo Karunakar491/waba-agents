@@ -64,6 +64,11 @@ const cases = [
   // guard that gets switched off.
   ['restore of an unmodified path', `${RESTORE} DESIGN.md`, 'ALLOW'],
 
+  // `--staged` alone writes the index, never the tree. Blocking it made
+  // splitting an over-cap commit into two harder than leaving it too big.
+  ['unstaging a dirty path', `${RESTORE} --staged ${path.basename(SCRATCH)}`, 'ALLOW'],
+  ['unstaging AND restoring a dirty path', `${RESTORE} --staged --worktree ${path.basename(SCRATCH)}`, 'DENY'],
+
   // Not destructive at all.
   ['branch switch', `${CHECKOUT} master`, 'ALLOW'],
   ['a diff', 'git diff master...some-branch', 'ALLOW'],

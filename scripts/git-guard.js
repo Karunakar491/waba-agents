@@ -25,7 +25,15 @@ const { execSync } = require('child_process')
 const DESTRUCTIVE = [
   // `git checkout -- .` / `git checkout <ref> -- <paths>` (but not branch switching)
   { re: /\bgit\s+(?:-C\s+\S+\s+)?checkout\b[^|;&]*\s--\s/, scope: 'paths', name: 'git checkout -- <paths>' },
-  { re: /\bgit\s+(?:-C\s+\S+\s+)?restore\b/, scope: 'paths', name: 'git restore' },
+  // `git restore --staged <paths>` only unstages — it writes the index, never
+  // the working tree, so there is nothing to lose and blocking it just makes
+  // splitting a commit harder. `--staged --worktree` together DO overwrite the
+  // tree, so that stays caught.
+  {
+    re: /\bgit\s+(?:-C\s+\S+\s+)?restore\b(?![^|;&]*--staged\b(?![^|;&]*--worktree\b))/,
+    scope: 'paths',
+    name: 'git restore',
+  },
   { re: /\bgit\s+(?:-C\s+\S+\s+)?reset\s+--hard\b/, scope: 'all', name: 'git reset --hard' },
   { re: /\bgit\s+(?:-C\s+\S+\s+)?clean\b[^|;&]*\s-[a-zA-Z]*f/, scope: 'all', name: 'git clean -f' },
   { re: /\bgit\s+(?:-C\s+\S+\s+)?stash\s+(?:drop|clear)\b/, scope: 'none', name: 'git stash drop/clear' },

@@ -142,6 +142,14 @@ function msysToWindows(p) {
  */
 function artefactWorktree(artefactPath, cwd) {
   if (!artefactPath) return null
+
+  // A path the shell has not expanded yet — "$SCRATCH/dist.tar.gz", a backtick
+  // or a ~ — is not a path we can resolve. Resolving it anyway lands on the
+  // session's own directory and blames a tree that had nothing to do with the
+  // artefact, which is precisely the false refusal this function was written to
+  // end. Unknown provenance must read as unknown, not as the nearest tree.
+  if (/[$`~]/.test(artefactPath)) return null
+
   const wanted = msysToWindows(artefactPath)
   const abs = path.isAbsolute(wanted) ? wanted : path.resolve(msysToWindows(cwd || '.'), wanted)
 

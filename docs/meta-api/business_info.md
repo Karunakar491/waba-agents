@@ -4,7 +4,23 @@ Base URL: `https://api.facebook.com/{entity_id}/agent_config/business_info`
 entity_id = WhatsApp Business Phone Number ID
 
 Auth: `Authorization: Bearer {token}` | `X-API-Version: 2.0.0`
-Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
+Required (any of): `bizai_wa_enterprise_api_3p_access` OR
+`bizai_ig_enterprise_api_3p_access` OR `whatsapp_business_messaging`
+
+> **Re-read against Meta 2026-09-24.** Schema unchanged. Three things this
+> re-read settles, all of them about the bug fixed the same day:
+>
+> - PUT's stated behaviour is *"All provided fields will overwrite existing
+>   values"*. **Provided** — a field left out of the body is not touched. That
+>   is what makes sending only non-blank fields correct, rather than a
+>   workaround.
+> - It follows that an empty string is not the same as an absent field. `""` is
+>   provided, so it overwrites. That is exactly how a wizard step with nothing
+>   typed into it blanked a live profile.
+> - `contact_info` comes back **null when unconfigured**, not as an empty
+>   object — so a client must not assume it can read through it.
+>
+> Meta documents no maximum length on any field.
 
 ## Endpoints
 

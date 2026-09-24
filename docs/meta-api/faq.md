@@ -64,4 +64,21 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 Live GET skipped 2026-09-03 — no sandbox token in this environment.
 
 ## Error Codes
-400 Bad request | 401 Unauthorized | 404 Not found | 429 Rate limited | 500 Server error
+400 Bad request | 401 Unauthorized | 404 Not found | **409 Conflict** | 429 Rate limited |
+500 Server error
+
+## Re-read against Meta 2026-09-24
+
+Schema verified unchanged — `question`, `answer`, `metadata`, `created_at` and
+`id` all match what we already recorded, and `metadata` really is a free
+key-value map of strings.
+
+Two things worth carrying:
+
+- **409 was missing from our error list.** A duplicate FAQ is a conflict, not a
+  generic failure, and our add path saves locally with `metaSynced=false` on any
+  error — so a 409 leaves a local FAQ that Meta will never accept.
+- **PUT is a full replace of that FAQ**, and Meta notes rewording the question
+  changes what it matches while rewording the answer changes what the agent
+  says. The shared FAQ form must round-trip `metadata`, which the platform
+  never sends today, or the first save from our screen drops it.

@@ -78,15 +78,26 @@ function clearLock(cwd) {
 }
 
 /**
- * Uncommitted changes to code a user can be hurt by, in this worktree.
+ * What actually ends up inside each artefact.
  *
- * Docs, jobs and the wiki are excluded on purpose: an artefact built with a
- * half-written release note in the tree is still the same artefact. An
- * artefact built over somebody's half-finished controller is not.
+ * Scoped per artefact rather than one list for both, because the question is
+ * not "is this tree tidy" but "could this edit be inside the thing I am about
+ * to put on production". A half-written release note cannot be. Somebody's
+ * half-finished controller can.
+ *
+ * `frontend/e2e/` is in neither: specs drive the app, they are not built into
+ * it. Flagging them would be the cry-wolf failure that gets a guard switched
+ * off — raised by the other session, which had exactly those files dirty while
+ * its backend work was the real hazard.
  */
-const SHIPPED = /^(frontend\/src\/|backend\/src\/main\/|frontend\/package|backend\/pom\.xml)/
+const IN_ARTEFACT = {
+  jar: /^backend\/(src\/main\/|pom\.xml)/,
+  bundle: /^frontend\/(src\/|index\.html|vite\.config|package(-lock)?\.json)/,
+}
+const SHIPPED = new RegExp(`(${IN_ARTEFACT.jar.source})|(${IN_ARTEFACT.bundle.source})`)
 
-function dirtyShippedFiles(cwd) {
+function dirtyShippedFiles(cwd, scope) {
+  const match = scope && IN_ARTEFACT[scope] ? IN_ARTEFACT[scope] : SHIPPED
   try {
     const out = execSync('git status --porcelain', {
       cwd,
@@ -98,7 +109,7 @@ function dirtyShippedFiles(cwd) {
       .split(/\r?\n/)
       .filter(Boolean)
       .map((l) => ({ status: l.slice(0, 2).trim(), file: l.slice(3).trim() }))
-      .filter((d) => SHIPPED.test(d.file))
+      .filter((d) => match.test(d.file))
   } catch {
     return []
   }

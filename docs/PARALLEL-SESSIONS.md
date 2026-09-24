@@ -57,13 +57,24 @@ failure this exists to prevent.
 Reads are never blocked. Checking what is live, tailing a log or curling the
 site is how you find out whether it is safe to act.
 
+**A free lock does not mean it is safe to deploy.** The lock stops two sessions
+running at the same time. It says nothing about what is in your artefact.
+Neither of today's collisions was only a locking problem: one was a build from a
+branch that did not contain the other session's commits, the other a build from
+a tree mid-edit. Both would have passed a green lock. Rule 3 is the one that
+speaks to that, and it only covers the uncommitted half.
+
 ### 3. Never deploy an artefact built from a dirty tree.
 
-Uploading a bundle or a jar from a worktree with uncommitted changes under
-`frontend/src/` or `backend/src/main/` is blocked. Nobody can say afterwards
-what is inside that artefact, and if another session owns those edits you are
-shipping their unfinished work under your name. A rollback then has no
-known-good target.
+Uploading a bundle or a jar from a worktree with uncommitted changes **that
+land inside that artefact** is blocked. Nobody can say afterwards what is in it,
+and if another session owns those edits you are shipping their unfinished work
+under your name. A rollback then has no known-good target.
+
+The check is scoped per artefact, not one list for both: a dirty backend file
+cannot be inside a bundle, and `frontend/e2e/` is in neither — specs drive the
+app, they are not built into it. A guard that flags what cannot matter is a
+guard that gets switched off.
 
 Build from a commit:
 
@@ -108,6 +119,22 @@ Before starting, check what is already moving:
 node scripts/orient.js              # branches, their counts, what is broken
 node scripts/parallel.js status     # worktrees and the production lock
 ```
+
+## Splitting a commit is the normal path, not an edge case
+
+The 400-line cap is hit several times a day, and the way out is almost always
+one commit of code plus one of evidence, rather than one commit that is too big.
+
+```
+git add <the code files, named individually>
+git commit
+git add <the docs and evidence>
+git commit
+```
+
+Stage files one by one, never a directory: a `git add <dir>` once swept a
+held-back data-deleting change into a UI commit. `git restore --staged <paths>`
+takes something back out — it writes the index and never your working tree.
 
 ## Measurement windows
 

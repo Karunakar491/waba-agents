@@ -35,8 +35,19 @@ const PRODUCTION_WRITES = [
   { re: /\btar\s+xzf\b[^|;&]*-C\s+\/var\/www/, name: 'unpacking into the web root' },
 ]
 
-/** Uploading an artefact — the point where a dirty tree stops being harmless. */
-const ARTEFACT_UPLOAD = /\bscp\b[^|;&]*\b(dist[^|;&]*\.tar\.gz|[^|;&]*\.jar)\b[^|;&]*ubuntu@10\.1\.17\.16:/
+/**
+ * Uploading an artefact — the point where a dirty tree stops being harmless.
+ * Which artefact matters: a dirty backend file cannot be inside a bundle, and
+ * flagging it anyway is how a guard earns being switched off.
+ */
+const ARTEFACT_UPLOAD = [
+  { re: /\bscp\b[^|;&]*[^|;&\s]*\.jar\b[^|;&]*ubuntu@10\.1\.17\.16:/, scope: 'jar', name: 'a jar' },
+  {
+    re: /\bscp\b[^|;&]*\bdist[^|;&\s]*\.tar\.gz\b[^|;&]*ubuntu@10\.1\.17\.16:/,
+    scope: 'bundle',
+    name: 'a frontend bundle',
+  },
+]
 
 /**
  * A command only counts if it can actually reach the box. Everything above
@@ -128,14 +139,15 @@ function main() {
   }
 
   // ---------------------------------------------------------------- rule 2
-  if (ARTEFACT_UPLOAD.test(text)) {
-    const dirty = dirtyShippedFiles(cwd)
+  const upload = ARTEFACT_UPLOAD.find((a) => a.re.test(text))
+  if (upload) {
+    const dirty = dirtyShippedFiles(cwd, upload.scope)
     if (dirty.length) {
       const list = dirty.slice(0, 10).map((d) => `  ${d.status} ${d.file}`)
       if (dirty.length > 10) list.push(`  … ${dirty.length - 10} more`)
       deny(
-        `BLOCKED — you are about to upload an artefact built from a worktree ` +
-          `with ${dirty.length} uncommitted change(s) to shipped code:\n\n` +
+        `BLOCKED — you are about to upload ${upload.name} built from a worktree ` +
+          `with ${dirty.length} uncommitted change(s) that land inside it:\n\n` +
           `${list.join('\n')}\n\n` +
           `  worktree: ${cwd}\n\n` +
           `Nobody can tell afterwards what is in that artefact, and if another ` +

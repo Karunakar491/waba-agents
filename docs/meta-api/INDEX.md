@@ -42,6 +42,22 @@ is the Business Manager ID.**
 
 ---
 
+## Sources of record — the page as it was, on a date
+
+A fetch gives the current page. A **paste kept verbatim** is dated evidence of
+what the page said on a day, which is what settles an argument between our
+behaviour and Meta's. Where a source file exists, it wins over the summary.
+
+| Source | Covers | Supplied |
+|---|---|---|
+| [`sources/2026-09-24-skills-official.md`](sources/2026-09-24-skills-official.md) | Agent Skills | founder, 2026-09-24 |
+| [`sources/2026-09-24-ui-skills-official.md`](sources/2026-09-24-ui-skills-official.md) | UI Skills | founder, 2026-09-24 |
+
+Both were checked against `skills.md` and `ui-skills.md` on arrival: **the
+summaries matched the sources on every normative point** — schemas, limits,
+the title format, `status`, partial PUT, pagination, the `flow_id` rule and
+the nine component types. Nothing in the summaries needed correcting.
+
 ## Where these come from — fetch them, do not wait to be sent them
 
 **Meta's Business Agent docs are public and directly readable.** Confirmed

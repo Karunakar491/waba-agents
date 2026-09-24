@@ -79,6 +79,12 @@
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/commit-gate.js\"",
             "timeout": 30,
             "statusMessage": "Checking commit gate (job + proof + diff)..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/deploy-guard.js\"",
+            "timeout": 15,
+            "statusMessage": "Checking nobody else is deploying..."
           }
         ]
       }

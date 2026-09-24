@@ -115,6 +115,60 @@ function dirtyShippedFiles(cwd, scope) {
   }
 }
 
+/**
+ * `/d/wt-build/...` is a Git Bash path; this hook is Node on Windows, where
+ * that directory does not exist under that name. Every command in this repo is
+ * written in the former and every check runs in the latter, so without this
+ * translation nothing resolves and the guard silently decides it cannot
+ * attribute anything — which looks exactly like working correctly.
+ */
+function msysToWindows(p) {
+  if (process.platform !== 'win32' || typeof p !== 'string') return p
+  return p.replace(/^\/([a-zA-Z])\//, (_, drive) => `${drive.toUpperCase()}:\\`)
+}
+
+/**
+ * The worktree an artefact was actually built in, from its own path.
+ *
+ * Derived from the artefact, never from the session's working directory. The
+ * detached-worktree workflow this guard recommends *guarantees* those two are
+ * different directories, so checking cwd could only ever be right by luck —
+ * and on 2026-09-24 it was wrong, refusing a jar built in a clean
+ * `/d/wt-build` because the session's own checkout had unrelated edits.
+ *
+ * Returns null when the path is outside any repo — a tarball staged in a temp
+ * directory carries no provenance, and a guard cannot honestly claim to know
+ * what is inside it.
+ */
+function artefactWorktree(artefactPath, cwd) {
+  if (!artefactPath) return null
+  const wanted = msysToWindows(artefactPath)
+  const abs = path.isAbsolute(wanted) ? wanted : path.resolve(msysToWindows(cwd || '.'), wanted)
+
+  // Walk up to the nearest directory that exists. `backend/target/` may not be
+  // there yet, or at all, and git cannot run from a directory that is absent —
+  // which would silently return "unattributable" for a perfectly locatable
+  // artefact.
+  let dir = path.dirname(abs)
+  for (let i = 0; i < 12; i++) {
+    if (fs.existsSync(dir)) break
+    const up = path.dirname(dir)
+    if (up === dir) return null
+    dir = up
+  }
+  if (!fs.existsSync(dir)) return null
+
+  try {
+    return execSync('git rev-parse --show-toplevel', {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch {
+    return null
+  }
+}
+
 function describe(lock) {
   const mins = Math.round(ageMinutes(lock))
   return (
@@ -208,6 +262,7 @@ module.exports = {
   ageMinutes,
   describe,
   dirtyShippedFiles,
+  artefactWorktree,
   lockPath,
 }
 

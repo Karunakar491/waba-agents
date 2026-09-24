@@ -23,7 +23,33 @@
  * that made those harder would make production less safe, not more.
  */
 
-const { readLock, writeLock, isStale, describe, dirtyShippedFiles } = require('./parallel')
+const {
+  readLock,
+  writeLock,
+  isStale,
+  describe,
+  dirtyShippedFiles,
+  artefactWorktree,
+} = require('./parallel')
+
+/**
+ * The local file an scp is sending: the token naming the artefact, which is
+ * never the `user@host:` destination. The path is what tells us which worktree
+ * built it — see artefactWorktree().
+ */
+function artefactSource(command) {
+  // Split on whitespace OUTSIDE quotes. This repo lives at "D:/Meta business
+  // agents", so a naive split tears every absolute path here into three
+  // tokens, the guard resolves nothing and silently allows — which is how the
+  // first version of this fix passed the case it was written for and broke the
+  // one it already had.
+  const tokens = command.match(/"[^"]*"|'[^']*'|\S+/g) || []
+  return (
+    tokens
+      .map((t) => t.replace(/^['"]|['"]$/g, ''))
+      .find((t) => !t.includes('@') && /(\.jar|dist[^\s]*\.tar\.gz)$/.test(t)) || null
+  )
+}
 
 /** Commands that change production. Reads are absent on purpose. */
 const PRODUCTION_WRITES = [
@@ -141,7 +167,12 @@ function main() {
   // ---------------------------------------------------------------- rule 2
   const upload = ARTEFACT_UPLOAD.find((a) => a.re.test(text))
   if (upload) {
-    const dirty = dirtyShippedFiles(cwd, upload.scope)
+    // Which tree built THIS artefact — not which tree the session happens to
+    // be sitting in. An artefact outside any repo cannot be attributed, and a
+    // guard that guesses produces false refusals of correct work.
+    const source = artefactSource(text)
+    const built = artefactWorktree(source, cwd)
+    const dirty = built ? dirtyShippedFiles(built, upload.scope) : []
     if (dirty.length) {
       const list = dirty.slice(0, 10).map((d) => `  ${d.status} ${d.file}`)
       if (dirty.length > 10) list.push(`  … ${dirty.length - 10} more`)
@@ -149,7 +180,8 @@ function main() {
         `BLOCKED — you are about to upload ${upload.name} built from a worktree ` +
           `with ${dirty.length} uncommitted change(s) that land inside it:\n\n` +
           `${list.join('\n')}\n\n` +
-          `  worktree: ${cwd}\n\n` +
+          `  artefact: ${source}\n` +
+          `  built in: ${built}\n\n` +
           `Nobody can tell afterwards what is in that artefact, and if another ` +
           `session owns those edits you would be shipping their unfinished work ` +
           `under your name. A rollback then has no known-good target.\n\n` +

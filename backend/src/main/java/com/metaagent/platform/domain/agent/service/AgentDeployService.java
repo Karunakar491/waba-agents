@@ -7,6 +7,9 @@ import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
 import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
+import com.metaagent.platform.domain.businessevent.entity.BusinessEventFire;
+import com.metaagent.platform.domain.businessevent.service.AgentEventClient;
+import com.metaagent.platform.domain.businessevent.service.BusinessEventFireService;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.infrastructure.meta.MetaApiClient;
 import com.metaagent.platform.infrastructure.meta.MetaApiException;
@@ -46,6 +49,8 @@ public class AgentDeployService {
     private final MetaApiClient metaApiClient;
     private final ThreadControlClient threadControlClient;
     private final ConnectorMirrorService connectorMirrorService;
+    private final BusinessEventFireService businessEventFireService;
+    private final AgentEventClient agentEventClient;
     private final com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository connectorDeploymentRepository;
 
     // Per-agentId lock — two accounts on a shared WABA could otherwise call
@@ -641,23 +646,105 @@ public class AgentDeployService {
     }
 
     // -------------------------------------------------------------------------
-    // Agent Event — fire-and-forget business-event trigger, thin proxy
+    // Agent Event — the business-event trigger behind POST /agents/{id}/events.
+    //
+    // These are now thin delegates to BusinessEventFireService, which writes a
+    // ledger row for every attempt INCLUDING the ones it refuses. The old direct
+    // Meta call is kept below, behind business-events.ledger.enabled: set it to
+    // false and restart and this endpoint behaves exactly as it did before the
+    // ledger existed. That is the one-command rollback for the whole feature.
+    //
+    // The signatures and the response shape are unchanged, because the existing
+    // TriggerEventModal calls them and must keep working untouched.
     // -------------------------------------------------------------------------
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> triggerEvent(Long agentId, Map<String, Object> payload) {
+        if (!businessEventFireService.isLedgerEnabled()) {
+            return triggerEventDirect(agentId, payload);
+        }
+        Long accountId = SecurityContextHelper.getRequiredAccountId();
+        BusinessEventFire fire = businessEventFireService.fire(new BusinessEventFireService.FireCommand(
+                agentId,
+                accountId,
+                BusinessEventFire.Source.MANUAL,
+                str(payload, "to"),
+                str(eventBlock(payload), "type"),
+                str(eventBlock(payload), "description"),
+                str(eventBlock(payload), "payload"),
+                str(payload, "idempotency_key"),
+                SecurityContextHelper.getRequiredUserId()));
+        return fireResponse(fire);
+    }
+
+    public Map<String, Object> getEventStatus(Long agentId, String agentEventId) {
+        Agent agent = loadOwnedAgent(agentId);
+        requirePhoneNumberId(agent);
+        if (!businessEventFireService.isLedgerEnabled()) {
+            return getEventStatusDirect(agent, agentEventId);
+        }
+        AgentEventClient.StatusResponse status = agentEventClient.fetchStatus(agent.getPhoneNumberId(), agentEventId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", status == null ? null : status.status());
+        response.put("event_type", status == null ? null : status.eventType());
+        response.put("error_message", status == null ? null : status.errorMessage());
+        response.put("skipped_reason", status == null ? null : status.skippedReason());
+        return response;
+    }
+
+    /**
+     * What the modal shows. On a refusal there is no Meta status to report, so
+     * the reason we refused is reported in its place — the operator must never
+     * get a blank where an explanation belongs.
+     */
+    private Map<String, Object> fireResponse(BusinessEventFire fire) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", fire.getOutcome() == BusinessEventFire.Outcome.ACCEPTED ? "accepted" : "not_sent");
+        response.put("agent_event_id", fire.getMetaAgentEventId());
+        response.put("outcome", fire.getOutcome().name());
+        response.put("refusal_reason", fire.getRefusalReason() == null ? null : fire.getRefusalReason().name());
+        response.put("message", fire.getOutcome() == BusinessEventFire.Outcome.REFUSED
+                ? fire.getRefusalDetail()
+                : fire.getMetaErrorDetail());
+        return response;
+    }
+
+    /** Pre-ledger behaviour, reached only with the flag off. */
+    @SuppressWarnings("unchecked") // Meta returns dynamic JSON here; this path predates the typed AgentEventClient and is kept byte-identical for rollback.
+    private Map<String, Object> triggerEventDirect(Long agentId, Map<String, Object> payload) {
         Agent agent = loadOwnedAgent(agentId);
         requirePhoneNumberId(agent);
         String path = "/" + agent.getPhoneNumberId() + "/agent_event";
         return metaApiClient.post(path, payload, Map.class);
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> getEventStatus(Long agentId, String agentEventId) {
-        Agent agent = loadOwnedAgent(agentId);
-        requirePhoneNumberId(agent);
+    /** Pre-ledger behaviour, reached only with the flag off. */
+    @SuppressWarnings("unchecked") // Same reason as triggerEventDirect.
+    private Map<String, Object> getEventStatusDirect(Agent agent, String agentEventId) {
         String path = "/" + agent.getPhoneNumberId() + "/agent_event/" + agentEventId;
         return metaApiClient.get(path, Map.class);
+    }
+
+    /**
+     * The request body is whatever the existing client sends, so every read of
+     * it is defensive: a missing or wrongly-typed field becomes null and is then
+     * refused with a named reason, never a ClassCastException on the endpoint.
+     */
+    private static Map<String, Object> eventBlock(Map<String, Object> payload) {
+        if (payload == null) {
+            return Map.of();
+        }
+        Object event = payload.get("event");
+        if (!(event instanceof Map<?, ?> map)) {
+            return Map.of();
+        }
+        Map<String, Object> typed = new HashMap<>();
+        map.forEach((key, value) -> typed.put(String.valueOf(key), value));
+        return typed;
+    }
+
+    private static String str(Map<String, Object> source, String key) {
+        Object value = source == null ? null : source.get(key);
+        return value == null ? null : String.valueOf(value);
     }
 
     /**

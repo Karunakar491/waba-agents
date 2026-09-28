@@ -7,21 +7,32 @@ import ConsequenceLine from '../shared/ConsequenceLine'
 import Modal from '../shared/Modal'
 import { extractErrorMessage } from '../../lib/errors'
 import ErrorBanner from '../shared/ErrorBanner'
+import { describeEventOutcome, type OutcomeTone } from '../events/eventOutcome'
 
-const STATUS_DOT: Record<string, string> = {
-  idle: 'text-muted-foreground',
-  pending: 'text-yellow-500',
-  accepted: 'text-brand-green',
-  failed: 'text-destructive',
-  unknown: 'text-muted-foreground',
+// DESIGN.md §2: `warning` is dot-only (3.19:1 fails AA as text), so a pending
+// label stays on foreground and only its dot carries the colour.
+const TONE_DOT: Record<OutcomeTone, string> = {
+  neutral: 'text-muted-foreground',
+  pending: 'text-warning',
+  positive: 'text-accent-teal-solid',
+  destructive: 'text-destructive',
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  idle: 'Not sent',
-  pending: 'Sending…',
-  accepted: 'Sent',
-  failed: 'Failed',
-  unknown: 'Status unknown — check back later',
+const TONE_TEXT: Record<OutcomeTone, string> = {
+  neutral: 'text-muted-foreground',
+  pending: 'text-foreground',
+  positive: 'text-accent-teal-solid',
+  destructive: 'text-destructive',
+}
+
+interface MetaEventState {
+  status: string | null
+  errorMessage: string | null
+  skippedReason: string | null
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 export default function TriggerEventModal({
@@ -35,11 +46,25 @@ export default function TriggerEventModal({
   const [to, setTo] = useState('')
   const [description, setDescription] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
+  const [metaEvent, setMetaEvent] = useState<MetaEventState>({
+    status: null,
+    errorMessage: null,
+    skippedReason: null,
+  })
 
   const poll = useJobPoll({
     fetchStatus: async (eventId) => {
       const r = await api.get(`/agents/${agentId}/events/${eventId}`)
-      return (r.data.data?.status as string) ?? 'unknown'
+      // The hook only needs the coarse status, but Meta's own words are the
+      // only thing that explains a failure or a skip — keep them.
+      const body: Record<string, unknown> = r.data.data ?? {}
+      const status = readString(body.status)
+      setMetaEvent({
+        status,
+        errorMessage: readString(body.error_message),
+        skippedReason: readString(body.skipped_reason),
+      })
+      return status ?? 'unknown'
     },
     pendingValues: ['request_received', 'processing'],
     successValues: ['sent', 'success'],
@@ -48,6 +73,7 @@ export default function TriggerEventModal({
   async function handleSend() {
     if (!description.trim() || !to.trim()) return
     setSendError(null)
+    setMetaEvent({ status: null, errorMessage: null, skippedReason: null })
     try {
       const res = await api.post(`/agents/${agentId}/events`, {
         to: to.trim(),
@@ -67,6 +93,19 @@ export default function TriggerEventModal({
       setSendError(extractErrorMessage(err))
     }
   }
+
+  // The poll gives up before Meta settles on some events; once it has, its own
+  // last reading is more truthful than the stale status we saw mid-flight.
+  const lastKnownStatus =
+    poll.status === 'unknown'
+      ? null
+      : metaEvent.status ?? (poll.status === 'pending' ? 'processing' : null)
+
+  const outcome = describeEventOutcome(
+    lastKnownStatus,
+    metaEvent.errorMessage,
+    metaEvent.skippedReason,
+  )
 
   return (
     <Modal
@@ -128,7 +167,7 @@ export default function TriggerEventModal({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex items-start gap-3">
           <button
             onClick={handleSend}
             disabled={!description.trim() || !to.trim() || poll.status === 'pending'}
@@ -138,10 +177,15 @@ export default function TriggerEventModal({
             {poll.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
             Send event
           </button>
-          <span className={cn('flex items-center gap-1.5 text-sm font-medium', STATUS_DOT[poll.status])}>
-            <Circle className="h-2 w-2 fill-current" />
-            {STATUS_LABEL[poll.status]}
-          </span>
+          {poll.status !== 'idle' && (
+            <div className="min-w-0 pt-1.5">
+              <span className={cn('flex items-center gap-1.5 text-sm font-medium', TONE_TEXT[outcome.tone])}>
+                <Circle className={cn('h-2 w-2 shrink-0 fill-current', TONE_DOT[outcome.tone])} />
+                {outcome.label}
+              </span>
+              <p className="mt-1 text-xs text-muted-foreground">{outcome.explanation}</p>
+            </div>
+          )}
         </div>
     </Modal>
   )

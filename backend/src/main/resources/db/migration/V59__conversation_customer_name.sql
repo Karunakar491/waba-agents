@@ -1,0 +1,25 @@
+-- 2026-09-22. The customer's name, which Meta has been sending all along.
+--
+-- Every inbound webhook carries value.contacts[].profile.name — the name the
+-- customer set on their own WhatsApp account. We have never stored it, so the
+-- Inbox identifies people by raw phone number: "918500996740" rather than
+-- "Kk". An operator scanning a list of numbers cannot tell who is who, and
+-- the number is also the one piece of a conversation they cannot search for
+-- from memory.
+--
+-- Found while diagnosing R2, in a payload that had been sitting unprocessed
+-- for four days: {"profile": {"name": "Kk"}, "wa_id": "918500996740"}.
+--
+-- NULLABLE with no backfill, deliberately. There is nothing to back-fill from:
+-- conversations created before today never recorded the name, and the raw
+-- payloads that still hold it are the separate replay task. NULL therefore
+-- means "we were never told", which the UI renders as the phone number alone
+-- rather than as an empty space.
+--
+-- VARCHAR(255): a WhatsApp profile name is user-supplied free text and Meta
+-- does not document a limit. Every meta_*_id column created narrower than
+-- this has eventually needed widening (wiki/lessons/production-safety.md).
+--
+-- Additive only: one nullable column, nothing else touched.
+ALTER TABLE conversations
+    ADD COLUMN customer_name VARCHAR(255) NULL AFTER external_id;

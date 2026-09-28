@@ -161,6 +161,14 @@ crypto:
   # per-environment via `openssl rand -base64 32`, set CRYPTO_MASTER_KEY.
   master-key: ${CRYPTO_MASTER_KEY}
 
+features:
+  draft-on-delete:
+    # Lets "delete this agent" optionally keep it locally as a draft, with its
+    # knowledge base, settings and conversation history, instead of removing it.
+    # The Meta teardown is unaffected either way. Off fails closed: a request
+    # asking to preserve deletes outright, exactly as before the feature existed.
+    enabled: ${FEATURE_DRAFT_ON_DELETE:false}
+
 management:
   endpoints:
     web:

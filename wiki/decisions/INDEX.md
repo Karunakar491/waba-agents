@@ -11,6 +11,7 @@ Every architectural and product decision with date and rationale.
 - [[stack-backend|Backend Stack]] — Java 21, Spring Boot 3, MySQL only, RestClient
 - [[stack-frontend|Frontend Stack]] — Shadcn/ui + Tailwind (Ant Design rejected)
 - [[maker-checker|Maker-Checker Process]] — PM + EM + EL gates, no self-approval
+- [[draft-on-delete-2026-09-16|Save an Agent as a Draft on Delete]] — delete keeps the work, not the agent; PM overridden on the missing "preserved" marker
 
 ## Architecture Decisions
 - [[mysql-only|MySQL Only for Analytics]] — ClickHouse dropped (cost + ops complexity)

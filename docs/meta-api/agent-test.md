@@ -45,5 +45,29 @@ Supports multi-turn conversations via `conversation_id`.
 | quick_replies | string[] | | Suggested quick reply messages |
 | product_variant_ids | string[] | | Variant IDs of products referenced in response |
 
+## Rate Limits (new on the 2026-09-24 re-read)
+
+| Scope | Limit |
+|-------|-------|
+| Per `entity_id` | **500 requests/hour** |
+| Per app | **10,000 requests/hour** |
+
+Exceeding either returns `429`.
+
 ## Error Codes
-400 Bad request | 401 Unauthorized | 429 Rate limited | 500 Server error
+400 Bad request | 401 Unauthorized | **404 Not found** | 429 Rate limited | 500 Server error
+
+## Re-read against Meta 2026-09-24
+
+The 2026-09-22 paste was truncated mid-page, so this file was marked stale. The
+full page is now read and the schema we already had is **correct and complete** —
+every request and response field matches, including `quick_replies`,
+`product_variant_ids`, `handoff_reason` and `no_response_reason`.
+
+What was genuinely missing: the two rate limits above, and 404.
+
+Still true and still the point: **tokens spent here are not billed**, and no
+consumer phone number is needed. This is the only way to exercise an agent's
+actual answers without messaging a real person — relevant to every "not proven
+as behaviour" line in `STATE.md`, and it is not used by our product or our
+tests at all.

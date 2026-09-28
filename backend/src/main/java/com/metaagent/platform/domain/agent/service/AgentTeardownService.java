@@ -9,6 +9,7 @@ import com.metaagent.platform.domain.agent.entity.AgentUiSkill;
 import com.metaagent.platform.domain.persona.service.BusinessProfileDeployService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -41,6 +42,11 @@ import java.util.Map;
  * a connection up for the duration. The local cascade delete is a single
  * proxied call into {@link AgentService#deleteAgent(Long)}, which keeps its own
  * transaction.
+ *
+ * <p>Deleting can optionally keep the agent locally as a draft. That changes
+ * nothing above: the agent is removed from Meta either way, and every step below
+ * still runs. It only decides whether the operator keeps the FAQs, websites,
+ * settings and conversation history they built up, or loses them with the agent.
  */
 @Slf4j
 @Service
@@ -51,9 +57,34 @@ public class AgentTeardownService {
     private final AgentDeployService agentDeployService;
     private final BusinessProfileDeployService businessProfileDeployService;
 
+    /**
+     * Kill switch for preserve-as-draft. Fails closed: with this off, a request
+     * asking to preserve deletes the agent outright, which is what the product
+     * did before the feature existed.
+     */
+    @Value("${features.draft-on-delete.enabled:false}")
+    private boolean draftOnDeleteEnabled;
+
     public AgentDeleteResult deleteEverywhere(Long agentId) {
+        return deleteEverywhere(agentId, false);
+    }
+
+    /**
+     * @param preserveAsDraft keep the agent locally as a draft instead of deleting
+     *                        it. The Meta teardown below is identical either way —
+     *                        the agent stops existing on Meta regardless; this only
+     *                        decides whether the operator keeps the work that went
+     *                        into it. Ignored when the feature is switched off.
+     */
+    public AgentDeleteResult deleteEverywhere(Long agentId, boolean preserveAsDraft) {
         Agent agent = agentService.getAgent(agentId);
         String phoneNumberId = agent.getPhoneNumberId();
+        // Read before the steps run: deleteAgentConfig clears the WABA off the row,
+        // and a preserved draft needs it back — the Skill and Connector libraries
+        // are WABA-scoped, so a draft with no WABA cannot see its own content.
+        Long wabaId = agent.getWabaId();
+
+        boolean preserve = preserveAsDraft && draftOnDeleteEnabled;
 
         List<Step> steps = new ArrayList<>();
 
@@ -92,11 +123,19 @@ public class AgentTeardownService {
         // Local cleanup runs regardless of Meta-side outcome. Blocking it on a
         // Meta failure would leave the operator with an agent they cannot get
         // rid of — the exact problem this feature exists to fix.
-        agentService.deleteAgent(agentId);
+        AgentDeleteResult.DraftPreservation preserved = null;
+        if (preserve) {
+            AgentService.DraftPreservationCounts counts = agentService.convertToDraft(agentId, wabaId);
+            preserved = new AgentDeleteResult.DraftPreservation(
+                    agentId, counts.faqsKept(), counts.websitesKept(), counts.filesDropped());
+        } else {
+            agentService.deleteAgent(agentId);
+        }
 
-        AgentDeleteResult result = AgentDeleteResult.of(steps);
+        AgentDeleteResult result = AgentDeleteResult.of(steps, preserved);
         if (!result.metaFullyCleaned()) {
-            log.warn("Agent {} deleted locally but Meta teardown was incomplete: {}", agentId, result.steps());
+            log.warn("Agent {} {} but Meta teardown was incomplete: {}",
+                    agentId, preserve ? "kept as a draft" : "deleted locally", result.steps());
         }
         return result;
     }

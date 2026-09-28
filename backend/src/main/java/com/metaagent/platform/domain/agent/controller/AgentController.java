@@ -105,10 +105,17 @@ public class AgentController {
      * report rather than a bare acknowledgement: Meta teardown is best-effort,
      * and the caller has to be able to tell a fully-clean delete from one that
      * left configuration behind on the phone number.
+     *
+     * <p>{@code preserveAsDraft} keeps the agent locally as a draft with its
+     * content instead of deleting it; the Meta teardown is the same either way.
+     * A query parameter rather than a body — a DELETE body is dropped by some
+     * proxies — and omitting it is exactly the old behaviour.
      */
     @DeleteMapping("/{id}")
-    public ApiResponse<AgentDeleteResult> deleteAgent(@PathVariable Long id) {
-        return ApiResponse.ok(agentTeardownService.deleteEverywhere(id));
+    public ApiResponse<AgentDeleteResult> deleteAgent(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean preserveAsDraft) {
+        return ApiResponse.ok(agentTeardownService.deleteEverywhere(id, preserveAsDraft));
     }
 
     @PutMapping("/{id}/phone")

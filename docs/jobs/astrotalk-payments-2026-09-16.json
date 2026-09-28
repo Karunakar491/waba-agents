@@ -1,0 +1,57 @@
+{
+  "agentId": "887643060282855424",
+  "agentName": "Astrotalk",
+  "why": "Journey step 7 is Payment. The customer has picked an astrologer and now has to pay before the consultation starts. This adds a Razorpay payment-link connector and sends the link as a WhatsApp CTA URL button rather than a pasted URL in a text message.",
+
+  "connector": {
+    "name": "Astrotalk Razorpay Payments",
+    "description": "Creates a Razorpay Standard Payment Link for a consultation. One call returns a short_url the customer can tap to pay by UPI, card, net banking or wallet. Used at the point the customer has chosen an astrologer and agreed to talk.",
+    "baseUrl": "https://api.razorpay.com",
+    "tags": "payments, razorpay, checkout",
+    "auth": {
+      "type": "API_KEY",
+      "headers": ["Authorization"],
+      "prefix": "Basic",
+      "note": "Razorpay uses HTTP Basic auth (-u key_id:key_secret). The Auth dropdown offers None, API key and OAuth2 client-credentials — no Basic — but the credential row takes a free-text header name plus a prefix, and `Authorization: Basic <base64(key_id:key_secret)>` is exactly the same bytes on the wire. So: field `Authorization`, in Header, prefix `Basic`, and the VALUE is base64 of key_id:key_secret, typed at publish and never stored by us or in this repository."
+    },
+    "action": {
+      "name": "create_payment_link",
+      "descriptionLimit": "An action description is capped at 1024 characters — the editor rejects a longer one with 'description: size must be between 0 and 1024' and the save silently does nothing but show an alert. Every description here is checked against that before it is typed.",
+      "description": "Create a Razorpay payment link for a consultation the customer agreed to. amount is in PAISE: the minutes they chose times the astrologer's real price_per_minute times 100, minimum 100. Never invent a rate and never default the minutes. description is what the customer sees on Razorpay, so name the astrologer and the minutes. reference_id must be RECONSTRUCTIBLE, because it is how this link is found again later: astrotalk-<last 10 digits of phone>-<astrologer_id>-<minutes>, adding -r2 or -r3 only when reissuing, since Razorpay rejects duplicates. Never put a clock time in it — a time cannot be recomputed on a later turn, which leaves a paying customer unverifiable. notes must carry astrologer_id, astrologer_name, minutes and price_per_minute: notes come back on a fetch, so they are the record of what was booked. Keep notify.sms and notify.email false — we deliver the link on WhatsApp and a duplicate SMS confuses people. Send short_url as a CTA URL button, never as raw text, and never show the link id.",
+      "curl": "curl --location 'https://api.razorpay.com/v1/payment_links' --header 'Content-Type: application/json' --data '{\"amount\":30000,\"currency\":\"INR\",\"description\":\"10 min consultation with Acharya Priya Devi\",\"reference_id\":\"astrotalk-9876543210-52310-10\",\"customer\":{\"name\":\"Rahul Sharma\",\"contact\":\"+919876543210\"},\"notify\":{\"sms\":false,\"email\":false},\"notes\":{\"astrologer_id\":\"52310\",\"astrologer_name\":\"Acharya Priya Devi\",\"minutes\":\"10\",\"price_per_minute\":\"60\"}}'",
+      "fieldSources": {
+        "why": "Every body field has a 'Who fills in X' control offering: Agent fills this in, Fixed value, Customer's WhatsApp number, WhatsApp identity hash, Current conversation status ID. Anything the platform already knows for certain should not be left to the model to remember — a wrong phone number on a payment link means the receipt goes to a stranger, and a model-typed currency is a field that can be wrong for no reason.",
+        "customer.contact": "Customer's WhatsApp number",
+        "currency": "INR",
+        "notify.sms": "false",
+        "notify.email": "false"
+      }
+    }
+  },
+
+  "uiSkill": {
+    "title": "payment-cta-url",
+    "componentType": "CTA button (URL)",
+    "status": "Enabled",
+    "instruction": "Send when a payment link has just been created and the customer needs to pay to start their consultation. The button carries the short_url from create_payment_link; the text above it names the astrologer, the minutes and the exact amount in rupees. Never send this before a link exists, never send it twice for the same link, and never paste the URL as plain text instead."
+  },
+
+  "skill": {
+    "title": "payment-and-topup",
+    "description": "Apply once the customer has chosen an astrologer and agreed to talk, and money has to change hands before the consultation starts.",
+    "body": "Confirm the shape of the consultation in one message before taking any money: which astrologer, how many minutes, and what that costs in rupees. \"Acharya Priya Devi, 10 minutes — ₹600. Theek hai?\"\n\nDefault to 10 minutes unless the customer says otherwise. Below 5 minutes a reading is not worth paying for, so if someone asks for less, say so once and offer 5.\n\nWork the amount out from the astrologer's real price_per_minute, taken from the recommendation response. Minutes multiplied by the rate, in rupees, said out loud. Then create the link with that amount in paise. Never quote a rate you were not given, never round it in the customer's favour or your own, and never offer a discount — you have no authority to price.\n\nSend the link as a CTA URL button, using the payment-cta-url UI skill. The message above the button says the astrologer, the minutes and the amount. The raw URL never appears as text.\n\nThen stop and wait. Do not nudge for payment more than once, and leave at least a few minutes before that one nudge: \"Link abhi bhi valid hai — jab ready hon, tap kar dijiye.\" A person deciding whether to spend money does not need to be chased.\n\nYou cannot see whether the payment succeeded. Nothing tells this agent that a link was paid, so never say \"payment received\", \"aapka payment ho gaya\" or anything that implies you know. If the customer says they have paid, believe them, say the astrologer is being connected, and hand over. If they say the payment failed, do not diagnose it — create a fresh link with a new reference_id, once. If it fails again, hand to a human.\n\nIf the customer asks for a refund, or says they were charged twice, or says money left their account but nothing happened: do not investigate and do not promise anything. Hand to a human immediately with what they told you. Billing is the one area where a confident guess does real damage.\n\nNever ask for a card number, a UPI PIN, an OTP, a CVV or any payment credential in the chat. Everything happens on Razorpay's page behind the button. If a customer starts typing card details, stop them: \"Yeh details yahan mat bhejiye — sirf link pe daaliye, woh secure hai.\""
+  },
+
+  "decisionsMade": [
+    "Amount is computed as minutes x the astrologer's real price_per_minute, defaulting to 10 minutes, rather than fixed top-up packs. Packs would be simpler to build but would divorce the price from the astrologer the customer actually chose, and the recommendation API already returns a per-minute rate.",
+    "notify.sms and notify.email are false. Razorpay would otherwise text the customer a second copy of a link they are already looking at on WhatsApp.",
+    "No callback_url: there is nowhere to send the customer back to, and a broken redirect after a successful payment is worse than none.",
+    "No expire_by. A link that never expires is a real risk — it can be paid days later at a stale rate — but an unexpiring link is less bad than a wrong Unix timestamp computed by a language model, which could expire the link before the customer taps it or leave it open for a year. Set a default expiry on the Razorpay account instead."
+  ],
+
+  "openQuestions": [
+    "THE BIG ONE: nothing tells this agent that a payment succeeded. Razorpay knows, the agent does not, so the journey cannot actually move from step 7 (payment) to step 8 (live session) on its own — it depends on the customer saying so. The agent's Settings tab has 'Actions — trigger a business-side event (e.g. a payment or shipment update) at this agent', which is the mechanism: Astrotalk's backend takes the Razorpay webhook and triggers a payment event here. That needs building on Astrotalk's side and wiring on ours.",
+    "Whether these are live or test Razorpay keys. Test keys make a link that cannot take real money, which is the right way to see the journey work end to end first.",
+    "Who the merchant is on the Razorpay page. The customer sees that name at the moment they pay, and if it is not recognisably Astrotalk, they abandon."
+  ]
+}

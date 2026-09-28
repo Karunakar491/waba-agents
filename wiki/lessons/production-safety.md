@@ -44,6 +44,54 @@ SSH/scp to the production host via bastion is denied by the auto-mode classifier
 
 Every "ID returned by Meta after POST" column created at VARCHAR(64) has eventually needed widening.
 
+## Read what is in a backup before offering to restore it
+
+2026-09-24: an active customer number (`+91 91520 04283`, SMSA Express) had a
+live business profile missing four of five fields, with a complete version
+archived. That was reported to the founder as recoverable, and he approved the
+restore.
+
+Reading the archived row before writing it showed it was **Karix Voice**
+placeholder content, not SMSA's — a different company. Publishing it would have
+told SMSA's Saudi customers they were an Indian cloud-calling firm. The one
+field live was the correct, specific one. The restore was abandoned.
+
+The whole account is like this: every number's history holds other demo brands
+(Licious, Lenskart, Karix Voice), not earlier versions of itself. A row count
+said "complete"; the content said "wrong company".
+
+**Rule:** "recoverable" is a claim about content, never about a row existing or
+a field count. Read the actual values before offering a restore, and read them
+again before executing one — an approval obtained from a wrong description is
+not an approval. This is the same rule as production data being sacrosanct: an
+approved restore still cannot be allowed to damage live data.
+
+## A migration gap in `master` is a landmine for the next deploy, not just this one
+
+2026-09-28: deploying R8 found that `master`'s migration folder was missing
+V55–V58 entirely, and production's applied history (V56–V62) had **no
+corresponding `.sql` files on `master` at all** for V59–V62 — they existed
+only on unmerged feature branches (`r4r6/reunify-deploy-line` had the complete
+set). `/opt/metaagent/src` also held two connector files referencing classes
+(`ConnectorAction`, `ActionRequest`/`ActionResponse`) that were never pushed,
+so `mvn clean package` couldn't even compile before this session touched
+anything. The currently-running jar only worked because some earlier deploy
+built it from a different, more complete worktree — a fact invisible from
+`master` itself.
+
+This means **any deploy built cleanly from `master` right now would fail**,
+independent of whatever feature is being shipped. Discovering this mid-deploy
+(two live crash-loops before the gap was even understood) is expensive;
+discovering it via `git ls-tree <branch> -- path | grep V<n>__` across
+candidate branches, or via `flyway:validate` (see [[verification]]), costs
+nothing and finds it before a restart.
+
+**Rule:** a migration file only existing on an unmerged branch, while its
+`.sql` is recorded as applied in production, is not that branch's problem —
+it is a standing landmine for every other branch's next deploy. Get it merged
+into the deploy line as soon as it's confirmed safe, not left to be
+rediscovered by whoever deploys next.
+
 ## The kill switch
 
 Every deploy must be reversible in under 5 minutes without touching data:

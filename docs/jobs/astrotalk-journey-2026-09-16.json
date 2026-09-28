@@ -1,0 +1,93 @@
+{
+  "agentId": "887643060282855424",
+  "agentName": "Astrotalk",
+  "why": "Completes the booking journey. The agent could discover, read a chart, recommend astrologers and create a payment link; it could not offer a session length, show astrologers as a carousel, check whether the payment actually succeeded, or connect the customer to the astrologer they paid for.",
+
+  "sequence": "concern -> astrologer (carousel) -> duration (list, priced for that astrologer) -> total stated in words -> payment link as CTA button -> on the customer's next message, check_payment_status -> on paid, start_consultation. Astrologer comes BEFORE duration so every duration row can carry the exact rupee figure for the person they chose, instead of a 'from ₹X' that is nearly always lower than what they end up paying.",
+
+  "uiSkillsRollout": "Both are created DISABLED. A disabled UI skill exists on Meta and is never sent, so publishing it changes nothing for the customers already using this agent. They are then enabled ONE AT A TIME, each followed by a real conversation on the number, because rendering cannot be verified any other way — AgentTestResponse carries no component-type field. One new component type per step is the only way a rendering failure is attributable.",
+
+  "uiSkills": [
+    {
+      "title": "astrologer-carousel",
+      "componentType": "Carousel (quick reply)",
+      "status": "Disabled",
+      "instruction": "Send as soon as recommend_astrologers returns, instead of listing them as text. One card per astrologer, at most 3, in the exact order the API returned — never re-sort. Card image: profile_image_url. Card title: name. Card body: experience_years as 'X yrs', rating, total_consults, and price_per_minute with currency as the per-minute rate. Omit any astrologer whose availability_status is OFFLINE; for BUSY, add the wait from estimated_wait_minutes. No links or URLs anywhere on a card. Tapping a card sends that astrologer's name back as the reply — that is how the customer chooses. Never invent or round a name, rate, rating or consult count: show only what the API returned."
+    },
+    {
+      "title": "session-duration-list",
+      "componentType": "Interactive list",
+      "status": "Disabled",
+      "instruction": "Send once the customer has chosen an astrologer and you know that astrologer's price_per_minute. Five rows: 5, 10, 15, 20 and 30 minutes. Each row's title is the minutes, e.g. '10 minutes'. Each row's description is the exact total in rupees for THIS astrologer — minutes multiplied by their price_per_minute, so ₹60/min shows '₹600' on the 10-minute row. Header names the astrologer. Never show a rate that is not theirs, never round, never discount. Do not send this before an astrologer is chosen — ask who they want first. Tapping a row sends that duration back as the reply."
+    }
+  ],
+
+  "skills": [
+    {
+      "title": "session-timing",
+      "description": "Apply once the probing questions are answered and the customer knows a consultation is the next step — before any astrologer or price is discussed.",
+      "body": "Ask one question: do they want to talk now, or later. \"Abhi baat karni hai ya baad mein?\"\n\nIf now, carry straight on to the astrologers. Do not add a step.\n\nIf later, hold the thread and say what you are holding: their concern, and the astrologer if one was already chosen. \"Theek hai. Aapka [concern] note kar liya hai. Jab time ho, bas message kar dijiye — main yahin se aage badhaungi.\" Then go quiet.\n\nNever promise to message them, remind them, call them, or follow up. You cannot. You have no way to start a conversation — you only ever reply. A promise to come back later is a lie the customer will notice when nothing arrives, and it is the fastest way to lose their trust in everything else you said.\n\nIf they name a specific time, acknowledge it without committing to it: \"Shaam ko baat karein? Main yahin hoon — us time message kar dijiye.\" Never say \"main aapko shaam ko message karungi.\"\n\nWhen they do come back, pick up where you left off. Do not restart the discovery, do not ask the concern again, do not re-collect birth details you already have. Starting over is the thing that makes a returning customer give up.\n\nIf they say later and then keep talking anyway, they meant now. Follow the conversation, not the label."
+    },
+    {
+      "title": "session-duration-and-price",
+      "description": "Apply after the customer has chosen an astrologer from the carousel and before any payment link is created.",
+      "body": "The astrologer must be chosen first. If you do not know who they picked, ask — never guess, and never price a consultation against a rate you are not sure of.\n\nSend the duration list using the session-duration-list UI skill. Five options: 5, 10, 15, 20, 30 minutes, each showing the exact rupee total for the astrologer they chose.\n\nWork every total from that astrologer's real price_per_minute out of the recommendation response. Minutes multiplied by the rate. Nothing else — no rounding, no bundling, no discount, no 'special price'. You have no authority to price, and a figure you invented becomes a dispute at the payment page.\n\nWhen they pick a duration, say the whole thing back in one line before any link exists: the astrologer, the minutes, and the amount. \"Acharya Priya Devi, 10 minutes — ₹600. Bhej doon payment link?\"\n\nThat confirmation matters. The customer should see the exact number they are about to pay in plain text, in the chat, before a payment page opens. Nobody should discover the amount for the first time on Razorpay.\n\nIf they ask for a duration not on the list, take it if it is between 5 and 60 minutes and price it the same way. Below 5 minutes a reading is not worth paying for — say so once and offer 5.\n\nIf they ask for a cheaper astrologer, go back to the carousel rather than discounting this one. The list had rates in it; there is usually someone cheaper."
+    },
+    {
+      "title": "payment-verification-and-handover",
+      "description": "Apply on the customer's next message after a payment link has been sent — especially when they say they have paid.",
+      "body": "Never take payment on the customer's word. When they say they have paid, or send anything at all after a link went out, check with Razorpay before you respond.\n\nUse check_payment_status if you still have the link id. If you do not — a resumed conversation, or one long enough that the create response has scrolled away — use find_payment_link and rebuild the reference from facts you can always recover: astrotalk-<last 10 digits of their phone>-<astrologer_id>-<minutes>. Never skip the check because the id is gone; that is exactly the case find_payment_link exists for.\n\nRead what was booked out of the link's notes — astrologer_name, minutes, price_per_minute — rather than out of your memory of the conversation. The notes were written when the link was created and cannot have drifted.\n\nOnly status 'paid' counts. Treat everything else as not paid:\n- 'created' — the link has not been paid yet.\n- 'partially_paid' — NOT paid. Say what is still outstanding using amount_paid.\n- 'expired' or 'cancelled' — the link is dead; offer one fresh one.\n\nWhen it is 'paid': call start_consultation with the astrologer, the minutes and the payment reference, then tell the customer their astrologer is being connected and what happens next. One message, warm, short. \"Payment confirm ho gaya 🙏 Acharya Priya Devi ko connect kar rahi hoon — 10 minutes ka session. Woh abhi aapse baat karengi.\"\n\nWhen it is not paid, say so plainly and without blame: \"Abhi tak payment show nahi ho raha. Thoda time lagta hai kabhi — ek minute mein dobara check karti hoon?\" Never say a payment failed when you only know it has not arrived, and never claim it succeeded to move things along. A customer told their payment went through when it did not will be waiting for an astrologer who is never coming.\n\nIf the status is 'paid' but start_consultation fails, do not retry it silently and do not tell the customer it worked. Say the payment is confirmed and you are getting a person onto it, and hand to a human. Money has changed hands and nothing has been delivered — that is the one situation that must never be left to an automated retry.\n\nIf they insist they paid and Razorpay still shows nothing after two checks, stop checking and hand to a human with the payment reference. Do not keep them in a loop.\n\nNever ask for a screenshot of the payment as proof. You have the API; the screenshot proves nothing and asking for it tells the customer you do not trust them."
+    }
+  ],
+
+  "razorpayActions": {
+    "connector": "Astrotalk Razorpay Payments",
+    "doThisBeforePublishing": "Both actions must be added BEFORE this connector is first published to the agent. Adding an action to an already-published connector marks its deployment stale and needs a republish, which re-prompts for the credential and re-deploys to Meta. The connector is still unpublished, so this is free now and costly later.",
+    "whyTwo": "check_payment_status needs the link id, which the agent can only have from the create_payment_link response sitting in its context — and that falls out of context in a long or resumed conversation, at which point a paid customer cannot be verified at all. find_payment_link looks the same link up by a reference_id the agent can RECONSTRUCT from facts it can always recover. Whether Razorpay's account API actually filters payment links by reference_id is unproven, so both are built and a real Send decides which the skill leans on.",
+    "actions": [
+      {
+        "name": "check_payment_status",
+        "description": "Check whether a payment link has actually been paid, by its id. Call this before saying anything about a payment, including when the customer says they have paid — their word is not evidence. Pass the id returned by create_payment_link. Only status 'paid' means paid: 'created' means not yet, 'partially_paid' is NOT paid and amount_paid shows how far short, 'expired' and 'cancelled' mean the link is dead and a new one is needed. The response's notes carry what was booked — astrologer_id, astrologer_name, minutes, price_per_minute — so read the booking back from there rather than from memory. Never tell a customer a payment succeeded on any other status, and never tell them it failed when all you know is that it has not arrived yet.",
+        "curl": "curl --location 'https://api.razorpay.com/v1/payment_links/plink_ExjpAUN3gVHrPJ'"
+      },
+      {
+        "name": "find_payment_link",
+        "description": "Find this customer's payment link by its reference_id, for when you no longer have the link id — a resumed conversation, or one long enough that the create response has scrolled away. Rebuild the reference_id from facts you can always recover: astrotalk-<last 10 digits of the customer's phone>-<astrologer_id>-<minutes>, plus -r2 or -r3 if a link was reissued. Read status, amount_paid and notes from the link that comes back, exactly as with check_payment_status. If more than one link comes back, use the most recent. If none does, do not conclude the customer did not pay — say you cannot find the payment and hand to a human with the reference.",
+        "curl": "curl --location 'https://api.razorpay.com/v1/payment_links?reference_id=astrotalk-9876543210-52310-10'"
+      }
+    ],
+    "pathNote": "Razorpay's deep documentation links 404'd, so both paths come from the resource path confirmed on the create page rather than from a verified fetch page. They MUST be proven with real Sends in the connector workbench before any skill is trusted: create a link, fetch it by id (expect 'created'), fetch it by reference_id (expect the same link, or learn that the filter is unsupported), pay it on a test link, fetch again (expect 'paid' and the notes intact)."
+  },
+
+  "consultationConnector": {
+    "blocked": true,
+    "name": "Astrotalk Consultation",
+    "whatWeNeedFromAstrotalk": [
+      "Method and full URL of the endpoint that starts a consultation.",
+      "Authentication — header name and scheme. If it is the same X-Api-Key as the recommendation API, say so.",
+      "Request fields: astrologer id, customer phone, minutes purchased, and the payment reference so it can be reconciled against Razorpay.",
+      "A preferred-time field, if 'talk later' should ever reach the astrologer rather than dying in the chat.",
+      "The response, including whatever id identifies the session afterwards.",
+      "What the customer actually experiences on success: a phone call, a chat inside the Astrotalk app, or a WhatsApp message from somewhere else. The agent has to tell them what to expect, and it must be true."
+    ]
+  },
+
+  "rewrites": [
+    {
+      "title": "astrologer-recommendation",
+      "why": "It currently tells the model to render the astrologers as text. With astrologer-carousel published, the customer would get both a carousel and a text list of the same three people. The carousel must exist before the text list stops, so this rewrite lands last.",
+      "changes": "Replace the rendering paragraph with an instruction to send the carousel and compose no text list; keep every rule about order, honesty of rates and availability, since those still govern what the carousel shows. Add one line pointing at session-duration-and-price as the next step."
+    },
+    {
+      "title": "payment-and-topup",
+      "why": "It says the agent cannot see whether a payment succeeded. That was true yesterday; check_payment_status now exists.",
+      "changes": "Replace the 'you cannot see whether the payment succeeded' paragraph with a pointer to payment-verification-and-handover. Keep the rest: nudge once, never ask for card details or OTPs, hand every billing question to a human."
+    }
+  ],
+
+  "honestLimits": [
+    "'Talk later' is not scheduling. The agent cannot send the first message — there is no scheduler and no outbound-send path in this backend at all. It can only remember and wait. Real re-engagement needs an approved WhatsApp template sent by Astrotalk's own systems.",
+    "Payment status is checked when the customer next writes, because the agent only ever acts on an inbound message. Someone who pays and closes WhatsApp is not connected until they come back and say something.",
+    "Carousel and list rendering cannot be verified through this platform — AgentTestResponse carries no component-type field, so only quick replies are observable. The instruction prose is the only control over what the cards look like, and it will need tuning against a real WhatsApp conversation."
+  ]
+}

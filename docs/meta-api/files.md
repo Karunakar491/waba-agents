@@ -38,8 +38,8 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 ### BizAIOmniChannelKnowledgeFileRequest (multipart/form-data)
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| file_name | string | ✓ | Name of the file |
-| file | binary | ✓ | Max 100MB. Supported: .pdf, .doc, .docx, .png, .jpg, .jpeg, .csv (if enabled), .xlsx (if enabled) |
+| file_name | string | ✓ | "The name of the file being uploaded. Include the file extension." **The content is checked against the extension declared here** — a mismatch is rejected |
+| file | binary | ✓ | Max **100,000,000 bytes**. Supported: .pdf, .doc, .docx, .png, .jpg, .jpeg, .csv (if enabled), .xlsx (if enabled) |
 
 ### BizAIOmniChannelKnowledgeFileResponse
 | Field | Type | Required | Notes |
@@ -48,4 +48,17 @@ Required: `bizai_wa_enterprise_api_3p_access` OR `whatsapp_business_messaging`
 | file_name | string | ✓ | Name of the file |
 
 ## Error Codes
-400 Bad request | 401 Unauthorized | 404 Not found | 429 Rate limited | 500 Server error
+400 Bad request | 401 Unauthorized | 404 Not found | **409 Conflict** | 429 Rate limited |
+500 Server error | **503 Service unavailable**
+
+## Re-read against Meta 2026-09-24
+
+- **Meta checks the file's content against the extension in `file_name`.** A
+  `.pdf` that is not a PDF is refused. Worth knowing before blaming our upload:
+  `StepKnowledgeBase.tsx` omits the `Content-Type` override the other two
+  uploaders carry, and the wizard upload is recorded as failing.
+- **409 and 503 were missing from our list.** 409 most likely means a file of
+  that name already exists; 503 means retry rather than report failure to a
+  user. Neither is handled distinctly by us today.
+- Max size is exactly 100,000,000 bytes — decimal, not 100 × 1024 × 1024. A
+  client-side limit of 100 MiB would let through a file Meta refuses.

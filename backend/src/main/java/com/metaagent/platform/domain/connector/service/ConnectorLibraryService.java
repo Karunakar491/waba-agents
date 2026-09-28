@@ -19,6 +19,7 @@ import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
 import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
+import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,9 +44,13 @@ import java.util.Map;
  *   connector_deployment  — this. One definition on one agent, with the Meta id.
  *   agent_connector (V45) — a read-cache of Meta's live state. Untouched here.
  *
- * SECRETS: nothing in this class ever writes a credential to the database.
- * DeployRequest.secrets is read, folded into the outbound Meta payload, and
- * discarded with the request.
+ * SECRETS: DeployRequest.secrets is read and folded into the outbound Meta
+ * payload. As of V64 (founder's call, 2026-09-28) it is also encrypted
+ * ({@link SecretEncryptor}) and stored on the {@code ConnectorDeployment} row,
+ * so {@link #publishToAgents} can redeploy to many agents without asking for
+ * each one's credentials again. A deploy call that supplies no secrets falls
+ * back to what is stored for that agent; nothing here ever returns a
+ * decrypted value in a response.
  */
 @Slf4j
 @Service
@@ -64,6 +69,7 @@ public class ConnectorLibraryService {
     private final AgentDeployService agentDeployService;
     private final WabaAccessGuard wabaAccessGuard;
     private final ObjectMapper objectMapper;
+    private final SecretEncryptor secretEncryptor;
 
     // ---------------------------------------------------------------------
     // Library CRUD — DB only, never touches Meta.
@@ -160,13 +166,22 @@ public class ConnectorLibraryService {
             throw new BusinessException("That agent is on a different WABA than this connector's library.");
         }
 
-        Map<String, String> secrets = request.secrets() == null ? Map.of() : request.secrets();
-        Map<String, Object> payload = metaPayload(connector, secrets);
-
         ConnectorDeployment deployment = deploymentRepository
                 .findByConnectorIdAndAgentId(connectorId, agentId)
                 .orElseGet(() -> ConnectorDeployment.builder().connectorId(connectorId).agentId(agentId).build());
         deployment.setPhoneNumberId(agent.getPhoneNumberId());
+
+        // Nothing supplied — a republish (publishToAgents) — reuse what this
+        // agent's own last deploy stored. Something supplied always wins and
+        // always overwrites the stored copy, so rotating a key is one deploy.
+        Map<String, String> requestSecrets = request.secrets() == null ? Map.of() : request.secrets();
+        Map<String, String> secrets = requestSecrets.isEmpty()
+                ? decryptedSecrets(deployment)
+                : requestSecrets;
+        if (!requestSecrets.isEmpty()) {
+            deployment.setEncryptedSecrets(encryptSecrets(requestSecrets));
+        }
+        Map<String, Object> payload = metaPayload(connector, secrets);
 
         try {
             Map<String, Object> response = deployment.getMetaConnectorId() == null
@@ -192,6 +207,219 @@ public class ConnectorLibraryService {
         }
         deployment = deploymentRepository.save(deployment);
         return toDeploymentView(deployment, agent, connector);
+    }
+
+    /**
+     * Redeploys this connector to every named agent, reusing each one's
+     * already-stored credentials — the founder's "show every agent it's on,
+     * tick a checkbox each, tick all and publish everything." Never
+     * all-or-nothing: one agent's failure does not stop the others, and the
+     * caller is told which succeeded and which did not, by name.
+     */
+    public List<ConnectorLibraryDtos.PublishResult> publishToAgents(Long connectorId, List<String> agentIds) {
+        List<ConnectorLibraryDtos.PublishResult> results = new ArrayList<>();
+        for (String rawAgentId : agentIds) {
+            Long agentId = parseId(rawAgentId);
+            String agentName = agentRepository.findById(agentId).map(Agent::getDisplayName).orElse(rawAgentId);
+            try {
+                deploy(connectorId, new ConnectorLibraryDtos.DeployRequest(rawAgentId, Map.of()));
+                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, true, null));
+            } catch (Exception e) {
+                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, false, e.getMessage()));
+            }
+        }
+        return results;
+    }
+
+    /** Encrypts this deploy's secrets as one JSON blob — one ciphertext column, not one per field. */
+    private String encryptSecrets(Map<String, String> secrets) {
+        try {
+            return secretEncryptor.encrypt(objectMapper.writeValueAsString(secrets));
+        } catch (Exception e) {
+            throw new BusinessException("Could not store this deployment's credentials.");
+        }
+    }
+
+    /** Empty, never null, so a connector with no stored secrets (NONE auth, or never deployed) just sends none. */
+    private Map<String, String> decryptedSecrets(ConnectorDeployment deployment) {
+        if (deployment.getEncryptedSecrets() == null) return Map.of();
+        try {
+            return objectMapper.readValue(
+                    secretEncryptor.decrypt(deployment.getEncryptedSecrets()),
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            log.warn("Could not decrypt stored secrets for deployment {}: {}", deployment.getId(), e.getMessage());
+            throw new BusinessException(
+                    "This agent's stored credentials could not be read. Deploy again with the credentials to fix it.");
+        }
+    }
+
+    /**
+     * Instantiates the library connector's actions as real Meta tools on this
+     * agent — the step {@code ConnectorAction}'s own contract has always
+     * described ("This is the template; deploying instantiates it as a real Meta
+     * tool per agent") and which was never built. Until this existed, every
+     * connector we deployed arrived on Meta with zero tools, so the agent had
+     * nothing it could call and no error to show for it.
+     *
+     * Matched by NAME, not by a stored Meta id. One template deploys to many
+     * phone numbers and Meta scopes tool ids per phone number, so a single
+     * denormalised id on the template would conflate instances. Name is already
+     * unique per connector on our side and on Meta's.
+     *
+     * Tools on Meta that no longer exist in the library are LEFT ALONE. A
+     * customer can be mid-conversation on a tool call; removing it is a separate
+     * deliberate act, the same rule {@code deleteAction} already states.
+     *
+     * Each action is synced independently so one bad definition cannot cost the
+     * others.
+     *
+     * @return null if everything synced, otherwise a message naming what did not
+     */
+    private String syncToolsToMeta(Long agentId, String metaConnectorId, Long connectorId) {
+        if (!toolSyncEnabled) {
+            log.debug("Tool sync disabled by connector.tool-sync.enabled; skipping for connector {}", connectorId);
+            return null;
+        }
+
+        List<ConnectorAction> actions = connectorActionRepository.findAllByConnectorIdOrderByNameAsc(connectorId);
+        if (actions.isEmpty()) return null;
+
+        /*
+         * Listing is not inside the per-action loop's try: if we cannot read
+         * Meta's current tools we do not know what to create, and guessing would
+         * duplicate them. But it must not escape as a CONNECTOR-level error
+         * either — the connector was created perfectly a few lines ago, and
+         * letting this propagate would report "Meta rejected this connector",
+         * which is simply untrue, and would file the reason under lastError
+         * where the PARTIAL status never looks.
+         */
+        Map<String, Map<String, Object>> existingByName = new LinkedHashMap<>();
+        try {
+            for (Object tool : agentDeployService.listTools(agentId, metaConnectorId)) {
+                if (tool instanceof Map<?, ?> m && m.get("name") != null) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typed = (Map<String, Object>) m;
+                    existingByName.put(String.valueOf(m.get("name")), typed);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Tool sync could not list existing tools: connectorId={} error={}", connectorId, e.getMessage());
+            return truncate("Connector deployed, but its existing actions could not be checked: "
+                    + e.getMessage() + ". The agent may not be able to use this connector yet."
+                    + " Try deploying again.", 1024);
+        }
+
+        List<String> failed = new ArrayList<>();
+        for (ConnectorAction action : actions) {
+            try {
+                Map<String, Object> existing = existingByName.get(action.getName());
+                if (existing == null) {
+                    agentDeployService.createTool(agentId, metaConnectorId, toolPayload(action));
+                } else if (differs(action, existing)) {
+                    agentDeployService.updateTool(
+                            agentId, metaConnectorId, String.valueOf(existing.get("id")), toolPayload(action));
+                }
+            } catch (Exception e) {
+                log.warn("Tool sync failed: connectorId={} action={} error={}",
+                        connectorId, action.getName(), e.getMessage());
+                failed.add(action.getName());
+            }
+        }
+        return failed.isEmpty() ? null : partialMessage(failed, actions.size());
+    }
+
+    /** Meta's tool shape. requestDefinition is stored as Meta's own JSON, so it goes out verbatim. */
+    private Map<String, Object> toolPayload(ConnectorAction action) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("name", action.getName());
+        payload.put("description", action.getDescription());
+        payload.put("user_auth_required", action.isUserAuthRequired());
+        payload.put("request_definition", requireDefinitionJson(action.getRequestDefinition()));
+        return payload;
+    }
+
+    /**
+     * Whether Meta's copy has drifted from the template. Compared as parsed JSON,
+     * not as text — Meta returns the definition with its own key order and
+     * spacing, so a string comparison would report every tool as changed and
+     * rewrite all of them on every single deploy.
+     */
+    private boolean differs(ConnectorAction action, Map<String, Object> existing) {
+        if (!String.valueOf(action.getDescription()).equals(String.valueOf(existing.get("description")))) return true;
+        if (action.isUserAuthRequired() != Boolean.TRUE.equals(existing.get("user_auth_required"))) return true;
+        JsonNode ours = normalizeForCompare(requireDefinitionJson(action.getRequestDefinition()));
+        JsonNode theirs = normalizeForCompare(objectMapper.valueToTree(existing.get("request_definition")));
+        return !ours.equals(theirs);
+    }
+
+    /**
+     * Makes two definitions comparable regardless of how deeply each side
+     * happens to be JSON-encoded.
+     *
+     * Meta requires nested body nodes as JSON-encoded STRINGS — a "properties"
+     * value is the text {@code "{\"type\":\"string\"}"}, not an object (see
+     * docs/meta-api/connector-tools-capability-matrix.md). We store that shape
+     * verbatim. What Meta hands back from a GET is NOT verified to use the same
+     * encoding, and we should not bet on it: if it parses those leaves before
+     * returning them, a direct comparison is false forever, every nested-body
+     * tool is rewritten on every single deploy, and this method's whole purpose
+     * is defeated — quietly, because the deploy still reports success.
+     *
+     * So both sides are normalised the same way first: any string that is itself
+     * a JSON object or array is parsed, recursively. Encoding depth stops
+     * mattering and only real content differences remain. Applied symmetrically
+     * and only for comparison — what we SEND is always the stored shape,
+     * untouched.
+     */
+    private JsonNode normalizeForCompare(JsonNode node) {
+        if (node.isTextual()) {
+            String text = node.textValue().trim();
+            if (text.startsWith("{") || text.startsWith("[")) {
+                try {
+                    return normalizeForCompare(objectMapper.readTree(text));
+                } catch (Exception e) {
+                    return node; // just a string that happens to start with a brace
+                }
+            }
+            return node;
+        }
+        if (node.isObject()) {
+            com.fasterxml.jackson.databind.node.ObjectNode out = objectMapper.createObjectNode();
+            node.fields().forEachRemaining(e -> out.set(e.getKey(), normalizeForCompare(e.getValue())));
+            return out;
+        }
+        if (node.isArray()) {
+            com.fasterxml.jackson.databind.node.ArrayNode out = objectMapper.createArrayNode();
+            node.forEach(child -> out.add(normalizeForCompare(child)));
+            return out;
+        }
+        return node;
+    }
+
+    /**
+     * Parses a stored definition for SENDING to Meta.
+     *
+     * Deliberately not the static {@code readJson} below, which returns an empty
+     * object when a row is unreadable so one bad row cannot break a list. That
+     * is right for rendering and wrong here: an empty object is a valid-looking
+     * payload, so a corrupt template would be pushed to Meta as a tool that
+     * silently does nothing. Here it must fail, and be named in the partial
+     * message.
+     */
+    private JsonNode requireDefinitionJson(String raw) {
+        try {
+            return objectMapper.readTree(raw == null || raw.isBlank() ? "{}" : raw);
+        } catch (Exception e) {
+            throw new BusinessException("This action's request definition is not valid JSON.");
+        }
+    }
+
+    /** Plain enough for a business owner: what still works, what does not, what to do. */
+    private static String partialMessage(List<String> failed, int total) {
+        return truncate("Connector deployed, but " + failed.size() + " of " + total
+                + " actions could not be set up: " + String.join(", ", failed)
+                + ". The agent will keep working, but cannot do these yet. Try deploying again.", 1024);
     }
 
     /**

@@ -14,6 +14,7 @@ import ConnectorPane from '../components/connectors/workbench/ConnectorPane'
 import NewConnectorPane from '../components/connectors/workbench/NewConnectorPane'
 import { buildRequestDefinition } from '../components/agent-detail/toolRequestDefinition'
 import ConnectorDeployModal, { type DeployTargetAgent } from '../components/connectors/ConnectorDeployModal'
+import ConnectorRepublishModal, { type PublishResult } from '../components/connectors/ConnectorRepublishModal'
 import { type ActionPayload, type ConnectorAction } from '../components/connectors/connectorActions'
 import type { ConnectorRow } from '../components/connectors/ConnectorsTable'
 import {
@@ -77,6 +78,9 @@ export default function ConnectorWorkbenchPage() {
   const [headerDraft, setHeaderDraft] = useState<ConnectorFormValues | null>(null)
   const [publishTarget, setPublishTarget] = useState<LibraryConnector | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [republishTarget, setRepublishTarget] = useState<LibraryConnector | null>(null)
+  const [republishError, setRepublishError] = useState<string | null>(null)
+  const [republishResults, setRepublishResults] = useState<PublishResult[] | null>(null)
   const creating = connectorId === 'new'
   const [newForm, setNewForm] = useState<ConnectorFormValues>(EMPTY_CONNECTOR_FORM)
   const [newError, setNewError] = useState<string | null>(null)
@@ -247,6 +251,19 @@ export default function ConnectorWorkbenchPage() {
     },
     onError: (err: unknown) =>
       setPublishError(err instanceof Error ? err.message : 'Could not publish.'),
+  })
+
+  const republishMutation = useMutation({
+    mutationFn: ({ id, agentIds }: { id: string; agentIds: string[] }) =>
+      api
+        .post(`/connector-library/${id}/publish-to-agents`, { agentIds })
+        .then((r) => r.data.data as PublishResult[]),
+    onSuccess: (results) => {
+      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      setRepublishResults(results)
+    },
+    onError: (err: unknown) =>
+      setRepublishError(err instanceof Error ? err.message : 'Could not publish.'),
   })
 
   /**
@@ -510,6 +527,11 @@ export default function ConnectorWorkbenchPage() {
                 setPublishError(null)
                 setPublishTarget(connector)
               }}
+              onRepublish={() => {
+                setRepublishError(null)
+                setRepublishResults(null)
+                setRepublishTarget(connector)
+              }}
               onRequestDelete={() => {
                 setDeleteConnectorError(null)
                 setPendingDeleteConnector(connector)
@@ -552,6 +574,23 @@ export default function ConnectorWorkbenchPage() {
           onClose={() => {
             setPublishTarget(null)
             setPublishError(null)
+          }}
+        />
+      )}
+
+      {republishTarget && (
+        <ConnectorRepublishModal
+          connector={republishTarget}
+          publishing={republishMutation.isPending}
+          results={republishResults}
+          error={republishError}
+          onPublish={(agentIds) =>
+            republishMutation.mutate({ id: republishTarget.id, agentIds })
+          }
+          onClose={() => {
+            setRepublishTarget(null)
+            setRepublishError(null)
+            setRepublishResults(null)
           }}
         />
       )}

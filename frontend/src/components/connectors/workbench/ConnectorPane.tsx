@@ -1,4 +1,4 @@
-import { Rocket, Trash2 } from 'lucide-react'
+import { Rocket, RefreshCw, Trash2 } from 'lucide-react'
 import StatusIndicator from '../../shared/StatusIndicator'
 import ConnectorActionsTable from './ConnectorActionsTable'
 import PropertyTable, { type PropertyRow } from './PropertyTable'
@@ -79,6 +79,7 @@ export default function ConnectorPane({
   onCreateAction,
   creatingAction,
   onPublish,
+  onRepublish,
   onRequestDelete,
 }: {
   connector: LibraryConnector
@@ -96,7 +97,10 @@ export default function ConnectorPane({
     description: string
   }) => void
   creatingAction: boolean
+  /** Deploy to an agent not yet running this connector. Always asks for credentials. */
   onPublish: () => void
+  /** Redeploy to agents that already are — a checklist, reusing stored credentials. */
+  onRepublish: () => void
   onRequestDelete: () => void
 }) {
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
@@ -220,22 +224,36 @@ export default function ConnectorPane({
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={onPublish}
-            disabled={!actions?.length}
-            title={
-              actions?.length
-                ? 'Make this real on Meta, on an agent you choose'
-                : 'Add an action first — there is nothing for an agent to call'
-            }
-            className="ml-auto flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3.5
-              text-xs font-semibold text-white transition-opacity hover:opacity-90
-              disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-          >
-            <Rocket className="h-3.5 w-3.5" />
-            Publish
-          </button>
+          <span className="ml-auto flex items-center gap-2">
+            {connector.deployments.length > 0 && (
+              <button
+                type="button"
+                onClick={onRepublish}
+                title="Tick which agents already running this get the latest version"
+                className="flex min-h-11 items-center gap-1.5 rounded-lg border px-3.5
+                  text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Publish to its agents
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onPublish}
+              disabled={!actions?.length}
+              title={
+                actions?.length
+                  ? 'Make this real on Meta, on an agent you choose'
+                  : 'Add an action first — there is nothing for an agent to call'
+              }
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3.5
+                text-xs font-semibold text-white transition-opacity hover:opacity-90
+                disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+            >
+              <Rocket className="h-3.5 w-3.5" />
+              Publish to a new agent
+            </button>
+          </span>
         </div>
 
         {behind > 0 && (

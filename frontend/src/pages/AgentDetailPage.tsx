@@ -56,6 +56,7 @@ const BusinessProfileTab = lazy(() => import('../components/agent-detail/Busines
 const SkillsTab = lazy(() => import('../components/agent-detail/SkillsTab'))
 const EvalTab = lazy(() => import('../components/agent-detail/EvalTab'))
 import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
+import BusinessEventsAgentSection from '../components/events/BusinessEventsAgentSection'
 import Modal from '../components/shared/Modal'
 import ToolParamsEditor from '../components/agent-detail/ToolParamsEditor'
 import ToolBodyEditor from '../components/agent-detail/ToolBodyEditor'
@@ -2186,6 +2187,9 @@ function SettingsTab({ agent, onDeleted }: { agent: AgentApi; onDeleted: () => v
 
       {/* Audience / Allowlist */}
       <AudienceSection agentId={agent.id} phoneNumberId={agent.phoneNumberId} />
+
+      {/* Business Events */}
+      <BusinessEventsAgentSection agentId={agent.id} />
 
       {/* Actions */}
       <div className="rounded-xl border bg-card p-5 shadow-surface-resting">

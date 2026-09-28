@@ -181,6 +181,25 @@ somewhere.jar` recovers the exact bytes.
 clean`, not after — but if you forget, check `/proc/<pid>/fd/` before assuming
 the old build is gone.
 
+## A UI that "fails gracefully" can be hiding a real success
+
+2026-09-28, same R8 deploy. After shipping the frontend, the Trigger Event
+modal still showed "Meta accepted the event but returned no id to track its
+status" on every fire — including ones the backend recorded as fully
+`ACCEPTED` with a real Meta id and `meta_status=success`. The backend's
+`fireResponse()` returned `agent_event_id`; the modal read `agentEventId`.
+Neither side was new: the old direct-proxy path forwarded Meta's raw response
+unmodified, and Meta's own field really is snake_case, so this exact mismatch
+had been there since before R8 existed — it just never crashed, because the
+frontend's fallback message reads as a plausible (if unhelpful) explanation
+rather than an obvious bug.
+
+**Rule:** when a UI shows a vague "didn't quite work" message, check the
+underlying record before believing it — a fallback string that never throws
+is indistinguishable, on screen, from a real failure. Compare what the
+database says happened against what the screen says happened, for the exact
+same event, not just for the class of event.
+
 ---
 
 ## Related

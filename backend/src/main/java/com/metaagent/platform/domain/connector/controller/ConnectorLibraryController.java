@@ -46,11 +46,22 @@ public class ConnectorLibraryController {
         return ApiResponse.ok(connectorLibraryService.publish(connectorId));
     }
 
-    /** The only endpoint here that reaches Meta. Secrets are request-only, never stored. */
+    /** Reaches Meta. Secrets supplied here are encrypted and stored against the deployment (V64). */
     @PostMapping("/api/v1/connector-library/{connectorId}/deploy")
     public ApiResponse<ConnectorLibraryDtos.DeploymentView> deploy(
             @PathVariable Long connectorId, @Valid @RequestBody ConnectorLibraryDtos.DeployRequest request) {
         return ApiResponse.ok(connectorLibraryService.deploy(connectorId, request));
+    }
+
+    /**
+     * Redeploys to every agent id given, reusing each one's stored credentials.
+     * Meant for agents already running this connector — "tick the ones you
+     * want, publish to all of them." Never all-or-nothing: check each result.
+     */
+    @PostMapping("/api/v1/connector-library/{connectorId}/publish-to-agents")
+    public ApiResponse<List<ConnectorLibraryDtos.PublishResult>> publishToAgents(
+            @PathVariable Long connectorId, @Valid @RequestBody ConnectorLibraryDtos.PublishToAgentsRequest request) {
+        return ApiResponse.ok(connectorLibraryService.publishToAgents(connectorId, request.agentIds()));
     }
 
     /**

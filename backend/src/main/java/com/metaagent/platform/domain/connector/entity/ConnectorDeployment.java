@@ -56,6 +56,48 @@ public class ConnectorDeployment {
     @Column(name = "last_error", length = 1024)
     private String lastError;
 
+    /**
+     * The connector reached Meta, but these actions could not be set up as tools.
+     *
+     * Deliberately NOT folded into lastError: the two failures overlap in a way
+     * that makes them indistinguishable afterwards. A redeploy of an
+     * already-deployed connector that fails at the connector level leaves stale
+     * deployedAt + fresh lastError, which is the same shape as "deployed, some
+     * tools missing" — so a total failure would report itself as a partial one
+     * (V57 carries the full reasoning). Separate column, no string parsing.
+     */
+    @Column(name = "tool_sync_error", length = 1024)
+    private String toolSyncError;
+
+    /**
+     * How many tools Meta listed for this connector, and how many of them the
+     * backfill could actually store, the last time it ran. Equal on a clean
+     * import; they differ when a tool's request_definition could not be read,
+     * which is the only record that the library's action list is incomplete.
+     *
+     * Integer, NOT int, and this matters: deploy() saves this row on every
+     * deploy, so a primitive would let Hibernate stamp 0/0 onto rows the
+     * backfill has never touched — destroying "NULL means never back-filled",
+     * which is the distinction the whole thing rests on.
+     */
+    @Column(name = "tools_reported_by_meta")
+    private Integer toolsReportedByMeta;
+
+    @Column(name = "tools_imported")
+    private Integer toolsImported;
+
+    /**
+     * This deployment's credential VALUES (V64), AES-256-GCM ciphertext via
+     * {@code SecretEncryptor} — same component and scheme as
+     * {@code KarixEsmeCredential.encryptedApiKey}. Founder's explicit call,
+     * 2026-09-28, overriding this row's earlier "never stored" design: a
+     * republish to many agents at once needs to redeploy each one's stored
+     * credentials without asking again. NULL until a deploy has actually
+     * supplied secrets; a NONE-auth connector never has one.
+     */
+    @Column(name = "encrypted_secrets", columnDefinition = "TEXT")
+    private String encryptedSecrets;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -12,9 +12,13 @@ import java.util.Map;
 /**
  * Connector Library (V46) — the reusable definition layer.
  *
- * The single most important rule in this file: no request or response record
- * here carries a credential VALUE except {@link DeployRequest#secrets()},
- * which is write-only, forwarded straight to Meta, and never persisted.
+ * No request or response record here carries a credential VALUE in the
+ * clear except {@link DeployRequest#secrets()}, forwarded straight to Meta.
+ * As of V64 that value is also encrypted and stored against the deployment
+ * (founder's call, 2026-09-28) so {@link PublishToAgentsRequest} can redeploy
+ * to many agents without asking for each one's credentials again — see
+ * {@code ConnectorDeployment.encryptedSecrets}. Nothing here ever returns a
+ * decrypted value to a response.
  */
 public final class ConnectorLibraryDtos {
 
@@ -77,6 +81,24 @@ public final class ConnectorLibraryDtos {
     public record DeployRequest(
             @NotNull(message = "agentId is required") String agentId,
             Map<String, String> secrets
+    ) {}
+
+    /**
+     * Redeploy this connector to every agent named here, reusing each one's
+     * stored credentials rather than asking for them again. Meant for agents
+     * already carrying a deployment of this connector — the founder's "tick
+     * the ones you want, publish to all of them."
+     */
+    public record PublishToAgentsRequest(
+            @NotNull(message = "agentIds is required") List<String> agentIds
+    ) {}
+
+    /** One agent's outcome from a {@link PublishToAgentsRequest} — never all-or-nothing. */
+    public record PublishResult(
+            String agentId,
+            String agentName,
+            boolean success,
+            String message
     ) {}
 
     /** One agent a library connector is live on — the real join, not a heuristic. */

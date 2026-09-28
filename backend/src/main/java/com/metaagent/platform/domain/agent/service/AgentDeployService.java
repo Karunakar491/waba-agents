@@ -699,7 +699,7 @@ public class AgentDeployService {
     private Map<String, Object> fireResponse(BusinessEventFire fire) {
         Map<String, Object> response = new HashMap<>();
         response.put("status", fire.getOutcome() == BusinessEventFire.Outcome.ACCEPTED ? "accepted" : "not_sent");
-        response.put("agent_event_id", fire.getMetaAgentEventId());
+        response.put("agentEventId", fire.getMetaAgentEventId());
         response.put("outcome", fire.getOutcome().name());
         response.put("refusal_reason", fire.getRefusalReason() == null ? null : fire.getRefusalReason().name());
         response.put("message", fire.getOutcome() == BusinessEventFire.Outcome.REFUSED

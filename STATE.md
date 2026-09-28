@@ -10,7 +10,7 @@ link into the detail. Long-form writeups live in `TASKS.md`, `wiki/` and
 
 `node scripts/orient.js` checks the parts of this file a machine can measure.
 
-_Last updated: 2026-09-23_
+_Last updated: 2026-09-28_
 
 > The harness itself — `STATE.md`, the loop, the hooks, the two reviewers — is on
 > `harness/rework`, nine commits on top of `master`, not yet merged.
@@ -27,8 +27,11 @@ _Last updated: 2026-09-23_
 - **R2 is live**: every number reachable, a WABA/number picker that opens on All, quiet numbers listed as quiet, and customer names on rows (proven end to end — "Kk", 2026-09-23 05:17). → `docs/user-stories/R2-inbox-all-numbers.md`
 - **`POST /api/v1/webhooks/replay`** re-runs the recovery sweep. `dryRun=true` by default, idempotent via the PENDING compare-and-set. Not scheduled.
 
-> Deploy traps: build locally, never on the box; `unzip` is missing there; diff
-> the jar's class list before every swap. `reference_production_deploy_traps_2026_09_18`.
+> Deploy traps: build locally, never on the box; `unzip` is missing there
+> (`jar tf` works); diff the jar's class list before every swap; run
+> `flyway:validate` (read-only) against production before any restart —
+> master's migration line has had real gaps before, twice.
+> `reference_production_deploy_traps_2026_09_18`.
 
 ## Broken
 
@@ -84,6 +87,11 @@ Ranked by user impact. The top entry is what a low-value task gets measured agai
 
 `node scripts/orient.js` lists the branches and their counts. Only what it
 cannot work out for itself belongs here.
+
+- **R8 Release A (business-event ledger) is live in production — 2026-09-28 08:52 UTC.** `V63` applied cleanly (`success=1`), 14 commits on `feature/r8-business-events`, not yet merged to master. Proven against real Meta on the reserved test number: a draft agent's fire is `REFUSED`/`AGENT_PAUSED` before reaching Meta; a stale (4-day-old) conversation is rejected by Meta itself with its real HTTP 400 + error text captured verbatim; a fresh conversation is `ACCEPTED`, delivered to a real handset, and the poll job resolves it to a terminal `meta_status=success`. → `docs/jobs/business-events-ledger.md`
+  - **This deploy also uncovered and fixed a standing landmine: `master`'s migration line was missing V55–V58, and production's DB had V56–V62 applied whose `.sql` files exist only on unmerged feature branches** (`r4r6/reunify-deploy-line` had the complete V58–V62 set). Any deploy built cleanly from master would have crash-looped on Flyway validation, not just this one. Fixed by pulling the exact already-applied files in; `mvn ... flyway:validate` against production (read-only) is now the way to check this before ever restarting the service — see `wiki/lessons/production-safety.md`.
+  - **`/opt/metaagent/src` also had two connector files (`ConnectorLibraryService.java`, `ConnectorLibraryDtos.java`) referencing classes that were never pushed** (`ConnectorAction`, `ActionRequest`/`ActionResponse`) — `mvn clean package` couldn't compile at all before this session touched anything. Repaired with master's already-merged versions, no new/unreviewed code.
+  - Agent `890850880113348608` ("ZZ R4R6 Proof") is now **Active** again on `+91 90100 11634`, left that way — mutating e2e already treats this number as fair game.
 
 **Several chats work this repo at once.** Before starting: `node
 scripts/parallel.js status` (who holds production, which worktrees exist), then

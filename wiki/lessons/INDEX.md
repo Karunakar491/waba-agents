@@ -11,8 +11,8 @@ tags: [lessons, index]
 
 | Page | What it covers |
 |---|---|
-| [[verification\|Verification]] | What counts as proof: health checks, static review, `mvn clean`, real webhook payloads, `networkidle`, `scp` sizes, migration numbering |
-| [[production-safety\|Production Safety]] | The rules that don't bend: production data, no raw SQL, config overwrites, the kill switch |
+| [[verification\|Verification]] | What counts as proof: health checks, static review, `mvn clean`, real webhook payloads, `networkidle`, `scp` sizes, migration numbering, counting arrival at the edge rather than after your own filter, `flyway:validate` before a restart, recovering a deleted-but-open jar via `/proc/<pid>/fd/` |
+| [[production-safety\|Production Safety]] | The rules that don't bend: production data, no raw SQL, config overwrites, the kill switch, a migration gap on `master` as a landmine for the next deploy |
 | [[process\|Process & Working Style]] | The bible, no cheap fixes, product-first, reviewing against docs not implementation, keeping replies short |
 | [[frontend-patterns\|Frontend Patterns]] | Unmount races, stale effect deps, nested card chrome, TSID serialization, Vite build-time env, the auth response shape |
 | [[backend-patterns\|Backend Patterns]] | Lombok constructors, test placement, scheduled jobs in tests, Testcontainers reuse, guarding the right condition |

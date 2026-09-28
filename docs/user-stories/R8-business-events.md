@@ -1,8 +1,14 @@
 # R8 — Business Events, so the agent can speak first
 
 **Raised:** 2026-09-25, 16:20 IST — [founder's words](../FOUNDER-REQUIREMENTS.md)
-**Status:** In development — signed off 2026-09-25 ("Lets build")
-**Branch:** `feature/r8-business-events` · [job](../jobs/business-events-ledger.md)
+**Status:** In development — signed off 2026-09-25 ("Lets build"). Release A
+(ledger) and Release B (the screen) live 2026-09-28; not yet the whole
+requirement — see the checklist below for exactly what is and isn't proven.
+**Branch:** `feature/r8-business-events`, merged to `master` 2026-09-28
+**Jobs:** [Release A — the ledger](../jobs/business-events-ledger.md) ·
+[Release B — the screen](../jobs/business-events-library.md)
+**The founder has not yet been shown this himself** — everything below is
+this agent's own driving of the real app, not his sign-off on the result.
 
 ---
 
@@ -257,30 +263,59 @@ Business terms only. Each line is something he can check on a screen.
 ## Test cases
 
 Run against the real app and real Meta. No mocks. Writing only to
-**+91 90100 11634**.
+**+91 90100 11634**. Status marked as of 2026-09-28 — **the founder has not
+seen or confirmed any of this himself**; every ✅ below is this agent driving
+the real app, with a screenshot or a captured API response as evidence, not a
+business sign-off.
 
-1. Create an event from the nav bar, then open the creation wizard and the
-   agent's page — the same create screen appears in all three, and the event
-   created in one is present in the others.
-2. Attach an event to two agents; the nav bar shows "used by 2".
-3. Send an update to a customer who has an open conversation. The message arrives
-   on the real handset, in the agent's own words, and the history row moves from
-   queued to handed-to-WhatsApp to delivered.
-4. Send an update naming a customer who has never messaged the number. It is
-   refused before anything reaches Meta, the reason is shown, and the refusal
-   appears in the history.
-5. Have a person reply in a conversation, then try to send an update to it. The
-   customer shows as unavailable with the reason.
-6. Fire an event from outside the product using the address and key. It arrives,
-   the proof line updates, and the history shows it as set off by his system.
-7. Send the same outside request twice with the same reference. One message
-   reaches the customer, not two.
-8. Send an outside request with the wrong key. It is rejected, and the agent's
-   page says something arrived and was rejected because the key did not match.
-9. Replace the key; the old one stops working and the new one works.
-10. Create an agent end to end through the wizard including the new step, and
-    confirm the review screen counts the events.
-11. Skip the new wizard step; no event is created and the agent still deploys.
+1. ⚠️ **PARTIAL** — Create an event from the nav bar, then open the creation
+   wizard and the agent's page — the same create screen appears in all
+   three, and the event created in one is present in the others. **Nav and
+   agent page: done**, same shared modal, same data (`frontend/e2e-shots/r8-libB-nav.png`,
+   `r8-libB-agent-attached.png`). **Wizard: not built.**
+2. ⚠️ **PARTIAL** — Attach an event to two agents; the nav bar shows "used by
+   2". Attached to **one** agent and confirmed "used by 1" in the delete
+   warning text; never attached to a second agent, so the literal "2" case
+   is untested (the count query has no reason to break between n=1 and n=2,
+   but that is inference, not proof).
+3. ✅ **DONE** — Send an update to a customer who has an open conversation.
+   Real handset received *"I've forwarded your payment confirmation to our
+   team for verification"*; ledger row went `ACCEPTED` → polled to
+   `meta_status=success`, `terminal_at` set. (This was proven in Release A,
+   ad-hoc — not yet through an attached library event, since firing isn't
+   wired to the library. See gap below.)
+4. ✅ **DONE** — Send an update naming a customer who has never messaged the
+   number / whose conversation is stale. Refused with `outcome=FAILED`, real
+   Meta HTTP 400, *"No existing conversation thread found..."* captured
+   verbatim in the ledger.
+5. ❌ **NOT TESTED** — A person replies, then an update to that customer
+   shows as unavailable with the reason.
+6. ❌ **NOT BUILT** — Fire from outside the product via address + key. The
+   webhook receiver, the key, and the "proof it reached us" line do not
+   exist yet.
+7. ❌ **NOT BUILT** — Idempotent outside request (same reference twice).
+   Depends on #6 existing first.
+8. ❌ **NOT BUILT** — Wrong key rejected. Depends on #6.
+9. ❌ **NOT BUILT** — Key rotation. Depends on #6.
+10. ❌ **NOT BUILT** — Wizard step, end to end, review screen counts events.
+11. ❌ **NOT BUILT** — Skipping the wizard step. No wizard step exists to skip.
+
+**Net: 2 of 11 fully done, 2 partial, 7 not built.** The two releases that
+shipped (ledger + the library screen) prove the plumbing and the CRUD
+surface work for real. What's still missing is most of the "automatic" half
+of the original ask (Q1: "all 3" trigger methods) and the wizard integration
+— those are the next releases, not polish on this one.
+
+### The one connection still missing
+
+Firing today still goes through the old free-text Trigger Event modal — it
+does not read from an agent's attached library events. That means test #3
+was proven with an ad-hoc event name, not by picking "Payment Received" from
+the list and firing it. Until that's wired, `business_event_id` on every
+ledger row stays null and the library's "last fired" column stays empty
+forever, no matter how many events get created. This is the single
+highest-value next step — without it, the screen built today is a filing
+cabinet, not a feature.
 12. Turn the feature flag off; the product behaves exactly as it does today.
 
 ---

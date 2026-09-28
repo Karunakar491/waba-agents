@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Trash2, Pencil } from 'lucide-react'
+import { Send, Trash2, Pencil } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import LibraryTable, { LibraryTableSkeleton, type LibraryTableRow } from '../components/library/LibraryTable'

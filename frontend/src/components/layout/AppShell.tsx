@@ -16,6 +16,7 @@ import {
   Zap,
   Plug,
   FileText,
+  Send,
   Settings as SettingsIcon,
   Plus,
   Search,
@@ -49,6 +50,7 @@ const AGENT_SUB_NAV = [
   { tab: 'skills',     icon: Zap,      label: 'Skills',           to: '/library/skills' },
   { tab: 'connectors', icon: Plug,     label: 'Connectors',       to: '/library/connectors' },
   { tab: 'persona',    icon: FileText, label: 'Business Persona', to: '/library/persona' },
+  { tab: 'events',     icon: Send,     label: 'Business Events',  to: '/library/events' },
 ]
 
 const NAV = [

@@ -30,6 +30,10 @@ public interface BusinessEventFireRepository extends JpaRepository<BusinessEvent
     /** Idempotency check: has this caller already fired this exact thing? */
     Optional<BusinessEventFire> findByAgentIdAndIdempotencyKey(Long agentId, String idempotencyKey);
 
+    /** "Last went out" column on the agent's own library list — one event, one agent. */
+    Optional<BusinessEventFire> findTopByAgentIdAndBusinessEventIdOrderByCreatedAtDesc(Long agentId,
+                                                                                       Long businessEventId);
+
     /**
      * The scheduled poller's work queue: fires Meta accepted, that carry an id
      * we can ask about, that have not reached a terminal state, that still have

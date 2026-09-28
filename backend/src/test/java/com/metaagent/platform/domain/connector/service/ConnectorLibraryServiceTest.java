@@ -10,6 +10,7 @@ import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
 import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
+import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.domain.connector.entity.ConnectorAction;
@@ -46,8 +47,10 @@ class ConnectorLibraryServiceTest {
     private ConnectorRepository connectorRepository;
     private ConnectorActionRepository connectorActionRepository;
     private ConnectorDeploymentRepository deploymentRepository;
+    private AgentRepository agentRepository;
     private AgentService agentService;
     private AgentDeployService agentDeployService;
+    private SecretEncryptor secretEncryptor;
 
     @BeforeEach
     void setUp() {
@@ -55,17 +58,23 @@ class ConnectorLibraryServiceTest {
         connectorRepository = mock(ConnectorRepository.class);
         connectorActionRepository = mock(ConnectorActionRepository.class);
         deploymentRepository = mock(ConnectorDeploymentRepository.class);
+        agentRepository = mock(AgentRepository.class);
         agentService = mock(AgentService.class);
         agentDeployService = mock(AgentDeployService.class);
+        // A real encryptor, not a mock — round-tripping is the whole point of
+        // what's under test here. Any valid 32-byte AES-256 key will do.
+        secretEncryptor = new SecretEncryptor(
+                java.util.Base64.getEncoder().encodeToString(new byte[32]));
         service = new ConnectorLibraryService(
                 connectorRepository,
                 connectorActionRepository,
                 deploymentRepository,
-                mock(AgentRepository.class),
+                agentRepository,
                 agentService,
                 agentDeployService,
                 mock(WabaAccessGuard.class),
-                new ObjectMapper());
+                new ObjectMapper(),
+                secretEncryptor);
     }
 
     @Test
@@ -577,6 +586,135 @@ class ConnectorLibraryServiceTest {
 
         verify(agentDeployService, never()).listTools(any(), any());
         verify(agentDeployService, never()).createTool(any(), any(), any());
+    }
+
+    // ---------------------------------------------------------------------
+    // Stored credentials (V64) — founder's call, 2026-09-28: a deploy with no
+    // secrets reuses what the last deploy to that agent stored, so a
+    // republish never asks for the key again.
+    // ---------------------------------------------------------------------
+
+    private Connector givenApiKeyConnector() {
+        ConnectorLibraryDtos.AuthShape shape = new ConnectorLibraryDtos.AuthShape(
+                List.of(new ConnectorLibraryDtos.HeaderField("X-API-Key", null)), null, null, null);
+        Connector connector = Connector.builder()
+                .id(11L).wabaId(7L)
+                .name("astrotalk pricing api")
+                .description("d")
+                .baseUrl("https://api.astrotalk.com")
+                .authType("API_KEY")
+                .authConfigShape(writeShape(shape))
+                .requiresCertificate(false)
+                .build();
+        connector.setUpdatedAt(java.time.LocalDateTime.now().minusDays(1));
+        when(connectorRepository.findById(11L)).thenReturn(Optional.of(connector));
+
+        com.metaagent.platform.domain.agent.entity.Agent agent =
+                com.metaagent.platform.domain.agent.entity.Agent.builder()
+                        .id(21L).wabaId(7L).phoneNumberId("555").displayName("Astrotalk").build();
+        when(agentService.getAgent(21L)).thenReturn(agent);
+        when(agentRepository.findById(21L)).thenReturn(Optional.of(agent));
+        when(agentDeployService.createConnector(eq(21L), any())).thenReturn(Map.of("id", "meta-conn-2"));
+        when(agentDeployService.updateConnector(eq(21L), eq("meta-conn-2"), any())).thenReturn(Map.of("id", "meta-conn-2"));
+        when(connectorActionRepository.findAllByConnectorIdOrderByNameAsc(11L)).thenReturn(List.of());
+        return connector;
+    }
+
+    private static String writeShape(ConnectorLibraryDtos.AuthShape shape) {
+        try {
+            return new ObjectMapper().writeValueAsString(shape);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void should_store_supplied_secrets_encrypted_on_the_deployment_row() {
+        givenApiKeyConnector();
+        when(deploymentRepository.findByConnectorIdAndAgentId(11L, 21L)).thenReturn(Optional.empty());
+        ArgumentCaptor<ConnectorDeployment> saved = ArgumentCaptor.forClass(ConnectorDeployment.class);
+        when(deploymentRepository.save(saved.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.deploy(11L, new ConnectorLibraryDtos.DeployRequest("21", Map.of("X-API-Key", "secret-value")));
+
+        String stored = saved.getValue().getEncryptedSecrets();
+        assertNotNull(stored);
+        assertFalse(stored.contains("secret-value"), "must be ciphertext, not the plaintext key");
+        assertTrue(secretEncryptor.decrypt(stored).contains("secret-value"),
+                "the stored ciphertext must actually decrypt back to the value sent");
+    }
+
+    @Test
+    void should_reuse_stored_secrets_when_a_redeploy_supplies_none() {
+        givenApiKeyConnector();
+        String encrypted = secretEncryptor.encrypt("{\"X-API-Key\":\"stored-value\"}");
+        ConnectorDeployment existing = ConnectorDeployment.builder()
+                .connectorId(11L).agentId(21L).metaConnectorId("meta-conn-2")
+                .encryptedSecrets(encrypted)
+                .deployedAt(java.time.LocalDateTime.now().minusDays(2))
+                .build();
+        when(deploymentRepository.findByConnectorIdAndAgentId(11L, 21L)).thenReturn(Optional.of(existing));
+        when(deploymentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+
+        service.deploy(11L, new ConnectorLibraryDtos.DeployRequest("21", Map.of()));
+
+        verify(agentDeployService).updateConnector(eq(21L), eq("meta-conn-2"), payload.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> authConfig = (Map<String, Object>) payload.getValue().get("auth_config");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> apiKey = (Map<String, Object>) authConfig.get("api_key");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> headers = (List<Map<String, Object>>) apiKey.get("headers");
+        assertEquals("stored-value", headers.get(0).get("value"),
+                "a redeploy with no secrets supplied must fall back to what was stored");
+    }
+
+    @Test
+    void should_refuse_a_first_deploy_with_no_secrets_and_none_stored() {
+        givenApiKeyConnector();
+        when(deploymentRepository.findByConnectorIdAndAgentId(11L, 21L)).thenReturn(Optional.empty());
+
+        assertThrows(BusinessException.class,
+                () -> service.deploy(11L, new ConnectorLibraryDtos.DeployRequest("21", Map.of())),
+                "no secrets supplied and none stored yet must still refuse, not silently deploy with no auth");
+    }
+
+    @Test
+    void should_publish_to_every_agent_named_and_report_each_outcome_separately() {
+        givenApiKeyConnector();
+        String encrypted = secretEncryptor.encrypt("{\"X-API-Key\":\"stored-value\"}");
+        ConnectorDeployment onAgent21 = ConnectorDeployment.builder()
+                .connectorId(11L).agentId(21L).metaConnectorId("meta-conn-2").encryptedSecrets(encrypted)
+                .deployedAt(java.time.LocalDateTime.now().minusDays(2)).build();
+        when(deploymentRepository.findByConnectorIdAndAgentId(11L, 21L)).thenReturn(Optional.of(onAgent21));
+        when(deploymentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // A second agent whose stored credentials were never captured — its
+        // redeploy must fail without taking the first agent down with it.
+        com.metaagent.platform.domain.agent.entity.Agent agent22 =
+                com.metaagent.platform.domain.agent.entity.Agent.builder()
+                        .id(22L).wabaId(7L).phoneNumberId("556").displayName("Astrotalk Backup").build();
+        when(agentService.getAgent(22L)).thenReturn(agent22);
+        when(agentRepository.findById(22L)).thenReturn(Optional.of(agent22));
+        ConnectorDeployment onAgent22 = ConnectorDeployment.builder()
+                .connectorId(11L).agentId(22L).metaConnectorId("meta-conn-3").build(); // no stored secrets
+        when(deploymentRepository.findByConnectorIdAndAgentId(11L, 22L)).thenReturn(Optional.of(onAgent22));
+
+        List<ConnectorLibraryDtos.PublishResult> results =
+                service.publishToAgents(11L, List.of("21", "22"));
+
+        assertEquals(2, results.size());
+        ConnectorLibraryDtos.PublishResult first = results.get(0);
+        assertEquals("21", first.agentId());
+        assertEquals("Astrotalk", first.agentName());
+        assertTrue(first.success());
+
+        ConnectorLibraryDtos.PublishResult second = results.get(1);
+        assertEquals("22", second.agentId());
+        assertEquals("Astrotalk Backup", second.agentName());
+        assertFalse(second.success(), "no stored secrets for this agent must fail it, not the whole batch");
+        assertNotNull(second.message());
     }
 
     private static com.fasterxml.jackson.databind.JsonNode objectNode(String json) {

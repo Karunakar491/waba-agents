@@ -86,6 +86,18 @@ public class ConnectorDeployment {
     @Column(name = "tools_imported")
     private Integer toolsImported;
 
+    /**
+     * This deployment's credential VALUES (V64), AES-256-GCM ciphertext via
+     * {@code SecretEncryptor} — same component and scheme as
+     * {@code KarixEsmeCredential.encryptedApiKey}. Founder's explicit call,
+     * 2026-09-28, overriding this row's earlier "never stored" design: a
+     * republish to many agents at once needs to redeploy each one's stored
+     * credentials without asking again. NULL until a deploy has actually
+     * supplied secrets; a NONE-auth connector never has one.
+     */
+    @Column(name = "encrypted_secrets", columnDefinition = "TEXT")
+    private String encryptedSecrets;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -1,0 +1,25 @@
+-- A webhook we deliberately decline now leaves a record, and says why.
+--
+-- WebhookController has two gates that discard a payload and return 200 OK
+-- without writing anything: the campaign filter and the unattributed drop.
+-- Measured on 2026-09-24, Meta sent 490 webhooks to POST /api/v1/webhook and
+-- 69 rows reached this table. The other 421 left no trace — not the payload,
+-- not the reason, not a count. That is why a one-sided Inbox was first misread
+-- as Meta going quiet: you cannot tell silence from deletion in a system that
+-- deletes silently.
+--
+-- One nullable column, and no new `status` value, deliberately. Appending to
+-- the status ENUM would have been tidier to read, but it makes a rollback to
+-- the previous jar throw on every row carrying the new value — Hibernate maps
+-- status as EnumType.STRING and the Webhooks tab hydrates these rows — so the
+-- old jar could not be put back until retention had aged them out. CLAUDE.md
+-- requires every deploy to be reversible in under five minutes. A nullable
+-- column the old jar never selects costs nothing and keeps that guarantee.
+--
+-- Declined rows therefore carry status FAILED with dropped_reason set, which
+-- also means the existing retention purge already matches them. `FAILED with a
+-- reason` reads as "we chose not to process this, and here is which rule did
+-- it"; FAILED with a null reason keeps its old meaning of "we tried and could
+-- not".
+ALTER TABLE webhook_raw
+    ADD COLUMN dropped_reason VARCHAR(32) NULL AFTER status;

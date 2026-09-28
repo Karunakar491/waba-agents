@@ -12,7 +12,11 @@ import {
   PanelLeftClose,
   PanelLeft,
   BarChart3,
+  BookOpen,
+  Zap,
+  Plug,
   FileText,
+  Send,
   Settings as SettingsIcon,
   Plus,
   Search,
@@ -26,21 +30,28 @@ import { cn } from '../../lib/utils'
 import ClientCommandBar from './ClientCommandBar'
 import ErrorBoundary from '../shared/ErrorBoundary'
 
-// Sub-items under "Agents". All four now have a real account-wide aggregate
-// Library page (TASK-050 Skills, TASK-064 Connectors — live fan-out, no
-// local mirror — TASK-060 Persona, TASK-065 Knowledge Base/Files — local
-// mirror, Files+Websites as tabs on one page) — they always route there
-// instead of an agent deep-link.
-const AGENT_SUB_NAV = [
-  { tab: 'knowledge',  label: 'Knowledge Base',   to: '/library/files' },
-  { tab: 'skills',     label: 'Skills',           to: '/library/skills' },
-  { tab: 'connectors', label: 'Connectors',       to: '/library/connectors' },
-  { tab: 'persona',    label: 'Business Persona', to: '/library/persona' },
-]
-
+// Knowledge Base, Skills, Connectors and Business Persona are top-level
+// destinations, not a group under "Agents". They were nested under a heading
+// reading "Library", which the founder removed (2026-09-23): "Its a Nav bar and
+// it will have agents, Knowledge base, Connectors, Skills and Business
+// persona's". Nobody on their way to Skills first goes to a wrapper called
+// Library, and the wrapper had no page behind it.
+//
+// Icons are the same four AgentDetailPage's LEFT_TABS already use for these
+// exact concepts (BookOpen/Zap/Plug/FileText) — the agent's own tabs and the
+// account-wide pages are the same four ideas, and giving them two icon
+// vocabularies would be the app disagreeing with itself.
+//
+// Routes stay at /library/* deliberately: renaming eight paths and the ~40 e2e
+// page.goto calls behind them changes nothing a user can see.
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard',    soon: false, end: false },
   { to: '/agents',   icon: Bot,          label: 'Agents',         soon: false, end: false },
+  { to: '/library/files',      icon: BookOpen, label: 'Knowledge Base',   soon: false, end: false },
+  { to: '/library/skills',     icon: Zap,      label: 'Skills',           soon: false, end: false },
+  { to: '/library/connectors', icon: Plug,     label: 'Connectors',       soon: false, end: false },
+  { to: '/library/persona',    icon: FileText, label: 'Business Persona', soon: false, end: false },
+  { to: '/library/events',     icon: Send,     label: 'Business Events',  soon: false, end: false },
   { to: '/reports',  icon: BarChart3,    label: 'Reports',        soon: false, end: false },
   // Own nav item (2026-08-13) — mirrors Template Studio's existing
   // /templates/debug page; raw technical logs (API calls, webhooks) don't
@@ -73,10 +84,17 @@ export default function AppShell() {
   const user = useAuthStore((s) => s.user)
   const logout = useLogout()
   const location = useLocation()
-  // Collapsed by default (modern-app convention) — only stays expanded if the
-  // user explicitly expanded it before (localStorage holds '0').
+  // Expanded by default, per DESIGN.md §5: the rail "defaults to
+  // expanded/labeled (discoverable for a first-time, non-technical user),
+  // collapse is opt-in and persisted". It had drifted to collapsed, justified
+  // in a comment as "modern-app convention" — so this restores the spec rather
+  // than proposing a new opinion.
+  //
+  // `=== '1'` rather than `!== '0'` deliberately: toggle() writes '1' when the
+  // user collapses and '0' when they expand, so this flips the default for
+  // people who never touched it while leaving BOTH explicit choices intact.
   const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSE_KEY) !== '0',
+    () => localStorage.getItem(COLLAPSE_KEY) === '1',
   )
   // Below md the sidebar is an off-canvas drawer — closed by default, overlays content
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -90,14 +108,12 @@ export default function AppShell() {
   // the skill editor all sat under a breadcrumb reading "Dashboard", which is
   // worse than no breadcrumb at all (founder-reported 2026-09-03).
   //
-  // The library routes live in AGENT_SUB_NAV, not NAV, which is why they fell
-  // through. Longest matching prefix wins, so /library/skills/:id/edit resolves
-  // to Skills rather than to whatever happens to be listed first.
+  // The /library/* routes used to live in a separate AGENT_SUB_NAV array and had
+  // to be spread in here by hand; they are in NAV now, so activeNav alone covers
+  // them. Longest matching prefix wins, so /library/skills/:id/edit resolves to
+  // Skills rather than to whatever happens to be listed first.
   const headerLabel = useMemo(() => {
-    const candidates = [
-      ...activeNav.map((n) => ({ to: n.to, label: n.label })),
-      ...AGENT_SUB_NAV.map((n) => ({ to: n.to, label: n.label })),
-    ]
+    const candidates = activeNav.map((n) => ({ to: n.to, label: n.label }))
     const exact = candidates.find((c) => location.pathname === c.to)
     if (exact) return exact.label
     const prefixed = candidates
@@ -227,7 +243,20 @@ export default function AppShell() {
         </Link>
 
         {/* Nav */}
-        <nav className={cn('flex-1 space-y-1 py-4', iconOnly ? 'px-2' : 'px-3')}>
+        {/* min-h-0 + overflow-y-auto, not just flex-1: a flex child will not
+            shrink below its content without min-h-0, so before this the rail
+            did not scroll — it pushed the account block and Sign out past the
+            bottom of the viewport, unreachable. Twelve expanded rows measured
+            ~636px against ~616px on a 1366x768 laptop, which is what most of
+            these users are on (DESIGN.md §0.1). Flattening the group removed a
+            heading row and two rules but kept all twelve destinations, so this
+            still has to scroll. */}
+        {/* Named so a test can target this nav specifically — there is only one
+            today, and a second would otherwise break every selector silently. */}
+        <nav
+          aria-label="Main"
+          className={cn('min-h-0 flex-1 space-y-1 overflow-y-auto py-4', iconOnly ? 'px-2' : 'px-3')}
+        >
           {activeNav.map(({ to, icon: Icon, label, soon, end }) => (
             <div key={to}>
               <NavLink
@@ -260,31 +289,6 @@ export default function AppShell() {
                 )}
                 {iconOnly && <span className="sr-only">{label}</span>}
               </NavLink>
-
-              {/* Agents sub-nav — always expanded, hidden entirely in the
-                  collapsed rail (sub-items don't fit a 64px icon-only rail). */}
-              {to === '/agents' && !iconOnly && (
-                <div className="mt-1 space-y-1">
-                  {AGENT_SUB_NAV.map(({ tab, label: subLabel, to: subTo }) => {
-                    const isActive = location.pathname === subTo
-                    return (
-                      <NavLink
-                        key={tab}
-                        to={subTo}
-                        onClick={() => setMobileOpen(false)}
-                        className={cn(
-                          'block rounded-lg py-2 pl-11 pr-3 text-sm transition-colors',
-                          isActive
-                            ? 'bg-white/15 text-white'
-                            : 'text-white/50 hover:bg-white/10 hover:text-white/80',
-                        )}
-                      >
-                        {subLabel}
-                      </NavLink>
-                    )
-                  })}
-                </div>
-              )}
 
               {/* Iris sub-nav — New chat + search + session history, same
                   shape as Agents' sub-nav above ("One rail, one grammar":

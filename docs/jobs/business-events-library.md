@@ -57,4 +57,59 @@ was asked for:
 
 ## Proof
 
-Real app, real Meta, writing only to `+91 90100 11634`. Filled in as built.
+Real app, real deployed production (`app.karix.online`), on the reserved
+test agent `890850880113348608` ("ZZ R4R6 Proof", `+91 90100 11634`). Live
+2026-09-28 11:04 UTC — jar rollback `/opt/metaagent/rollback-preLibB-20260928T105723Z-platform.jar`,
+frontend rollback `/var/www/metaagent.bak-20260928T110426Z`.
+
+### What was actually driven end to end, with evidence
+
+- **V65 migration applies cleanly against production.** Confirmed via
+  `flyway_schema_history`: `65 | business event library | 1`. Read-only
+  `flyway:validate` run before the restart that applied it — clean except the
+  expected "resolved, not yet applied: 65" pending notice.
+- **Create, from the nav.** `POST /business-events` against the live API
+  (before the frontend was even deployed) returned a real row; then created
+  again through the actual UI at `/library/events`. Screenshot:
+  `frontend/e2e-shots/r8-libB-nav.png`.
+- **List, same data both places.** Nav page shows "Payment Received... A
+  person sends it... No agents" (usedByCount=0 at that point). Screenshot
+  confirms the shared `LibraryTable` renders it with the Skills/Persona
+  chrome, not a bespoke layout.
+- **Attach, from the agent page.** Opened agent Settings → Business Events →
+  Add event → picked "Payment Received" from the picker. Screenshot
+  `frontend/e2e-shots/r8-libB-agent-attached.png` shows the real result: the
+  event listed under the agent with status "A person sends it", "Used by —",
+  "Last updated —" (semantically last-fired, see gap below).
+- **Delete warns by name, before it happens.** Clicked delete on "Payment
+  Received" from the nav while it was attached to one agent. Real modal text,
+  captured verbatim: *"Payment Received is used by 1 agent: ZZ R4R6 Proof.
+  They will no longer be able to announce this. This cannot be undone."*
+  Matches R8 acceptance criteria #5 exactly. Did not confirm the delete —
+  the event and its attachment are still live as of this writing.
+
+### Not tested
+
+- **Two agents, "used by 2".** Only ever attached to one agent this session —
+  the exact count-of-2 case (criteria #2) was not driven, only inferred from
+  the count query's own logic (`GROUP BY business_event_id`, no reason it
+  would misbehave at n=2 having worked at n=1, but that is an inference, not
+  a test).
+- **The wizard step.** Not built this pass — explicitly flagged as a stretch
+  goal that didn't land. Criteria #22–26 remain untested and unbuilt.
+- **Automatic triggers (#6–9).** Not built. The two options render disabled
+  with a reason in the editor (screenshot shows this), but nothing behind
+  them exists.
+- **Fired-through-the-library.** The Trigger Event control still takes
+  free-text type/description; it does not yet read from an agent's attached
+  events. This means `lastFiredAt` (criteria #3's "last fired" column) will
+  stay null in production indefinitely until that wiring exists — the column
+  is real and correctly wired to the ledger, it just has nothing to show yet.
+
+### Known defect, not yet fixed
+
+The agent-page table's rightmost column header reads **"Last updated"**,
+not "last fired" — `LibraryTable`'s `showUpdated` label is hardcoded, not a
+prop. The *value* in that column is `lastFiredAt` (correct data), only the
+*heading text* is wrong. Low severity, but a real mismatch between what the
+column says and what it means.

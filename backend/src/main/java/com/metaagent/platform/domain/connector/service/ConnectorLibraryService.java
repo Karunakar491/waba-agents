@@ -19,6 +19,7 @@ import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
 import com.metaagent.platform.domain.connector.repository.ConnectorRepository;
 import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
+import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,9 +45,13 @@ import java.util.Map;
  *   connector_deployment  — this. One definition on one agent, with the Meta id.
  *   agent_connector (V45) — a read-cache of Meta's live state. Untouched here.
  *
- * SECRETS: nothing in this class ever writes a credential to the database.
- * DeployRequest.secrets is read, folded into the outbound Meta payload, and
- * discarded with the request.
+ * SECRETS: DeployRequest.secrets is read and folded into the outbound Meta
+ * payload. As of V64 (founder's call, 2026-09-28) it is also encrypted
+ * ({@link SecretEncryptor}) and stored on the {@code ConnectorDeployment} row,
+ * so {@link #publishToAgents} can redeploy to many agents without asking for
+ * each one's credentials again. A deploy call that supplies no secrets falls
+ * back to what is stored for that agent; nothing here ever returns a
+ * decrypted value in a response.
  */
 @Slf4j
 @Service
@@ -65,6 +70,7 @@ public class ConnectorLibraryService {
     private final AgentDeployService agentDeployService;
     private final WabaAccessGuard wabaAccessGuard;
     private final ObjectMapper objectMapper;
+    private final SecretEncryptor secretEncryptor;
 
     /**
      * Kill switch for the tool sync in {@link #deploy}. Default ON, matching
@@ -199,13 +205,22 @@ public class ConnectorLibraryService {
             throw new BusinessException("That agent is on a different WABA than this connector's library.");
         }
 
-        Map<String, String> secrets = request.secrets() == null ? Map.of() : request.secrets();
-        Map<String, Object> payload = metaPayload(connector, secrets);
-
         ConnectorDeployment deployment = deploymentRepository
                 .findByConnectorIdAndAgentId(connectorId, agentId)
                 .orElseGet(() -> ConnectorDeployment.builder().connectorId(connectorId).agentId(agentId).build());
         deployment.setPhoneNumberId(agent.getPhoneNumberId());
+
+        // Nothing supplied — a republish (publishToAgents) — reuse what this
+        // agent's own last deploy stored. Something supplied always wins and
+        // always overwrites the stored copy, so rotating a key is one deploy.
+        Map<String, String> requestSecrets = request.secrets() == null ? Map.of() : request.secrets();
+        Map<String, String> secrets = requestSecrets.isEmpty()
+                ? decryptedSecrets(deployment)
+                : requestSecrets;
+        if (!requestSecrets.isEmpty()) {
+            deployment.setEncryptedSecrets(encryptSecrets(requestSecrets));
+        }
+        Map<String, Object> payload = metaPayload(connector, secrets);
 
         try {
             Map<String, Object> response = deployment.getMetaConnectorId() == null
@@ -246,6 +261,51 @@ public class ConnectorLibraryService {
         }
         deployment = deploymentRepository.save(deployment);
         return toDeploymentView(deployment, agent, connector);
+    }
+
+    /**
+     * Redeploys this connector to every named agent, reusing each one's
+     * already-stored credentials — the founder's "show every agent it's on,
+     * tick a checkbox each, tick all and publish everything." Never
+     * all-or-nothing: one agent's failure does not stop the others, and the
+     * caller is told which succeeded and which did not, by name.
+     */
+    public List<ConnectorLibraryDtos.PublishResult> publishToAgents(Long connectorId, List<String> agentIds) {
+        List<ConnectorLibraryDtos.PublishResult> results = new ArrayList<>();
+        for (String rawAgentId : agentIds) {
+            Long agentId = parseId(rawAgentId);
+            String agentName = agentRepository.findById(agentId).map(Agent::getDisplayName).orElse(rawAgentId);
+            try {
+                deploy(connectorId, new ConnectorLibraryDtos.DeployRequest(rawAgentId, Map.of()));
+                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, true, null));
+            } catch (Exception e) {
+                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, false, e.getMessage()));
+            }
+        }
+        return results;
+    }
+
+    /** Encrypts this deploy's secrets as one JSON blob — one ciphertext column, not one per field. */
+    private String encryptSecrets(Map<String, String> secrets) {
+        try {
+            return secretEncryptor.encrypt(objectMapper.writeValueAsString(secrets));
+        } catch (Exception e) {
+            throw new BusinessException("Could not store this deployment's credentials.");
+        }
+    }
+
+    /** Empty, never null, so a connector with no stored secrets (NONE auth, or never deployed) just sends none. */
+    private Map<String, String> decryptedSecrets(ConnectorDeployment deployment) {
+        if (deployment.getEncryptedSecrets() == null) return Map.of();
+        try {
+            return objectMapper.readValue(
+                    secretEncryptor.decrypt(deployment.getEncryptedSecrets()),
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            log.warn("Could not decrypt stored secrets for deployment {}: {}", deployment.getId(), e.getMessage());
+            throw new BusinessException(
+                    "This agent's stored credentials could not be read. Deploy again with the credentials to fix it.");
+        }
     }
 
     /**

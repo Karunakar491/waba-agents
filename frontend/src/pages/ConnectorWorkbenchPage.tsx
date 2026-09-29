@@ -400,8 +400,12 @@ export default function ConnectorWorkbenchPage({
        overflow-auto">`. Two scroll containers, one nested in the other, so the
        page showed two vertical scrollbars side by side and the outer one moved
        a page that had nowhere to go. The 4rem was wrong as well — there are two
-       bars above this, not one. */
-    <div className="-m-6 flex flex-col">
+       bars above this, not one.
+
+       Embedded, there is no shell padding to cancel and no viewport to fill
+       — the caller gives this a bounded box of its own, so it fills THAT
+       instead (`h-full`, not the page's negative-margin trick). */
+    <div className={embedded ? 'flex h-full flex-col' : '-m-6 flex flex-col'}>
       {/* Where you are, and nothing else. There is only ever ONE row of tabs on
           the screen, and it belongs to the open action.
 

@@ -1306,169 +1306,13 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
   )
 }
 
-
-// ── Tools list sub-component ─────────────────────────────────────────────────
-
-function ToolsList({
-  agentId,
-  connectorId,
-  refetchSignal,
-}: {
-  agentId: string
-  connectorId: string
-  refetchSignal: number
-}) {
-  const queryClient = useQueryClient()
-  const [runningTool, setRunningTool] = useState<ConnectorTool | null>(null)
-  const [deletingTool, setDeletingTool] = useState<ConnectorTool | null>(null)
-
-  const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
-    queryKey: ['tools', agentId, connectorId, refetchSignal],
-    queryFn: () =>
-      api
-        .get(`/agents/${agentId}/connectors/${connectorId}/tools`)
-        .then((r) => {
-          const d = r.data.data
-          return Array.isArray(d) ? d : (d?.data ?? [])
-        }),
-  })
-
-  const tools = toolsRaw ?? []
-
-  const deleteToolMutation = useMutation({
-    mutationFn: (toolId: string) =>
-      api.delete(`/agents/${agentId}/connectors/${connectorId}/tools/${toolId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
-      setDeletingTool(null)
-    },
-  })
-
-  return (
-    <div className="border-t bg-muted/20 px-4 py-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Tools
-        </span>
-      </div>
-
-      {isLoading ? (
-        <div className="space-y-2">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-9 rounded-lg bg-muted/60 animate-pulse" />
-          ))}
-        </div>
-      ) : tools.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">
-          No tools yet. Add tools to let the agent call this connector.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {tools.map((tool) => {
-            const methodCls = METHOD_BADGE[tool.request_definition.method] ?? 'bg-muted text-muted-foreground'
-            return (
-              <li
-                key={tool.id}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={cn(
-                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                      methodCls,
-                    )}
-                  >
-                    {tool.request_definition.method}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{tool.name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {tool.request_definition.path}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setRunningTool(tool)}
-                  aria-label={`Run tool ${tool.name}`}
-                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-accent-teal-solid"
-                >
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setDeletingTool(tool)}
-                  aria-label={`Delete tool ${tool.name}`}
-                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-
-      {runningTool && (
-        <RunToolModal
-          agentId={agentId}
-          connectorId={connectorId}
-          toolId={runningTool.id}
-          toolName={runningTool.name}
-          onClose={() => setRunningTool(null)}
-        />
-      )}
-
-      {deletingTool && (
-        <Modal
-          title={`Delete tool "${deletingTool.name}"?`}
-          onClose={() => setDeletingTool(null)}
-          preventClose={deleteToolMutation.isPending}
-        >
-          <p className="text-sm text-muted-foreground">
-            The agent will no longer be able to call this tool. This can&apos;t be undone.
-          </p>
-
-          {deleteToolMutation.isError && (
-            <div className="mt-3">
-              <ErrorBanner error={deleteToolMutation.error} />
-            </div>
-          )}
-
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => deleteToolMutation.mutate(deletingTool.id)}
-              disabled={deleteToolMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
-                text-sm font-semibold text-white transition-opacity hover:opacity-90
-                disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {deleteToolMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Delete tool
-            </button>
-            <button
-              onClick={() => setDeletingTool(null)}
-              disabled={deleteToolMutation.isPending}
-              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      )}
-    </div>
-  )
-}
-
 // ── ConnectorsTab ─────────────────────────────────────────────────────────────
 
 function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const queryClient = useQueryClient()
-  const [expandedConnectorId, setExpandedConnectorId] = useState<string | null>(null)
   const [showAddConnector, setShowAddConnector] = useState(false)
   const [editingConnector, setEditingConnector] = useState<Connector | null>(null)
   const [deletingConnector, setDeletingConnector] = useState<Connector | null>(null)
-  // keyed by connectorId — tracks refetch signal per connector's tools
-  const [toolRefetch] = useState<Record<string, number>>({})
 
   const { data: connectorsRaw, isLoading } = useQuery<Connector[]>({
     queryKey: ['connectors', agent.id],
@@ -1484,9 +1328,8 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
 
   const deleteConnectorMutation = useMutation({
     mutationFn: (connectorId: string) => api.delete(`/agents/${agent.id}/connectors/${connectorId}`),
-    onSuccess: (_data, connectorId) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
-      if (expandedConnectorId === connectorId) setExpandedConnectorId(null)
       setDeletingConnector(null)
     },
   })
@@ -1501,10 +1344,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
         </p>
       </div>
     )
-  }
-
-  function toggleExpand(connectorId: string) {
-    setExpandedConnectorId((prev) => (prev === connectorId ? null : connectorId))
   }
 
   return (
@@ -1541,7 +1380,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
         <div className="space-y-3">
           {connectors.map((connector) => {
             const status = connector.connection_status?.status ?? ''
-            const isExpanded = expandedConnectorId === connector.id
             return (
               <div
                 key={connector.id}
@@ -1558,17 +1396,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     <StatusIndicator label={status || 'Unknown'} tone={connectorStatusTone(status)} />
                   </span>
                   <button
-                    onClick={() => toggleExpand(connector.id)}
-                    aria-label={isExpanded ? 'Collapse tools' : 'Expand tools'}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
                     onClick={() => setEditingConnector(connector)}
                     aria-label={`Edit connector ${connector.name}`}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
@@ -1583,15 +1410,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-
-                {/* Tools list */}
-                {isExpanded && (
-                  <ToolsList
-                    agentId={agent.id}
-                    connectorId={connector.id}
-                    refetchSignal={toolRefetch[connector.id] ?? 0}
-                  />
-                )}
               </div>
             )
           })}

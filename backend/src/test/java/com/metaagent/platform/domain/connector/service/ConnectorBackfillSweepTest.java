@@ -254,6 +254,63 @@ class ConnectorBackfillSweepTest {
     }
 
     @Test
+    void should_adopt_a_connector_meta_reports_that_we_never_recorded() {
+        Map<String, Object> orphan = Map.of(
+                "id", "pfbid0orphan", "name", "Legacy CRM", "description", "Built directly on Meta.",
+                "base_url", "https://legacy.example.com", "auth_type", "NONE");
+        List<Object> savedActions = new ArrayList<>();
+        List<Object> savedDeployments = new ArrayList<>();
+        List<Object> savedConnectors = new ArrayList<>();
+        StubMeta meta = new StubMeta(List.of(orphan), List.of(REAL_TOOL));
+        ConnectorBackfillService service = new ConnectorBackfillService(
+                stubRepo(ConnectorRepository.class, Map.of("findById", Optional.of(connector())), savedConnectors),
+                stubRepo(ConnectorActionRepository.class,
+                        Map.of("findAllByConnectorIdOrderByNameAsc", List.of()), savedActions),
+                stubRepo(ConnectorDeploymentRepository.class,
+                        Map.of("findAllByAgentIdIn", List.of()), savedDeployments),
+                meta, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "enabled", true);
+
+        service.ensureConnectorsBackfilled(agent());
+
+        assertEquals(1, savedConnectors.size(), "the orphan becomes a real library row");
+        Connector adopted = (Connector) savedConnectors.get(0);
+        assertEquals("Legacy CRM", adopted.getName());
+        assertEquals("https://legacy.example.com", adopted.getBaseUrl());
+        assertEquals("NONE", adopted.getAuthType());
+        assertEquals(Connector.STATUS_PUBLISHED, adopted.getStatus(), "it is live on Meta right now — that is the fact being adopted");
+
+        assertEquals(2, savedDeployments.size(), "the adoption save, then backfillActions's tools-count save");
+        ConnectorDeployment adoption = (ConnectorDeployment) savedDeployments.get(0);
+        assertEquals("pfbid0orphan", adoption.getMetaConnectorId());
+        assertNotNull(adoption.getDeployedAt());
+
+        assertEquals(1, savedActions.size(), "its tools are backfilled in the same sweep, not a second pass");
+    }
+
+    @Test
+    void should_not_adopt_a_connector_whose_auth_type_we_cannot_store() {
+        Map<String, Object> weird = Map.of(
+                "id", "pfbid0weird", "name", "Weird", "description", "d",
+                "base_url", "https://weird.example.com", "auth_type", "BASIC");
+        List<Object> savedDeployments = new ArrayList<>();
+        List<Object> savedConnectors = new ArrayList<>();
+        StubMeta meta = new StubMeta(List.of(weird), List.of());
+        ConnectorBackfillService service = new ConnectorBackfillService(
+                stubRepo(ConnectorRepository.class, Map.of("findById", Optional.of(connector())), savedConnectors),
+                stubRepo(ConnectorActionRepository.class, Map.of(), new ArrayList<>()),
+                stubRepo(ConnectorDeploymentRepository.class,
+                        Map.of("findAllByAgentIdIn", List.of()), savedDeployments),
+                meta, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "enabled", true);
+
+        service.ensureConnectorsBackfilled(agent());
+
+        assertTrue(savedConnectors.isEmpty(), "BASIC is on Meta's schema as \"defined but not currently supported\" — nothing we can safely store or later republish");
+        assertTrue(savedDeployments.isEmpty());
+    }
+
+    @Test
     void should_not_touch_meta_for_an_agent_with_no_phone_number_or_no_waba() {
         Agent draft = agent();
         draft.setPhoneNumberId(null);

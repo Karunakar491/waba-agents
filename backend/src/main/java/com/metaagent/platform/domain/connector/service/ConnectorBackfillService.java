@@ -94,7 +94,8 @@ public class ConnectorBackfillService {
             // non-injective slug of the display name and is not stored, so
             // matching on it would silently pair the wrong rows.
             Map<String, ConnectorDeployment> byMetaId = deploymentsByMetaId(agent);
-            if (byMetaId.isEmpty()) return;
+            // No isEmpty() short-circuit here any more: an agent with zero known
+            // deployments is exactly the case orphan adoption exists for.
 
             java.util.Set<String> liveOnMeta = new java.util.HashSet<>();
             for (Object item : remote) {
@@ -104,15 +105,18 @@ public class ConnectorBackfillService {
                 liveOnMeta.add(metaId);
 
                 ConnectorDeployment deployment = byMetaId.get(metaId);
-                if (deployment == null) continue;          // not ours — orphan adoption is a later diff
-                if (deployment.getDeployedAt() == null) continue; // never landed; nothing to read back
 
                 // One bad connector must not cost this agent the rest of them.
                 try {
+                    if (deployment == null) {
+                        deployment = adoptOrphan(agent, metaConnector, metaId);
+                        if (deployment == null) continue; // couldn't adopt — logged already
+                    }
+                    if (deployment.getDeployedAt() == null) continue; // never landed; nothing to read back
                     backfillActions(agent, deployment, metaId);
                 } catch (Exception e) {
                     log.warn("Connector action backfill failed: agentId={} connectorId={} error={}",
-                            agent.getId(), deployment.getConnectorId(), e.getMessage());
+                            agent.getId(), deployment == null ? null : deployment.getConnectorId(), e.getMessage());
                 }
             }
 
@@ -191,6 +195,64 @@ public class ConnectorBackfillService {
                         agent.getId(), deployment.getConnectorId(), e.getMessage());
             }
         }
+    }
+
+    /** Mirrors ConnectorLibraryService's own set — kept separate per that class's ban on injecting it (see class javadoc). */
+    private static final java.util.Set<String> KNOWN_AUTH_TYPES =
+            java.util.Set.of("API_KEY", "OAUTH2_CLIENT_CREDENTIALS", "NONE");
+
+    /**
+     * Meta reports a connector on this agent's number that no
+     * {@link ConnectorDeployment} of ours points at — built directly on Meta,
+     * by hand or by another tool, with nothing telling us it exists. Creates
+     * the library row and its deployment from what Meta returns, so it shows
+     * up in the library like anything we deployed ourselves, rather than the
+     * old read-only, name-matched, easily-duplicated view.
+     *
+     * One row per (agent, Meta connector id) is correct, not a shortcut: Meta
+     * scopes a connector's id to a phone number (ConnectorDeployment's own
+     * class javadoc), so the same integration built by hand on three numbers
+     * is honestly three distinct Meta objects, and merging them on name would
+     * repeat the exact defect this replaces — a name collision hiding an
+     * unrelated connector.
+     *
+     * @return the new deployment, or null if Meta's record was missing a
+     *         field we cannot store without (logged, not thrown).
+     */
+    private ConnectorDeployment adoptOrphan(Agent agent, Map<?, ?> metaConnector, String metaId) {
+        String name = truncate(str(metaConnector.get("name")), NAME_MAX);
+        String description = truncate(str(metaConnector.get("description")), DESCRIPTION_MAX);
+        String baseUrl = str(metaConnector.get("base_url"));
+        String authType = str(metaConnector.get("auth_type"));
+
+        if (name == null || description == null || baseUrl == null || !KNOWN_AUTH_TYPES.contains(authType)) {
+            log.warn("Could not adopt orphan connector, missing or unsupported field: agentId={} metaConnectorId={} authType={}",
+                    agent.getId(), metaId, authType);
+            return null;
+        }
+
+        Connector connector = connectorRepository.save(Connector.builder()
+                .accountId(agent.getAccountId())
+                .wabaId(agent.getWabaId())
+                .name(name)
+                .description(description)
+                .baseUrl(baseUrl)
+                .authType(authType)
+                .requiresCertificate(false) // unknown from this list alone; a later deploy attempt will surface it if wrong
+                .status(Connector.STATUS_PUBLISHED) // it is, on Meta, right now — that is the fact this adopts
+                .build());
+
+        ConnectorDeployment deployment = deploymentRepository.save(ConnectorDeployment.builder()
+                .connectorId(connector.getId())
+                .agentId(agent.getId())
+                .metaConnectorId(metaId)
+                .phoneNumberId(agent.getPhoneNumberId())
+                .deployedAt(java.time.LocalDateTime.now())
+                .build());
+
+        log.info("Adopted orphan connector: agentId={} connectorId={} metaConnectorId={}",
+                agent.getId(), connector.getId(), metaId);
+        return deployment;
     }
 
     private Map<String, ConnectorDeployment> deploymentsByMetaId(Agent agent) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import api from '../lib/api'
@@ -63,10 +63,50 @@ interface WabaEntry {
  *
  * This page owns navigation and data only; the panes are their own components.
  * Replaces a max-w-3xl page that used 768px of a 1440px laptop.
+ *
+ * EMBEDDING (the `embedded` prop): the wizard's Connectors step (R4/R6 slice
+ * 4) renders this same component rather than its own copy — one editor, not
+ * two. Embedded, `connectorId`/`actionId` come from the caller's own state
+ * instead of the URL, and every place this component would otherwise call
+ * `navigate('/library/connectors/...')` calls `embedded.onNavigate` instead,
+ * so selecting or creating something moves the CALLER's state and never
+ * routes the browser out of the wizard. `wabaId` is supplied directly too,
+ * skipping the `/waba` fetch — the wizard already knows it.
  */
-export default function ConnectorWorkbenchPage() {
-  const { connectorId, actionId } = useParams<{ connectorId: string; actionId?: string }>()
-  const navigate = useNavigate()
+export default function ConnectorWorkbenchPage({
+  embedded,
+}: {
+  embedded?: {
+    wabaId: string
+    connectorId: string | null
+    actionId: string | null
+    onNavigate: (connectorId: string | null, actionId: string | null) => void
+  }
+} = {}) {
+  const routeParams = useParams<{ connectorId: string; actionId?: string }>()
+  const connectorId = embedded ? embedded.connectorId ?? undefined : routeParams.connectorId
+  const actionId = embedded ? embedded.actionId ?? undefined : routeParams.actionId
+  const routerNavigate = useNavigate()
+  /**
+   * Every in-flow move goes through here — see the EMBEDDING note above.
+   * `replace` only matters unembedded, and only to keep the exact history
+   * behaviour each call site had before: a sidebar pick still pushes (so Back
+   * leaves it), a save-triggered move still replaces (so Back from a just-
+   * created row doesn't land on the row's own empty draft).
+   */
+  const go = (nextConnectorId: string | null, nextActionId: string | null = null, opts?: { replace?: boolean }) => {
+    if (embedded) {
+      embedded.onNavigate(nextConnectorId, nextActionId)
+      return
+    }
+    const path =
+      nextConnectorId === null
+        ? '/library/connectors'
+        : nextActionId
+          ? `/library/connectors/${nextConnectorId}/actions/${nextActionId}`
+          : `/library/connectors/${nextConnectorId}`
+    routerNavigate(path, { replace: opts?.replace ?? false })
+  }
   const queryClient = useQueryClient()
   const { confirm } = useActionFeedback()
 
@@ -90,8 +130,9 @@ export default function ConnectorWorkbenchPage() {
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
     queryFn: () => api.get('/waba').then((r) => r.data.data),
+    enabled: !embedded, // the wizard already knows its wabaId — nothing to fetch
   })
-  const waba = wabas[0] ?? null
+  const waba = embedded ? { id: embedded.wabaId, label: null, wabaId: embedded.wabaId } : wabas[0] ?? null
 
   const {
     data: connectors = [],
@@ -143,7 +184,7 @@ export default function ConnectorWorkbenchPage() {
       )
       if (!id) {
         const newId = (res as { data?: { data?: { id?: string } } })?.data?.data?.id
-        if (newId) navigate(`/library/connectors/${connectorId}/actions/${newId}`, { replace: true })
+        if (newId && connectorId) go(connectorId, newId, { replace: true })
       }
     },
   })
@@ -220,7 +261,7 @@ export default function ConnectorWorkbenchPage() {
       void queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
       setPendingDeleteAction(null)
       confirm('Action deleted', gone)
-      navigate(`/library/connectors/${connectorId}`, { replace: true })
+      if (connectorId) go(connectorId, null, { replace: true })
     },
   })
 
@@ -301,7 +342,7 @@ export default function ConnectorWorkbenchPage() {
       setNewForm(EMPTY_CONNECTOR_FORM)
       setNewError(null)
       const id = (res as { data?: { data?: { id?: string } } })?.data?.data?.id
-      if (id) navigate(`/library/connectors/${id}`, { replace: true })
+      if (id) go(id, null, { replace: true })
     },
     onError: (err: unknown) =>
       setNewError(err instanceof Error ? err.message : 'Could not save.'),
@@ -314,7 +355,7 @@ export default function ConnectorWorkbenchPage() {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
       setPendingDeleteConnector(null)
       confirm('Connector deleted', gone)
-      navigate('/library/connectors', { replace: true })
+      go(null, null, { replace: true })
     },
     onError: (err: unknown) =>
       setDeleteConnectorError(err instanceof Error ? err.message : 'Could not delete.'),
@@ -375,12 +416,13 @@ export default function ConnectorWorkbenchPage() {
                 this line, this is the way back to the connector itself from an
                 open action — its base URL, its credential, its other actions. */}
             {actionId ? (
-              <Link
-                to={`/library/connectors/${connector.id}`}
+              <button
+                type="button"
+                onClick={() => go(connector.id, null)}
                 className="max-w-xs truncate text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 {connector.name}
-              </Link>
+              </button>
             ) : (
               <span className="max-w-xs truncate text-sm font-medium text-foreground">
                 {connector.name}
@@ -412,15 +454,17 @@ export default function ConnectorWorkbenchPage() {
           onToggleExpand={(id) => setExpanded((p) => ({ ...p, [id]: !p[id] }))}
           onSelectConnector={(id) => {
             setExpanded((p) => ({ ...p, [id]: true }))
-            navigate(`/library/connectors/${id}`)
+            go(id, null)
           }}
-          onSelectAction={(cid, aid) => navigate(`/library/connectors/${cid}/actions/${aid}`)}
+          onSelectAction={(cid, aid) => go(cid, aid)}
           liveOnly={liveOnly}
-          onOpenOnAgent={(agentId) => navigate(`/agents/${agentId}?tab=connectors`)}
-          onNewConnector={() => navigate('/library/connectors/new')}
+          // Always leaves the flow — opens a different agent entirely, so this
+          // stays a real navigation even when embedded in the wizard.
+          onOpenOnAgent={(agentId) => routerNavigate(`/agents/${agentId}?tab=connectors`)}
+          onNewConnector={() => go('new', null)}
           onNewAction={(cid) => {
             setExpanded((p) => ({ ...p, [cid]: true }))
-            navigate(`/library/connectors/${cid}/actions/new`)
+            go(cid, 'new')
           }}
         />
 
@@ -432,7 +476,7 @@ export default function ConnectorWorkbenchPage() {
               saving={createConnector.isPending}
               onChange={setNewForm}
               onCreate={() => createConnector.mutate(newForm)}
-              onCancel={() => navigate('/library/connectors')}
+              onCancel={() => go(null, null)}
             />
           ) : !connector ? (
             <div className="space-y-2">
@@ -445,7 +489,7 @@ export default function ConnectorWorkbenchPage() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/library/connectors/new')}
+                onClick={() => go('new', null)}
                 className="mt-1 flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4
                   text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
@@ -518,9 +562,7 @@ export default function ConnectorWorkbenchPage() {
               onFieldChange={(patch) =>
                 saveDetails.mutate({ ...toFormValues(connector), ...patch })
               }
-              onOpenAction={(aid) =>
-                navigate(`/library/connectors/${connector.id}/actions/${aid}`)
-              }
+              onOpenAction={(aid) => go(connector.id, aid)}
               onCreateAction={(draft) => createFromRow.mutate(draft)}
               creatingAction={createFromRow.isPending}
               onPublish={() => {

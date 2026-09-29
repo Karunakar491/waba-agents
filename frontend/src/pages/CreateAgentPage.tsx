@@ -225,19 +225,19 @@ export default function CreateAgentPage() {
           />
         )}
         {step === 4 && (
-          <StepSkills
+          <StepConnectors
             agentId={state.agentId}
             wabaId={state.wabaId}
-            drawerOpen={skillsDrawerOpen}
-            onDrawerOpenChange={setSkillsDrawerOpen}
             onBack={() => setStep(3)}
             onNext={() => setStep(5)}
           />
         )}
         {step === 5 && (
-          <StepConnectors
+          <StepSkills
             agentId={state.agentId}
             wabaId={state.wabaId}
+            drawerOpen={skillsDrawerOpen}
+            onDrawerOpenChange={setSkillsDrawerOpen}
             onBack={() => setStep(4)}
             onNext={() => setStep(6)}
           />
@@ -258,7 +258,7 @@ export default function CreateAgentPage() {
         )}
       </div>
 
-      {!(step === 4 && skillsDrawerOpen) && <IrisRail step={step} wabaId={state.wabaId} />}
+      {!(step === 5 && skillsDrawerOpen) && <IrisRail step={step} wabaId={state.wabaId} />}
     </div>
   )
 }

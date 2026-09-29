@@ -10,12 +10,15 @@
  *   - eval + test      /reports/agents/{id}/eval, /agents/{id}/test
  */
 
+// Connectors comes before Skills (R4/R6 slice 4): a skill can call a
+// connector's actions, so defining the connector first means there's
+// something to call when writing the skill, not an empty picker.
 export const WIZARD_STEPS = [
   'Basics',
   'Business Persona',
   'Knowledge Base',
-  'Skills',
   'Connectors',
+  'Skills',
   'Evals',
   'Test & Deploy',
 ] as const

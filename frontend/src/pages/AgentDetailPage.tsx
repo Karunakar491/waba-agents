@@ -28,7 +28,6 @@ import {
   FileText,
   ClipboardList,
   RefreshCw,
-  Pencil,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useDraftPublish } from '../hooks/useDraftPublish'
@@ -1062,256 +1061,10 @@ function connectorPlugColor(status: string): string {
   return 'text-muted-foreground'
 }
 
-// ── Add/Edit Connector Modal ──────────────────────────────────────────────────
-// Founder-caught gap (2026-08-07): a connector had no edit path at all once
-// created — only delete-and-recreate. PUT /agents/{id}/connectors/{connectorId}
-// already existed backend-side; this modal now does double duty for
-// create and edit. Secret fields (API key value, client secret) are left
-// blank on edit and only sent if the user actually types a replacement —
-// Meta doesn't return secrets on GET, so a blank field means "keep existing",
-// never "clear it".
-
-interface AddConnectorModalProps {
-  agentId: string
-  onClose: () => void
-  onCreated: () => void
-  editingConnector?: Connector | null
-}
-
-function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: AddConnectorModalProps) {
-  const isEditing = !!editingConnector
-  const [name, setName]           = useState(editingConnector?.name ?? '')
-  const [description, setDesc]    = useState(editingConnector?.description ?? '')
-  const [baseUrl, setBaseUrl]     = useState(editingConnector?.base_url ?? '')
-  const [authType, setAuthType]   = useState<AuthType>((editingConnector?.auth_type as AuthType) ?? 'NONE')
-  const [headerName, setHdrName]  = useState('')
-  const [apiKeyValue, setApiKey]  = useState('')
-  const [tokenUrl, setTokenUrl]   = useState('')
-  const [clientId, setClientId]   = useState('')
-  const [clientSecret, setSecret] = useState('')
-  const [error, setError]         = useState<string | null>(null)
-  const [saving, setSaving]       = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim() || !description.trim() || !baseUrl.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        description: description.trim(),
-        base_url: baseUrl.trim(),
-        auth_type: authType,
-      }
-      if (authType === 'API_KEY' && (!isEditing || (headerName.trim() && apiKeyValue))) {
-        // Meta requires auth_config nested one level deeper under the
-        // type-named key — confirmed live via a real Meta 400 ("auth_config.api_key
-        // is required for API_KEY auth type") that the previous flat shape produced.
-        payload.auth_config = {
-          api_key: { headers: [{ field_name: headerName.trim(), value: apiKeyValue }] },
-        }
-      }
-      if (authType === 'OAUTH2_CLIENT_CREDENTIALS' && (!isEditing || (tokenUrl.trim() && clientId.trim() && clientSecret))) {
-        // Same type-named-wrapper pattern as API_KEY above, applied by symmetry —
-        // NOT independently confirmed live (no OAuth connector tested this session).
-        // See TASKS.md follow-up: verify against a real OAuth2 connector before
-        // treating this path as closed.
-        payload.auth_config = {
-          oauth2_client_credentials: {
-            token_url: tokenUrl.trim(),
-            client_id: clientId.trim(),
-            client_secret: clientSecret,
-            scopes_to_request: [],
-          },
-        }
-      }
-      if (isEditing) {
-        await api.put(`/agents/${agentId}/connectors/${editingConnector.id}`, payload)
-      } else {
-        await api.post(`/agents/${agentId}/connectors`, payload)
-      }
-      onCreated()
-    } catch (err) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const inputCls =
-    'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition'
-
-  return (
-    <Modal
-      title={isEditing ? `Edit connector "${editingConnector.name}"` : 'Add Connector'}
-      onClose={onClose}
-      preventClose={saving}
-      maxWidthClassName="max-w-lg"
-    >
-        {error && (
-          <div className="mb-3">
-            <ErrorBanner error={error} />
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Order Management API"
-              className={inputCls}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Description</label>
-            <textarea
-              required
-              rows={2}
-              value={description}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="The agent reads this to understand what the connector does"
-              className={cn(inputCls, 'resize-none')}
-            />
-            <p className="text-xs text-muted-foreground">
-              The agent reads this to understand what the connector does.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Base URL</label>
-            <input
-              type="text"
-              required
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.example.com/v1"
-              className={inputCls}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Auth Type</label>
-            <select
-              value={authType}
-              onChange={(e) => setAuthType(e.target.value as AuthType)}
-              className={inputCls}
-            >
-              <option value="NONE">None</option>
-              <option value="API_KEY">API Key</option>
-              <option value="OAUTH2_CLIENT_CREDENTIALS">OAuth 2.0 — Client Credentials</option>
-            </select>
-          </div>
-
-          {authType === 'API_KEY' && (
-            <>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-foreground">Header name</label>
-                <input
-                  type="text"
-                  required={!isEditing}
-                  value={headerName}
-                  onChange={(e) => setHdrName(e.target.value)}
-                  placeholder="X-API-Key"
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-foreground">API key value</label>
-                <input
-                  type="password"
-                  required={!isEditing}
-                  value={apiKeyValue}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={isEditing ? 'Leave blank to keep existing key' : 'sk-…'}
-                  className={inputCls}
-                />
-              </div>
-            </>
-          )}
-
-          {authType === 'OAUTH2_CLIENT_CREDENTIALS' && (
-            <>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-foreground">Token URL</label>
-                <input
-                  type="text"
-                  required={!isEditing}
-                  value={tokenUrl}
-                  onChange={(e) => setTokenUrl(e.target.value)}
-                  placeholder={isEditing ? 'Leave blank to keep existing' : 'https://auth.example.com/token'}
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-foreground">Client ID</label>
-                <input
-                  type="text"
-                  required={!isEditing}
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  placeholder={isEditing ? 'Leave blank to keep existing' : undefined}
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-foreground">Client Secret</label>
-                <input
-                  type="password"
-                  required={!isEditing}
-                  value={clientSecret}
-                  onChange={(e) => setSecret(e.target.value)}
-                  placeholder={isEditing ? 'Leave blank to keep existing' : undefined}
-                  className={inputCls}
-                />
-              </div>
-            </>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="submit"
-              disabled={saving || !name.trim() || !description.trim() || !baseUrl.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
-                text-sm font-semibold text-white transition-opacity hover:opacity-90
-                disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {/* "Publish" not "Save" (2026-08-13, item 8) — this submit is a
-                  real, immediate write to Meta's agent_connectors API, not a
-                  local draft. Note: connector creation currently fails
-                  against real Meta regardless of payload — see
-                  wiki/bugs-violations/connector-creation-never-succeeds-2026-08-13.md,
-                  an escalated, unresolved Meta-side issue, not a bug in this
-                  form. */}
-              {isEditing ? 'Publish changes' : 'Publish connector'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-    </Modal>
-  )
-}
-
 // ── ConnectorsTab ─────────────────────────────────────────────────────────────
 
 function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const queryClient = useQueryClient()
-  const [showAddConnector, setShowAddConnector] = useState(false)
-  const [editingConnector, setEditingConnector] = useState<Connector | null>(null)
   const [deletingConnector, setDeletingConnector] = useState<Connector | null>(null)
 
   const { data: connectorsRaw, isLoading } = useQuery<Connector[]>({
@@ -1351,14 +1104,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Connectors</h3>
-        <button
-          onClick={() => setShowAddConnector(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-accent-teal-solid px-3 py-1.5 text-xs font-semibold
-            text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Connector
-        </button>
       </div>
 
       {/* List */}
@@ -1396,13 +1141,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
                     <StatusIndicator label={status || 'Unknown'} tone={connectorStatusTone(status)} />
                   </span>
                   <button
-                    onClick={() => setEditingConnector(connector)}
-                    aria-label={`Edit connector ${connector.name}`}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
                     onClick={() => setDeletingConnector(connector)}
                     aria-label={`Delete connector ${connector.name}`}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
@@ -1414,29 +1152,6 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
             )
           })}
         </div>
-      )}
-
-      {showAddConnector && (
-        <AddConnectorModal
-          agentId={agent.id}
-          onClose={() => setShowAddConnector(false)}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
-            setShowAddConnector(false)
-          }}
-        />
-      )}
-
-      {editingConnector && (
-        <AddConnectorModal
-          agentId={agent.id}
-          editingConnector={editingConnector}
-          onClose={() => setEditingConnector(null)}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
-            setEditingConnector(null)
-          }}
-        />
       )}
 
       {deletingConnector && (

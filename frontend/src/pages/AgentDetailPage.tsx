@@ -22,7 +22,6 @@ import {
   Plus,
   X,
   Rocket,
-  Play,
   Send,
   Users,
   FileText,
@@ -34,7 +33,6 @@ import { useDraftPublish } from '../hooks/useDraftPublish'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import ConnectPhoneModal from '../components/waba/ConnectPhoneModal'
-import RunToolModal from '../components/agent-detail/RunToolModal'
 import ConsequenceLine from '../components/shared/ConsequenceLine'
 import ErrorBanner from '../components/shared/ErrorBanner'
 import StatusIndicator, { type StatusTone } from '../components/shared/StatusIndicator'
@@ -57,19 +55,7 @@ const EvalTab = lazy(() => import('../components/agent-detail/EvalTab'))
 import TriggerEventModal from '../components/agent-detail/TriggerEventModal'
 import BusinessEventsAgentSection from '../components/events/BusinessEventsAgentSection'
 import Modal from '../components/shared/Modal'
-import ToolParamsEditor from '../components/agent-detail/ToolParamsEditor'
-import ToolBodyEditor from '../components/agent-detail/ToolBodyEditor'
-import {
-  buildRequestDefinition,
-  parseRequestDefinition,
-  methodSendsBody,
-  extractPathParamNames,
-  buildPreviewUrl,
-  IncompleteRowError,
-  type RequestDefinition,
-  type ParamRow,
-  type BodyFieldRow,
-} from '../components/agent-detail/toolRequestDefinition'
+import ConnectorWorkbenchPage from './ConnectorWorkbenchPage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1013,81 +999,16 @@ function FilesSection({ agentId, open, onToggle }: { agentId: string; open: bool
 }
 
 // ── Connectors tab ────────────────────────────────────────────────────────────
-
-interface Connector {
-  id: string
-  name: string
-  description: string
-  base_url: string
-  auth_type: string
-  connection_status: { status: string }
-}
-
-interface ConnectorTool {
-  id: string
-  name: string
-  description: string
-  request_definition: RequestDefinition
-  user_auth_required: boolean
-}
-
-type AuthType = 'NONE' | 'API_KEY' | 'OAUTH2_CLIENT_CREDENTIALS'
-
-// EL-caught gap (2026-08-07 audit, FIX-009): raw Tailwind palette colors
-// bypassing the token layer, with no dark-mode variants (illegible on dark
-// surfaces). No existing DESIGN.md token maps 1:1 to 5 distinct HTTP
-// methods, so this maps to the closest existing semantic tokens instead of
-// inventing new ones tonight — GET/PATCH share a neutral "read" treatment,
-// POST maps to success (brand-green), PUT to warning, DELETE unchanged.
-const METHOD_BADGE: Record<string, string> = {
-  GET:    'bg-muted text-muted-foreground',
-  POST:   'bg-brand-green/10 text-brand-green',
-  PUT:    'bg-warning/10 text-warning',
-  DELETE: 'bg-destructive/10 text-destructive',
-  PATCH:  'bg-muted text-muted-foreground',
-}
-
-function connectorStatusTone(status: string): StatusTone {
-  if (status === 'ACTIVE')         return 'positive'
-  if (status === 'PENDING_OAUTH')  return 'warning'
-  if (status === 'ERROR')          return 'negative'
-  return 'neutral'
-}
-
-function connectorPlugColor(status: string): string {
-  if (status === 'ACTIVE')        return 'text-brand-green'
-  if (status === 'PENDING_OAUTH') return 'text-yellow-500'
-  if (status === 'ERROR')         return 'text-destructive'
-  return 'text-muted-foreground'
-}
-
-// ── ConnectorsTab ─────────────────────────────────────────────────────────────
+// Reuses the exact same connector editor as the Connectors section and the
+// wizard (R4/R6 slice 4) — the legacy per-agent Connector/Tool CRUD this tab
+// used to hand-roll is gone; everything here now goes through the shared
+// Connector Library, scoped to this agent's WABA.
 
 function ConnectorsTab({ agent }: { agent: AgentApi }) {
-  const queryClient = useQueryClient()
-  const [deletingConnector, setDeletingConnector] = useState<Connector | null>(null)
+  const [connectorId, setConnectorId] = useState<string | null>(null)
+  const [actionId, setActionId] = useState<string | null>(null)
 
-  const { data: connectorsRaw, isLoading } = useQuery<Connector[]>({
-    queryKey: ['connectors', agent.id],
-    queryFn: () =>
-      api.get(`/agents/${agent.id}/connectors`).then((r) => {
-        const d = r.data.data
-        return Array.isArray(d) ? d : (d?.data ?? [])
-      }),
-    enabled: !!agent.phoneNumberId,
-  })
-
-  const connectors = connectorsRaw ?? []
-
-  const deleteConnectorMutation = useMutation({
-    mutationFn: (connectorId: string) => api.delete(`/agents/${agent.id}/connectors/${connectorId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connectors', agent.id] })
-      setDeletingConnector(null)
-    },
-  })
-
-  if (!agent.phoneNumberId) {
+  if (!agent.phoneNumberId || !agent.wabaId) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-16 text-center shadow-surface-resting">
         <Plug className="h-10 w-10 text-muted-foreground mb-3" />
@@ -1100,99 +1021,18 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Connectors</h3>
-      </div>
-
-      {/* List */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-16 rounded-xl border bg-muted/40 animate-pulse" />
-          ))}
-        </div>
-      ) : connectors.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-8 py-14 text-center shadow-surface-resting">
-          <Plug className="h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm font-semibold text-foreground">No connectors yet</p>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-            Add a connector to let the agent call your APIs and take action for customers.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {connectors.map((connector) => {
-            const status = connector.connection_status?.status ?? ''
-            return (
-              <div
-                key={connector.id}
-                className="rounded-xl border bg-card shadow-surface-resting overflow-hidden"
-              >
-                {/* Connector row */}
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <Plug className={cn('h-4 w-4 shrink-0', connectorPlugColor(status))} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{connector.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{connector.base_url}</p>
-                  </div>
-                  <span className="shrink-0">
-                    <StatusIndicator label={status || 'Unknown'} tone={connectorStatusTone(status)} />
-                  </span>
-                  <button
-                    onClick={() => setDeletingConnector(connector)}
-                    aria-label={`Delete connector ${connector.name}`}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {deletingConnector && (
-        <Modal
-          title={`Delete connector "${deletingConnector.name}"?`}
-          onClose={() => setDeletingConnector(null)}
-          preventClose={deleteConnectorMutation.isPending}
-        >
-          <p className="text-sm text-muted-foreground">
-            This removes the connector and all of its tools. The agent will no longer be able to
-            call them. This can&apos;t be undone.
-          </p>
-
-          {deleteConnectorMutation.isError && (
-            <div className="mt-3">
-              <ErrorBanner error={deleteConnectorMutation.error} />
-            </div>
-          )}
-
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => deleteConnectorMutation.mutate(deletingConnector.id)}
-              disabled={deleteConnectorMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5
-                text-sm font-semibold text-white transition-opacity hover:opacity-90
-                disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {deleteConnectorMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Delete connector
-            </button>
-            <button
-              onClick={() => setDeletingConnector(null)}
-              disabled={deleteConnectorMutation.isPending}
-              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      )}
+    <div className="h-[640px] overflow-hidden rounded-xl border shadow-surface-resting">
+      <ConnectorWorkbenchPage
+        embedded={{
+          wabaId: agent.wabaId,
+          connectorId,
+          actionId,
+          onNavigate: (c, a) => {
+            setConnectorId(c)
+            setActionId(a)
+          },
+        }}
+      />
     </div>
   )
 }

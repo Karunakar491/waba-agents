@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 public class AgentSyncLog {
 
     public enum Trigger { PHONE_ADD, LOGIN, DAILY }
-    public enum Category { SKILLS, FAQS, FILES, WEBSITES, BUSINESS_PERSONA, CONNECTORS }
+    public enum Category { SKILLS, FAQS, FILES, WEBSITES, BUSINESS_PERSONA, CONNECTORS, SETTINGS, EVAL_CASES, INSIGHTS }
     public enum Status { SUCCESS, FAILED }
 
     @Id

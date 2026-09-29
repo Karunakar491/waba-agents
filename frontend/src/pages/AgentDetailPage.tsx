@@ -79,6 +79,7 @@ interface AgentApi {
   displayName: string
   status: 'draft' | 'active' | 'paused'
   phoneNumberId: string | null
+  wabaId: string | null
   systemPrompt: string | null
   // Figma 8.1 "About" column — short human label, distinct from systemPrompt.
   aboutLabel: string | null
@@ -1305,259 +1306,6 @@ function AddConnectorModal({ agentId, onClose, onCreated, editingConnector }: Ad
   )
 }
 
-// ── Add Tool Modal ────────────────────────────────────────────────────────────
-
-interface AddToolModalProps {
-  agentId: string
-  connectorId: string
-  tool?: ConnectorTool
-  onClose: () => void
-  onCreated: () => void
-}
-
-function AddToolModal({ agentId, connectorId, tool, onClose, onCreated }: AddToolModalProps) {
-  const isEditing = !!tool
-  const prefill = tool ? parseRequestDefinition(tool.request_definition) : null
-
-  const [name, setName]       = useState(tool?.name ?? '')
-  const [description, setDesc] = useState(tool?.description ?? '')
-  const [method, setMethod]   = useState(prefill?.method ?? 'GET')
-  const [path, setPath]       = useState(prefill?.path ?? '')
-  const [error, setError]     = useState<string | null>(null)
-  const [saving, setSaving]   = useState(false)
-
-  // Path-param rows are derived fresh from the Path field on every render — no useEffect
-  // syncing one piece of state into another (this codebase has a documented prior incident
-  // on exactly that shape). pathParamMeta holds only rows the operator has actually edited
-  // (type/description), keyed by token name; tokens with no entry fall back to a default.
-  const [pathParamMeta, setPathParamMeta] = useState<Record<string, ParamRow>>(() => {
-    const meta: Record<string, ParamRow> = {}
-    for (const row of prefill?.pathParams ?? []) meta[row.key] = row
-    return meta
-  })
-  const pathTokens = extractPathParamNames(path)
-  const pathParamRows: ParamRow[] = pathTokens.map((token) =>
-    pathParamMeta[token] ?? { key: token, type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' }
-  )
-  function setPathParamRows(updater: (prev: ParamRow[]) => ParamRow[]) {
-    const next = updater(pathParamRows)
-    setPathParamMeta((prevMeta) => {
-      const merged = { ...prevMeta }
-      for (const row of next) merged[row.key] = row
-      return merged
-    })
-  }
-
-  const [queryParams, setQueryParams] = useState<ParamRow[]>(prefill?.queryParams ?? [])
-  const [headerParams, setHeaderParams] = useState<ParamRow[]>(prefill?.headerParams ?? [])
-  // A brand-new tool starts with one example field instead of an empty body — an operator
-  // staring at "{}" has no idea what to type; a real example is both a hint and something
-  // they can submit as-is (renaming the key/value to match their actual API).
-  const [bodyFields, setBodyFields] = useState<BodyFieldRow[]>(
-    prefill?.bodyFields ?? [{ key: 'query', type: 'string', description: '', required: true, fill: 'agent', fixedValue: '' }]
-  )
-
-  const bodyAllowed = methodSendsBody(method)
-
-  type TabKey = 'params' | 'headers' | 'body'
-  const [activeTab, setActiveTab] = useState<TabKey>('params')
-  const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: 'params', label: 'Params', count: pathTokens.length + queryParams.length },
-    { key: 'headers', label: 'Headers', count: headerParams.length },
-    ...(bodyAllowed ? [{ key: 'body' as TabKey, label: 'Body', count: bodyFields.length }] : []),
-  ]
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim() || !description.trim() || !path.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      const requestDefinition = buildRequestDefinition({
-        method,
-        path: path.trim(),
-        pathParams: pathParamRows,
-        queryParams,
-        headerParams,
-        bodyFields,
-      })
-      const payload = {
-        name: name.trim(),
-        description: description.trim(),
-        user_auth_required: false,
-        request_definition: requestDefinition,
-      }
-      if (isEditing) {
-        await api.put(`/agents/${agentId}/connectors/${connectorId}/tools/${tool.id}`, payload)
-      } else {
-        await api.post(`/agents/${agentId}/connectors/${connectorId}/tools`, payload)
-      }
-      onCreated()
-    } catch (err) {
-      // IncompleteRowError (blank-key row in any section) never reaches the network call —
-      // shown as a validation message instead, same banner as a real API error.
-      setError(err instanceof IncompleteRowError ? err.message : extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const inputCls =
-    'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:border-primary transition'
-
-  return (
-    <Modal
-      title={isEditing ? `Edit tool "${tool.name}"` : 'Add Tool'}
-      onClose={onClose}
-      preventClose={saving}
-      maxWidthClassName="max-w-4xl"
-    >
-        {error && (
-          <div className="mb-3">
-            <ErrorBanner error={error} />
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. check_order_status"
-              className={inputCls}
-            />
-            <p className="text-xs text-muted-foreground">Stable key, e.g. check_order_status</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Description</label>
-            <textarea
-              required
-              rows={3}
-              value={description}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="The agent reads this to decide when to call this tool. Be specific."
-              className={cn(inputCls, 'resize-none')}
-            />
-            <p className="text-xs text-muted-foreground">
-              The agent reads this to decide when to call this tool. Be specific.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">HTTP Method</label>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              className={inputCls}
-            >
-              {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-foreground">Path</label>
-            <input
-              type="text"
-              required
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              placeholder="/orders/{order_id}"
-              className={inputCls}
-            />
-            <p className="text-xs text-muted-foreground">
-              Use {'{placeholder}'} for path params, e.g. /orders/{'{order_id}'}
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-muted/30 px-3 py-2">
-            <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Request preview — what actually gets called
-            </span>
-            <code className="block break-all text-xs text-foreground">
-              {buildPreviewUrl(method, path.trim() || '/', pathParamRows, queryParams)}
-            </code>
-          </div>
-
-          <div>
-            <div className="flex gap-1 border-b">
-              {tabs.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setActiveTab(t.key)}
-                  className={cn(
-                    'flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
-                    activeTab === t.key
-                      ? 'border-accent-teal-solid text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {t.label}
-                  {t.count > 0 && (
-                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-4 pt-3">
-              {activeTab === 'params' && (
-                <>
-                  {pathTokens.length > 0 && (
-                    <ToolParamsEditor
-                      label="Path parameters"
-                      rows={pathParamRows}
-                      setRows={setPathParamRows}
-                      lockedKeys={pathTokens}
-                      showAdd={false}
-                      disabled={saving}
-                    />
-                  )}
-                  <ToolParamsEditor label="Query parameters" rows={queryParams} setRows={setQueryParams} disabled={saving} />
-                </>
-              )}
-              {activeTab === 'headers' && (
-                <ToolParamsEditor label="Headers" rows={headerParams} setRows={setHeaderParams} disabled={saving} />
-              )}
-              {activeTab === 'body' && bodyAllowed && (
-                <ToolBodyEditor rows={bodyFields} setRows={setBodyFields} disabled={saving} />
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="submit"
-              disabled={saving || !name.trim() || !description.trim() || !path.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent-teal-solid px-4 py-2.5
-                text-sm font-semibold text-white transition-opacity hover:opacity-90
-                disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isEditing ? 'Save' : 'Add'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold
-                text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-    </Modal>
-  )
-}
 
 // ── Tools list sub-component ─────────────────────────────────────────────────
 
@@ -1571,10 +1319,8 @@ function ToolsList({
   refetchSignal: number
 }) {
   const queryClient = useQueryClient()
-  const [showAddTool, setShowAddTool] = useState(false)
   const [runningTool, setRunningTool] = useState<ConnectorTool | null>(null)
   const [deletingTool, setDeletingTool] = useState<ConnectorTool | null>(null)
-  const [editingTool, setEditingTool] = useState<ConnectorTool | null>(null)
 
   const { data: toolsRaw, isLoading } = useQuery<ConnectorTool[]>({
     queryKey: ['tools', agentId, connectorId, refetchSignal],
@@ -1604,14 +1350,6 @@ function ToolsList({
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Tools
         </span>
-        <button
-          onClick={() => setShowAddTool(true)}
-          className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium
-            text-foreground hover:bg-muted transition-colors"
-        >
-          <Plus className="h-3 w-3" />
-          Add Tool
-        </button>
       </div>
 
       {isLoading ? (
@@ -1657,13 +1395,6 @@ function ToolsList({
                   <Play className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => setEditingTool(tool)}
-                  aria-label={`Edit tool ${tool.name}`}
-                  className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-accent-teal-solid"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
                   onClick={() => setDeletingTool(tool)}
                   aria-label={`Delete tool ${tool.name}`}
                   className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
@@ -1674,20 +1405,6 @@ function ToolsList({
             )
           })}
         </ul>
-      )}
-
-      {(showAddTool || editingTool) && (
-        <AddToolModal
-          agentId={agentId}
-          connectorId={connectorId}
-          tool={editingTool ?? undefined}
-          onClose={() => { setShowAddTool(false); setEditingTool(null) }}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['tools', agentId, connectorId] })
-            setShowAddTool(false)
-            setEditingTool(null)
-          }}
-        />
       )}
 
       {runningTool && (

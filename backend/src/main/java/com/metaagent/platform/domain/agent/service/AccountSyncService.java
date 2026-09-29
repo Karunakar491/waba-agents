@@ -1,5 +1,6 @@
 package com.metaagent.platform.domain.agent.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaagent.platform.domain.agent.entity.*;
 import com.metaagent.platform.domain.agent.repository.*;
 import com.metaagent.platform.domain.persona.entity.BusinessProfile;
@@ -48,7 +49,11 @@ public class AccountSyncService {
     private final BusinessProfileRepository businessProfileRepository;
     private final AgentSyncLogRepository agentSyncLogRepository;
     private final ConnectorMirrorService connectorMirrorService;
+    private final AgentRepository agentRepository;
+    private final AgentEvalCaseRepository agentEvalCaseRepository;
+    private final AgentInsightsSnapshotRepository agentInsightsSnapshotRepository;
     private final MetaApiClient metaApiClient;
+    private final ObjectMapper objectMapper;
 
     /**
      * Runs every category for one agent. Best-effort per category — never
@@ -65,6 +70,9 @@ public class AccountSyncService {
         syncCategory(agent, accountId, trigger, AgentSyncLog.Category.WEBSITES, this::syncWebsites);
         syncCategory(agent, accountId, trigger, AgentSyncLog.Category.CONNECTORS, this::syncConnectors);
         syncCategory(agent, accountId, trigger, AgentSyncLog.Category.BUSINESS_PERSONA, this::syncBusinessPersona);
+        syncCategory(agent, accountId, trigger, AgentSyncLog.Category.SETTINGS, this::syncSettings);
+        syncCategory(agent, accountId, trigger, AgentSyncLog.Category.EVAL_CASES, this::syncEvalCases);
+        syncCategory(agent, accountId, trigger, AgentSyncLog.Category.INSIGHTS, this::syncInsights);
     }
 
     private interface CategorySync {
@@ -318,6 +326,170 @@ public class AccountSyncService {
                 profile.getContactHoursOfOperation(), profile.getContactAddress());
         businessProfileRepository.save(profile);
         return !before.equals(after);
+    }
+
+    // -------------------------------------------------------------------
+    // Settings — ai_audience/followup/never_say_phrases/allowlist have never
+    // had a local column before (AgentDeployService only ever read them live
+    // and passed them straight back through on every write, to avoid
+    // clobbering an operator's real Meta-side config — see its own
+    // "preserve followup/ai_audience unchanged" comments). rollout.enabled
+    // is deliberately left alone here: AgentService.reconcileStatus already
+    // does a TTL-gated Meta-wins overwrite of status/enabled, and running a
+    // second settings GET for the same field would just double the Meta
+    // calls for no benefit.
+    // -------------------------------------------------------------------
+
+    @Transactional
+    boolean syncSettings(Agent agent, Long accountId) throws Exception {
+        List<?> raw = metaApiClient.get(
+                MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/agent_config/settings", agent.getMetaAgentId()),
+                List.class);
+        Map<?, ?> live = MetaApiClient.findChannelEntry(raw, "whatsapp");
+        if (live == null) return false;
+
+        String before = snapshot(agent.getAiAudience(), String.valueOf(agent.getFollowupEnabled()),
+                agent.getFollowupMessage(), agent.getNeverSayPhrases(), agent.isHandoffEnabled() + "",
+                agent.getHandoffMessage());
+
+        agent.setAiAudience(strOrNull(live.get("ai_audience")));
+        if (live.get("followup") instanceof Map<?, ?> followup) {
+            agent.setFollowupEnabled(Boolean.TRUE.equals(followup.get("enabled")));
+            agent.setFollowupMessage(strOrNull(followup.get("message")));
+        }
+        if (live.get("handoff") instanceof Map<?, ?> handoff) {
+            agent.setHandoffEnabled(Boolean.TRUE.equals(handoff.get("enabled")));
+            agent.setHandoffMessage(strOrNull(handoff.get("message")));
+        }
+        if (live.get("never_say_phrases") instanceof List<?> phrases) {
+            agent.setNeverSayPhrases(objectMapper.writeValueAsString(phrases));
+        }
+
+        List<?> allowlist;
+        try {
+            allowlist = metaApiClient.get("/" + agent.getPhoneNumberId() + "/agent_config/allowlist", List.class);
+        } catch (Exception e) {
+            allowlist = null; // best-effort second call — a failure here doesn't undo the settings half above
+        }
+        if (allowlist != null) {
+            agent.setAllowlistSnapshot(objectMapper.writeValueAsString(allowlist));
+        }
+
+        String after = snapshot(agent.getAiAudience(), String.valueOf(agent.getFollowupEnabled()),
+                agent.getFollowupMessage(), agent.getNeverSayPhrases(), agent.isHandoffEnabled() + "",
+                agent.getHandoffMessage());
+        agentRepository.save(agent);
+        return !before.equals(after);
+    }
+
+    // -------------------------------------------------------------------
+    // Eval cases — configuration only (agent-eval.md GET /cases). Running an
+    // eval (agent-eval.md POST/GET /run) is a deliberate, costly action a
+    // person takes on the Test & Deploy screen (EvalRollupWorker) — this
+    // never triggers one. Meta has no "list all past runs" endpoint (only
+    // single-job-id polling), so past eval *results* aren't something a
+    // passive sync can fetch at all; only the case definitions are.
+    // -------------------------------------------------------------------
+
+    @Transactional
+    @SuppressWarnings("unchecked")
+    boolean syncEvalCases(Agent agent, Long accountId) throws Exception {
+        Map<String, Object> response = metaApiClient.get(
+                "/" + agent.getPhoneNumberId() + "/agent-eval/cases", Map.class);
+        List<?> remote = response != null && response.get("eval_cases") instanceof List<?> l ? l : null;
+        if (remote == null) return false;
+
+        boolean changed = false;
+        Set<String> remoteIds = new HashSet<>();
+        for (Object item : remote) {
+            if (!(item instanceof Map<?, ?> m)) continue;
+            String metaId = str(m.get("id"));
+            if (metaId == null) continue;
+            remoteIds.add(metaId);
+
+            AgentEvalCase row = agentEvalCaseRepository.findByAgentIdAndMetaCaseId(agent.getId(), metaId)
+                    .orElseGet(() -> AgentEvalCase.builder().accountId(accountId).agentId(agent.getId()).metaCaseId(metaId).build());
+            String before = snapshot(row.getScenario(), row.getScenarioVersion(), row.getCategories(),
+                    String.valueOf(row.getMaxTurns()), row.getSuccessCriteria());
+            row.setScenario(strOrNull(m.get("scenario")));
+            row.setScenarioVersion(strOrNull(m.get("scenario_version")));
+            row.setCategories(toJson(m.get("categories")));
+            row.setMaxTurns(m.get("max_turns") instanceof Number n ? n.intValue() : null);
+            row.setSuccessCriteria(toJson(m.get("success_criteria")));
+            if (!before.equals(snapshot(row.getScenario(), row.getScenarioVersion(), row.getCategories(),
+                    String.valueOf(row.getMaxTurns()), row.getSuccessCriteria()))) {
+                changed = true;
+            }
+            agentEvalCaseRepository.save(row);
+        }
+        for (AgentEvalCase local : agentEvalCaseRepository.findAllByAgentId(agent.getId())) {
+            if (!remoteIds.contains(local.getMetaCaseId())) {
+                agentEvalCaseRepository.delete(local);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    // -------------------------------------------------------------------
+    // Insights — pure read, three independent Meta endpoints, entity_id
+    // scoped the same way every other endpoint in this codebase is
+    // (phoneNumberId + ?agent_id=). One row per agent, overwritten each
+    // sync — see AgentInsightsSnapshot's own javadoc for why this isn't an
+    // append-only log like the other categories.
+    // -------------------------------------------------------------------
+
+    @Transactional
+    @SuppressWarnings("unchecked")
+    boolean syncInsights(Agent agent, Long accountId) throws Exception {
+        java.time.LocalDate end = java.time.LocalDate.now();
+        java.time.LocalDate start = end.minusDays(6);
+        String range = "start_date=" + start + "&end_date=" + end;
+
+        AgentInsightsSnapshot snap = agentInsightsSnapshotRepository.findByAgentId(agent.getId())
+                .orElseGet(() -> AgentInsightsSnapshot.builder().accountId(accountId).agentId(agent.getId()).build());
+        String before = snapshot(String.valueOf(snap.getAiThreads()), String.valueOf(snap.getAiHandoffs()),
+                snap.getToolCallInsights(), snap.getAgentEventInsights());
+
+        Map<String, Object> conv = metaApiClient.get(
+                MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/insights/conversations?" + range + "&metrics=ai_threads&metrics=ai_handoffs", agent.getMetaAgentId()),
+                Map.class);
+        if (conv != null && conv.get("data") instanceof List<?> rows && !rows.isEmpty() && rows.get(0) instanceof Map<?, ?> row) {
+            snap.setAiThreads(metricCount(row.get("ai_threads")));
+            snap.setAiHandoffs(metricCount(row.get("ai_handoffs")));
+        }
+
+        Map<String, Object> tools = metaApiClient.get(
+                MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/insights/tool_calls?" + range, agent.getMetaAgentId()),
+                Map.class);
+        if (tools != null) snap.setToolCallInsights(toJson(tools.get("data")));
+
+        Map<String, Object> events = metaApiClient.get(
+                MetaApiClient.scopedPath("/" + agent.getPhoneNumberId() + "/insights/agent_events?" + range, agent.getMetaAgentId()),
+                Map.class);
+        if (events != null) snap.setAgentEventInsights(toJson(events.get("data")));
+
+        snap.setRangeStart(start);
+        snap.setRangeEnd(end);
+        snap.setSyncedAt(LocalDateTime.now());
+
+        String after = snapshot(String.valueOf(snap.getAiThreads()), String.valueOf(snap.getAiHandoffs()),
+                snap.getToolCallInsights(), snap.getAgentEventInsights());
+        agentInsightsSnapshotRepository.save(snap);
+        return !before.equals(after);
+    }
+
+    private static Integer metricCount(Object metric) {
+        return metric instanceof Map<?, ?> m && m.get("count") instanceof Number n ? n.intValue() : null;
+    }
+
+    private String toJson(Object o) {
+        if (o == null) return null;
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // -------------------------------------------------------------------

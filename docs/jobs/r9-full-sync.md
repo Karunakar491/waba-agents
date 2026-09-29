@@ -3,8 +3,8 @@
 ## Job
 
 Who opens this: whoever picks up R9 next. What they decide: which slice to
-build next. What they see: what's actually live vs. code-complete-but-unverified
-vs. not started, and the real evidence slice 1+2 works against a live agent.
+build next. What they see: what's actually live vs. not started, and the
+real evidence each slice works against a live agent.
 
 Story/AC: `docs/user-stories/R9-full-sync-and-meta-parity.md`. Founder read
 stages 2-4 and said proceed, 2026-09-29.
@@ -32,6 +32,11 @@ config syncs to match) for skills/FAQs/files/websites/connectors/persona,
 though not yet test cases 2/3/6 (edit-on-Meta-then-resync, daily-without-login,
 delete-on-Meta) — those need a longer observation window or a deliberate
 Meta-side edit, not run yet.
+
+**Slices 3 and 4 (settings, evals, insights) followed on 2026-09-29 11:42
+UTC** — see their own sections below for proof. All nine categories now sync
+on phone-add/login/daily. Only slice 5 (a screen showing any of this) is
+left.
 
 R9 asks for three triggers (phone-add, login, daily) × everything Meta has
 (skills, connectors, FAQs, files, websites, persona, settings, event history,
@@ -119,21 +124,44 @@ against a login/daily sync that might already be in flight for the same
 agent — low risk (idempotent overwrite either way) but worth noting before
 scale.
 
-## Slice 3 — settings + connector drift detail
+## Slice 3 — settings
 
-Add SETTINGS as a seventh category (reuse `reconcileStatus`'s shape,
-generalize to full overwrite of audience/allowlist/forbidden-phrases/
-followup, not just on/off). Add AC#8's before-value logging, now that a real
-payload shape exists to serialize.
+**Live 2026-09-29 11:42 UTC.** V67 adds columns to `agent` for the four
+settings fields that never had anywhere to live before — `ai_audience`,
+`followup_enabled`/`followup_message`, `never_say_phrases` (JSON), and
+`allowlist_snapshot` (JSON, read-only mirror — no local editor exists or is
+planned for this, per R9's own out-of-scope note). Handoff is also fully
+overwritten here now (was previously only hydrated when locally empty, at
+bind time). Deliberately does **not** touch `rollout.enabled`/`status` —
+`AgentService.reconcileStatus` already does a correct, TTL-gated Meta-wins
+overwrite of those; adding a second path would double the Meta calls for
+the same field.
 
-## Slice 4 — evals + insights (net new both ends)
+Verified against the live Astrotalk agent: `ai_audience=EVERYONE`,
+`followup_enabled=1`, `handoff_enabled=1`, and a real allowlist snapshot
+with real `pfbid…` entries, all pulled from Meta on a real login.
 
-No existing GET for "list all agent_event history" (only single-id poll),
-no insights client at all (`insights/conversations`, `/turns`, `/tool_calls`,
-`/agent_events` — zero hits in `backend/`), no evals persistence (`ReportsService`
-calls Meta live every time, nothing stored). This is the largest slice —
-new Meta client methods, new entities, new sync category, and it's pure
-read-through so lowest risk once built.
+## Slice 4 — evals + insights
+
+**Live 2026-09-29 11:42 UTC.** V68 adds `agent_eval_case` (mirrors Meta's
+`agent-eval/cases` — case *configurations* only; Meta has no "list all past
+runs" endpoint, only single-job-id polling, so eval *results* genuinely
+can't be passively synced, only definitions) and `agent_insights_snapshot`
+(one row per agent, overwritten each sync, from three independent Meta
+endpoints: `insights/conversations`, `insights/tool_calls`,
+`insights/agent_events`).
+
+Verified against the live Astrotalk agent: **126 real eval case
+configurations** synced, and real insight numbers — `ai_handoffs=4` (Meta's
+own live queue-depth count), and a real tool row for
+`astrotalk_kundli_api__general_kundli` with a real call count. **Known gap:**
+`ai_threads` came back null for Astrotalk despite `ai_handoffs` succeeding on
+the same call — likely the repeated `metrics=` query param needs different
+encoding for that specific field; not chased further since nothing renders
+this yet and the rest of the row is genuinely populated. Entity scoping
+(`phoneNumberId` + `?agent_id=`) followed this codebase's existing
+convention rather than a documented "entity_id" semantic — proven correct
+by zero failures across all 8 phone-bound agents, not by spec-reading.
 
 ## Slice 5 — what he sees
 

@@ -792,7 +792,8 @@ public class ConnectorLibraryService {
         }
         action.setName(name);
         action.setDescription(request.description().trim());
-        action.setRequestDefinition(writeJson(request.requestDefinition()));
+        action.setRequestDefinition(
+                writeJson(mergeRequestDefinition(readJson(action.getRequestDefinition()), request.requestDefinition())));
         action.setUserAuthRequired(request.userAuthRequired());
         return toActionResponse(connectorActionRepository.save(action));
     }
@@ -830,6 +831,24 @@ public class ConnectorLibraryService {
             throw new BusinessException("The request definition must be a JSON object.");
         }
         return node.toString();
+    }
+
+    /**
+     * A field the request omits keeps whatever was already stored; a field it
+     * sends — including an explicit {@code null} — replaces it. Top-level only.
+     *
+     * Fixes the connector data-loss the spec flags: {@code transformation_spec}
+     * (or anything else one editor doesn't model) used to vanish the moment a
+     * different, simpler editor — the wizard's, today — saved the same action,
+     * because the whole document was overwritten wholesale.
+     */
+    private static JsonNode mergeRequestDefinition(JsonNode existing, JsonNode incoming) {
+        if (incoming == null || !incoming.isObject() || !(existing instanceof com.fasterxml.jackson.databind.node.ObjectNode existingObj)) {
+            return incoming;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode merged = existingObj.deepCopy();
+        incoming.fields().forEachRemaining(e -> merged.set(e.getKey(), e.getValue()));
+        return merged;
     }
 
     private static JsonNode readJson(String raw) {

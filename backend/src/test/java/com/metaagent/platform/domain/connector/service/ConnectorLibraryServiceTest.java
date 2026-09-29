@@ -246,6 +246,62 @@ class ConnectorLibraryServiceTest {
         verify(connectorActionRepository, never()).save(any());
     }
 
+    /**
+     * The connector data-loss the spec flags: transformation_spec (or
+     * anything else one editor doesn't model) used to vanish the moment a
+     * different, simpler editor saved the same action, because the whole
+     * request_definition document was overwritten wholesale.
+     */
+    @Test
+    void should_keep_a_field_the_update_did_not_send() {
+        Connector owned = Connector.builder().accountId(1L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        ConnectorAction existing = ConnectorAction.builder()
+                .id(555L).accountId(1L).connectorId(100L)
+                .name("book_slot").description("Book a slot")
+                .requestDefinition("{\"method\":\"POST\",\"path\":\"/\","
+                        + "\"transformation_spec\":{\"output\":\"summary\"}}")
+                .userAuthRequired(false)
+                .build();
+        when(connectorActionRepository.findByIdAndConnectorId(555L, 100L)).thenReturn(Optional.of(existing));
+        when(connectorActionRepository.existsByConnectorIdAndName(anyLong(), anyString())).thenReturn(false);
+        when(connectorActionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // The wizard's simpler editor: same method/path, no idea transformation_spec exists.
+        ConnectorLibraryDtos.ActionRequest request = new ConnectorLibraryDtos.ActionRequest(
+                "book_slot", "Book a slot", objectNode("{\"method\":\"PUT\",\"path\":\"/\"}"), false);
+
+        ConnectorLibraryDtos.ActionResponse response = service.updateAction(100L, 555L, request);
+
+        assertEquals("PUT", response.requestDefinition().path("method").asText(), "the sent field must still win");
+        assertEquals("summary", response.requestDefinition().path("transformation_spec").path("output").asText(),
+                "a field this editor never sent must survive, not be wiped");
+    }
+
+    @Test
+    void should_let_an_update_explicitly_clear_a_field_by_sending_null() {
+        Connector owned = Connector.builder().accountId(1L).wabaId(9L).build();
+        when(connectorRepository.findById(100L)).thenReturn(Optional.of(owned));
+        ConnectorAction existing = ConnectorAction.builder()
+                .id(555L).accountId(1L).connectorId(100L)
+                .name("book_slot").description("Book a slot")
+                .requestDefinition("{\"method\":\"POST\",\"path\":\"/\",\"transformation_spec\":{\"output\":\"summary\"}}")
+                .userAuthRequired(false)
+                .build();
+        when(connectorActionRepository.findByIdAndConnectorId(555L, 100L)).thenReturn(Optional.of(existing));
+        when(connectorActionRepository.existsByConnectorIdAndName(anyLong(), anyString())).thenReturn(false);
+        when(connectorActionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ConnectorLibraryDtos.ActionRequest request = new ConnectorLibraryDtos.ActionRequest(
+                "book_slot", "Book a slot",
+                objectNode("{\"method\":\"POST\",\"path\":\"/\",\"transformation_spec\":null}"), false);
+
+        ConnectorLibraryDtos.ActionResponse response = service.updateAction(100L, 555L, request);
+
+        assertTrue(response.requestDefinition().path("transformation_spec").isNull(),
+                "an editor that knows the field can still explicitly clear it");
+    }
+
     // ---------------------------------------------------------------------
     // Tool sync — deploying a connector must instantiate its actions as Meta
     // tools. It never did, so every connector we deployed arrived on Meta with

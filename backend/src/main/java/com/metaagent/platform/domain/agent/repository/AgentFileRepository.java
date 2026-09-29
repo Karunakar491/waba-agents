@@ -14,4 +14,5 @@ public interface AgentFileRepository extends JpaRepository<AgentFile, Long> {
     List<AgentFile> findAllByAgentIdIn(Collection<Long> agentIds);
     Optional<AgentFile> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
+    Optional<AgentFile> findByAgentIdAndMetaFileId(Long agentId, String metaFileId);
 }

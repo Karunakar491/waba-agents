@@ -15,6 +15,7 @@ public interface AgentSkillRepository extends JpaRepository<AgentSkill, Long> {
     List<AgentSkill> findAllByAgentIdIn(Collection<Long> agentIds);
     Optional<AgentSkill> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
+    Optional<AgentSkill> findByAgentIdAndMetaSkillId(Long agentId, String metaSkillId);
 
     /** Sweep target for SkillUnpublishSweepJob: soft-unpublished past its grace window, still live on Meta. */
     List<AgentSkill> findAllByStatusAndUnpublishedAtBeforeAndMetaSkillIdIsNotNull(

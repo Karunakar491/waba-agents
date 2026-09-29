@@ -14,4 +14,5 @@ public interface AgentWebsiteRepository extends JpaRepository<AgentWebsite, Long
     List<AgentWebsite> findAllByAgentIdIn(Collection<Long> agentIds);
     Optional<AgentWebsite> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
+    Optional<AgentWebsite> findByAgentIdAndMetaWebsiteId(Long agentId, String metaWebsiteId);
 }

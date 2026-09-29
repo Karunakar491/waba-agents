@@ -15,6 +15,7 @@ public interface AgentFaqRepository extends JpaRepository<AgentFaq, Long> {
     List<AgentFaq> findAllByAgentIdIn(java.util.Collection<Long> agentIds);
     Optional<AgentFaq> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
+    Optional<AgentFaq> findByAgentIdAndMetaFaqId(Long agentId, String metaFaqId);
 
     /** Sweep target for SkillUnpublishSweepJob: soft-unpublished past its grace window, still live on Meta. */
     List<AgentFaq> findAllByStatusAndUnpublishedAtBeforeAndMetaFaqIdIsNotNull(

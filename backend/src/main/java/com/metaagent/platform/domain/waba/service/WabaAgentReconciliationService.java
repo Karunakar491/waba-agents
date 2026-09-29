@@ -1,7 +1,9 @@
 package com.metaagent.platform.domain.waba.service;
 
 import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.entity.AgentSyncLog;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
+import com.metaagent.platform.domain.agent.service.AccountSyncService;
 import com.metaagent.platform.domain.waba.entity.WabaAccountAccess;
 import com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository;
 import com.metaagent.platform.domain.waba.repository.WabaAccountAccessRepository;
@@ -39,6 +41,7 @@ public class WabaAgentReconciliationService {
     private final WabaAccountAccessRepository wabaAccountAccessRepository;
     private final MetaApiClient metaApiClient;
     private final PhoneNumberSnapshotRepository phoneNumberSnapshotRepository;
+    private final AccountSyncService accountSyncService;
 
     public void reconcile(Long wabaId, Long accountId, List<String> phoneNumberIds) {
         grantAccessIfMissing(wabaId, accountId);
@@ -132,6 +135,12 @@ public class WabaAgentReconciliationService {
         try {
             agentRepository.saveAndFlush(agent);
             log.info("Reconciled Meta agent into local DB: phoneNumberId={} wabaId={}", phoneNumberId, wabaId);
+            // R9: "the moment a phone number is added ... fetch Agents deployed on
+            // that from Meta ... every detail from Meta has to be fetched." This is
+            // that moment for a phone number Meta already runs an agent on that we
+            // had no local row for. Never throws — each category is independently
+            // best-effort, see AccountSyncService.
+            accountSyncService.syncAgent(agent, accountId, AgentSyncLog.Trigger.PHONE_ADD);
         } catch (DataIntegrityViolationException e) {
             // Another concurrent view already imported this number — fine, unique index wins.
         }

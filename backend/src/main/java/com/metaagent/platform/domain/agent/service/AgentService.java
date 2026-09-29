@@ -57,6 +57,7 @@ public class AgentService {
     private final AgentConnectorRepository agentConnectorRepository;
     private final com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository connectorDeploymentRepository;
     private final com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository agentSkillAttachmentRepository;
+    private final AccountSyncService accountSyncService;
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -277,11 +278,19 @@ public class AgentService {
             agent.setPhoneNumberId(phoneNumberId);
             agent.setWabaId(wabaId);
             agent.setUpdatedBy(accountId);
+            Agent saved;
             try {
-                return agentRepository.saveAndFlush(agent);
+                saved = agentRepository.saveAndFlush(agent);
             } catch (DataIntegrityViolationException e) {
                 throw new BusinessException("This phone number is already connected to another agent.");
             }
+            // R9: a phone number just arrived on this agent — an operator could have
+            // bound one that already carries real skills/FAQs/etc. from Meta directly
+            // (a number moved from another tool, or edited on Meta before ever being
+            // bound here). Fetch and sync everything now rather than waiting for the
+            // next login. Never throws — see AccountSyncService.
+            accountSyncService.syncAgent(saved, accountId, AgentSyncLog.Trigger.PHONE_ADD);
+            return saved;
         }
     }
 

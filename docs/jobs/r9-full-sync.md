@@ -165,9 +165,37 @@ by zero failures across all 8 phone-bound agents, not by spec-reading.
 
 ## Slice 5 — what he sees
 
-Per-agent "last synced, found drift Y/N" on the agent detail screen, reading
-`AgentSyncLog`. Depends on slice 1 having real proof it works, not just
-compiling.
+Not built. Agreed with the founder 2026-09-29, three pieces:
+
+1. **Sync status, on the agent's own page.** A quiet status line near the
+   existing Active/Paused pill: `Synced with Meta · 2 min ago`, reading
+   `AgentSyncLog`'s newest row per category for this agent. Click it and a
+   panel drops down listing all 9 categories, each with its own last-synced
+   time and a quiet "Updated from Meta" tag on the ones where `changed=true`.
+   A failed category shows a plain-language reason, same tone as the
+   existing "Blocked by Meta" skill badge — never Meta's raw error text.
+   Nothing permanent added to the tab bar; this is collapsed by default so
+   it doesn't compete with the tabs that are already there.
+2. **A third Reports tab, "Insights."** `ReportsPage.tsx` already has
+   Conversations and Eval as account-wide tabs (`frontend/src/pages/ReportsPage.tsx`).
+   Insights joins them: one row per agent, reading `agent_insights_snapshot`
+   directly — no live Meta call on page load, since the sync already did
+   that work. Columns: live queue depth (`ai_handoffs`), and per-tool health
+   (call count, success/error rate) from `tool_call_insights`.
+3. **`ai_handoffs` promoted onto the agent's own page too**, not just
+   Reports — a small number badge ("4 waiting on you") near the top.
+   STATE.md's top open issue is "no conversation ever closes, no notion of
+   a queue"; this is Meta's own live count of exactly that, already synced,
+   currently shown nowhere. Higher priority than the Insights tab itself —
+   build this half even if the full tab waits.
+
+Eval cases get no new screen — folded into the existing Eval tab
+(`EvalRollup` in `ReportsPage.tsx`) as a small "N cases configured" line per
+agent, reading `agent_eval_case`. Running an eval is still its own deliberate
+action (`EvalRollupWorker`); this only shows what's configured to run.
+
+Depends on slices 1-4 having real proof they work, not just compiling — see
+each slice's own Proof/verification note above.
 
 ## Verification still owed before slice 1 can be called done
 

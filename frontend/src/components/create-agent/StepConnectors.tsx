@@ -1,21 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Library, Plug, Trash2 } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { Library, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ErrorBanner from '../shared/ErrorBanner'
 import ConnectorDeployModal from '../connectors/ConnectorDeployModal'
-import { AUTH_TYPES, type LibraryConnector } from '../connectors/connectorLibrary'
-import {
-  BottomBar,
-  LinkAction,
-  SectionCard,
-  SelectField,
-  StepHeader,
-  TextField,
-  WizardToggle,
-} from './WizardChrome'
+import type { LibraryConnector } from '../connectors/connectorLibrary'
+import { BottomBar, LinkAction, SectionCard, StepHeader } from './WizardChrome'
 
 interface Connector {
   id: string
@@ -24,41 +15,12 @@ interface Connector {
   base_url?: string
 }
 
-/** The three Figma chips are presets for the same standard shape below. */
-const PRESETS: { label: string; base_url: string; description: string }[] = [
-  {
-    label: 'Shopify',
-    base_url: 'https://your-store.myshopify.com/admin/api/2024-01',
-    description: 'Checks real order and product status in Shopify.',
-  },
-  {
-    label: 'Zendesk',
-    base_url: 'https://your-subdomain.zendesk.com/api/v2',
-    description: 'Looks up support tickets in Zendesk.',
-  },
-  { label: 'Custom API', base_url: '', description: '' },
-]
-
-// AUTH_TYPES comes from components/connectors/connectorLibrary — the same list
-// the Connectors section uses.
-//
-// This file had its own copy offering `OAUTH2`, which Meta's connector API
-// accepts in its schema and does not support: `OAUTH2`, `BASIC` and `CUSTOM`
-// are listed as "defined but not currently supported"
-// (docs/meta-api/connectors.md). A connector created that way in the wizard
-// could never authenticate. The copy also used the raw enum values as the
-// labels a business owner reads.
-
 /**
- * Screen: Create Agent — Step 5, Connectors (Figma node 252:35)
+ * Screen: Create Agent — Step 5, Connectors (Figma node 252:35).
  *
- * 1. USER GOAL: Let the agent reach a real system for things it can't know.
- * 2. EMOTIONAL STATE: This is the most technical step in the wizard — the
- *    copy says plainly that Iris can't invent this part.
- * 3. POSSIBLE ACTIONS: Start from a known system, define a custom one, or
- *    skip and add it later from the agent's settings.
- * 4. HOW WE HELP: One standard shape, with the API field names shown, so a
- *    system nobody pre-built still fits without a new screen.
+ * The ad-hoc "New connector" form is removed here (1/2 of this change) —
+ * it's replaced by the shared connector editor next commit. This half keeps
+ * Import from Library and the deployed-connectors list working meanwhile.
  */
 export default function StepConnectors({
   agentId,
@@ -73,37 +35,24 @@ export default function StepConnectors({
 }) {
   const qc = useQueryClient()
   const [error, setError] = useState<string | null>(null)
-  const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [deployTarget, setDeployTarget] = useState<LibraryConnector | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    name: '',
-    description: '',
-    base_url: '',
-    auth_type: 'API_KEY',
-    header_name: '',
-    header_value: '',
-    requires_certificate: false,
-  })
 
-  const enabled = !!agentId
   const onError = (err: unknown) => setError(extractErrorMessage(err))
 
   const { data: connectors = [] } = useQuery<Connector[]>({
     queryKey: ['agent-connectors', agentId],
     queryFn: () => api.get(`/agents/${agentId}/connectors`).then((r) => r.data.data ?? []),
-    enabled,
+    enabled: !!agentId,
   })
 
   // The real Connector Library (V46) — reusable definitions, not the live
-  // rollup. Picking one here deploys that definition onto this agent, which
-  // records a connector_deployment row; the ad-hoc form below still exists
-  // for one-off connectors nobody wants to reuse.
+  // rollup. Picking one here deploys that definition onto this agent.
   const { data: libraryConnectors = [] } = useQuery<LibraryConnector[]>({
     queryKey: ['connector-library', wabaId],
     queryFn: () =>
-      api.get('/connectors', { params: { wabaId } }).then((r) => r.data.data ?? []),
+      api.get('/connector-library', { params: { wabaId } }).then((r) => r.data.data ?? []),
     enabled: importOpen && !!wabaId,
   })
 
@@ -114,41 +63,9 @@ export default function StepConnectors({
   })
   const thisAgent = agents.find((a) => a.id === agentId) ?? null
 
-  const createConnector = useMutation({
-    mutationFn: () =>
-      api.post(`/agents/${agentId}/connectors`, {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        base_url: form.base_url.trim(),
-        auth_type: form.auth_type,
-        requires_certificate: form.requires_certificate,
-        ...(form.auth_type === 'API_KEY' && form.header_name.trim()
-          ? {
-              auth_config: {
-                headers: [{ field_name: form.header_name.trim(), value: form.header_value }],
-              },
-            }
-          : {}),
-      }),
-    onSuccess: () => {
-      setFormOpen(false)
-      setForm({
-        name: '',
-        description: '',
-        base_url: '',
-        auth_type: 'API_KEY',
-        header_name: '',
-        header_value: '',
-        requires_certificate: false,
-      })
-      void qc.invalidateQueries({ queryKey: ['agent-connectors', agentId] })
-    },
-    onError,
-  })
-
   const deployFromLibrary = useMutation({
     mutationFn: ({ id, secrets }: { id: string; secrets: Record<string, string> }) =>
-      api.post(`/connectors/${id}/deploy`, { agentId, secrets }),
+      api.post(`/connector-library/${id}/deploy`, { agentId, secrets }),
     onSuccess: () => {
       setDeployTarget(null)
       setDeployError(null)
@@ -164,11 +81,6 @@ export default function StepConnectors({
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agent-connectors', agentId] }),
     onError,
   })
-
-  function startFromPreset(p: (typeof PRESETS)[number]) {
-    setForm((f) => ({ ...f, name: p.label, base_url: p.base_url, description: p.description }))
-    setFormOpen(true)
-  }
 
   return (
     <>
@@ -202,37 +114,9 @@ export default function StepConnectors({
           </LinkAction>
         }
       >
-        <div className="flex flex-wrap gap-3">
-          {PRESETS.map((p) => (
-            <button
-              key={p.label}
-              type="button"
-              disabled={!enabled}
-              onClick={() => startFromPreset(p)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg border px-4 py-3 text-sm text-foreground transition-colors',
-                'hover:border-accent-teal disabled:cursor-not-allowed disabled:text-muted-foreground',
-              )}
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-teal/10">
-                <Plug className="h-4 w-4 text-accent-teal-solid" />
-              </span>
-              {p.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            disabled={!enabled}
-            onClick={() => setFormOpen(true)}
-            className="rounded-lg border border-dashed px-4 py-3 text-sm text-accent-teal-solid transition-colors hover:bg-accent-teal/10 disabled:cursor-not-allowed disabled:text-muted-foreground"
-          >
-            + Add connector
-          </button>
-        </div>
-
         {importOpen && (
           <div className="rounded-lg border p-4">
-            <p className="text-sm font-medium text-foreground">Your Connectors</p>
+            <p className="text-sm font-medium text-foreground">Your Connector Library</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Reusable definitions. Deploying one here puts it on this agent — you only enter the credentials.
             </p>
@@ -247,6 +131,7 @@ export default function StepConnectors({
                     <div className="min-w-0">
                       <p className="truncate text-sm text-foreground">{c.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
+                        {c.systemType ? `${c.systemType} · ` : ''}
                         {c.usedByAgentCount === 0
                           ? 'Not deployed yet'
                           : `Used by ${c.usedByAgentCount} agent${c.usedByAgentCount === 1 ? '' : 's'}`}
@@ -288,105 +173,6 @@ export default function StepConnectors({
               </li>
             ))}
           </ul>
-        )}
-
-        {formOpen && (
-          <div className="space-y-4 rounded-lg border p-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">New connector — standard shape</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Any external system your team adds later uses this same shape — no pre-built chip
-                required.
-              </p>
-            </div>
-            <TextField
-              id="conn-name"
-              label="Name"
-              apiName="name"
-              value={form.name}
-              onChange={(v) => setForm((f) => ({ ...f, name: v }))}
-              placeholder="e.g. Custom Inventory API"
-            />
-            <TextField
-              id="conn-description"
-              label="Description"
-              apiName="description"
-              value={form.description}
-              onChange={(v) => setForm((f) => ({ ...f, description: v }))}
-              placeholder="e.g. Checks live stock counts for the warehouse system."
-            />
-            <TextField
-              id="conn-base-url"
-              label="Base URL"
-              apiName="base_url"
-              type="url"
-              value={form.base_url}
-              onChange={(v) => setForm((f) => ({ ...f, base_url: v }))}
-              placeholder="e.g. https://api.yourinventory.com"
-            />
-            <SelectField
-              id="conn-auth-type"
-              label="Auth type"
-              apiName="auth_type"
-              value={form.auth_type}
-              onChange={(v) => setForm((f) => ({ ...f, auth_type: v }))}
-              options={[...AUTH_TYPES]}
-            />
-
-            {form.auth_type === 'API_KEY' ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  auth_config fields change based on auth_type — API Key shown below.
-                </p>
-                <TextField
-                  id="conn-header-name"
-                  label="Header name"
-                  apiName="auth_config.headers[].field_name"
-                  value={form.header_name}
-                  onChange={(v) => setForm((f) => ({ ...f, header_name: v }))}
-                  placeholder="e.g. X-API-Key"
-                />
-                <TextField
-                  id="conn-header-value"
-                  label="Header value"
-                  apiName="auth_config.headers[].value"
-                  value={form.header_value}
-                  onChange={(v) => setForm((f) => ({ ...f, header_value: v }))}
-                  placeholder="e.g. your API key"
-                />
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {form.auth_type === 'OAUTH2'
-                  ? 'OAuth2 credentials (token_url, client_id, client_secret, scopes) are entered on the connector after it exists — this wizard creates it with no secrets attached.'
-                  : 'No credentials needed for this auth type.'}
-              </p>
-            )}
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-medium text-foreground">
-                Requires certificate (mTLS){' '}
-                <span className="text-xs text-muted-foreground">requires_certificate</span>
-              </span>
-              <WizardToggle
-                checked={form.requires_certificate}
-                onChange={(v) => setForm((f) => ({ ...f, requires_certificate: v }))}
-                label="Requires certificate"
-              />
-            </div>
-
-            <button
-              type="button"
-              disabled={!form.name.trim() || !form.base_url.trim() || createConnector.isPending}
-              onClick={() => {
-                setError(null)
-                createConnector.mutate()
-              }}
-              className="h-10 w-full rounded-lg bg-accent-teal-solid px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              Save & connect
-            </button>
-          </div>
         )}
       </SectionCard>
 

@@ -22,7 +22,7 @@ import {
   type BodyFieldRow,
 } from '../../agent-detail/toolRequestDefinition'
 import type { ActionPayload, ConnectorAction } from '../connectorActions'
-import type { ConnectorFormValues } from '../connectorLibrary'
+import type { ConnectorFormValues } from '../connectors'
 
 /** Scheme and host of the connector's base URL, for comparing against a pasted cURL. */
 function originOf(baseUrl: string): string {

@@ -1,5 +1,5 @@
 import PropertyTable, { type PropertyRow } from './PropertyTable'
-import type { ConnectorFormValues } from '../connectorLibrary'
+import type { ConnectorFormValues } from '../connectors'
 
 /**
  * A connector that does not exist yet, built to `design/NewConnector.dc.html`.

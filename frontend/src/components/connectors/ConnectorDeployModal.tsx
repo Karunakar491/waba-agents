@@ -3,7 +3,7 @@ import { Loader2, Rocket } from 'lucide-react'
 import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
 import ConsequenceLine from '../shared/ConsequenceLine'
-import { requiredSecretFields, type LibraryConnector } from './connectorLibrary'
+import { requiredSecretFields, type Connector } from './connectors'
 
 const inputCls =
   'w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground ' +
@@ -45,7 +45,7 @@ export default function ConnectorDeployModal({
   onDeploy,
   onClose,
 }: {
-  connector: LibraryConnector
+  connector: Connector
   agents: DeployTargetAgent[]
   deploying: boolean
   error: string | null

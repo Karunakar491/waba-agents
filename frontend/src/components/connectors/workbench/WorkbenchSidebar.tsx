@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, Search } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { ConnectorAction } from '../connectorActions'
-import type { LibraryConnector } from '../connectorLibrary'
+import type { Connector } from '../connectors'
 
 /**
  * The workbench's navigation: every connector, expanding to the tools inside it.
@@ -31,11 +31,13 @@ export default function WorkbenchSidebar({
   onNewAction,
   liveOnly = [],
   onOpenOnAgent,
+  emptyLabel,
+  emptyAction,
 }: {
-  connectors: LibraryConnector[]
+  connectors: Connector[]
   /**
    * Connectors Meta reports on an agent that we have no definition for —
-   * added there directly, or before this library existed. They are listed so
+   * added there directly, or before this section existed. They are listed so
    * the panel is the whole picture (founder, 2026-09-07: "cant we list all of
    * them in the left side panel only?"), and they are not selectable here
    * because there is nothing of ours to edit: they are managed on the agent
@@ -53,6 +55,9 @@ export default function WorkbenchSidebar({
   onSelectAction: (connectorId: string, actionId: string) => void
   onNewConnector: () => void
   onNewAction: (connectorId: string) => void
+  /** Overrides the "No connectors yet" copy — the agent tab has its own. */
+  emptyLabel?: string
+  emptyAction?: { label: string; onClick: () => void }
 }) {
   const [filter, setFilter] = useState('')
 
@@ -112,9 +117,20 @@ export default function WorkbenchSidebar({
 
       <div className="flex-1 overflow-y-auto py-1">
         {connectors.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">
-            No connectors yet. Add one to give an agent an API it can call.
-          </p>
+          <div className="space-y-2 px-3 py-4">
+            <p className="text-xs text-muted-foreground">
+              {emptyLabel ?? 'No connectors yet. Add one to give an agent an API it can call.'}
+            </p>
+            {emptyAction && (
+              <button
+                type="button"
+                onClick={emptyAction.onClick}
+                className="text-xs font-medium text-accent-teal-solid hover:underline"
+              >
+                {emptyAction.label}
+              </button>
+            )}
+          </div>
         ) : visible.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
             Nothing matches “{filter.trim()}”.
@@ -244,7 +260,7 @@ export default function WorkbenchSidebar({
         {liveOnly.length > 0 && (
           <div className="mt-2 border-t pt-2">
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Live on an agent, not in your library
+              Live on an agent, no definition here
             </p>
             {liveOnly.map((row) => (
               <button

@@ -13,7 +13,7 @@ export interface ConnectorRow {
   status: string | null
   /**
    * Below here: backed by the local connector mirror (agent_connector, V45).
-   * authType/baseUrl come from Meta; systemType/tags/publishedToLibrary are
+   * authType/baseUrl come from Meta; systemType/tags/connectorDefined are
    * ours (Meta has no such concept). usedByAgentCount is heuristic — Meta's
    * connector ids are per-phone-number, so it groups by name + base URL.
    */
@@ -21,17 +21,17 @@ export interface ConnectorRow {
   baseUrl: string | null
   systemType: string | null
   tags: string[]
-  publishedToLibrary: boolean
+  connectorDefined: boolean
   usedByAgentCount: number
   /** True when this row was served from the mirror because Meta was unreachable. */
   cached: boolean
   lastSyncedAt: string | null
   /**
-   * Set when this live connector is a deployment of a Connector Library
-   * definition (connector_deployment, V46) — in that case usedByAgentCount
-   * above is a real count, not the heuristic.
+   * Set when this live connector is a deployment of a connector definition
+   * (connector_deployment, V46) — in that case usedByAgentCount above is a
+   * real count, not the heuristic.
    */
-  libraryConnectorId: string | null
+  connectorId: string | null
 }
 
 function statusTone(status: string | null): StatusTone {

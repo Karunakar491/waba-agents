@@ -23,8 +23,8 @@ import {
   toFormValues,
   toRequestBody,
   type ConnectorFormValues,
-  type LibraryConnector,
-} from '../components/connectors/connectorLibrary'
+  type Connector,
+} from '../components/connectors/connectors'
 
 interface WabaEntry {
   id: string
@@ -78,6 +78,16 @@ export default function ConnectorWorkbenchPage({
 }: {
   embedded?: {
     wabaId: string
+    /**
+     * Set only by the agent tab (not the wizard, which has no agent yet). Scopes
+     * the sidebar to what THIS agent has deployed — the workbench otherwise
+     * shows every connector on every agent that shares the WABA, not "this
+     * agent's connectors" (founder,
+     * 2026-09-29: opening Astrotalk 85916 showed smsabotapi, dealer_locator_api
+     * — other agents' connectors — because the tab was scoped to the WABA, not
+     * the agent, and the comment above it claimed otherwise).
+     */
+    agentId?: string
     connectorId: string | null
     actionId: string | null
     onNavigate: (connectorId: string | null, actionId: string | null) => void
@@ -116,16 +126,19 @@ export default function ConnectorWorkbenchPage({
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ConnectorAction | null>(null)
   /** A draft, held only for the credential-header rows — see ConnectorPane. */
   const [headerDraft, setHeaderDraft] = useState<ConnectorFormValues | null>(null)
-  const [publishTarget, setPublishTarget] = useState<LibraryConnector | null>(null)
+  const [publishTarget, setPublishTarget] = useState<Connector | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
-  const [republishTarget, setRepublishTarget] = useState<LibraryConnector | null>(null)
+  const [republishTarget, setRepublishTarget] = useState<Connector | null>(null)
   const [republishError, setRepublishError] = useState<string | null>(null)
   const [republishResults, setRepublishResults] = useState<PublishResult[] | null>(null)
   const creating = connectorId === 'new'
   const [newForm, setNewForm] = useState<ConnectorFormValues>(EMPTY_CONNECTOR_FORM)
   const [newError, setNewError] = useState<string | null>(null)
-  const [pendingDeleteConnector, setPendingDeleteConnector] = useState<LibraryConnector | null>(null)
+  const [pendingDeleteConnector, setPendingDeleteConnector] = useState<Connector | null>(null)
   const [deleteConnectorError, setDeleteConnectorError] = useState<string | null>(null)
+  // Agent tab only: false shows just this agent's connectors, true browses
+  // every connector on the account to add one it doesn't have yet.
+  const [browsingAllConnectors, setBrowsingAllConnectors] = useState(false)
 
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],
@@ -138,8 +151,8 @@ export default function ConnectorWorkbenchPage({
     data: connectors = [],
     isLoading: loadingConnectors,
     error: connectorsError,
-  } = useQuery<LibraryConnector[]>({
-    queryKey: ['connector-library', waba?.id],
+  } = useQuery<Connector[]>({
+    queryKey: ['connectors', waba?.id],
     queryFn: () =>
       api.get('/connectors', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba,
@@ -276,18 +289,32 @@ export default function ConnectorWorkbenchPage({
     () =>
       agentList
         .filter((a) => !waba || a.wabaId === waba.id)
+        .filter((a) => !embedded?.agentId || a.id === embedded.agentId)
         .map((a) => ({ id: a.id, displayName: a.displayName, phoneNumberId: a.phoneNumberId })),
-    [agentList, waba],
+    [agentList, waba, embedded?.agentId],
   )
+
+  // Agent tab only: which connector definitions are actually deployed here.
+  const agentConnectors = useMemo(
+    () =>
+      embedded?.agentId
+        ? connectors.filter((c) =>
+            c.deployments.some((d) => d.agentId === embedded.agentId && d.deployedAt),
+          )
+        : connectors,
+    [connectors, embedded?.agentId],
+  )
+  const sidebarConnectors = embedded?.agentId && !browsingAllConnectors ? agentConnectors : connectors
 
   const publishMutation = useMutation({
     mutationFn: ({ id, agentId, secrets }: { id: string; agentId: string; secrets: Record<string, string> }) =>
       api.post(`/connectors/${id}/deploy`, { agentId, secrets }),
     onSuccess: (_d, { agentId }) => {
-      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      void queryClient.invalidateQueries({ queryKey: ['connectors'] })
       const agent = agentList.find((a) => a.id === agentId)
       setPublishTarget(null)
       setPublishError(null)
+      if (embedded?.agentId && agentId === embedded.agentId) setBrowsingAllConnectors(false)
       confirm('Published to Meta', `${publishTarget?.name ?? 'Connector'} → ${agent?.displayName ?? 'the agent'}`)
     },
     onError: (err: unknown) =>
@@ -300,7 +327,7 @@ export default function ConnectorWorkbenchPage({
         .post(`/connectors/${id}/publish-to-agents`, { agentIds })
         .then((r) => r.data.data as PublishResult[]),
     onSuccess: (results) => {
-      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      void queryClient.invalidateQueries({ queryKey: ['connectors'] })
       setRepublishResults(results)
     },
     onError: (err: unknown) =>
@@ -310,11 +337,11 @@ export default function ConnectorWorkbenchPage({
   /**
    * What Meta reports on the account's agents. Used only to show, at the
    * bottom of the tree, connectors that exist on an agent but have no
-   * definition of ours — added directly on the agent, or before this library
+   * definition of ours — added directly on the agent, or before this section
    * existed. They used to be a second table on a separate page.
    */
   const { data: mirror = [] } = useQuery<ConnectorRow[]>({
-    queryKey: ['library-connectors', waba?.id],
+    queryKey: ['connectors-live', waba?.id],
     queryFn: () =>
       api
         .get('/connectors/live', { params: { wabaId: waba!.id } })
@@ -324,6 +351,7 @@ export default function ConnectorWorkbenchPage({
   const liveOnly = useMemo(() => {
     const ours = new Set(connectors.map((c) => c.name.toLowerCase()))
     return mirror
+      .filter((row) => !embedded?.agentId || row.agentId === embedded.agentId)
       .filter((row) => !ours.has((row.name ?? '').toLowerCase()))
       .map((row) => ({
         key: `${row.agentId}-${row.id}`,
@@ -331,13 +359,13 @@ export default function ConnectorWorkbenchPage({
         agentId: row.agentId,
         agentName: row.agentName,
       }))
-  }, [mirror, connectors])
+  }, [mirror, connectors, embedded?.agentId])
 
   const createConnector = useMutation({
     mutationFn: (values: ConnectorFormValues) =>
       api.post('/connectors', { wabaId: waba!.id, ...toRequestBody(values) }),
     onSuccess: (res, values) => {
-      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      void queryClient.invalidateQueries({ queryKey: ['connectors'] })
       confirm('Connector saved', `${values.name} — add an action so an agent can call it`)
       setNewForm(EMPTY_CONNECTOR_FORM)
       setNewError(null)
@@ -352,7 +380,7 @@ export default function ConnectorWorkbenchPage({
     mutationFn: (id: string) => api.delete(`/connectors/${id}`),
     onSuccess: (_d, id) => {
       const gone = connectors.find((c) => c.id === id)?.name
-      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      void queryClient.invalidateQueries({ queryKey: ['connectors'] })
       setPendingDeleteConnector(null)
       confirm('Connector deleted', gone)
       go(null, null, { replace: true })
@@ -365,7 +393,7 @@ export default function ConnectorWorkbenchPage({
     mutationFn: (values: ConnectorFormValues) =>
       api.put(`/connectors/${connectorId}`, toRequestBody(values)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
+      void queryClient.invalidateQueries({ queryKey: ['connectors'] })
       // No detail in the toast: the value is on screen in the row that was
       // just left, so naming it again says nothing.
       setHeaderDraft(null)
@@ -449,28 +477,50 @@ export default function ConnectorWorkbenchPage({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <WorkbenchSidebar
-          connectors={connectors}
-          actionsByConnector={actionsByConnector}
-          selectedConnectorId={connectorId ?? null}
-          selectedActionId={actionId ?? null}
-          expanded={expanded}
-          onToggleExpand={(id) => setExpanded((p) => ({ ...p, [id]: !p[id] }))}
-          onSelectConnector={(id) => {
-            setExpanded((p) => ({ ...p, [id]: true }))
-            go(id, null)
-          }}
-          onSelectAction={(cid, aid) => go(cid, aid)}
-          liveOnly={liveOnly}
-          // Always leaves the flow — opens a different agent entirely, so this
-          // stays a real navigation even when embedded in the wizard.
-          onOpenOnAgent={(agentId) => routerNavigate(`/agents/${agentId}?tab=connectors`)}
-          onNewConnector={() => go('new', null)}
-          onNewAction={(cid) => {
-            setExpanded((p) => ({ ...p, [cid]: true }))
-            go(cid, 'new')
-          }}
-        />
+        <div className="flex h-full shrink-0 flex-col">
+          {embedded?.agentId && agentConnectors.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setBrowsingAllConnectors((v) => !v)}
+              className="shrink-0 border-b bg-card px-3 py-2 text-left text-xs font-medium text-accent-teal-solid
+                transition-colors hover:bg-muted"
+            >
+              {browsingAllConnectors ? '← Only this agent’s connectors' : 'Browse all connectors →'}
+            </button>
+          )}
+          <WorkbenchSidebar
+            connectors={sidebarConnectors}
+            actionsByConnector={actionsByConnector}
+            selectedConnectorId={connectorId ?? null}
+            selectedActionId={actionId ?? null}
+            expanded={expanded}
+            onToggleExpand={(id) => setExpanded((p) => ({ ...p, [id]: !p[id] }))}
+            onSelectConnector={(id) => {
+              setExpanded((p) => ({ ...p, [id]: true }))
+              go(id, null)
+            }}
+            onSelectAction={(cid, aid) => go(cid, aid)}
+            liveOnly={browsingAllConnectors ? [] : liveOnly}
+            // Always leaves the flow — opens a different agent entirely, so this
+            // stays a real navigation even when embedded in the wizard.
+            onOpenOnAgent={(agentId) => routerNavigate(`/agents/${agentId}?tab=connectors`)}
+            onNewConnector={() => go('new', null)}
+            onNewAction={(cid) => {
+              setExpanded((p) => ({ ...p, [cid]: true }))
+              go(cid, 'new')
+            }}
+            emptyLabel={
+              embedded?.agentId && !browsingAllConnectors
+                ? 'No connectors on this agent yet.'
+                : undefined
+            }
+            emptyAction={
+              embedded?.agentId && !browsingAllConnectors && connectors.length > 0
+                ? { label: 'Browse all connectors', onClick: () => setBrowsingAllConnectors(true) }
+                : undefined
+            }
+          />
+        </div>
 
         <div className="min-w-0 flex-1 overflow-y-auto p-5">
           {creating ? (
@@ -485,20 +535,33 @@ export default function ConnectorWorkbenchPage({
           ) : !connector ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
-                {connectors.length === 0 ? 'No connectors yet' : 'Pick a connector on the left'}
+                {sidebarConnectors.length === 0 ? 'No connectors yet' : 'Pick a connector on the left'}
               </p>
               <p className="max-w-md text-sm text-muted-foreground">
-                A connector is an API your agents can call. Everything on this account is in the
-                panel on the left — there is no second list.
+                {embedded?.agentId && !browsingAllConnectors
+                  ? "A connector is an API this agent can call. The panel on the left is what's deployed here."
+                  : 'A connector is an API your agents can call. Everything on this account is in the panel on the left — there is no second list.'}
               </p>
-              <button
-                type="button"
-                onClick={() => go('new', null)}
-                className="mt-1 flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4
-                  text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              >
-                New connector
-              </button>
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => go('new', null)}
+                  className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-teal-solid px-4
+                    text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  New connector
+                </button>
+                {embedded?.agentId && !browsingAllConnectors && connectors.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setBrowsingAllConnectors(true)}
+                    className="flex min-h-11 items-center gap-1.5 rounded-lg border px-4
+                      text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                  >
+                    Import from the library
+                  </button>
+                )}
+              </div>
             </div>
           ) : actionId && actionId !== 'new' && actions === undefined ? (
             /* The pane fills its fields once, at mount, from the action it is

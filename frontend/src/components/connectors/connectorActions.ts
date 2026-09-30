@@ -1,8 +1,8 @@
 import type { RequestDefinition } from '../agent-detail/toolRequestDefinition'
 
 /**
- * One thing a connector can do, stored against the library connector rather
- * than against an agent.
+ * One thing a connector can do, stored against the connector definition
+ * rather than against an agent.
  *
  * It lives here because Meta scopes tools to a phone number, so an action for a
  * connector that has not been deployed anywhere has no Meta object to hold it.

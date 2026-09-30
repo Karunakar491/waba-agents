@@ -195,13 +195,6 @@ export default function AgentDetailPage() {
     queryClient.prefetchQuery({ queryKey: ['websites', agentId], queryFn: () => api.get(`/agents/${agentId}/websites`).then((r) => r.data.data) })
     queryClient.prefetchQuery({ queryKey: ['files', agentId], queryFn: () => api.get(`/agents/${agentId}/files`).then((r) => r.data.data) })
     queryClient.prefetchQuery({ queryKey: ['skills-view', agentId], queryFn: () => api.get(`/agents/${agentId}/skills-view`).then((r) => r.data.data ?? []) })
-    queryClient.prefetchQuery({
-      queryKey: ['connectors', agentId],
-      queryFn: () => api.get(`/agents/${agentId}/connectors`).then((r) => {
-        const d = r.data.data
-        return Array.isArray(d) ? d : (d?.data ?? [])
-      }),
-    })
     queryClient.prefetchQuery({ queryKey: ['business-profile-live', phoneNumberId], queryFn: () => api.get('/business-profiles/live', { params: { phoneNumberId } }).then((r) => r.data.data) })
     queryClient.prefetchQuery({ queryKey: ['business-profile-history', phoneNumberId], queryFn: () => api.get('/business-profiles/history', { params: { phoneNumberId } }).then((r) => r.data.data ?? []) })
     queryClient.prefetchQuery({ queryKey: ['eval-cases', agentId], queryFn: () => api.get(`/reports/agents/${agentId}/eval/cases`).then((r) => r.data.data?.eval_cases ?? []) })
@@ -1002,7 +995,8 @@ function FilesSection({ agentId, open, onToggle }: { agentId: string; open: bool
 // Reuses the exact same connector editor as the Connectors section and the
 // wizard (R4/R6 slice 4) — the legacy per-agent Connector/Tool CRUD this tab
 // used to hand-roll is gone; everything here now goes through the shared
-// Connector Library, scoped to this agent's WABA.
+// Connector Library, scoped to what THIS agent has deployed (`embedded.agentId`)
+// — not to the WABA, which can hold several agents' connectors.
 
 function ConnectorsTab({ agent }: { agent: AgentApi }) {
   const [connectorId, setConnectorId] = useState<string | null>(null)
@@ -1025,6 +1019,7 @@ function ConnectorsTab({ agent }: { agent: AgentApi }) {
       <ConnectorWorkbenchPage
         embedded={{
           wabaId: agent.wabaId,
+          agentId: agent.id,
           connectorId,
           actionId,
           onNavigate: (c, a) => {

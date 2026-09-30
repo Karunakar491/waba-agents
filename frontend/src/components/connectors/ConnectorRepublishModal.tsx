@@ -4,7 +4,7 @@ import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
 import ConsequenceLine from '../shared/ConsequenceLine'
 import StatusIndicator from '../shared/StatusIndicator'
-import { type LibraryConnector } from './connectorLibrary'
+import { type Connector } from './connectors'
 
 export interface PublishResult {
   agentId: string
@@ -34,7 +34,7 @@ export default function ConnectorRepublishModal({
   onPublish,
   onClose,
 }: {
-  connector: LibraryConnector
+  connector: Connector
   publishing: boolean
   /** Set once the call returns — per-agent outcome, shown in place of the checklist. */
   results: PublishResult[] | null

@@ -1,6 +1,6 @@
 import { AlertTriangle, Plus, X } from 'lucide-react'
 import PropertyTable, { type PropertyRow } from './PropertyTable'
-import { AUTH_TYPES, type AuthHeaderField, type ConnectorFormValues } from '../connectorLibrary'
+import { AUTH_TYPES, type AuthHeaderField, type ConnectorFormValues } from '../connectors'
 
 /**
  * An action's Authorization tab, built to `design/ActionAuth.dc.html`.

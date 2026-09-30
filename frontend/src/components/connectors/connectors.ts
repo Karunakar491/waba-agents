@@ -1,9 +1,9 @@
 /**
- * Connector Library (V46) — the reusable definition layer.
+ * Connector definitions (V46) — the reusable layer above Meta.
  *
  * Distinct from ConnectorRow (components/connectors/ConnectorsTable), which is
  * a live connector Meta currently reports on one agent's phone number. A
- * LibraryConnector is OUR definition: it exists whether or not Meta has ever
+ * Connector here is OUR definition: it exists whether or not Meta has ever
  * heard of it, and can be deployed to many agents.
  *
  * authShape never contains a credential value — only which header carries the
@@ -29,7 +29,7 @@ export interface AuthShape {
   clientId?: string | null
 }
 
-export interface LibraryDeployment {
+export interface ConnectorDeployment {
   agentId: string
   agentName: string | null
   phoneNumberId: string | null
@@ -40,7 +40,7 @@ export interface LibraryDeployment {
   lastError: string | null
 }
 
-export interface LibraryConnector {
+export interface Connector {
   id: string
   wabaId: string | null
   name: string
@@ -55,7 +55,7 @@ export interface LibraryConnector {
   updatedAt: string
   /** Real COUNT(*) over connector_deployment — not the name+base_url guess. */
   usedByAgentCount: number
-  deployments: LibraryDeployment[]
+  deployments: ConnectorDeployment[]
 }
 
 export interface ConnectorFormValues {
@@ -104,7 +104,7 @@ export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
   requiresCertificate: false,
 }
 
-export function toFormValues(connector: LibraryConnector): ConnectorFormValues {
+export function toFormValues(connector: Connector): ConnectorFormValues {
   return {
     name: connector.name,
     description: connector.description,
@@ -159,7 +159,7 @@ export function toRequestBody(form: ConnectorFormValues) {
 }
 
 /** Which credential values this connector needs typed in before it can be deployed. */
-export function requiredSecretFields(connector: LibraryConnector): { key: string; label: string }[] {
+export function requiredSecretFields(connector: Connector): { key: string; label: string }[] {
   if (connector.authType === 'API_KEY') {
     return (connector.authShape?.headers ?? []).map((h) => ({
       key: h.fieldName,

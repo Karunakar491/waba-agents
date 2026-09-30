@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Library, Plus, Trash2 } from 'lucide-react'
+import { FolderOpen, Plus, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ErrorBanner from '../shared/ErrorBanner'
+import {
+  UI_COMPONENT_TYPES,
+  instructionHint,
+  uiComponentLabel,
+  uiComponentSpec,
+} from '../skills/uiComponentTypes'
 import {
   BottomBar,
   LinkAction,
@@ -14,9 +20,9 @@ import {
   TextField,
   WizardToggle,
 } from './WizardChrome'
-import SkillsLibraryDrawer from './SkillsLibraryDrawer'
+import YourSkillsDrawer from './YourSkillsDrawer'
 
-export interface LibrarySkill {
+export interface AvailableSkill {
   id: string
   title: string
   description: string
@@ -28,12 +34,12 @@ export interface LibrarySkill {
 
 interface AgentSkillView {
   id: string
-  source: 'AGENT' | 'LIBRARY'
+  source: 'AGENT' | 'SHARED'
   title: string
   description: string
   body: string
   status: string
-  librarySkillId: string | null
+  sharedSkillId: string | null
 }
 
 interface UiSkill {
@@ -45,35 +51,45 @@ interface UiSkill {
 }
 
 /**
- * Figma's five chips, mapped onto the component types the backend actually
- * accepts (AgentUiSkill.ComponentType). "Flow" has no backend type and no
- * flow_id column — it stays disabled with Figma's own reason, rather than
- * being drawn as if it worked.
+ * The chips are every rich message we can actually send, from the single list in
+ * components/skills/uiComponentTypes — no separate subset to drift.
+ *
+ * It used to be Figma's five, which showed a disabled "Flow" chip for a type we
+ * do not support, mapped "Carousel" onto `carousel_url` alone (so the
+ * reply-button carousel could not be reached at all), and left out Image. A
+ * control for something we cannot do is an advertisement, not an explanation.
  */
-const COMPONENT_CHIPS: { label: string; type: string | null; note?: string }[] = [
-  { label: 'Carousel', type: 'carousel_url' },
-  { label: 'CTA button', type: 'cta_url' },
-  { label: 'Interactive list', type: 'interactive_list' },
-  { label: 'Location request', type: 'location_request' },
-  { label: 'Flow', type: null, note: 'Needs a published flow' },
-]
+const COMPONENT_CHIPS = UI_COMPONENT_TYPES
 
-const COMPONENT_TYPES = [
-  'carousel_quick_reply',
-  'carousel_url',
-  'cta_url',
-  'image',
-  'interactive_list',
-  'location',
-  'location_request',
-]
-
-const CHIP_INSTRUCTION_PLACEHOLDER: Record<string, string> = {
+/**
+ * Worked examples. Each one names the content Meta needs for that type, because
+ * the old placeholders described only the trigger and taught people to leave the
+ * content out — which produced rich messages the agent could never build.
+ */
+const CHIP_PLACEHOLDER: Record<string, string> = {
+  cta_url:
+    'e.g. After confirming an order, send a button with the text "Your order is on its way", ' +
+    'the button labelled "Track order", linking to https://example.com/track',
+  interactive_reply_buttons:
+    'e.g. When the customer asks to change an order, send "What would you like to change?" ' +
+    'with buttons labelled "Delivery date", "Address" and "Cancel order"',
+  interactive_list:
+    'e.g. When the customer asks what we sell, send "Here is what we stock" with a button ' +
+    'labelled "Browse" opening a list of Spices, Ready mixes and Gift packs, each with a one-line description',
   carousel_url:
-    'e.g. When the customer asks to browse products, show up to 3 matching items with images and prices.',
-  cta_url: 'e.g. After confirming an order, include a button linking to the tracking page.',
-  interactive_list: 'e.g. When the customer asks what you sell, list your top categories.',
-  location_request: 'e.g. When a delivery address is missing, ask the customer to share a location.',
+    'e.g. When the customer asks to browse products, send up to 3 cards, each with the product ' +
+    'photo, its name and price, and a button labelled "View" linking to that product page',
+  carousel_quick_reply:
+    'e.g. When the customer asks for delivery slots, send a card per slot with its photo and ' +
+    'time, each with a button labelled "Book this"',
+  image:
+    'e.g. When the customer asks what the gift pack looks like, send the photo at ' +
+    'https://example.com/giftpack.jpg with the caption "Our 500g gift pack"',
+  location:
+    'e.g. When the customer asks where the shop is, send our location: MDH Store, ' +
+    '12 Main Road Gurgaon, latitude 28.4595, longitude 77.0266',
+  location_request:
+    'e.g. When we need a delivery address, ask "Please share your location so we can check delivery"',
 }
 
 /**
@@ -83,7 +99,7 @@ const CHIP_INSTRUCTION_PLACEHOLDER: Record<string, string> = {
  *    always follows, and the richer message shapes it may send.
  * 2. EMOTIONAL STATE: Confident about the rules (they know their business),
  *    unsure about the components (Meta's vocabulary, not theirs).
- * 3. POSSIBLE ACTIONS: Write a rule, import one from the library, save one
+ * 3. POSSIBLE ACTIONS: Write a rule, add one already saved, save one
  *    back, pick a component type, or define a brand-new one.
  * 4. HOW WE HELP: One standard shape covers every component type, so a type
  *    Meta adds later needs no new screen — and the step says it's skippable.
@@ -124,7 +140,7 @@ export default function StepSkills({
     queryFn: () => api.get(`/agents/${agentId}/skills-view`).then((r) => r.data.data),
     enabled,
   })
-  const { data: librarySkills = [] } = useQuery<LibrarySkill[]>({
+  const { data: availableSkills = [] } = useQuery<AvailableSkill[]>({
     queryKey: ['skills', wabaId],
     queryFn: () => api.get('/skills', { params: { wabaId } }).then((r) => r.data.data),
     enabled: !!wabaId,
@@ -137,9 +153,9 @@ export default function StepSkills({
 
   const usedByCount = useMemo(() => {
     const map = new Map<string, number>()
-    librarySkills.forEach((s) => map.set(s.id, s.deployments?.length ?? 0))
+    availableSkills.forEach((s) => map.set(s.id, s.deployments?.length ?? 0))
     return map
-  }, [librarySkills])
+  }, [availableSkills])
 
   const addRule = useMutation({
     mutationFn: (body: string) =>
@@ -214,10 +230,10 @@ export default function StepSkills({
               <>
                 <LinkAction
                   onClick={() => onDrawerOpenChange(!drawerOpen)}
-                  icon={<Library className="h-4 w-4" />}
+                  icon={<FolderOpen className="h-4 w-4" />}
                   disabled={!wabaId}
                 >
-                  Import from Library
+                  Add a saved skill
                 </LinkAction>
                 <span className="text-sm text-muted-foreground">·</span>
                 <LinkAction
@@ -239,10 +255,10 @@ export default function StepSkills({
                   <li key={r.id} className="flex items-start justify-between gap-4 py-3">
                     <div className="min-w-0">
                       <p className="text-sm text-foreground">{r.body || r.title}</p>
-                      {r.source === 'LIBRARY' && (
+                      {r.source === 'SHARED' && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          From Skills Library · used by{' '}
-                          {Math.max(0, (usedByCount.get(r.librarySkillId ?? '') ?? 1) - 1)} other
+                          Shared across agents · used by{' '}
+                          {Math.max(0, (usedByCount.get(r.sharedSkillId ?? '') ?? 1) - 1)} other
                           agents
                         </p>
                       )}
@@ -250,7 +266,7 @@ export default function StepSkills({
                     <div className="flex shrink-0 items-center gap-4">
                       {r.source === 'AGENT' && (
                         <LinkAction onClick={() => promoteRule.mutate(r.id)}>
-                          + Save to Library
+                          + Share across agents
                         </LinkAction>
                       )}
                       <button
@@ -284,26 +300,24 @@ export default function StepSkills({
             <div className="flex flex-wrap gap-3">
               {COMPONENT_CHIPS.map((c) => (
                 <button
-                  key={c.label}
+                  key={c.value}
                   type="button"
-                  disabled={!c.type || !enabled}
-                  aria-pressed={activeChip === c.type}
-                  title={c.note}
+                  disabled={!enabled}
+                  aria-pressed={activeChip === c.value}
+                  title={c.summary}
                   onClick={() => {
-                    setActiveChip(c.type)
+                    setActiveChip(c.value)
                     setChipInstruction('')
                     setFormOpen(false)
                   }}
                   className={cn(
                     'rounded-lg border px-4 py-2 text-left text-sm transition-colors',
-                    activeChip === c.type
+                    activeChip === c.value
                       ? 'border-accent-teal-solid bg-accent-teal/10 font-medium text-accent-teal-solid'
                       : 'text-foreground hover:border-accent-teal',
-                    !c.type && 'cursor-not-allowed text-muted-foreground hover:border-border',
                   )}
                 >
                   {c.label}
-                  {c.note && <span className="mt-1 block text-xs">{c.note}</span>}
                 </button>
               ))}
               <button
@@ -345,25 +359,33 @@ export default function StepSkills({
             {activeChip && (
               <div className="rounded-lg border p-4">
                 <p className="text-sm font-medium text-foreground">
-                  {COMPONENT_CHIPS.find((c) => c.type === activeChip)?.label} — configuration
+                  {uiComponentLabel(activeChip)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {uiComponentSpec(activeChip)?.summary}
                 </p>
                 <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  When should it send this?
+                  When to send it, and what it should say
                 </p>
-                <input
+                <p className="mt-1 text-xs text-muted-foreground">{instructionHint(activeChip)}</p>
+                {/* A textarea, not a single-line input: this now has to hold the
+                    component's content as well as its trigger, and one line of a
+                    1024-character field hides what someone has written. */}
+                <textarea
+                  rows={4}
                   value={chipInstruction}
                   onChange={(e) => setChipInstruction(e.target.value)}
                   maxLength={1024}
-                  aria-label="When should it send this?"
-                  placeholder={CHIP_INSTRUCTION_PLACEHOLDER[activeChip]}
-                  className="mt-3 h-10 w-full rounded-lg border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-accent-teal-solid"
+                  aria-label="When to send it, and what it should say"
+                  placeholder={CHIP_PLACEHOLDER[activeChip] ?? ''}
+                  className="mt-2 w-full resize-y rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-accent-teal-solid"
                 />
                 <button
                   type="button"
                   disabled={!chipInstruction.trim() || addUiSkill.isPending}
                   onClick={() =>
                     addUiSkill.mutate({
-                      title: COMPONENT_CHIPS.find((c) => c.type === activeChip)!.label,
+                      title: uiComponentLabel(activeChip),
                       componentType: activeChip,
                       instruction: chipInstruction.trim(),
                       status: 'enabled',
@@ -398,32 +420,23 @@ export default function StepSkills({
                 />
                 <SelectField
                   id="ui-type"
-                  label="Component type"
+                  label="What it sends"
                   apiName="component_type"
                   value={form.componentType}
                   onChange={(v) => setForm((f) => ({ ...f, componentType: v }))}
-                  options={COMPONENT_TYPES.map((t) => ({ value: t, label: t }))}
-                  placeholder="Select a type…"
+                  options={UI_COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+                  placeholder="Select…"
+                  hint={uiComponentSpec(form.componentType)?.summary}
                 />
                 <TextField
                   id="ui-instruction"
-                  label="Instruction — when should this send?"
+                  label="When to send it, and what it should say"
                   apiName="instruction"
                   value={form.instruction}
                   onChange={(v) => setForm((f) => ({ ...f, instruction: v }))}
-                  placeholder="e.g. When a customer asks about order status, show tracking as a carousel."
+                  placeholder={CHIP_PLACEHOLDER[form.componentType] ?? ''}
                   maxLength={1024}
-                />
-                <SelectField
-                  id="ui-flow"
-                  label="Flow"
-                  apiName="flow_id"
-                  value=""
-                  onChange={() => undefined}
-                  options={[]}
-                  disabled
-                  placeholder="Flow components aren't supported yet"
-                  hint="Meta's Flow component type isn't accepted by this platform yet — nothing to pick here."
+                  hint={instructionHint(form.componentType)}
                 />
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium text-foreground">
@@ -464,7 +477,7 @@ export default function StepSkills({
       </div>
 
       {drawerOpen && (
-        <SkillsLibraryDrawer
+        <YourSkillsDrawer
           wabaId={wabaId}
           attachedTitles={attachedTitles}
           onClose={() => onDrawerOpenChange(false)}

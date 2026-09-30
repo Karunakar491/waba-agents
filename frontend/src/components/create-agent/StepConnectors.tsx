@@ -6,7 +6,7 @@ import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import ErrorBanner from '../shared/ErrorBanner'
 import ConnectorDeployModal from '../connectors/ConnectorDeployModal'
-import type { LibraryConnector } from '../connectors/connectorLibrary'
+import { AUTH_TYPES, type LibraryConnector } from '../connectors/connectorLibrary'
 import {
   BottomBar,
   LinkAction,
@@ -39,11 +39,15 @@ const PRESETS: { label: string; base_url: string; description: string }[] = [
   { label: 'Custom API', base_url: '', description: '' },
 ]
 
-const AUTH_TYPES = [
-  { value: 'API_KEY', label: 'API_KEY' },
-  { value: 'OAUTH2', label: 'OAUTH2' },
-  { value: 'NONE', label: 'NONE' },
-]
+// AUTH_TYPES comes from components/connectors/connectorLibrary — the same list
+// the Connectors section uses.
+//
+// This file had its own copy offering `OAUTH2`, which Meta's connector API
+// accepts in its schema and does not support: `OAUTH2`, `BASIC` and `CUSTOM`
+// are listed as "defined but not currently supported"
+// (docs/meta-api/connectors.md). A connector created that way in the wizard
+// could never authenticate. The copy also used the raw enum values as the
+// labels a business owner reads.
 
 /**
  * Screen: Create Agent — Step 5, Connectors (Figma node 252:35)
@@ -228,7 +232,7 @@ export default function StepConnectors({
 
         {importOpen && (
           <div className="rounded-lg border p-4">
-            <p className="text-sm font-medium text-foreground">Your Connector Library</p>
+            <p className="text-sm font-medium text-foreground">Your Connectors</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Reusable definitions. Deploying one here puts it on this agent — you only enter the credentials.
             </p>

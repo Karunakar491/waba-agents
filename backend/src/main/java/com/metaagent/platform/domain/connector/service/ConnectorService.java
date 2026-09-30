@@ -8,12 +8,12 @@ import com.metaagent.platform.domain.connector.repository.ConnectorActionReposit
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.transaction.annotation.Transactional;
 import com.metaagent.platform.common.security.SecurityContextHelper;
-import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
+import com.metaagent.platform.domain.agent.dto.ConnectorMirrorDtos;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.agent.service.AgentDeployService;
 import com.metaagent.platform.domain.agent.service.AgentService;
-import com.metaagent.platform.domain.connector.dto.ConnectorLibraryDtos;
+import com.metaagent.platform.domain.connector.dto.ConnectorDtos;
 import com.metaagent.platform.domain.connector.entity.Connector;
 import com.metaagent.platform.domain.connector.entity.ConnectorDeployment;
 import com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository;
@@ -32,12 +32,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reusable Connector Library (V46) — the definition layer above Meta.
+ * Connector definitions (V46) — the reusable layer above Meta.
  *
  * Deliberately the same shape as {@code SkillLibraryService}: a WABA-scoped
- * library row that lives in our DB whether or not Meta has ever heard of it,
- * plus an explicit per-agent deploy action that is the ONLY path which talks
- * to Meta. Editing a library connector never pushes anything.
+ * connector row that lives in our DB whether or not Meta has ever heard of
+ * it, plus an explicit per-agent deploy action that is the ONLY path which
+ * talks to Meta. Editing a connector's definition never pushes anything.
  *
  * Three layers, do not confuse them:
  *   connector             — this. Our definition. Reusable.
@@ -55,7 +55,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ConnectorLibraryService {
+public class ConnectorService {
 
     private static final String AUTH_API_KEY = "API_KEY";
     private static final String AUTH_OAUTH2 = "OAUTH2_CLIENT_CREDENTIALS";
@@ -75,7 +75,7 @@ public class ConnectorLibraryService {
     // Library CRUD — DB only, never touches Meta.
     // ---------------------------------------------------------------------
 
-    public ConnectorLibraryDtos.ConnectorResponse create(ConnectorLibraryDtos.CreateRequest request) {
+    public ConnectorDtos.ConnectorResponse create(ConnectorDtos.CreateRequest request) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(request.wabaId());
         requireWabaAccess(wabaId, accountId);
@@ -97,19 +97,19 @@ public class ConnectorLibraryService {
         return toResponse(connectorRepository.save(connector), List.of());
     }
 
-    public List<ConnectorLibraryDtos.ConnectorResponse> list(String wabaIdRaw) {
+    public List<ConnectorDtos.ConnectorResponse> list(String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
         requireWabaAccess(wabaId, accountId);
 
         List<Connector> connectors = connectorRepository.findAllByWabaId(wabaId);
-        Map<Long, List<ConnectorLibraryDtos.DeploymentView>> byConnector = deploymentViews(connectors, wabaId);
+        Map<Long, List<ConnectorDtos.DeploymentView>> byConnector = deploymentViews(connectors, wabaId);
         return connectors.stream()
                 .map(c -> toResponse(c, byConnector.getOrDefault(c.getId(), List.of())))
                 .toList();
     }
 
-    public ConnectorLibraryDtos.ConnectorResponse update(Long connectorId, ConnectorLibraryDtos.UpdateRequest request) {
+    public ConnectorDtos.ConnectorResponse update(Long connectorId, ConnectorDtos.UpdateRequest request) {
         Connector connector = loadOwned(connectorId);
         requireKnownAuthType(request.authType());
 
@@ -129,7 +129,7 @@ public class ConnectorLibraryService {
     }
 
     /** Publishing is ours, not Meta's — it only means "ready for others to deploy". */
-    public ConnectorLibraryDtos.ConnectorResponse publish(Long connectorId) {
+    public ConnectorDtos.ConnectorResponse publish(Long connectorId) {
         Connector connector = loadOwned(connectorId);
         connector.setStatus(Connector.STATUS_PUBLISHED);
         connector = connectorRepository.save(connector);
@@ -155,7 +155,7 @@ public class ConnectorLibraryService {
     // SkillLibraryService.syncSkills.
     // ---------------------------------------------------------------------
 
-    public ConnectorLibraryDtos.DeploymentView deploy(Long connectorId, ConnectorLibraryDtos.DeployRequest request) {
+    public ConnectorDtos.DeploymentView deploy(Long connectorId, ConnectorDtos.DeployRequest request) {
         Connector connector = loadOwned(connectorId);
         Long agentId = parseId(request.agentId());
         Agent agent = agentService.getAgent(agentId); // access-checked
@@ -216,16 +216,16 @@ public class ConnectorLibraryService {
      * all-or-nothing: one agent's failure does not stop the others, and the
      * caller is told which succeeded and which did not, by name.
      */
-    public List<ConnectorLibraryDtos.PublishResult> publishToAgents(Long connectorId, List<String> agentIds) {
-        List<ConnectorLibraryDtos.PublishResult> results = new ArrayList<>();
+    public List<ConnectorDtos.PublishResult> publishToAgents(Long connectorId, List<String> agentIds) {
+        List<ConnectorDtos.PublishResult> results = new ArrayList<>();
         for (String rawAgentId : agentIds) {
             Long agentId = parseId(rawAgentId);
             String agentName = agentRepository.findById(agentId).map(Agent::getDisplayName).orElse(rawAgentId);
             try {
-                deploy(connectorId, new ConnectorLibraryDtos.DeployRequest(rawAgentId, Map.of()));
-                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, true, null));
+                deploy(connectorId, new ConnectorDtos.DeployRequest(rawAgentId, Map.of()));
+                results.add(new ConnectorDtos.PublishResult(rawAgentId, agentName, true, null));
             } catch (Exception e) {
-                results.add(new ConnectorLibraryDtos.PublishResult(rawAgentId, agentName, false, e.getMessage()));
+                results.add(new ConnectorDtos.PublishResult(rawAgentId, agentName, false, e.getMessage()));
             }
         }
         return results;
@@ -255,7 +255,7 @@ public class ConnectorLibraryService {
     }
 
     /**
-     * Instantiates the library connector's actions as real Meta tools on this
+     * Instantiates the connector's actions as real Meta tools on this
      * agent — the step {@code ConnectorAction}'s own contract has always
      * described ("This is the template; deploying instantiates it as a real Meta
      * tool per agent") and which was never built. Until this existed, every
@@ -442,7 +442,7 @@ public class ConnectorLibraryService {
 
     /**
      * Builds Meta's BizAIOmniChannelConnectorRequest from our definition + this deploy's secrets.
-     * Package-private (not private) so ConnectorLibraryServiceTest can verify the payload shape
+     * Package-private (not private) so ConnectorServiceTest can verify the payload shape
      * directly, without standing up a full deploy() call and its agent/Meta dependencies.
      */
     Map<String, Object> metaPayload(Connector connector, Map<String, String> secrets) {
@@ -453,10 +453,10 @@ public class ConnectorLibraryService {
         payload.put("auth_type", connector.getAuthType());
         payload.put("requires_certificate", connector.isRequiresCertificate());
 
-        ConnectorLibraryDtos.AuthShape shape = readShape(connector.getAuthConfigShape());
+        ConnectorDtos.AuthShape shape = readShape(connector.getAuthConfigShape());
         if (AUTH_API_KEY.equals(connector.getAuthType()) && shape != null && shape.headers() != null) {
             List<Map<String, Object>> headers = new ArrayList<>();
-            for (ConnectorLibraryDtos.HeaderField field : shape.headers()) {
+            for (ConnectorDtos.HeaderField field : shape.headers()) {
                 String value = secrets.get(field.fieldName());
                 if (isBlank(value)) {
                     throw new BusinessException("Enter a value for the '" + field.fieldName() + "' header before deploying.");
@@ -507,8 +507,8 @@ public class ConnectorLibraryService {
     // mirror row is actually one of our deployments.
     // ---------------------------------------------------------------------
 
-    public ConnectorDtos.ConnectorListResponse listLiveForWaba(Long wabaId, Long accountId) {
-        ConnectorDtos.ConnectorListResponse live = agentDeployService.listConnectorsForWaba(wabaId, accountId);
+    public ConnectorMirrorDtos.ConnectorListResponse listLiveForWaba(Long wabaId, Long accountId) {
+        ConnectorMirrorDtos.ConnectorListResponse live = agentDeployService.listConnectorsForWaba(wabaId, accountId);
 
         List<Connector> connectors = connectorRepository.findAllByWabaId(wabaId);
         if (connectors.isEmpty()) return live;
@@ -522,25 +522,25 @@ public class ConnectorLibraryService {
             if (d.getMetaConnectorId() != null) connectorIdByMetaId.put(d.getMetaConnectorId(), d.getConnectorId());
         }
 
-        List<ConnectorDtos.ConnectorRow> rows = live.connectors().stream().map(row -> {
-            Long libraryId = connectorIdByMetaId.get(row.id());
-            if (libraryId == null) return row;
-            return new ConnectorDtos.ConnectorRow(
+        List<ConnectorMirrorDtos.ConnectorRow> rows = live.connectors().stream().map(row -> {
+            Long connectorDefId = connectorIdByMetaId.get(row.id());
+            if (connectorDefId == null) return row;
+            return new ConnectorMirrorDtos.ConnectorRow(
                     row.id(), row.name(), row.agentId(), row.agentName(), row.phoneNumberId(),
                     row.status(), row.authType(), row.baseUrl(), row.systemType(), row.tags(),
-                    row.publishedToLibrary(),
-                    countByConnector.getOrDefault(libraryId, 1), // real COUNT(*), not the name+base_url guess
+                    row.connectorDefined(),
+                    countByConnector.getOrDefault(connectorDefId, 1), // real COUNT(*), not the name+base_url guess
                     row.cached(), row.lastSyncedAt(),
-                    String.valueOf(libraryId));
+                    String.valueOf(connectorDefId));
         }).toList();
-        return new ConnectorDtos.ConnectorListResponse(rows, live.cached());
+        return new ConnectorMirrorDtos.ConnectorListResponse(rows, live.cached());
     }
 
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
 
-    private Map<Long, List<ConnectorLibraryDtos.DeploymentView>> deploymentViews(List<Connector> connectors, Long wabaId) {
+    private Map<Long, List<ConnectorDtos.DeploymentView>> deploymentViews(List<Connector> connectors, Long wabaId) {
         if (connectors.isEmpty() || wabaId == null) return Map.of();
         Map<Long, Agent> agentsById = new HashMap<>();
         for (Agent agent : agentRepository.findAllByWabaId(wabaId)) agentsById.put(agent.getId(), agent);
@@ -548,7 +548,7 @@ public class ConnectorLibraryService {
         Map<Long, Connector> connectorsById = new HashMap<>();
         for (Connector c : connectors) connectorsById.put(c.getId(), c);
 
-        Map<Long, List<ConnectorLibraryDtos.DeploymentView>> out = new HashMap<>();
+        Map<Long, List<ConnectorDtos.DeploymentView>> out = new HashMap<>();
         for (ConnectorDeployment d : deploymentRepository.findAllByConnectorIdIn(connectorsById.keySet())) {
             out.computeIfAbsent(d.getConnectorId(), k -> new ArrayList<>())
                     .add(toDeploymentView(d, agentsById.get(d.getAgentId()), connectorsById.get(d.getConnectorId())));
@@ -556,7 +556,7 @@ public class ConnectorLibraryService {
         return out;
     }
 
-    private static ConnectorLibraryDtos.DeploymentView toDeploymentView(
+    private static ConnectorDtos.DeploymentView toDeploymentView(
             ConnectorDeployment deployment, Agent agent, Connector connector) {
         String status;
         if (deployment.getDeployedAt() == null) {
@@ -566,7 +566,7 @@ public class ConnectorLibraryService {
         } else {
             status = "LIVE";
         }
-        return new ConnectorLibraryDtos.DeploymentView(
+        return new ConnectorDtos.DeploymentView(
                 String.valueOf(deployment.getAgentId()),
                 agent != null ? agent.getDisplayName() : null,
                 deployment.getPhoneNumberId(),
@@ -576,13 +576,13 @@ public class ConnectorLibraryService {
                 deployment.getLastError());
     }
 
-    private ConnectorLibraryDtos.ConnectorResponse toResponse(
-            Connector connector, List<ConnectorLibraryDtos.DeploymentView> deployments) {
+    private ConnectorDtos.ConnectorResponse toResponse(
+            Connector connector, List<ConnectorDtos.DeploymentView> deployments) {
         List<String> tags = connector.getTags() == null || connector.getTags().isBlank()
                 ? List.of()
                 : java.util.Arrays.stream(connector.getTags().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
         int usedBy = (int) deployments.stream().filter(d -> d.deployedAt() != null).count();
-        return new ConnectorLibraryDtos.ConnectorResponse(
+        return new ConnectorDtos.ConnectorResponse(
                 String.valueOf(connector.getId()),
                 connector.getWabaId() == null ? null : String.valueOf(connector.getWabaId()),
                 connector.getName(),
@@ -626,7 +626,7 @@ public class ConnectorLibraryService {
         }
     }
 
-    private String writeShape(ConnectorLibraryDtos.AuthShape shape) {
+    private String writeShape(ConnectorDtos.AuthShape shape) {
         if (shape == null) return null;
         try {
             return objectMapper.writeValueAsString(shape);
@@ -635,10 +635,10 @@ public class ConnectorLibraryService {
         }
     }
 
-    private ConnectorLibraryDtos.AuthShape readShape(String json) {
+    private ConnectorDtos.AuthShape readShape(String json) {
         if (json == null || json.isBlank()) return null;
         try {
-            return objectMapper.readValue(json, ConnectorLibraryDtos.AuthShape.class);
+            return objectMapper.readValue(json, ConnectorDtos.AuthShape.class);
         } catch (Exception e) {
             log.warn("Unreadable auth_config_shape, treating as empty: {}", e.getMessage());
             return null;
@@ -682,21 +682,21 @@ public class ConnectorLibraryService {
     // ---------------------------------------------------------------------
     // Actions — what a connector can DO. DB only; deploying is what reaches Meta.
     //
-    // These live on the library connector because Meta scopes tools to a phone
+    // These live on the connector definition because Meta scopes tools to a phone
     // number, so an action for an undeployed connector has nowhere else to be.
     // Editing one deliberately does NOT touch a running agent: that would change
     // a live client's behaviour as a side effect of an edit in a library screen.
     // ---------------------------------------------------------------------
 
-    public List<ConnectorLibraryDtos.ActionResponse> listActions(Long connectorId) {
+    public List<ConnectorDtos.ActionResponse> listActions(Long connectorId) {
         loadOwned(connectorId);
         return connectorActionRepository.findAllByConnectorIdOrderByNameAsc(connectorId).stream()
-                .map(ConnectorLibraryService::toActionResponse)
+                .map(ConnectorService::toActionResponse)
                 .toList();
     }
 
     @Transactional
-    public ConnectorLibraryDtos.ActionResponse createAction(Long connectorId, ConnectorLibraryDtos.ActionRequest request) {
+    public ConnectorDtos.ActionResponse createAction(Long connectorId, ConnectorDtos.ActionRequest request) {
         Connector connector = loadOwned(connectorId);
         String name = request.name().trim();
         // Meta refuses two tools with the same name on one connector. Saying so
@@ -716,8 +716,8 @@ public class ConnectorLibraryService {
     }
 
     @Transactional
-    public ConnectorLibraryDtos.ActionResponse updateAction(
-            Long connectorId, Long actionId, ConnectorLibraryDtos.ActionRequest request) {
+    public ConnectorDtos.ActionResponse updateAction(
+            Long connectorId, Long actionId, ConnectorDtos.ActionRequest request) {
         loadOwned(connectorId);
         ConnectorAction action = connectorActionRepository.findByIdAndConnectorId(actionId, connectorId)
                 .orElseThrow(() -> new NotFoundException("Action not found"));
@@ -744,8 +744,8 @@ public class ConnectorLibraryService {
         connectorActionRepository.delete(action);
     }
 
-    private static ConnectorLibraryDtos.ActionResponse toActionResponse(ConnectorAction action) {
-        return new ConnectorLibraryDtos.ActionResponse(
+    private static ConnectorDtos.ActionResponse toActionResponse(ConnectorAction action) {
+        return new ConnectorDtos.ActionResponse(
                 String.valueOf(action.getId()),
                 String.valueOf(action.getConnectorId()),
                 action.getName(),

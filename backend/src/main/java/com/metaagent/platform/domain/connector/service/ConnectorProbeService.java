@@ -99,15 +99,15 @@ public class ConnectorProbeService {
             "content-type", "content-length", "date", "server",
             "x-request-id", "x-correlation-id", "retry-after");
 
-    private final ConnectorLibraryService connectorLibraryService;
+    private final ConnectorService connectorService;
     private final OutboundTargetGuard guard;
     private final boolean enabled;
 
     public ConnectorProbeService(
-            ConnectorLibraryService connectorLibraryService,
+            ConnectorService connectorService,
             OutboundTargetGuard guard,
             @Value("${connectors.probe.enabled:true}") boolean enabled) {
-        this.connectorLibraryService = connectorLibraryService;
+        this.connectorService = connectorService;
         this.guard = guard;
         this.enabled = enabled;
     }
@@ -130,7 +130,7 @@ public class ConnectorProbeService {
         // The same check every other connector endpoint makes, borrowed rather
         // than reimplemented — a probe that scoped access its own way would be
         // the one door into another tenant's connector.
-        Connector connector = connectorLibraryService.loadOwned(connectorId);
+        Connector connector = connectorService.loadOwned(connectorId);
 
         URI uri = resolve(connector.getBaseUrl(), request.path(), request.queryParams());
 

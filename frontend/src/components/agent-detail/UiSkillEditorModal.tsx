@@ -6,6 +6,11 @@ import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
 import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
+import {
+  UI_COMPONENT_TYPES,
+  instructionHint,
+  uiComponentSpec,
+} from '../skills/uiComponentTypes'
 
 export interface UiSkill {
   id: string
@@ -18,20 +23,16 @@ export interface UiSkill {
   publishStatus: 'published' | 'draft'
 }
 
-// F22 — UI Skills API (docs/meta-api/ui-skills.md). `flow` component_type is
-// intentionally excluded from this select (Flows out of scope, see F9 in
-// AUDIT-TASKS.md). Unlike plain Skills, a UI skill carries no body/content —
-// it's purely a routing rule telling the agent WHEN to send a given rich
-// component; the component's own content lives elsewhere on Meta.
-const COMPONENT_TYPES: { value: string; label: string }[] = [
-  { value: 'carousel_quick_reply', label: 'Carousel (quick reply)' },
-  { value: 'carousel_url', label: 'Carousel (URL)' },
-  { value: 'cta_url', label: 'CTA button (URL)' },
-  { value: 'image', label: 'Image' },
-  { value: 'interactive_list', label: 'Interactive list' },
-  { value: 'location', label: 'Location' },
-  { value: 'location_request', label: 'Location request' },
-]
+// F22 — UI Skills API (docs/meta-api/ui-skills.md, refreshed 2026-09-24).
+//
+// The list of types, their labels and the per-type guidance all live in
+// components/skills/uiComponentTypes — this file held one of four copies.
+//
+// The comment that used to sit here said a UI skill "carries no body/content —
+// the component's own content lives elsewhere on Meta". That was wrong, and it
+// shaped every label on this screen. Meta's `instruction` field carries the
+// trigger AND every value the component needs; there is no other field for
+// them. A rich message written to the old labels could never be built.
 
 export default function UiSkillEditorModal({
   agentId,
@@ -85,8 +86,9 @@ export default function UiSkillEditorModal({
           )}
 
           <p className="mb-4 text-xs text-muted-foreground">
-            A UI skill tells the agent WHEN to send a rich WhatsApp component — carousel, CTA button,
-            interactive list, or location request. It doesn't carry that component's content.
+            A rich message is something the agent sends instead of plain text — buttons, a menu, a
+            card, a map pin. You describe when to send it and what it should say, and the agent
+            builds it during the conversation.
           </p>
 
           <div className="space-y-4">
@@ -103,16 +105,25 @@ export default function UiSkillEditorModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-foreground">Component type</label>
+              <label className="block text-xs font-medium text-foreground">What it sends</label>
               <select
                 value={componentType}
                 onChange={(e) => setComponentType(e.target.value)}
                 className={inputCls}
+                // Meta's update call does not accept component_type at all, so a
+                // saved rich message cannot change what it sends. Saying so beats
+                // letting someone change it and watching the change vanish.
+                disabled={isEditing}
               >
-                {COMPONENT_TYPES.map((c) => (
+                {UI_COMPONENT_TYPES.map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">
+                {isEditing
+                  ? 'This cannot be changed after it is created. Delete it and add a new one instead.'
+                  : (uiComponentSpec(componentType)?.summary ?? '')}
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -128,12 +139,19 @@ export default function UiSkillEditorModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-foreground">Instruction</label>
+              <label className="block text-xs font-medium text-foreground">
+                When to send it, and what it should say
+              </label>
+              <p className="text-xs text-muted-foreground">{instructionHint(componentType)}</p>
               <textarea
-                rows={4}
+                rows={5}
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Tell the agent WHEN to send this — e.g. 'Send when the customer asks to see order options'"
+                placeholder={
+                  'e.g. When the customer asks for a link to track their order, send a button ' +
+                  'with the text "Here’s your tracking link", the button labelled "Track order", ' +
+                  'linking to https://example.com/track'
+                }
                 className={cn(inputCls, 'resize-y')}
               />
               <p className="text-xs text-muted-foreground text-right">{instruction.length}/1024</p>

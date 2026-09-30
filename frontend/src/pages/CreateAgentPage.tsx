@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
@@ -14,6 +14,11 @@ import StepConnectors from '../components/create-agent/StepConnectors'
 import StepEvals from '../components/create-agent/StepEvals'
 import StepTestDeploy from '../components/create-agent/StepTestDeploy'
 import {
+  toFormValues,
+  type BusinessProfileFormValues,
+  type BusinessProfileResponse,
+} from '../components/agent-detail/BusinessProfileTab'
+import {
   EMPTY_WIZARD_STATE,
   WIZARD_STEPS,
   type StepNumber,
@@ -21,6 +26,41 @@ import {
 } from '../components/create-agent/wizardTypes'
 
 const DRAFT_KEY = 'create-agent-draft'
+
+type StoredDraft = { agentId: string | null; step: number }
+
+function readStoredDraft(): StoredDraft | null {
+  const raw = sessionStorage.getItem(DRAFT_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as StoredDraft
+    return parsed.agentId ? parsed : null
+  } catch {
+    sessionStorage.removeItem(DRAFT_KEY)
+    return null
+  }
+}
+
+/**
+ * The persona saved on step 2 is deployed to the number, so the live profile is
+ * where it comes back from. `toFormValues` is the same mapper the agent's own
+ * Business Persona tab uses — the wizard reading the profile a different way is
+ * how the two drifted apart in the first place.
+ *
+ * A missing profile is the normal case for someone who left before step 2, so it
+ * resolves to null rather than failing the whole resume.
+ */
+async function loadLivePersona(
+  phoneNumberId: string,
+): Promise<{ id: string; values: BusinessProfileFormValues } | null> {
+  try {
+    const r = await api.get('/business-profiles/live', { params: { phoneNumberId } })
+    const profile = r.data.data as BusinessProfileResponse | null
+    return profile ? { id: String(profile.id), values: toFormValues(profile) } : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * The 7-step Create Agent wizard (Figma 8.3–8.9). This file owns only the
@@ -30,13 +70,21 @@ const DRAFT_KEY = 'create-agent-draft'
  */
 export default function CreateAgentPage() {
   const navigate = useNavigate()
+  // `?agent=` is how "Continue setup" on the Agents list gets back in. It beats
+  // the sessionStorage draft because sessionStorage is per-tab: someone who
+  // closed the tab, or is on another machine, has none, and used to be told
+  // "Continue setup" and then shown the finished-agent screen instead.
+  const [searchParams] = useSearchParams()
+  const resumeAgentId = searchParams.get('agent')
   const [step, setStep] = useState<StepNumber>(1)
   const [state, setState] = useState<WizardState>(EMPTY_WIZARD_STATE)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hydrating, setHydrating] = useState(() => !!sessionStorage.getItem(DRAFT_KEY))
+  const [hydrating, setHydrating] = useState(
+    () => !!resumeAgentId || !!sessionStorage.getItem(DRAFT_KEY),
+  )
   // Lifted out of the Skills step because Figma 8.16 replaces the Iris rail
-  // with the Library drawer — one rail slot, two possible occupants.
+  // with the Your Skills drawer — one rail slot, two possible occupants.
   const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false)
 
   const onChange = useCallback(
@@ -44,46 +92,53 @@ export default function CreateAgentPage() {
     [],
   )
 
-  // Resume a draft if the browser closed mid-wizard. Only agentId + step are
-  // held locally; every field value is re-read from the server it was saved
-  // to, so a restored wizard never shows progress it can't back up.
+  // Resume a half-made agent. Two ways in: "Continue setup" on the Agents list
+  // (`?agent=`), or the sessionStorage draft left by this tab. No field value is
+  // held locally — everything is re-read from the server it was saved to, so a
+  // restored wizard never shows progress it cannot back up.
   const hydrated = useRef(false)
   useEffect(() => {
     if (hydrated.current) return
     hydrated.current = true
-    const raw = sessionStorage.getItem(DRAFT_KEY)
-    if (!raw) return
-    let draft: { agentId: string | null; step: number }
-    try {
-      draft = JSON.parse(raw)
-    } catch {
-      sessionStorage.removeItem(DRAFT_KEY)
+
+    const stored = readStoredDraft()
+    // The stored step only belongs to the stored agent. Arriving by `?agent=`
+    // for a different one starts at the beginning rather than dropping someone
+    // into step 5 of an agent they were not building here.
+    const agentId = resumeAgentId ?? stored?.agentId ?? null
+    const step = stored && stored.agentId === agentId ? stored.step : 1
+    if (!agentId) {
       setHydrating(false)
       return
     }
-    if (!draft.agentId) {
-      setHydrating(false)
-      return
-    }
+
     api
-      .get(`/agents/${draft.agentId}`)
-      .then((r) => {
+      .get(`/agents/${agentId}`)
+      .then(async (r) => {
         const agent = r.data.data
+        const phoneNumberId: string | null = agent.phoneNumberId ?? null
+        // The persona lives on its own resource, deployed to the number. Without
+        // this, everything typed on the persona step came back blank on resume
+        // and had to be retyped — the single biggest thing "Continue setup" lost.
+        const persona = phoneNumberId ? await loadLivePersona(phoneNumberId) : null
+
         setState((s) => ({
           ...s,
-          agentId: draft.agentId,
+          agentId,
           displayName: agent.displayName ?? s.displayName,
-          phoneNumberId: agent.phoneNumberId ?? s.phoneNumberId,
+          phoneNumberId: phoneNumberId ?? s.phoneNumberId,
           wabaId: agent.wabaId ?? s.wabaId,
           personaPreset: agent.tone ?? s.personaPreset,
           personaSampleReply: agent.personaSampleReply ?? s.personaSampleReply,
           enabled: agent.enabled ?? s.enabled,
+          businessProfileId: persona?.id ?? s.businessProfileId,
+          businessInfo: persona?.values ?? s.businessInfo,
         }))
-        setStep(Math.min(7, Math.max(1, draft.step)) as StepNumber)
+        setStep(Math.min(7, Math.max(1, step)) as StepNumber)
       })
       .catch(() => sessionStorage.removeItem(DRAFT_KEY))
       .finally(() => setHydrating(false))
-  }, [])
+  }, [resumeAgentId])
 
   useEffect(() => {
     if (!state.agentId) return

@@ -31,8 +31,42 @@ function repoRoot() {
   }
 }
 
-const REPO = repoRoot()
+let REPO = repoRoot()
 const DIFF_CAP = 400
+
+/**
+ * Point the gate at the worktree the commit is actually happening in.
+ *
+ * `CLAUDE_PROJECT_DIR` is always the primary worktree, so every commit made
+ * from /d/wt-* was gated against the PRIMARY worktree's `.jobs/current` and
+ * its staged diff — which is to say not gated at all: the diff read was
+ * usually empty, so `checkDiff` allowed and the 400-line cap never applied to
+ * a single worktree commit. Found 2026-09-25, after a week of parallel
+ * sessions doing all their work in worktrees.
+ *
+ * The signal is the `cd <path>` the command opens with, because that is how
+ * every worktree command is written. MSYS paths (/d/wt-build) have to be
+ * translated to Windows before `fs` can see them.
+ */
+function retargetToCommandWorktree(cmd) {
+  const match = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(cmd)
+  const raw = match && (match[1] || match[2] || match[3])
+  if (!raw) return
+  if (/[$`~]/.test(raw)) return // unexpanded shell syntax — we cannot resolve it
+
+  const win = /^\/([a-zA-Z])\//.test(raw) ? raw.replace(/^\/([a-zA-Z])\//, '$1:/') : raw
+  if (!fs.existsSync(win)) return
+
+  try {
+    REPO = execSync('git rev-parse --show-toplevel', {
+      cwd: win,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch {
+    // Not a git directory. Leave REPO as the primary worktree.
+  }
+}
 
 function deny(reason) {
   process.stdout.write(
@@ -208,6 +242,8 @@ function main() {
   // Only gate real commits. `git commit --dry-run` and `git log` style reads pass.
   if (!/\bgit\s+(-\S+\s+)*commit\b/.test(cmd)) allow()
   if (/--dry-run/.test(cmd)) allow()
+
+  retargetToCommandWorktree(cmd)
 
   const job = readJob()
 

@@ -228,6 +228,14 @@ export default function AgentsPage() {
     navigate(pickFor ? `/agents/${agent.id}?tab=${pickFor}` : `/agents/${agent.id}`)
   }
 
+  // "Continue setup" used to call openAgent, landing on the finished-agent
+  // screen — which is not where setup continues, and left the person to work out
+  // for themselves that they had to start the wizard again. The wizard reads
+  // `?agent=` and reloads everything already saved for it.
+  function continueSetup(agent: AgentRow) {
+    navigate(`/agents/new?agent=${agent.id}`)
+  }
+
   return (
     <div className="space-y-5">
       {/* Breadcrumb — Figma 191:45 "UtilLeft" */}
@@ -373,6 +381,7 @@ export default function AgentsPage() {
                   agent={agent}
                   conversationCount={conversationCounts[agent.id]}
                   onOpen={() => openAgent(agent)}
+                  onContinueSetup={() => continueSetup(agent)}
                   onAddNameLabel={() => {
                     const value = window.prompt(
                       "Name this agent (shown everywhere in place of Meta's import placeholder):",
@@ -469,6 +478,7 @@ function AgentTableRow({
   agent,
   conversationCount,
   onOpen,
+  onContinueSetup,
   onAddNameLabel,
   renamingAgent,
   onToggleEnabled,
@@ -478,6 +488,7 @@ function AgentTableRow({
   agent: AgentRow
   conversationCount: number | undefined
   onOpen: () => void
+  onContinueSetup: () => void
   onAddNameLabel: () => void
   renamingAgent: boolean
   onToggleEnabled: (next: boolean) => void
@@ -595,7 +606,7 @@ function AgentTableRow({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onOpen()
+              onContinueSetup()
             }}
             className="text-xs font-medium text-accent-teal-solid hover:underline
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal-solid

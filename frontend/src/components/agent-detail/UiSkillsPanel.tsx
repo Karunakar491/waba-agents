@@ -8,16 +8,10 @@ import UnpublishConfirmModal from './UnpublishConfirmModal'
 import DraftsDisclosure from './DraftsDisclosure'
 import { useUnpublishFlow } from './useUnpublishFlow'
 import { UNPUBLISH_UI_ENABLED } from '../../lib/featureFlags'
+import { uiComponentLabel } from '../skills/uiComponentTypes'
 
-const COMPONENT_LABELS: Record<string, string> = {
-  carousel_quick_reply: 'Carousel (quick reply)',
-  carousel_url: 'Carousel (URL)',
-  cta_url: 'CTA button (URL)',
-  image: 'Image',
-  interactive_list: 'Interactive list',
-  location: 'Location',
-  location_request: 'Location request',
-}
+// Labels come from components/skills/uiComponentTypes — this file used to hold
+// one of four copies of them.
 
 // F22 — messaging section of the Skills tab: UI Skills are a distinct Meta
 // surface from the plain text-instruction Skills above (docs/meta-api/ui-skills.md).
@@ -112,7 +106,7 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  {COMPONENT_LABELS[skill.componentType] ?? skill.componentType} — {skill.instruction}
+                  {uiComponentLabel(skill.componentType)} — {skill.instruction}
                 </p>
               </button>
               <div className="flex shrink-0 items-center gap-1">
@@ -149,7 +143,7 @@ export default function UiSkillsPanel({ agentId }: { agentId: string }) {
       <DraftsDisclosure
         items={draftSkills}
         renderPrimary={(skill) => skill.title}
-        renderSecondary={(skill) => COMPONENT_LABELS[skill.componentType] ?? skill.componentType}
+        renderSecondary={(skill) => uiComponentLabel(skill.componentType)}
         onRepublish={(id) => republishMutation.mutate(id)}
         isPending={republishMutation.isPending}
       />

@@ -2,10 +2,10 @@ package com.metaagent.platform.domain.businessevent.service;
 
 import com.metaagent.platform.common.exception.NotFoundException;
 import com.metaagent.platform.domain.agent.service.AgentAccessService;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.FireCounts;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.FireDetail;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.FireListItem;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.FirePage;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventFireDtos.FireCounts;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventFireDtos.FireDetail;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventFireDtos.FireListItem;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventFireDtos.FirePage;
 import com.metaagent.platform.domain.businessevent.entity.BusinessEventFire;
 import com.metaagent.platform.domain.businessevent.repository.BusinessEventFireRepository;
 import lombok.RequiredArgsConstructor;

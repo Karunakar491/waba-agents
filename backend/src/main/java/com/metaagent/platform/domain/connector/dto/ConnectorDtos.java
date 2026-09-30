@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Connector Library (V46) — the reusable definition layer.
+ * Connector definitions (V46) — the reusable layer above Meta.
  *
  * No request or response record here carries a credential VALUE in the
  * clear except {@link DeployRequest#secrets()}, forwarded straight to Meta.
@@ -20,12 +20,12 @@ import java.util.Map;
  * {@code ConnectorDeployment.encryptedSecrets}. Nothing here ever returns a
  * decrypted value to a response.
  */
-public final class ConnectorLibraryDtos {
+public final class ConnectorDtos {
 
-    private ConnectorLibraryDtos() {}
+    private ConnectorDtos() {}
 
     /**
-     * The auth shape of a library connector — names, not values.
+     * The auth shape of a connector — names, not values.
      *
      * API_KEY: {@code headers} names the header(s) that will carry the key.
      * OAUTH2_CLIENT_CREDENTIALS: {@code tokenUrl}, {@code scopes},
@@ -69,7 +69,7 @@ public final class ConnectorLibraryDtos {
     ) {}
 
     /**
-     * Deploy one library connector onto one agent.
+     * Deploy one connector definition onto one agent.
      *
      * @param secrets write-only credential values keyed by the field name
      *                declared in the connector's AuthShape — plus the reserved
@@ -101,7 +101,7 @@ public final class ConnectorLibraryDtos {
             String message
     ) {}
 
-    /** One agent a library connector is live on — the real join, not a heuristic. */
+    /** One agent a connector definition is live on — the real join, not a heuristic. */
     public record DeploymentView(
             String agentId,
             String agentName,
@@ -112,7 +112,7 @@ public final class ConnectorLibraryDtos {
             String lastError
     ) {}
 
-    /** A library row. authShape is echoed back so the edit form can prefill; it holds no values. */
+    /** A connector row. authShape is echoed back so the edit form can prefill; it holds no values. */
     public record ConnectorResponse(
             String id,
             String wabaId,

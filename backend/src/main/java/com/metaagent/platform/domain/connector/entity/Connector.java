@@ -10,14 +10,14 @@ import org.hibernate.annotations.GenericGenerator;
 import java.time.LocalDateTime;
 
 /**
- * A reusable Connector Library definition (V46) — our own source of truth for
+ * A reusable connector definition (V46) — our own source of truth for
  * an integration, independent of Meta.
  *
- * Named {@code Connector}, not {@code ConnectorTemplate}, to match the Skill
- * Library's actual convention: there the WABA-scoped library row is
- * {@code Skill} and the {@code Template} suffix is reserved for the global
- * Karix-curated catalog ({@code SkillTemplate}). No such catalog exists for
- * connectors yet, so the suffix would have promised something that isn't here.
+ * Named {@code Connector}, not {@code ConnectorTemplate}, to match Skill's
+ * actual convention: there the WABA-scoped row is {@code Skill} and the
+ * {@code Template} suffix is reserved for the global Karix-curated catalog
+ * ({@code SkillTemplate}). No such catalog exists for connectors yet, so the
+ * suffix would have promised something that isn't here.
  *
  * Relationship to {@link com.metaagent.platform.domain.agent.entity.AgentConnector}
  * (V45): that is a CACHE of Meta's live per-phone-number state. This is the

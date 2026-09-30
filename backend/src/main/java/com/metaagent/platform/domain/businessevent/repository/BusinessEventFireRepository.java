@@ -30,7 +30,7 @@ public interface BusinessEventFireRepository extends JpaRepository<BusinessEvent
     /** Idempotency check: has this caller already fired this exact thing? */
     Optional<BusinessEventFire> findByAgentIdAndIdempotencyKey(Long agentId, String idempotencyKey);
 
-    /** "Last went out" column on the agent's own library list — one event, one agent. */
+    /** "Last went out" column on the agent's own events list — one event, one agent. */
     Optional<BusinessEventFire> findTopByAgentIdAndBusinessEventIdOrderByCreatedAtDesc(Long agentId,
                                                                                        Long businessEventId);
 

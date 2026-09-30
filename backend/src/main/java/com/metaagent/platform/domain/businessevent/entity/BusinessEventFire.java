@@ -33,7 +33,7 @@ import java.time.LocalDateTime;
  * only announce into a conversation the customer already opened.
  *
  * <p>{@link #businessEventId} and {@link #businessEventBindingId} are nullable
- * because this ships before the event library exists, and stay nullable
+ * because this ships before named events exist, and stay nullable
  * afterwards — an ad-hoc fire that names its own event type is legal forever.
  */
 @Entity
@@ -87,7 +87,7 @@ public class BusinessEventFire {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long ingestKeyId;
 
-    /** NULL for an ad-hoc fire, or for any fire made before the library exists. */
+    /** NULL for an ad-hoc fire, or for any fire made before named events existed. */
     @Column(name = "business_event_id")
     @JsonSerialize(using = ToStringSerializer.class)
     private Long businessEventId;

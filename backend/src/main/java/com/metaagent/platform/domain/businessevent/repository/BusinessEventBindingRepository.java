@@ -15,7 +15,7 @@ public interface BusinessEventBindingRepository extends JpaRepository<BusinessEv
 
     Optional<BusinessEventBinding> findByAgentIdAndBusinessEventId(Long agentId, Long businessEventId);
 
-    /** Batched "used by N agents" count for the whole library table — avoids an N+1 per row. */
+    /** Batched "used by N agents" count for the whole business_event table — avoids an N+1 per row. */
     @Query("select b.businessEventId, count(b) from BusinessEventBinding b "
             + "where b.businessEventId in :eventIds group by b.businessEventId")
     List<Object[]> countByBusinessEventIdIn(@Param("eventIds") List<Long> eventIds);

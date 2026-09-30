@@ -3,9 +3,9 @@ package com.metaagent.platform.domain.businessevent.service;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventLibraryDtos.CreateOrUpdateRequest;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventLibraryDtos.DeleteImpact;
-import com.metaagent.platform.domain.businessevent.dto.BusinessEventLibraryDtos.EventListItem;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.CreateOrUpdateRequest;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.DeleteImpact;
+import com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos.EventListItem;
 import com.metaagent.platform.domain.businessevent.entity.BusinessEvent;
 import com.metaagent.platform.domain.businessevent.entity.BusinessEventBinding;
 import com.metaagent.platform.domain.businessevent.entity.BusinessEventFire;
@@ -22,14 +22,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * The library layer: create once, attach to many agents. Mirrors
- * {@code SkillLibraryService}'s shape on purpose (the founder's own
+ * Business Events: create once, attach to many agents. Mirrors
+ * {@code SkillService}'s shape on purpose (the founder's own
  * instruction, R8 Q9) — one editor, one list, shared across the nav, the
  * agent tab and the wizard.
  */
 @Service
 @RequiredArgsConstructor
-public class BusinessEventLibraryService {
+public class BusinessEventService {
 
     private final BusinessEventRepository eventRepository;
     private final BusinessEventBindingRepository bindingRepository;
@@ -73,7 +73,7 @@ public class BusinessEventLibraryService {
                 .name(req.name().trim())
                 .description(req.description().trim())
                 .guardrails(blankToNull(req.guardrails()))
-                .triggerMethod(com.metaagent.platform.domain.businessevent.dto.BusinessEventLibraryDtos
+                .triggerMethod(com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos
                         .parseTriggerMethod(req.triggerMethod()))
                 .createdBy(userId)
                 .build();
@@ -89,7 +89,7 @@ public class BusinessEventLibraryService {
         event.setName(req.name().trim());
         event.setDescription(req.description().trim());
         event.setGuardrails(blankToNull(req.guardrails()));
-        event.setTriggerMethod(com.metaagent.platform.domain.businessevent.dto.BusinessEventLibraryDtos
+        event.setTriggerMethod(com.metaagent.platform.domain.businessevent.dto.BusinessEventDtos
                 .parseTriggerMethod(req.triggerMethod()));
         event = eventRepository.save(event);
         long usedBy = bindingRepository.findAllByBusinessEventId(eventId).size();

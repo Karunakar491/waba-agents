@@ -4,7 +4,7 @@ import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.security.SecurityContextHelper;
 import com.metaagent.platform.domain.agent.dto.AgentTestRequest;
 import com.metaagent.platform.domain.agent.dto.AgentTestResponse;
-import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
+import com.metaagent.platform.domain.agent.dto.ConnectorMirrorDtos;
 import com.metaagent.platform.domain.agent.entity.Agent;
 import com.metaagent.platform.domain.agent.repository.AgentRepository;
 import com.metaagent.platform.domain.businessevent.entity.BusinessEventFire;
@@ -470,10 +470,10 @@ public class AgentDeployService {
      * has no connectors", not an outage, so it contributes nothing.
      *
      * The response rows are then enriched with the local-only columns
-     * (systemType, tags, publishedToLibrary) and the heuristic used-by count.
+     * (systemType, tags, connectorDefined) and the heuristic used-by count.
      */
     @SuppressWarnings("unchecked")
-    public ConnectorDtos.ConnectorListResponse listConnectorsForWaba(Long wabaId, Long accountId) {
+    public ConnectorMirrorDtos.ConnectorListResponse listConnectorsForWaba(Long wabaId, Long accountId) {
         wabaAccessGuard.requireAccess(wabaId, accountId);
         List<Agent> agents = agentRepository.findAllByWabaId(wabaId).stream()
                 .filter(a -> a.getPhoneNumberId() != null)
@@ -499,10 +499,10 @@ public class AgentDeployService {
 
         Map<String, Integer> usedBy = connectorMirrorService.usedByAgentCounts(mirrorRows);
         boolean cached = anyCached;
-        List<ConnectorDtos.ConnectorRow> rows = mirrorRows.stream()
+        List<ConnectorMirrorDtos.ConnectorRow> rows = mirrorRows.stream()
                 .map(row -> toConnectorRow(row, agentsById.get(row.getAgentId()), usedBy, cached))
                 .toList();
-        return new ConnectorDtos.ConnectorListResponse(rows, cached);
+        return new ConnectorMirrorDtos.ConnectorListResponse(rows, cached);
     }
 
     private boolean addCachedRows(Agent agent, List<com.metaagent.platform.domain.agent.entity.AgentConnector> into, Exception cause) {
@@ -513,7 +513,7 @@ public class AgentDeployService {
         return !cached.isEmpty();
     }
 
-    private static ConnectorDtos.ConnectorRow toConnectorRow(
+    private static ConnectorMirrorDtos.ConnectorRow toConnectorRow(
             com.metaagent.platform.domain.agent.entity.AgentConnector row,
             Agent agent,
             Map<String, Integer> usedBy,
@@ -521,7 +521,7 @@ public class AgentDeployService {
         List<String> tags = row.getTags() == null || row.getTags().isBlank()
                 ? List.of()
                 : java.util.Arrays.stream(row.getTags().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
-        return new ConnectorDtos.ConnectorRow(
+        return new ConnectorMirrorDtos.ConnectorRow(
                 row.getMetaConnectorId(),
                 row.getName(),
                 String.valueOf(row.getAgentId()),
@@ -532,11 +532,11 @@ public class AgentDeployService {
                 row.getBaseUrl(),
                 row.getSystemType(),
                 tags,
-                row.isPublishedToLibrary(),
+                row.isConnectorDefined(),
                 usedBy.getOrDefault(row.getIdentityKey(), 1),
                 cached,
                 row.getLastSyncedAt(),
-                null // filled in by ConnectorLibraryService when this row is a library deployment
+                null // filled in by ConnectorService when this row is a connector deployment
         );
     }
 

@@ -68,7 +68,7 @@ public class ConnectorMirrorService {
                         .agentId(agent.getId())
                         .metaConnectorId(metaId)
                         .systemType(guessSystemType(str(meta.get("name")), str(meta.get("base_url"))))
-                        .publishedToLibrary(false)
+                        .connectorDefined(false)
                         .requiresCertificate(false)
                         .build());
 

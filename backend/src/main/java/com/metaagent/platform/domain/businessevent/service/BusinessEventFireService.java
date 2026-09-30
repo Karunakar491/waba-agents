@@ -28,7 +28,7 @@ import java.util.Optional;
  * been messaged. If this method were transactional, a later failure would roll
  * back the ledger row and we would have sent something we have no record of.
  * Same discipline, and the same reason, as
- * {@code ConnectorLibraryService.deploy()} — the row must survive the failure.
+ * {@code ConnectorService.deploy()} — the row must survive the failure.
  *
  * <p><b>Meta's two hard limits, measured rather than assumed:</b> an event
  * cannot start a conversation (the customer must have written in first), and if

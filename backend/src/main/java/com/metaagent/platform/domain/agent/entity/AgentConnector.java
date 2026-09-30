@@ -76,8 +76,9 @@ public class AgentConnector {
     @Column(length = 512)
     private String tags;
 
+    /** True once this live Meta connector matches a definition in the Connectors section. */
     @Column(name = "published_to_library", nullable = false)
-    private boolean publishedToLibrary;
+    private boolean connectorDefined;
 
     // --- bookkeeping ---------------------------------------------------------
 

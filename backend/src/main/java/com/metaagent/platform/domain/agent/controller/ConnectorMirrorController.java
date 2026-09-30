@@ -2,8 +2,8 @@ package com.metaagent.platform.domain.agent.controller;
 
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.common.security.SecurityContextHelper;
-import com.metaagent.platform.domain.agent.dto.ConnectorDtos;
-import com.metaagent.platform.domain.connector.service.ConnectorLibraryService;
+import com.metaagent.platform.domain.agent.dto.ConnectorMirrorDtos;
+import com.metaagent.platform.domain.connector.service.ConnectorService;
 import com.metaagent.platform.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,20 +13,20 @@ import org.springframework.web.bind.annotation.RestController;
 /** Aggregate connectors view (TASK-064) — every connector live on any agent on a WABA. */
 @RestController
 @RequiredArgsConstructor
-public class ConnectorController {
+public class ConnectorMirrorController {
 
-    private final ConnectorLibraryService connectorLibraryService;
+    private final ConnectorService connectorService;
 
     /**
-     * Still the live rollup. It now goes through ConnectorLibraryService so
-     * rows that are deployments of a library connector (V46) report a real
+     * Still the live rollup. It now goes through ConnectorService so
+     * rows that are deployments of a connector (V46) report a real
      * "used by N agents" count instead of V45's name+base_url heuristic.
      */
-    @GetMapping("/api/v1/connectors")
-    public ApiResponse<ConnectorDtos.ConnectorListResponse> list(@RequestParam("wabaId") String wabaIdRaw) {
+    @GetMapping("/api/v1/connectors/live")
+    public ApiResponse<ConnectorMirrorDtos.ConnectorListResponse> list(@RequestParam("wabaId") String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
-        return ApiResponse.ok(connectorLibraryService.listLiveForWaba(wabaId, accountId));
+        return ApiResponse.ok(connectorService.listLiveForWaba(wabaId, accountId));
     }
 
     private static Long parseId(String raw) {

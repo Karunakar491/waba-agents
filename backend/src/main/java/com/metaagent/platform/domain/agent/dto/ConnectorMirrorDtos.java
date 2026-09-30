@@ -3,17 +3,17 @@ package com.metaagent.platform.domain.agent.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public final class ConnectorDtos {
+public final class ConnectorMirrorDtos {
 
-    private ConnectorDtos() {}
+    private ConnectorMirrorDtos() {}
 
     /**
      * One row in the aggregate Connectors table.
      *
      * Meta stays authoritative: reads still fan out live per agent. The local
      * mirror (agent_connector, V45) supplies the fields Meta has no concept of
-     * (systemType, tags, publishedToLibrary) and serves as the fallback when
-     * Meta is unreachable — `cached` says which of the two you're looking at.
+     * (systemType, tags, connectorDefined) and serves as the fallback
+     * when Meta is unreachable — `cached` says which of the two you're looking at.
      *
      * usedByAgentCount is a heuristic: Meta's connector ids are scoped to a
      * phone number and carry no cross-agent identity, so the count groups rows
@@ -30,17 +30,17 @@ public final class ConnectorDtos {
             String baseUrl,
             String systemType,
             List<String> tags,
-            boolean publishedToLibrary,
+            boolean connectorDefined,
             int usedByAgentCount,
             boolean cached,
             LocalDateTime lastSyncedAt,
             /**
-             * Set when this live Meta connector is a deployment of a library
-             * connector (connector_deployment, V46). When set,
+             * Set when this live Meta connector is a deployment of a
+             * connector definition (connector_deployment, V46). When set,
              * usedByAgentCount is the real COUNT(*) of deployments rather than
              * the name+base_url heuristic above.
              */
-            String libraryConnectorId
+            String connectorId
     ) {}
 
     /**

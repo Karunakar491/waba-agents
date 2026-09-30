@@ -57,6 +57,7 @@ public class AgentService {
     private final AgentConnectorRepository agentConnectorRepository;
     private final com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository connectorDeploymentRepository;
     private final com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository agentSkillAttachmentRepository;
+    private final AccountSyncService accountSyncService;
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -277,11 +278,19 @@ public class AgentService {
             agent.setPhoneNumberId(phoneNumberId);
             agent.setWabaId(wabaId);
             agent.setUpdatedBy(accountId);
+            Agent saved;
             try {
-                return agentRepository.saveAndFlush(agent);
+                saved = agentRepository.saveAndFlush(agent);
             } catch (DataIntegrityViolationException e) {
                 throw new BusinessException("This phone number is already connected to another agent.");
             }
+            // R9: a phone number just arrived on this agent — an operator could have
+            // bound one that already carries real skills/FAQs/etc. from Meta directly
+            // (a number moved from another tool, or edited on Meta before ever being
+            // bound here). Fetch and sync everything now rather than waiting for the
+            // next login. Never throws — see AccountSyncService.
+            accountSyncService.syncAgent(saved, accountId, AgentSyncLog.Trigger.PHONE_ADD);
+            return saved;
         }
     }
 
@@ -455,8 +464,8 @@ public class AgentService {
                             });
                             agentFaqRepository.saveAll(faqs);
                         }),
-                // Agent-owned skills are not preserved yet — promoting them into
-                // the Skill Library is a later phase. Teardown has already deleted
+                // Agent-owned skills are not preserved yet — sharing them across
+                // agents is a later phase. Teardown has already deleted
                 // them from Meta and locally by the time we get here; this delete
                 // is the backstop for when that step failed.
                 new ChildTable("agent_skill",
@@ -1220,16 +1229,16 @@ public class AgentService {
      * getWebsites call, so metaSynced here reflects whatever the last
      * per-agent view triggered, not a fresh check on every aggregate load.
      */
-    public List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FileRow> getAllFilesForWaba(Long wabaId, Long accountId) {
+    public List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FileRow> getAllFilesForWaba(Long wabaId, Long accountId) {
         List<Agent> agents = requireWabaAgents(wabaId, accountId);
         Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
         List<Long> agentIds = agents.stream().map(Agent::getId).toList();
         if (agentIds.isEmpty()) return List.of();
 
-        List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FileRow> rows = new ArrayList<>();
+        List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FileRow> rows = new ArrayList<>();
         for (AgentFile f : agentFileRepository.findAllByAgentIdIn(agentIds)) {
             Agent agent = agentsById.get(f.getAgentId());
-            rows.add(new com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FileRow(
+            rows.add(new com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FileRow(
                     String.valueOf(f.getId()), f.getFilename(), f.isMetaSynced(),
                     String.valueOf(f.getAgentId()), agent != null ? agent.getDisplayName() : null,
                     agent != null ? agent.getPhoneNumberId() : null,
@@ -1247,16 +1256,16 @@ public class AgentService {
      * staying with us — so it is passed through rather than folded into
      * metaSynced.
      */
-    public List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow> getAllFaqsForWaba(Long wabaId, Long accountId) {
+    public List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FaqRow> getAllFaqsForWaba(Long wabaId, Long accountId) {
         List<Agent> agents = requireWabaAgents(wabaId, accountId);
         Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
         List<Long> agentIds = agents.stream().map(Agent::getId).toList();
         if (agentIds.isEmpty()) return List.of();
 
-        List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow> rows = new ArrayList<>();
+        List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FaqRow> rows = new ArrayList<>();
         for (AgentFaq f : agentFaqRepository.findAllByAgentIdIn(agentIds)) {
             Agent agent = agentsById.get(f.getAgentId());
-            rows.add(new com.metaagent.platform.domain.agent.dto.FileLibraryDtos.FaqRow(
+            rows.add(new com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.FaqRow(
                     String.valueOf(f.getId()),
                     f.getQuestion(),
                     f.getAnswer(),
@@ -1271,16 +1280,16 @@ public class AgentService {
         return rows;
     }
 
-    public List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.WebsiteRow> getAllWebsitesForWaba(Long wabaId, Long accountId) {
+    public List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.WebsiteRow> getAllWebsitesForWaba(Long wabaId, Long accountId) {
         List<Agent> agents = requireWabaAgents(wabaId, accountId);
         Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
         List<Long> agentIds = agents.stream().map(Agent::getId).toList();
         if (agentIds.isEmpty()) return List.of();
 
-        List<com.metaagent.platform.domain.agent.dto.FileLibraryDtos.WebsiteRow> rows = new ArrayList<>();
+        List<com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.WebsiteRow> rows = new ArrayList<>();
         for (AgentWebsite w : agentWebsiteRepository.findAllByAgentIdIn(agentIds)) {
             Agent agent = agentsById.get(w.getAgentId());
-            rows.add(new com.metaagent.platform.domain.agent.dto.FileLibraryDtos.WebsiteRow(
+            rows.add(new com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos.WebsiteRow(
                     String.valueOf(w.getId()), w.getUrl(), w.isMetaSynced(),
                     String.valueOf(w.getAgentId()), agent != null ? agent.getDisplayName() : null,
                     agent != null ? agent.getPhoneNumberId() : null,

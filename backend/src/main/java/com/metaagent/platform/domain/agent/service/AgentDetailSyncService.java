@@ -2,6 +2,7 @@ package com.metaagent.platform.domain.agent.service;
 
 import com.metaagent.platform.common.security.BackgroundCallContext;
 import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.entity.AgentSyncLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -43,6 +44,7 @@ public class AgentDetailSyncService {
 
     private final AgentAccessService agentAccessService;
     private final AgentService agentService;
+    private final AccountSyncService accountSyncService;
     @Qualifier("metaSyncExecutor")
     private final ThreadPoolTaskExecutor metaSyncExecutor;
 
@@ -50,18 +52,31 @@ public class AgentDetailSyncService {
     public void syncForAccount(Long accountId) {
         try {
             List<Agent> agents = agentAccessService.listAccessible(accountId);
-            syncAgentsInParallel(agents);
+            syncAgentsInParallel(agents, AgentSyncLog.Trigger.LOGIN);
         } catch (Exception e) {
             log.warn("Login agent-detail sync failed for accountId={}: {}", accountId, e.getMessage());
         }
     }
 
-    public void syncAgentsInParallel(Collection<Agent> agents) {
+    /**
+     * `trigger` is one of R9's three: LOGIN (from syncForAccount above) or
+     * DAILY (from GlobalSyncScheduler's own once-a-day tier). Null is
+     * GlobalSyncScheduler's hourly tier-2 — that tier predates R9, covers
+     * only the narrower MetaMirrorReconciler backfill, and deliberately does
+     * NOT also run AccountSyncService.syncAgent every hour: R9 asks for a
+     * daily cadence for the fuller Meta-wins sync, not hourly, and tagging
+     * an hourly run's AgentSyncLog rows "DAILY" would be a straight lie on
+     * screen. AccountSyncService.syncAgent only runs when trigger != null.
+     */
+    public void syncAgentsInParallel(Collection<Agent> agents, AgentSyncLog.Trigger trigger) {
         List<CompletableFuture<Void>> futures = agents.stream()
                 .map(agent -> CompletableFuture.runAsync(() -> {
                     BackgroundCallContext.set(agent.getAccountId());
                     try {
                         agentService.syncAgentDetails(agent, agent.getAccountId());
+                        if (trigger != null) {
+                            accountSyncService.syncAgent(agent, agent.getAccountId(), trigger);
+                        }
                     } catch (Exception e) {
                         log.warn("Agent-detail sync failed for agentId={}: {}", agent.getId(), e.getMessage());
                     } finally {

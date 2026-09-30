@@ -1,6 +1,8 @@
 package com.metaagent.platform.domain.scheduler;
 
 import com.metaagent.platform.domain.agent.entity.Agent;
+import com.metaagent.platform.domain.agent.entity.AgentSyncLog;
+import com.metaagent.platform.domain.agent.service.AccountSyncService;
 import com.metaagent.platform.domain.agent.service.AgentAccessService;
 import com.metaagent.platform.domain.agent.service.AgentDetailSyncService;
 import com.metaagent.platform.domain.user.entity.BusinessAccount;
@@ -81,9 +83,11 @@ public class GlobalSyncScheduler {
     private final AgentAccessService agentAccessService;
     private final PhoneNumberSyncService phoneNumberSyncService;
     private final AgentDetailSyncService agentDetailSyncService;
+    private final AccountSyncService accountSyncService;
 
     private final AtomicBoolean tier1Running = new AtomicBoolean(false);
     private final AtomicBoolean tier2Running = new AtomicBoolean(false);
+    private final AtomicBoolean tier3Running = new AtomicBoolean(false);
 
     /** Every distinct agent visible to any account, id-deduped. See class javadoc. */
     private Map<Long, Agent> collectDistinctAccessibleAgents(List<BusinessAccount> accounts) {
@@ -142,10 +146,46 @@ public class GlobalSyncScheduler {
             // trigger — this method isn't @Async itself (already running on
             // this @Scheduled method's own thread, not a request thread), it
             // just reuses the per-agent parallel logic + per-agent try/catch.
-            agentDetailSyncService.syncAgentsInParallel(agents.values());
+            agentDetailSyncService.syncAgentsInParallel(agents.values(), null);
             log.info("Tier-2 sync complete");
         } finally {
             tier2Running.set(false);
+        }
+    }
+
+    /**
+     * R9 AC#3 — "every agent is re-checked against Meta once a day on its
+     * own, whether or not anyone logs in." Runs at 03:00, off-peak, well
+     * clear of tier-1/tier-2's own ticks. Same dedupe as tier-2 (one agent,
+     * one sync, however many accounts share its WABA) and the same
+     * sequential-per-agent shape as tier-1 rather than tier-2's parallel
+     * fan-out deliberately: this is the one tier that can legitimately touch
+     * dozens of agents across every account in one run, and R9's own
+     * edge-case list names exactly this as a rate-limit risk ("a login sync
+     * for an account with dozens of agents fires dozens of calls at once").
+     * Sequential trades wall-clock time (acceptable at 3am) for never
+     * bursting Meta all at once.
+     */
+    @Scheduled(cron = "0 0 3 * * *")
+    public void syncAccountWide() {
+        if (!tier3Running.compareAndSet(false, true)) {
+            log.warn("Tier-3 sync (R9 account-wide) still running from last tick — skipping this one");
+            return;
+        }
+        try {
+            List<BusinessAccount> accounts = businessAccountRepository.findAll();
+            Map<Long, Agent> agents = collectDistinctAccessibleAgents(accounts);
+            log.info("Tier-3 (R9 daily) sync starting: {} distinct agents", agents.size());
+            for (Agent agent : agents.values()) {
+                try {
+                    accountSyncService.syncAgent(agent, agent.getAccountId(), AgentSyncLog.Trigger.DAILY);
+                } catch (Exception e) {
+                    log.warn("Tier-3: R9 sync failed for agentId={}: {}", agent.getId(), e.getMessage());
+                }
+            }
+            log.info("Tier-3 sync complete");
+        } finally {
+            tier3Running.set(false);
         }
     }
 }

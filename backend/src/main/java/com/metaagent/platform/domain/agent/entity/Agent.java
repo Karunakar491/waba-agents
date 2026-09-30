@@ -160,6 +160,24 @@ public class Agent {
     @Column(name = "handoff_published_at")
     private LocalDateTime handoffPublishedAt;
 
+    /** R9 — Meta settings.md ai_audience, mirrored (not editable here yet; see AccountSyncService). */
+    @Column(name = "ai_audience", length = 32)
+    private String aiAudience;
+
+    @Column(name = "followup_enabled")
+    private Boolean followupEnabled;
+
+    @Column(name = "followup_message", length = 1000)
+    private String followupMessage;
+
+    /** JSON array — Meta settings.md never_say_phrases, mirrored verbatim. */
+    @Column(name = "never_say_phrases", columnDefinition = "TEXT")
+    private String neverSayPhrases;
+
+    /** JSON array — Meta agent_config/allowlist, read-only mirror; no local editor for it yet. */
+    @Column(name = "allowlist_snapshot", columnDefinition = "TEXT")
+    private String allowlistSnapshot;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

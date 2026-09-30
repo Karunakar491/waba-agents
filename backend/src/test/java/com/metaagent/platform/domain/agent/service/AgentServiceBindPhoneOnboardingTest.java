@@ -68,7 +68,8 @@ class AgentServiceBindPhoneOnboardingTest {
             mock(com.metaagent.platform.domain.waba.repository.PhoneNumberSnapshotRepository.class),
             mock(AgentConnectorRepository.class),
             mock(com.metaagent.platform.domain.connector.repository.ConnectorDeploymentRepository.class),
-            mock(com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository.class)
+            mock(com.metaagent.platform.domain.skill.repository.AgentSkillAttachmentRepository.class),
+            mock(AccountSyncService.class)
     );
 
     private static final Long ACCOUNT_ID = 1L;

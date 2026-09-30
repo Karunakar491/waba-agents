@@ -2,11 +2,11 @@ package com.metaagent.platform.domain.agent.dto;
 
 import java.util.List;
 
-/** Aggregate Files/Websites library (TASK-065) — unlike Skills, a file/website
- * belongs to exactly one agent permanently (no shared Library/attachment concept). */
-public final class FileLibraryDtos {
+/** Aggregate Knowledge Base (TASK-065) — unlike Skills, a file/website
+ * belongs to exactly one agent permanently (no sharing/attachment concept). */
+public final class KnowledgeBaseDtos {
 
-    private FileLibraryDtos() {}
+    private KnowledgeBaseDtos() {}
 
     public record FileRow(
             String id,

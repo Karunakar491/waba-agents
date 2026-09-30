@@ -3,32 +3,32 @@ package com.metaagent.platform.domain.agent.controller;
 import com.metaagent.platform.common.exception.BusinessException;
 import com.metaagent.platform.common.response.ApiResponse;
 import com.metaagent.platform.common.security.SecurityContextHelper;
-import com.metaagent.platform.domain.agent.dto.FileLibraryDtos;
+import com.metaagent.platform.domain.agent.dto.KnowledgeBaseDtos;
 import com.metaagent.platform.domain.agent.service.AgentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Aggregate Files/Websites library (TASK-065) — every file/website across every agent on a WABA. */
+/** Aggregate Knowledge Base (TASK-065) — every file/website across every agent on a WABA. */
 @RestController
 @RequiredArgsConstructor
-public class FileLibraryController {
+public class KnowledgeBaseController {
 
     private final AgentService agentService;
 
     @GetMapping("/api/v1/files")
-    public ApiResponse<FileLibraryDtos.FileListResponse> listFiles(@RequestParam("wabaId") String wabaIdRaw) {
+    public ApiResponse<KnowledgeBaseDtos.FileListResponse> listFiles(@RequestParam("wabaId") String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
-        return ApiResponse.ok(new FileLibraryDtos.FileListResponse(agentService.getAllFilesForWaba(wabaId, accountId)));
+        return ApiResponse.ok(new KnowledgeBaseDtos.FileListResponse(agentService.getAllFilesForWaba(wabaId, accountId)));
     }
 
     @GetMapping("/api/v1/websites")
-    public ApiResponse<FileLibraryDtos.WebsiteListResponse> listWebsites(@RequestParam("wabaId") String wabaIdRaw) {
+    public ApiResponse<KnowledgeBaseDtos.WebsiteListResponse> listWebsites(@RequestParam("wabaId") String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
-        return ApiResponse.ok(new FileLibraryDtos.WebsiteListResponse(agentService.getAllWebsitesForWaba(wabaId, accountId)));
+        return ApiResponse.ok(new KnowledgeBaseDtos.WebsiteListResponse(agentService.getAllWebsitesForWaba(wabaId, accountId)));
     }
 
     /**
@@ -39,10 +39,10 @@ public class FileLibraryController {
      * rolled them up the way these two do.
      */
     @GetMapping("/api/v1/faqs")
-    public ApiResponse<FileLibraryDtos.FaqListResponse> listFaqs(@RequestParam("wabaId") String wabaIdRaw) {
+    public ApiResponse<KnowledgeBaseDtos.FaqListResponse> listFaqs(@RequestParam("wabaId") String wabaIdRaw) {
         Long accountId = SecurityContextHelper.getRequiredAccountId();
         Long wabaId = parseId(wabaIdRaw);
-        return ApiResponse.ok(new FileLibraryDtos.FaqListResponse(agentService.getAllFaqsForWaba(wabaId, accountId)));
+        return ApiResponse.ok(new KnowledgeBaseDtos.FaqListResponse(agentService.getAllFaqsForWaba(wabaId, accountId)));
     }
 
     private static Long parseId(String raw) {

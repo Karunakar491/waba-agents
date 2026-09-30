@@ -10,8 +10,9 @@ import java.util.Optional;
 @Repository
 public interface AgentWebsiteRepository extends JpaRepository<AgentWebsite, Long> {
     List<AgentWebsite> findAllByAgentId(Long agentId);
-    /** Batched lookup for the aggregate Files library page's Websites tab. */
+    /** Batched lookup for the aggregate Knowledge Base page's Websites tab. */
     List<AgentWebsite> findAllByAgentIdIn(Collection<Long> agentIds);
     Optional<AgentWebsite> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);
+    Optional<AgentWebsite> findByAgentIdAndMetaWebsiteId(Long agentId, String metaWebsiteId);
 }

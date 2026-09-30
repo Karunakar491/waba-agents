@@ -10,7 +10,7 @@ import org.hibernate.annotations.GenericGenerator;
 import java.time.LocalDateTime;
 
 /**
- * A shared Skill Library entry. Editing this row is NOT pushed to Meta —
+ * A skill shared across an account's agents. Editing this row is NOT pushed to Meta —
  * every {@link com.metaagent.platform.domain.skill.entity.AgentSkillAttachment}
  * compares its own deployedAt against this row's updatedAt to know it's out
  * of sync; the push only happens via an explicit per-agent sync action.

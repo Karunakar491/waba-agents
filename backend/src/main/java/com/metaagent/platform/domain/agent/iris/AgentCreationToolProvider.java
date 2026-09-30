@@ -6,7 +6,7 @@ import com.metaagent.platform.domain.agent.service.AgentService;
 import com.metaagent.platform.domain.persona.entity.BusinessProfile;
 import com.metaagent.platform.domain.persona.repository.BusinessProfileRepository;
 import com.metaagent.platform.domain.skill.dto.SkillDtos;
-import com.metaagent.platform.domain.skill.service.SkillLibraryService;
+import com.metaagent.platform.domain.skill.service.SkillService;
 import com.metaagent.platform.domain.iris.AiToolSpec;
 import com.metaagent.platform.domain.iris.IrisToolProvider;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * Second IrisToolProvider (see wiki/decisions/2026-08-12-iris-generalization
  * -plan.md) — lets Iris read what an operator already saved in the Business
  * Agent creation wizard (currently: Business Persona) and turn it into a
- * real Skill Library entry, without the operator having to repeat
+ * real shared Skill, without the operator having to repeat
  * themselves in chat. v1 scope is deliberately just create_skill — Iris
  * "recommending the current stage" (i.e. telling the operator what's still
  * missing from Basics/Persona/Knowledge Base/Connectors before Test &
@@ -36,18 +36,18 @@ public class AgentCreationToolProvider implements IrisToolProvider {
 
     private final AgentService agentService;
     private final BusinessProfileRepository businessProfileRepository;
-    private final SkillLibraryService skillLibraryService;
+    private final SkillService skillService;
 
     private static final List<AiToolSpec> TOOLS = List.of(
             new AiToolSpec("create_skill",
-                    "Create a Skill Library entry for one of the operator's Business Agents. Requires user " +
+                    "Create a shared Skill for one of the operator's Business Agents. Requires user " +
                     "confirmation before it is actually saved. Prefer grounding the skill's body in that agent's " +
                     "saved Business Persona details (shown below) rather than inventing generic content — e.g. a " +
                     "\"Return Policy\" skill should quote the agent's actual saved return policy, not a generic one.",
                     Map.of("type", "object", "properties", Map.of(
                             "agentId", Map.of("type", "string", "description", "The agent's id, from the list below."),
                             "title", Map.of("type", "string", "description", "Max 64 characters."),
-                            "description", Map.of("type", "string", "description", "Max 1024 characters — shown in the Skill Library list."),
+                            "description", Map.of("type", "string", "description", "Max 1024 characters — shown in the Skills list."),
                             "body", Map.of("type", "string", "description", "The actual skill instructions given to the agent, max 20000 characters.")),
                             "required", List.of("agentId", "title", "description", "body")),
                     true)
@@ -121,6 +121,6 @@ public class AgentCreationToolProvider implements IrisToolProvider {
                 String.valueOf(args.get("body")),
                 null, // Iris's create_skill tool schema has no industry/use-case field
                 null);
-        return Map.of("skill", skillLibraryService.createSkill(request));
+        return Map.of("skill", skillService.createSkill(request));
     }
 }

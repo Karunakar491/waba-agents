@@ -70,7 +70,7 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
                 .passwordHash("hashed")
                 .build());
         accountId = account.getId();
-        // skill.waba_id is a real FK, so the library skill below needs a real WABA.
+        // skill.waba_id is a real FK, so the shared skill below needs a real WABA.
         wabaId = wabaRepository.save(Waba.builder()
                 .accountId(accountId)
                 .wabaId("waba-" + UUID.randomUUID().toString().substring(0, 8))
@@ -103,7 +103,7 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
         Agent preserved = agentRepository.findById(agent.getId()).orElseThrow();
         assertThat(preserved.getStatus()).isEqualTo(Agent.Status.draft);
         assertThat(preserved.isEnabled()).isFalse();
-        // Without the WABA the draft cannot see its own library content or be rebound.
+        // Without the WABA the draft cannot see its own shared content or be rebound.
         assertThat(preserved.getWabaId()).isEqualTo(wabaId);
     }
 
@@ -141,7 +141,7 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
                 .allSatisfy(skill -> assertThat(skill.getMetaUiSkillId()).isNull());
     }
 
-    /** The attachment is the draft's link to the Skill Library; only its Meta id is dead. */
+    /** The attachment is the draft's link to the shared Skill; only its Meta id is dead. */
     @Test
     void keepsSkillAttachmentsButClearsTheirMetaIds() {
         Agent agent = agentWithContent();
@@ -193,22 +193,22 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
 
     /**
      * The founder's requirement, and today it holds only because the cascade
-     * never touches the library table. Pinned so it stays a contract rather than
+     * never touches the shared-skill table. Pinned so it stays a contract rather than
      * an accident.
      */
     @Test
-    void deletingAPreservedDraftLaterRemovesTheAttachmentNotTheLibrarySkill() {
+    void deletingAPreservedDraftLaterRemovesTheAttachmentNotTheSharedSkill() {
         Agent agent = agentWithContent();
         Long id = agent.getId();
-        Long librarySkillId = agentSkillAttachmentRepository.findAllByAgentId(id).get(0).getSkillId();
+        Long sharedSkillId = agentSkillAttachmentRepository.findAllByAgentId(id).get(0).getSkillId();
 
         agentService.convertToDraft(id, wabaId);
         agentService.deleteAgent(id);
 
         assertThat(agentRepository.findById(id)).isEmpty();
         assertThat(agentSkillAttachmentRepository.findAllByAgentId(id)).isEmpty();
-        assertThat(skillRepository.findById(librarySkillId))
-                .as("the Library skill is not owned by the agent and must outlive it")
+        assertThat(skillRepository.findById(sharedSkillId))
+                .as("the shared skill is not owned by the agent and must outlive it")
                 .isPresent();
     }
 
@@ -256,10 +256,10 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
                 .status(AgentUiSkill.Status.enabled)
                 .metaUiSkillId("meta-ui-1")
                 .build());
-        // A real Library skill, not a fabricated id — agent_skill_attachment has a
+        // A real shared skill, not a fabricated id — agent_skill_attachment has a
         // FK to it, and whether that row outlives the agent is the whole point of
         // the last test below.
-        Skill librarySkill = skillRepository.save(Skill.builder()
+        Skill sharedSkill = skillRepository.save(Skill.builder()
                 .accountId(accountId)
                 .wabaId(wabaId)
                 .title("intent-router")
@@ -267,7 +267,7 @@ class AgentServiceConvertToDraftTest extends IntegrationTestBase {
                 .body("When the customer asks about an order, use the order lookup.")
                 .build());
         agentSkillAttachmentRepository.save(AgentSkillAttachment.builder()
-                .agentId(id).skillId(librarySkill.getId())
+                .agentId(id).skillId(sharedSkill.getId())
                 .metaSkillId("meta-skill-1")
                 .deployedAt(LocalDateTime.now())
                 .build());

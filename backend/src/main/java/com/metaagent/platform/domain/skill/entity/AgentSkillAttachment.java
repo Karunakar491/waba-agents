@@ -10,8 +10,8 @@ import org.hibernate.annotations.GenericGenerator;
 import java.time.LocalDateTime;
 
 /**
- * Join between one agent and one Library {@link Skill}. metaSkillId lives
- * HERE, not on Skill — the same Library skill attached to two different
+ * Join between one agent and one shared {@link Skill}. metaSkillId lives
+ * HERE, not on Skill — the same shared skill attached to two different
  * agents gets a different Meta-side skill id on each (Meta scopes skills per
  * phone number, not globally). deployedAt null or older than the Skill's
  * updatedAt means this agent's copy is "Out of sync" and needs an explicit

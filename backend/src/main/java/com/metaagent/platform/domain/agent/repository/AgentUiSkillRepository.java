@@ -11,7 +11,7 @@ import java.util.Optional;
 @Repository
 public interface AgentUiSkillRepository extends JpaRepository<AgentUiSkill, Long> {
     List<AgentUiSkill> findAllByAgentId(Long agentId);
-    /** Batched lookup for multiple agents at once — avoids an N+1 per-agent loop (Skill Library rollup). */
+    /** Batched lookup for multiple agents at once — avoids an N+1 per-agent loop (Skills rollup). */
     List<AgentUiSkill> findAllByAgentIdIn(Collection<Long> agentIds);
     Optional<AgentUiSkill> findByIdAndAgentId(Long id, Long agentId);
     void deleteAllByAgentId(Long agentId);

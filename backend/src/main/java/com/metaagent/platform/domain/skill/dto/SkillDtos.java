@@ -64,27 +64,27 @@ public final class SkillDtos {
             String description,
             String body,
             String updatedAt,
-            /** When it was first created, for the Skills Library's "created on" filter. */
+            /** When it was first created, for the Skills section's "created on" filter. */
             String createdAt,
             boolean deployed,
-            String source, // "LIBRARY" | "AGENT"
+            String source, // "SHARED" | "AGENT"
             String agentId, // set only when source = "AGENT"
             String agentName, // set only when source = "AGENT"
             /**
              * The owning agent's phone number id and Meta agent id, for the two
-             * columns the Skills Library shows separately (founder, 2026-09-07).
-             * Both null for a LIBRARY skill, which has no single owning agent —
+             * columns the Skills section shows separately (founder, 2026-09-07).
+             * Both null for a SHARED skill, which has no single owning agent —
              * its agents are in {@code deployments} instead. metaAgentId is also
              * null until that agent has actually deployed once.
              */
             String phoneNumberId,
             String metaAgentId,
-            List<Deployment> deployments, // every agent+number this skill is live on (0..N for LIBRARY, 0..1 for AGENT)
+            List<Deployment> deployments, // every agent+number this skill is live on (0..N for SHARED, 0..1 for AGENT)
             String industry, // V43 provenance tag; null for skills created before it existed and for every legacy AGENT row
             String useCase
     ) {}
 
-    /** One agent+phone-number a skill is deployed to — a Library skill can have several. */
+    /** One agent+phone-number a skill is deployed to — a shared skill can have several. */
     public record Deployment(
             String agentId,
             String agentName,
@@ -92,20 +92,20 @@ public final class SkillDtos {
     ) {}
 
     /** One row in an agent's Skills tab — a legacy agent-scoped skill (source=AGENT,
-     * always live) or a Library-attached skill (source=LIBRARY, may be out of sync). */
+     * always live) or a skill shared across agents (source=SHARED, may be out of sync). */
     public record AgentSkillView(
             String id,
-            String source, // "AGENT" | "LIBRARY"
+            String source, // "AGENT" | "SHARED"
             String title,
             String description,
             String body,
             String status, // "LIVE" | "OUT_OF_SYNC"
             boolean canPromote,
-            String librarySkillId, // set only when source = LIBRARY
+            String sharedSkillId, // set only when source = SHARED
             /** "published" | "draft" — Unpublish/Draft only applies to source=AGENT rows;
-             * LIBRARY-attached skills always report "published" here. Their per-agent lever
-             * is Detach (SkillLibraryService.detachSkill), which this comment claimed existed
-             * for weeks before it did — until 2026-09-11 a LIBRARY row carried no way off
+             * SHARED skills always report "published" here. Their per-agent lever
+             * is Detach (SkillService.detachSkill), which this comment claimed existed
+             * for weeks before it did — until 2026-09-11 a shared row carried no way off
              * one agent at all. */
             String publishStatus
     ) {}
@@ -135,8 +135,8 @@ public final class SkillDtos {
             String wabaId
     ) {}
 
-    /** F22 (2026-08-07) — cross-agent UI Skills rollup for the Skill Library.
-     * No Library/attachment concept exists for UI skills (each is tied directly
+    /** F22 (2026-08-07) — cross-agent UI Skills rollup for the Skills section.
+     * No sharing/attachment concept exists for UI skills (each is tied directly
      * to one phone number on Meta's side, unlike plain Skills) — this is a
      * read-only aggregate over every agent on the WABA, same "rollup, not
      * source of truth" convention as ConnectorsTable/FileWebsiteTables. Edit

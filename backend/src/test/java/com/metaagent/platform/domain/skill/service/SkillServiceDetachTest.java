@@ -23,9 +23,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Detach — removing ONE agent's use of a shared Library skill.
+ * Detach — removing ONE agent's use of a shared skill.
  *
- * Built because there was no way to do it (2026-09-11): three Library skills
+ * Built because there was no way to do it (2026-09-11): three shared skills
  * were live on the IndiaMART agent, contradicting its own new skill set, and
  * the only levers were editing the body (changes every attached agent) or
  * deleting the skill WABA-wide (the FK refuses while anyone is attached).
@@ -35,9 +35,9 @@ import static org.mockito.Mockito.*;
  * dropping the attachment row before Meta has confirmed the removal would
  * leave a skill running on a real number with nothing here pointing at it.
  */
-class SkillLibraryServiceDetachTest {
+class SkillServiceDetachTest {
 
-    private SkillLibraryService service;
+    private SkillService service;
     private AgentSkillAttachmentRepository attachmentRepository;
     private AgentService agentService;
     private MetaApiClient metaApiClient;
@@ -47,7 +47,7 @@ class SkillLibraryServiceDetachTest {
         attachmentRepository = mock(AgentSkillAttachmentRepository.class);
         agentService = mock(AgentService.class);
         metaApiClient = mock(MetaApiClient.class);
-        service = new SkillLibraryService(
+        service = new SkillService(
                 mock(SkillRepository.class),
                 attachmentRepository,
                 mock(AgentSkillRepository.class),

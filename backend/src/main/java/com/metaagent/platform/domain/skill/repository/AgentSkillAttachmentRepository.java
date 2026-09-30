@@ -14,14 +14,14 @@ public interface AgentSkillAttachmentRepository extends JpaRepository<AgentSkill
 
     @Modifying
     void deleteAllByAgentId(Long agentId);
-    /** Batched lookup for the aggregate Skills table — every attachment (deployed or not) for a set of Library skills. */
+    /** Batched lookup for the aggregate Skills table — every attachment (deployed or not) for a set of shared skills. */
     List<AgentSkillAttachment> findAllBySkillIdIn(List<Long> skillIds);
     Optional<AgentSkillAttachment> findByAgentIdAndSkillId(Long agentId, Long skillId);
     Optional<AgentSkillAttachment> findByIdAndAgentId(Long id, Long agentId);
 
     /** Single-query set of skill ids "Deployed" (live somewhere, per any attachment ever synced —
      * a pending edit on a still-running skill must not make it look undeployed). Used by
-     * SkillLibraryService.listSkills to avoid an N+1 per-skill lookup. */
+     * SkillService.listSkills to avoid an N+1 per-skill lookup. */
     @Query("select distinct a.skillId from AgentSkillAttachment a where a.skillId in :skillIds and a.deployedAt is not null")
     List<Long> findDeployedSkillIds(@Param("skillIds") List<Long> skillIds);
 }

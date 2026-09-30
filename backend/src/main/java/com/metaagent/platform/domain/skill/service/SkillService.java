@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Shared Skill Library — first slice of the Library consolidation (supersedes
+ * Shared Skill — first slice of the sharing-model consolidation (supersedes
  * TASK-046's original join-table design with a simpler nullable-wabaId model,
  * matching Agent.wabaId's existing pattern).
  *
@@ -45,7 +45,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SkillLibraryService {
+public class SkillService {
 
     private final SkillRepository skillRepository;
     private final AgentSkillAttachmentRepository attachmentRepository;
@@ -58,7 +58,7 @@ public class SkillLibraryService {
     private final AgentService agentService;
 
     // ---------------------------------------------------------------------
-    // Library CRUD — DB only, never touches Meta.
+    // Shared-skill CRUD — DB only, never touches Meta.
     // ---------------------------------------------------------------------
 
     public SkillDtos.SkillResponse createSkill(SkillDtos.CreateRequest request) {
@@ -81,11 +81,11 @@ public class SkillLibraryService {
 
     /**
      * TASK-053: a true aggregate — every skill currently live on ANY agent on
-     * this WABA, not just Library rows. Legacy AgentSkill rows are NOT
+     * this WABA, not just shared rows. Legacy AgentSkill rows are NOT
      * deduplicated/shared (two agents can each have their own "identity"
      * skill with different content), so each carries its owning agent's id
      * and name; they are always deployed=true (write-through to Meta
-     * immediately — confirmed in TASK-050). Both the Library fetch and the
+     * immediately — confirmed in TASK-050). Both the shared-skill fetch and the
      * legacy fetch are single batched queries, not a per-item/per-agent loop
      * (EM gate 2026-07-29).
      */
@@ -106,7 +106,7 @@ public class SkillLibraryService {
         Map<Long, Agent> agentsById = agents.stream()
                 .collect(java.util.stream.Collectors.toMap(Agent::getId, a -> a));
 
-        // Deployments-by-skill (TASK-063): a Library skill can be attached to
+        // Deployments-by-skill (TASK-063): a shared skill can be attached to
         // several agents at once, so "deployed on" is a list, not one field —
         // only synced attachments (deployedAt != null) count as "live on".
         Map<Long, List<SkillDtos.Deployment>> deploymentsBySkillId = new HashMap<>();
@@ -216,10 +216,10 @@ public class SkillLibraryService {
                 skill.getUpdatedAt().toString(),
                 skill.getCreatedAt() != null ? skill.getCreatedAt().toString() : null,
                 deployed,
-                "LIBRARY",
+                "SHARED",
                 null,
                 null,
-                // A Library skill has no single owning agent — the agents it is
+                // A shared skill has no single owning agent — the agents it is
                 // live on are in deployments below.
                 null,
                 null,
@@ -230,8 +230,8 @@ public class SkillLibraryService {
     }
 
     /**
-     * Removes ONE agent's use of a Library skill, leaving every other agent's
-     * alone and leaving the Library skill itself in place.
+     * Removes ONE agent's use of a shared skill, leaving every other agent's
+     * alone and leaving the shared skill itself in place.
      *
      * This is the "explicit detach" that deleteSkill's FK comment below has
      * always assumed existed. It did not. Until now the only levers on a
@@ -239,7 +239,7 @@ public class SkillLibraryService {
      * attached — and deleting it WABA-wide, which the FK refuses while anyone
      * is attached. So a skill that was wrong for one agent and right for the
      * others could not be taken off that one agent at all. Found on the live
-     * IndiaMART agent (2026-09-11), where three Library skills contradicted
+     * IndiaMART agent (2026-09-11), where three shared skills contradicted
      * the agent's own new skill set and could not be retired.
      *
      * Meta first, then our row. If Meta refuses, this throws and the
@@ -292,13 +292,13 @@ public class SkillLibraryService {
 
     private void requireWabaAccess(Long wabaId, Long accountId) {
         if (wabaId == null) {
-            throw new BusinessException("You don't have access to this WABA's Skill Library.");
+            throw new BusinessException("You don't have access to this WABA's skills.");
         }
         wabaAccessGuard.requireAccess(wabaId, accountId);
     }
 
     // ---------------------------------------------------------------------
-    // Per-agent view — union of legacy (agent-scoped) and Library-attached skills.
+    // Per-agent view — union of legacy (agent-scoped) and shared skills.
     // ---------------------------------------------------------------------
 
     public List<SkillDtos.AgentSkillView> getAgentSkillsView(Long agentId) {
@@ -328,21 +328,21 @@ public class SkillLibraryService {
             boolean live = attachment.getDeployedAt() != null && !attachment.getDeployedAt().isBefore(skill.getUpdatedAt());
             views.add(new SkillDtos.AgentSkillView(
                     String.valueOf(attachment.getId()),
-                    "LIBRARY",
+                    "SHARED",
                     skill.getTitle(),
                     skill.getDescription(),
                     skill.getBody(),
                     live ? "LIVE" : "OUT_OF_SYNC",
                     false,
                     String.valueOf(skill.getId()),
-                    "published" // Library-attached skills have their own promote/detach lifecycle, not this one
+                    "published" // Shared skills have their own promote/detach lifecycle, not this one
             ));
         }
         return views;
     }
 
     // ---------------------------------------------------------------------
-    // Promote — converts one legacy AgentSkill into a Library Skill +
+    // Promote — converts one legacy AgentSkill into a shared Skill ++
     // attachment. Content is identical and already live on Meta at this
     // instant, so deployedAt = now (in sync from the moment of promotion).
     // ---------------------------------------------------------------------
@@ -351,7 +351,7 @@ public class SkillLibraryService {
     public void promote(Long agentId, Long agentSkillId) {
         Agent agent = agentService.getAgent(agentId);
         if (agent.getWabaId() == null) {
-            throw new BusinessException("Connect this agent to a WABA before promoting a skill to the Library.");
+            throw new BusinessException("Connect this agent to a WABA before sharing a skill across agents.");
         }
         AgentSkill legacy = agentSkillRepository.findByIdAndAgentId(agentSkillId, agentId)
                 .orElseThrow(() -> new NotFoundException("Skill not found"));
@@ -375,7 +375,7 @@ public class SkillLibraryService {
     }
 
     // ---------------------------------------------------------------------
-    // Sync — the only path that pushes a Library skill to Meta. Deliberately
+    // Sync — the only path that pushes a shared skill to Meta. Deliberately
     // NOT wrapped in one @Transactional: each item's Meta call + DB commit is
     // independent, so item 3 of 5 failing never rolls back items 1-2's
     // already-confirmed success (EM gate 2026-07-29 — no all-or-nothing loop).
@@ -456,7 +456,7 @@ public class SkillLibraryService {
                 .description(template.getDescription())
                 .body(template.getBody())
                 // V43: carry the catalog's provenance across the one-way copy so
-                // the Skills Library grid can show real tags instead of none.
+                // the Skills grid can show real tags instead of none.
                 .industry(template.getIndustry())
                 .useCase(template.getUseCase())
                 .build();

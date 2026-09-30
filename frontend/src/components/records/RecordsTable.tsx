@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import StatusIndicator, { type StatusTone } from '../shared/StatusIndicator'
 
 /**
- * Screen: Library lists (Skills / Knowledgebase / Connectors / Business Persona)
+ * Screen: account-wide lists (Skills / Knowledge Base / Connectors / Business Persona)
  *
  * 1. USER GOAL: find one specific thing — "the skill that quotes prices", "the
  *    connector that broke" — and act on it.
@@ -23,7 +23,7 @@ import StatusIndicator, { type StatusTone } from '../shared/StatusIndicator'
  * than a footnote — and it is a count, not agent names, which would wrap the
  * row and bury the rest.
  */
-export interface LibraryTableRow {
+export interface RecordsTableRow {
   id: string
   /** The item's own words — what the user wrote, not an id. */
   name: string
@@ -34,7 +34,7 @@ export interface LibraryTableRow {
   /**
    * Which agent this row belongs to.
    *
-   * The Skills library shows the same skill once per agent — `intent-router`
+   * The Skills section shows the same skill once per agent — `intent-router`
    * appeared nine times on the live account, every row reading "Published, 1
    * agent, 25d ago" with nothing to tell them apart. Deleting the wrong one is a
    * live change to a real customer's agent. The data was always in the API
@@ -43,7 +43,7 @@ export interface LibraryTableRow {
   owner?: string | null
   /**
    * Extra cells for a page that needs columns the shared set does not cover —
-   * the Skills Library shows the Meta agent id and the phone number as their
+   * the Skills section shows the Meta agent id and the phone number as their
    * own columns, the way the Agents list does. Positional: one entry per
    * extraLabels entry on the table.
    */
@@ -101,7 +101,7 @@ function usageLabel(count: number | null): { text: string; muted: boolean } {
 /** Tags past this many collapse to a count — five wrapping chips doubled the row height. */
 const MAX_TAGS = 3
 
-export default function LibraryTable({
+export default function RecordsTable({
   rows,
   /** What the first column is called on this page: "Skill", "Connector". */
   itemLabel,
@@ -111,7 +111,7 @@ export default function LibraryTable({
   /** Headings for each row's `extras`, in the same order. */
   extraLabels,
 }: {
-  rows: LibraryTableRow[]
+  rows: RecordsTableRow[]
   itemLabel: string
   showUpdated?: boolean
   ownerLabel?: string
@@ -245,7 +245,7 @@ export default function LibraryTable({
   )
 }
 
-export function LibraryTableSkeleton({ showUpdated = true }: { showUpdated?: boolean }) {
+export function RecordsTableSkeleton({ showUpdated = true }: { showUpdated?: boolean }) {
   const cols = showUpdated ? 5 : 4
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-surface-resting">

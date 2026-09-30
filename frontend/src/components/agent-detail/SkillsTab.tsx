@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Library, Loader2, Plus, RefreshCw, Search, Trash2, Zap } from 'lucide-react'
+import { Loader2, Plus, RefreshCw, Search, Share2, Trash2, Zap } from 'lucide-react'
 import api from '../../lib/api'
 import SkillEditorModal from './SkillEditorModal'
 import UiSkillsPanel from './UiSkillsPanel'
@@ -11,14 +11,14 @@ import { UNPUBLISH_UI_ENABLED } from '../../lib/featureFlags'
 
 interface AgentSkillView {
   id: string
-  source: 'AGENT' | 'LIBRARY'
+  source: 'AGENT' | 'SHARED'
   title: string
   description: string
   body: string
   status: 'LIVE' | 'OUT_OF_SYNC'
   canPromote: boolean
-  librarySkillId: string | null
-  /** Unpublish/Draft only applies to source=AGENT rows — LIBRARY rows always report "published". */
+  sharedSkillId: string | null
+  /** Unpublish/Draft only applies to source=AGENT rows — SHARED rows always report "published". */
   publishStatus: 'published' | 'draft'
 }
 
@@ -211,10 +211,10 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
                     <button
                       onClick={() => promoteMutation.mutate(skill.id)}
                       disabled={promoteMutation.isPending}
-                      title="Promote to Library — share this skill across agents on this WABA"
+                      title="Share this skill across agents on this WABA"
                       className="rounded p-1.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                     >
-                      {promoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Library className="h-4 w-4" />}
+                      {promoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
                     </button>
                   )}
                   {UNPUBLISH_UI_ENABLED && skill.source === 'AGENT' && (
@@ -263,7 +263,7 @@ export default function SkillsTab({ agentId }: { agentId: string }) {
         <SkillEditorModal
           agentId={agentId}
           skill={editingSkill}
-          librarySkillId={editingSkill?.source === 'LIBRARY' ? editingSkill.librarySkillId ?? undefined : undefined}
+          sharedSkillId={editingSkill?.source === 'SHARED' ? editingSkill.sharedSkillId ?? undefined : undefined}
           onClose={() => setShowEditor(false)}
         />
       )}

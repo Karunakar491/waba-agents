@@ -62,7 +62,7 @@ export default function SkillTemplateBrowsePage() {
     onMutate: () => setCopyError(null),
     onSuccess: (_res, templateId) => {
       setCopiedId(templateId)
-      queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['shared-skills', waba?.id] })
     },
     onError: (err) => setCopyError(extractErrorMessage(err)),
   })

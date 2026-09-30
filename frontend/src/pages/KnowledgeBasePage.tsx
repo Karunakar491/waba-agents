@@ -11,7 +11,7 @@ import { useActionFeedback } from '../components/shared/ActionFeedback'
 interface WabaEntry { id: string; wabaId: string; label: string | null }
 interface AgentEntry { id: string; displayName: string; phoneNumberId: string | null; displayPhoneNumber: string | null }
 
-export default function FileLibraryPage() {
+export default function KnowledgeBasePage() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'files' | 'websites' | 'faqs'>('files')
   const { confirm } = useActionFeedback()
@@ -36,19 +36,19 @@ export default function FileLibraryPage() {
   const boundAgents = agents.filter((a) => a.phoneNumberId != null)
 
   const { data: files = [], isLoading: filesLoading } = useQuery<FileRow[]>({
-    queryKey: ['library-files', waba?.id],
+    queryKey: ['kb-files', waba?.id],
     queryFn: () => api.get('/files', { params: { wabaId: waba!.id } }).then((r) => r.data.data?.files ?? []),
     enabled: !!waba,
   })
 
   const { data: websites = [], isLoading: websitesLoading } = useQuery<WebsiteRow[]>({
-    queryKey: ['library-websites', waba?.id],
+    queryKey: ['kb-websites', waba?.id],
     queryFn: () => api.get('/websites', { params: { wabaId: waba!.id } }).then((r) => r.data.data?.websites ?? []),
     enabled: !!waba,
   })
 
   const { data: faqs = [], isLoading: faqsLoading } = useQuery<FaqRow[]>({
-    queryKey: ['library-faqs', waba?.id],
+    queryKey: ['kb-faqs', waba?.id],
     queryFn: () => api.get('/faqs', { params: { wabaId: waba!.id } }).then((r) => r.data.data?.faqs ?? []),
     enabled: !!waba,
   })
@@ -60,7 +60,7 @@ export default function FileLibraryPage() {
       return api.post(`/agents/${agentId}/files`, formData, { headers: { 'Content-Type': undefined } })
     },
     onSuccess: (_data, { file }) => {
-      queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['kb-files', waba?.id] })
       setFormError(null)
       confirm('File uploaded', file.name)
     },
@@ -71,7 +71,7 @@ export default function FileLibraryPage() {
     mutationFn: ({ agentId, url }: { agentId: string; url: string }) =>
       api.post(`/agents/${agentId}/websites`, { url }),
     onSuccess: (_data, { url }) => {
-      queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['kb-websites', waba?.id] })
       setWebsiteUrl('')
       setFormError(null)
       confirm('Website added', url)
@@ -84,7 +84,7 @@ export default function FileLibraryPage() {
     onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
     onSuccess: (_data, row) => {
-      queryClient.invalidateQueries({ queryKey: ['library-files', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['kb-files', waba?.id] })
       setPendingDeleteFile(null)
       confirm('File deleted', row.filename)
     },
@@ -96,7 +96,7 @@ export default function FileLibraryPage() {
     onMutate: (row) => { setDeletingId(row.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
     onSuccess: (_data, row) => {
-      queryClient.invalidateQueries({ queryKey: ['library-websites', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['kb-websites', waba?.id] })
       setPendingDeleteWebsite(null)
       confirm('Website deleted', row.url)
     },

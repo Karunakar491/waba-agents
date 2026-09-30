@@ -4,16 +4,16 @@ import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import api from '../../lib/api'
-import type { LibrarySkill } from './StepSkills'
+import type { AvailableSkill } from './StepSkills'
 
 /**
- * Figma node 289:2 — the Skills Library drawer, open over the Skills step.
+ * Figma node 289:2 — the Your Skills drawer, open over the Skills step.
  *
  * DESIGN.md §6: a docked panel, not a Modal — the operator is comparing
- * library entries against the rules already on the agent behind it, which a
+ * saved skills against the rules already on the agent behind it, which a
  * blocking overlay would hide.
  */
-export default function SkillsLibraryDrawer({
+export default function YourSkillsDrawer({
   wabaId,
   attachedTitles,
   onAdd,
@@ -21,14 +21,14 @@ export default function SkillsLibraryDrawer({
 }: {
   wabaId: string
   attachedTitles: Set<string>
-  onAdd: (skill: LibrarySkill) => void
+  onAdd: (skill: AvailableSkill) => void
   onClose: () => void
 }) {
   const [search, setSearch] = useState('')
   const [publishedOnly, setPublishedOnly] = useState(false)
   const [industry, setIndustry] = useState<string | null>(null)
 
-  const { data: skills = [], isLoading } = useQuery<LibrarySkill[]>({
+  const { data: skills = [], isLoading } = useQuery<AvailableSkill[]>({
     queryKey: ['skills', wabaId],
     queryFn: () => api.get('/skills', { params: { wabaId } }).then((r) => r.data.data),
     enabled: !!wabaId,
@@ -49,18 +49,18 @@ export default function SkillsLibraryDrawer({
 
   return (
     <aside
-      aria-label="Skills Library"
+      aria-label="Your Skills"
       className="flex w-96 shrink-0 flex-col border-l bg-card"
     >
       <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
         <div>
-          <p className="text-sm font-semibold text-foreground">Skills Library</p>
+          <p className="text-sm font-semibold text-foreground">Your Skills</p>
           <p className="mt-1 text-xs text-muted-foreground">Add one without leaving this step.</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close Skills Library"
+          aria-label="Close"
           className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
         >
           <X className="h-4 w-4" />
@@ -97,7 +97,7 @@ export default function SkillsLibraryDrawer({
         ) : rows.length === 0 ? (
           <p className="border-l-2 border-accent-teal-solid px-4 py-4 text-sm text-muted-foreground">
             {skills.length === 0
-              ? 'No skills saved on this WABA yet. Write a rule on the left and use “Save to Library” to start one.'
+              ? 'No skills saved on this WABA yet. Write a rule on the left and use “Share across agents” to start one.'
               : 'No skills match these filters.'}
           </p>
         ) : (
@@ -132,7 +132,7 @@ export default function SkillsLibraryDrawer({
           to="/library/skills"
           className="text-sm font-medium text-accent-teal-solid transition-colors hover:underline"
         >
-          See full Skills Library →
+          See all your Skills →
         </Link>
       </div>
     </aside>

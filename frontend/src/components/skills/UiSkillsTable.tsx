@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import StatusIndicator from '../shared/StatusIndicator'
 import TableSkeleton from '../shared/TableSkeleton'
 import TableEmptyState from '../shared/TableEmptyState'
+import { uiComponentLabel } from './uiComponentTypes'
 
 export interface UiSkillRow {
   id: string
@@ -15,22 +16,15 @@ export interface UiSkillRow {
   phoneNumberId: string | null
 }
 
-const COMPONENT_LABELS: Record<string, string> = {
-  carousel_quick_reply: 'Carousel (quick reply)',
-  carousel_url: 'Carousel (URL)',
-  cta_url: 'CTA button (URL)',
-  image: 'Image',
-  interactive_list: 'Interactive list',
-  location: 'Location',
-  location_request: 'Location request',
-}
+// Labels come from components/skills/uiComponentTypes — this file used to hold
+// one of four copies of them.
 
-// F22 (2026-08-07) — cross-agent UI Skills rollup for the Skill Library,
+// F22 (2026-08-07) — cross-agent UI Skills rollup for the Skills section,
 // same "rollup, not source of truth" convention as ConnectorsTable/
-// FileWebsiteTables: no Library/attachment concept exists for UI skills
+// FileWebsiteTables: no sharing/attachment concept exists for UI skills
 // (each is tied directly to one phone number on Meta's side), so Edit
 // deep-links to the owning agent's Skills tab instead of editing in place.
-export function UiSkillsLibraryTable({ isLoading, rows }: { isLoading: boolean; rows: UiSkillRow[] }) {
+export function UiSkillsTable({ isLoading, rows }: { isLoading: boolean; rows: UiSkillRow[] }) {
   if (isLoading) return <TableSkeleton />
   if (rows.length === 0) {
     return (
@@ -60,7 +54,7 @@ export function UiSkillsLibraryTable({ isLoading, rows }: { isLoading: boolean; 
               <p className="text-xs text-muted-foreground truncate">{row.instruction}</p>
             </td>
             <td className="px-4 py-3 text-muted-foreground">
-              {COMPONENT_LABELS[row.componentType] ?? row.componentType}
+              {uiComponentLabel(row.componentType)}
             </td>
             <td className="px-4 py-3">
               <StatusIndicator

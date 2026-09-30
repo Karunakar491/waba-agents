@@ -6,7 +6,7 @@ import Modal from './Modal'
 
 /**
  * Standard confirm-before-delete step for lower-stakes destructive actions
- * (library skills, files, websites) — DESIGN.md §5. Lighter than
+ * (shared skills, files, websites) — DESIGN.md §5. Lighter than
  * DeleteFromMetaModal (no typed confirmation; that one guards a live Meta
  * removal, this one guards a DB record) but shares the same chrome, error
  * handling, and button treatment.

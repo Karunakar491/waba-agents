@@ -58,7 +58,7 @@ export function SectionCard({
   )
 }
 
-/** Text link used for "Import from Library", "+ Add FAQ", "+ Save to Library". */
+/** Text link used for "Import from Business Persona", "+ Add FAQ", "+ Save this persona". */
 export function LinkAction({
   onClick,
   icon,

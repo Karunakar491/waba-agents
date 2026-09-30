@@ -6,12 +6,12 @@ import DashboardPage from './pages/DashboardPage'
 import AgentsPage from './pages/AgentsPage'
 import CreateAgentPage from './pages/CreateAgentPage'
 import AgentDetailPage from './pages/AgentDetailPage'
-import SkillLibraryPage from './pages/SkillLibraryPage'
+import SkillsPage from './pages/SkillsPage'
 import SkillEditPage from './pages/SkillEditPage'
 import BusinessPersonaLibraryPage from './pages/BusinessPersonaLibraryPage'
-import BusinessEventsLibraryPage from './pages/BusinessEventsLibraryPage'
+import BusinessEventsPage from './pages/BusinessEventsPage'
 import ConnectorWorkbenchPage from './pages/ConnectorWorkbenchPage'
-import FileLibraryPage from './pages/FileLibraryPage'
+import KnowledgeBasePage from './pages/KnowledgeBasePage'
 import ReportsPage from './pages/ReportsPage'
 import DebugPage from './pages/DebugPage'
 import WabasPage from './pages/WabasPage'
@@ -117,20 +117,20 @@ export default function App() {
               <Route path="/agents"   element={<AgentsPage />} />
               <Route path="/agents/new" element={<CreateAgentPage />} />
               <Route path="/agents/:id" element={<AgentDetailPage />} />
-              <Route path="/library/skills" element={<SkillLibraryPage />} />
+              <Route path="/library/skills" element={<SkillsPage />} />
               <Route path="/library/skills/:skillId/edit" element={<SkillEditPage />} />
-              {/* Merged into SkillLibraryPage as a tab (2026-08-05) — kept as a
+              {/* Merged into SkillsPage as a tab (2026-08-05) — kept as a
                   redirect, not a dead route, so any bookmarked/shared link
                   still lands somewhere useful instead of 404ing. */}
               <Route path="/library/skills/browse" element={<Navigate to="/library/skills?tab=browse" replace />} />
               <Route path="/library/persona" element={<BusinessPersonaLibraryPage />} />
-              <Route path="/library/events" element={<BusinessEventsLibraryPage />} />
+              <Route path="/library/events" element={<BusinessEventsPage />} />
               {/* The workbench is the Connectors screen: the sidebar is the whole list, so
                   there is no separate two-table page to land on first. */}
               <Route path="/library/connectors" element={<ConnectorWorkbenchPage />} />
               <Route path="/library/connectors/:connectorId" element={<ConnectorWorkbenchPage />} />
               <Route path="/library/connectors/:connectorId/actions/:actionId" element={<ConnectorWorkbenchPage />} />
-              <Route path="/library/files" element={<FileLibraryPage />} />
+              <Route path="/library/files" element={<KnowledgeBasePage />} />
               <Route path="/reports"  element={<ReportsPage />} />
               <Route path="/debug"    element={<DebugPage />} />
               <Route path="/wabas"    element={<WabasPage />} />

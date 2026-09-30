@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Send, X } from 'lucide-react'
 import api from '../../lib/api'
 import { extractErrorMessage } from '../../lib/errors'
-import LibraryTable, { LibraryTableSkeleton, type LibraryTableRow } from '../library/LibraryTable'
+import RecordsTable, { RecordsTableSkeleton, type RecordsTableRow } from '../records/RecordsTable'
 import BusinessEventEditorModal, { type BusinessEventFormValue } from './BusinessEventEditorModal'
 import Modal from '../shared/Modal'
 import ErrorBanner from '../shared/ErrorBanner'
@@ -54,7 +54,7 @@ export default function BusinessEventsAgentSection({ agentId }: { agentId: strin
     onSuccess: invalidate,
   })
 
-  const rows: LibraryTableRow[] = attached.map((event) => ({
+  const rows: RecordsTableRow[] = attached.map((event) => ({
     id: event.id,
     name: event.name,
     detail: event.description,
@@ -87,7 +87,7 @@ export default function BusinessEventsAgentSection({ agentId }: { agentId: strin
         <div>
           <h3 className="text-sm font-semibold text-foreground">Business Events</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Named things this agent can announce — attach one from the library, or create a new one.
+            Named things this agent can announce — attach one already set up, or create a new one.
           </p>
         </div>
         <button
@@ -102,19 +102,19 @@ export default function BusinessEventsAgentSection({ agentId }: { agentId: strin
 
       <div className="mt-4">
         {isLoading ? (
-          <LibraryTableSkeleton showUpdated />
+          <RecordsTableSkeleton showUpdated />
         ) : rows.length === 0 ? (
           <p className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
             No business events attached yet.
           </p>
         ) : (
-          <LibraryTable itemLabel="Event" rows={rows} showUpdated />
+          <RecordsTable itemLabel="Event" rows={rows} showUpdated />
         )}
       </div>
 
       {pickerOpen && (
         <Modal title="Add a business event" onClose={() => setPickerOpen(false)} maxWidthClassName="max-w-md">
-          <ConsequenceLine>Attach one already in your library, or create a new one.</ConsequenceLine>
+          <ConsequenceLine>Attach one already in Business Events, or create a new one.</ConsequenceLine>
 
           {attachMutation.isError && (
             <div className="mt-3">
@@ -124,7 +124,7 @@ export default function BusinessEventsAgentSection({ agentId }: { agentId: strin
 
           <div className="mt-4 space-y-1.5">
             {unattached.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing else in your library yet.</p>
+              <p className="text-sm text-muted-foreground">Nothing else set up yet.</p>
             ) : (
               unattached.map((event) => (
                 <button
@@ -170,7 +170,7 @@ export default function BusinessEventsAgentSection({ agentId }: { agentId: strin
           onClose={() => setEditing(null)}
           onSaved={() => {
             // A brand-new event created from here should end up attached to
-            // THIS agent, not just sitting in the library unattached.
+            // THIS agent, not just sitting unattached.
             if (editing === 'new') {
               queryClient
                 .fetchQuery<EventListItem[]>({

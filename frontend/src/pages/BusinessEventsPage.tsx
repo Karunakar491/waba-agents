@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Trash2, Pencil } from 'lucide-react'
+import { Send, Trash2, Pencil } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
-import LibraryTable, { LibraryTableSkeleton, type LibraryTableRow } from '../components/library/LibraryTable'
+import RecordsTable, { RecordsTableSkeleton, type RecordsTableRow } from '../components/records/RecordsTable'
 import BusinessEventEditorModal, { type BusinessEventFormValue } from '../components/events/BusinessEventEditorModal'
 import ConfirmDeleteModal from '../components/shared/ConfirmDeleteModal'
 import ErrorBanner from '../components/shared/ErrorBanner'
@@ -26,7 +26,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   CONNECTOR_WATCH: 'Watched connector',
 }
 
-export default function BusinessEventsLibraryPage() {
+export default function BusinessEventsPage() {
   const queryClient = useQueryClient()
   const { confirm } = useActionFeedback()
   const [editing, setEditing] = useState<BusinessEventFormValue | 'new' | null>(null)
@@ -68,7 +68,7 @@ export default function BusinessEventsLibraryPage() {
     })
   }
 
-  const rows: LibraryTableRow[] = events.map((event) => ({
+  const rows: RecordsTableRow[] = events.map((event) => ({
     id: event.id,
     name: event.name,
     detail: event.description,
@@ -121,7 +121,7 @@ export default function BusinessEventsLibraryPage() {
       {deleteError && <ErrorBanner error={deleteError} />}
 
       {isLoading ? (
-        <LibraryTableSkeleton />
+        <RecordsTableSkeleton />
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
           <p className="text-base font-semibold text-foreground">No business events yet</p>
@@ -130,7 +130,7 @@ export default function BusinessEventsLibraryPage() {
           </p>
         </div>
       ) : (
-        <LibraryTable itemLabel="Event" rows={rows} showUpdated={false} />
+        <RecordsTable itemLabel="Event" rows={rows} showUpdated={false} />
       )}
 
       {editing && (

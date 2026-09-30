@@ -23,15 +23,15 @@ const TITLE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 export default function SkillEditorModal({
   agentId,
   skill,
-  librarySkillId,
+  sharedSkillId,
   onClose,
 }: {
   agentId: string
   skill: Skill | null
-  /** Set when editing a Library-attached skill — saves to the shared Library
+  /** Set when editing a skill shared across agents — saves to the shared
    * row (never touches Meta) instead of the legacy agent-scoped endpoint
    * (which still writes through to Meta immediately). */
-  librarySkillId?: string
+  sharedSkillId?: string
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -41,13 +41,13 @@ export default function SkillEditorModal({
   const [error, setError] = useState<string | null>(null)
 
   const isEditing = skill !== null
-  const isLibrary = librarySkillId != null
+  const isShared = sharedSkillId != null
   const titleValid = title.length > 0 && title.length <= 64 && TITLE_PATTERN.test(title)
 
   const mutation = useMutation({
     mutationFn: () =>
-      isLibrary
-        ? api.put(`/skills/${librarySkillId}`, { title, description, body })
+      isShared
+        ? api.put(`/skills/${sharedSkillId}`, { title, description, body })
         : isEditing
           ? api.put(`/agents/${agentId}/skills/${skill.id}`, { title, description, body })
           : api.post(`/agents/${agentId}/skills`, { title, description, body }),
@@ -55,12 +55,12 @@ export default function SkillEditorModal({
       // SkillsTab reads only ['skills-view', agentId] now (TASK-050) — invalidate
       // that unconditionally, regardless of which endpoint this save hit.
       queryClient.invalidateQueries({ queryKey: ['skills-view', agentId] })
-      // Also reused from SkillLibraryPage (TASK-053: that page now aggregates
-      // legacy agent skills too, not just Library rows) — ANY save here,
-      // library or legacy, may need to refresh that page's list. Partial key
-      // (no wabaId) matches every ['library-skills', *] query; harmless no-op
+      // Also reused from the Skills page (TASK-053: that page now aggregates
+      // legacy agent skills too, not just shared rows) — ANY save here,
+      // shared or legacy, may need to refresh that page's list. Partial key
+      // (no wabaId) matches every ['shared-skills', *] query; harmless no-op
       // when this modal isn't opened from that page.
-      queryClient.invalidateQueries({ queryKey: ['library-skills'] })
+      queryClient.invalidateQueries({ queryKey: ['shared-skills'] })
       onClose()
     },
     onError: (err) => setError(extractErrorMessage(err)),
@@ -85,9 +85,9 @@ export default function SkillEditorModal({
             </div>
           )}
 
-          {isLibrary && (
+          {isShared && (
             <div className="mb-4 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-              This skill is shared from the Library. Saving updates it everywhere it's attached — this agent won't reflect the change until you sync it.
+              This skill is shared across agents. Saving updates it everywhere it's attached — this agent won't reflect the change until you sync it.
             </div>
           )}
 
@@ -147,12 +147,12 @@ export default function SkillEditorModal({
               disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {/* Library path never touches Meta (genuinely a draft — see the
-                librarySkillId prop's own doc comment above); legacy
+            {/* Shared path never touches Meta (genuinely a draft — see the
+                sharedSkillId prop's own doc comment above); legacy
                 agent-scoped path writes to Meta immediately. Label reflects
                 which one this actually is (item 8, 2026-08-13), not a
                 generic "Save" that would be accurate for neither case. */}
-            {isLibrary ? 'Save draft' : (isEditing ? 'Publish changes' : 'Publish skill')}
+            {isShared ? 'Save draft' : (isEditing ? 'Publish changes' : 'Publish skill')}
           </button>
           <button
             onClick={onClose}

@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react'
 
-export interface LibrarySelectFilter {
+export interface RecordsSelectFilter {
   id: string
   /** Visible label, e.g. "Industry" — rendered as "Industry: All" when unset. */
   label: string
@@ -18,7 +18,7 @@ export interface LibrarySelectFilter {
  * data — DESIGN.md §9 forbids hardcoding an open-ended set (industries, use
  * cases) that the data may not contain.
  */
-export default function LibraryToolbar({
+export default function RecordsToolbar({
   searchId,
   searchLabel,
   searchPlaceholder,
@@ -31,7 +31,7 @@ export default function LibraryToolbar({
   searchPlaceholder: string
   search: string
   onSearchChange: (value: string) => void
-  filters: LibrarySelectFilter[]
+  filters: RecordsSelectFilter[]
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">

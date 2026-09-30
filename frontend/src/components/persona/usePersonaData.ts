@@ -32,7 +32,7 @@ interface WabaEntry {
  * backend change needed for this table (PM+EM gate, 2026-07-30).
  */
 export function usePersonaData() {
-  // Multi-WABA switcher deferred (same follow-up as SkillLibraryPage) —
+  // Multi-WABA switcher deferred (same follow-up as SkillsPage) —
   // default to the first WABA this account has access to.
   const { data: wabas = [] } = useQuery<WabaEntry[]>({
     queryKey: ['wabas'],

@@ -11,12 +11,12 @@ interface WabaEntry {
   id: string
 }
 
-interface LibrarySkill {
+interface SkillListItem {
   id: string
   title: string
   description: string
   body: string
-  source: 'LIBRARY' | 'AGENT'
+  source: 'SHARED' | 'AGENT'
   agentId: string | null
 }
 
@@ -25,7 +25,7 @@ interface LibrarySkill {
 // or review real skill instructions (routinely several thousand characters).
 // Moved to a dedicated route so Instructions gets the full viewport height,
 // mirroring the id-in-URL detail-page pattern already used by WabaDetailPage.
-// Scoped to the Skills Library's "My Skills" list only — SkillsTab's
+// Scoped to the Skills page's "My Skills" list only — SkillsTab's
 // per-agent quick-edit modal (a different, lighter-weight context) is
 // untouched.
 export default function SkillEditPage() {
@@ -38,8 +38,8 @@ export default function SkillEditPage() {
   })
   const waba = wabas[0] ?? null
 
-  const { data: skills = [], isLoading: skillsLoading } = useQuery<LibrarySkill[]>({
-    queryKey: ['library-skills', waba?.id],
+  const { data: skills = [], isLoading: skillsLoading } = useQuery<SkillListItem[]>({
+    queryKey: ['shared-skills', waba?.id],
     queryFn: () => api.get('/skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba,
   })
@@ -73,31 +73,31 @@ function BackLink() {
       className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
     >
       <ArrowLeft className="h-3.5 w-3.5" />
-      Back to Skills Library
+      Back to Skills
     </Link>
   )
 }
 
 const TITLE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
-function SkillEditForm({ skill, onClose }: { skill: LibrarySkill; onClose: () => void }) {
+function SkillEditForm({ skill, onClose }: { skill: SkillListItem; onClose: () => void }) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(skill.title)
   const [description, setDescription] = useState(skill.description)
   const [body, setBody] = useState(skill.body)
   const [error, setError] = useState<string | null>(null)
 
-  const isLibrary = skill.source === 'LIBRARY'
+  const isShared = skill.source === 'SHARED'
   const titleValid = title.length > 0 && title.length <= 64 && TITLE_PATTERN.test(title)
 
   const mutation = useMutation({
     mutationFn: () =>
-      isLibrary
+      isShared
         ? api.put(`/skills/${skill.id}`, { title, description, body })
         : api.put(`/agents/${skill.agentId}/skills/${skill.id}`, { title, description, body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['skills-view', skill.agentId] })
-      queryClient.invalidateQueries({ queryKey: ['library-skills'] })
+      queryClient.invalidateQueries({ queryKey: ['shared-skills'] })
       onClose()
     },
     onError: (err) => setError(extractErrorMessage(err)),
@@ -118,9 +118,9 @@ function SkillEditForm({ skill, onClose }: { skill: LibrarySkill; onClose: () =>
 
       {error && <ErrorBanner error={error} />}
 
-      {isLibrary && (
+      {isShared && (
         <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-          This skill is shared from the Library. Saving updates it everywhere it's attached — agents using it
+          This skill is shared across agents. Saving updates it everywhere it's attached — agents using it
           won't reflect the change until they're synced.
         </div>
       )}
@@ -181,7 +181,7 @@ function SkillEditForm({ skill, onClose }: { skill: LibrarySkill; onClose: () =>
             disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isLibrary ? 'Save draft' : 'Publish changes'}
+          {isShared ? 'Save draft' : 'Publish changes'}
         </button>
         <button
           onClick={onClose}

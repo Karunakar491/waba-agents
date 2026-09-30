@@ -5,9 +5,9 @@ import { Loader2, Trash2, Zap } from 'lucide-react'
 import api from '../lib/api'
 import { extractErrorMessage } from '../lib/errors'
 import { type SkillRow } from '../components/skills/skillTypes'
-import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
-import LibraryToolbar from '../components/library/LibraryToolbar'
-import { UiSkillsLibraryTable, type UiSkillRow } from '../components/skills/UiSkillsLibraryTable'
+import RecordsTable, { RecordsTableSkeleton } from '../components/records/RecordsTable'
+import RecordsToolbar from '../components/records/RecordsToolbar'
+import { UiSkillsTable, type UiSkillRow } from '../components/skills/UiSkillsTable'
 import SkillTemplateBrowsePage from './SkillTemplateBrowsePage'
 import { cn } from '../lib/utils'
 import ErrorBanner from '../components/shared/ErrorBanner'
@@ -24,7 +24,7 @@ interface WabaEntry {
   status: string
 }
 
-interface LibrarySkill extends SkillRow {
+interface SkillListItem extends SkillRow {
   body: string
   wabaId: string | null
   agentId: string | null
@@ -43,7 +43,7 @@ function uniqueSorted(values: (string | null)[]): { value: string; label: string
     .map((v) => ({ value: v, label: v }))
 }
 
-export default function SkillLibraryPage() {
+export default function SkillsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const tabParam = searchParams.get('tab')
@@ -52,7 +52,7 @@ export default function SkillLibraryPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { confirm } = useActionFeedback()
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<LibrarySkill | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<SkillListItem | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [industryFilter, setIndustryFilter] = useState('ALL')
@@ -70,14 +70,14 @@ export default function SkillLibraryPage() {
   })
   const waba = wabas[0] ?? null
 
-  const { data: skills = [], isLoading: skillsLoading } = useQuery<LibrarySkill[]>({
-    queryKey: ['library-skills', waba?.id],
+  const { data: skills = [], isLoading: skillsLoading } = useQuery<SkillListItem[]>({
+    queryKey: ['shared-skills', waba?.id],
     queryFn: () => api.get('/skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba,
   })
 
   const { data: uiSkills = [], isLoading: uiSkillsLoading } = useQuery<UiSkillRow[]>({
-    queryKey: ['library-ui-skills', waba?.id],
+    queryKey: ['ui-skills-rollup', waba?.id],
     queryFn: () => api.get('/ui-skills', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba && activeTab === 'ui-skills',
   })
@@ -145,27 +145,27 @@ export default function SkillLibraryPage() {
   const sameNameCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const s of skills) {
-      const k = `${s.agentId ?? 'library'}||${s.title}`
+      const k = `${s.agentId ?? 'shared'}||${s.title}`
       counts.set(k, (counts.get(k) ?? 0) + 1)
     }
     return counts
   }, [skills])
 
   const deleteMutation = useMutation({
-    mutationFn: (skill: LibrarySkill) =>
+    mutationFn: (skill: SkillListItem) =>
       skill.source === 'AGENT'
         ? api.delete(`/agents/${skill.agentId}/skills/${skill.id}`)
         : api.delete(`/skills/${skill.id}`),
     onMutate: (skill) => { setDeletingId(skill.id); setDeleteError(null) },
     onSettled: () => setDeletingId(null),
     onSuccess: (_data, skill) => {
-      queryClient.invalidateQueries({ queryKey: ['library-skills', waba?.id] })
+      queryClient.invalidateQueries({ queryKey: ['shared-skills', waba?.id] })
       setPendingDelete(null)
       confirm('Skill deleted', skill.title)
     },
-    // Deleting a Library skill still attached to an agent 400s (fk_attachment_skill,
+    // Deleting a shared skill still attached to an agent 400s (fk_attachment_skill,
     // TASK-050) — the primary expected failure here, not an edge case, since
-    // the whole point of a Library skill is to be attached to multiple agents.
+    // the whole point of a shared skill is to be attached to multiple agents.
     // Shown inline in the confirm modal (not close-then-toast) so the user
     // isn't left wondering whether the delete went through.
     onError: (err) => setDeleteError(extractErrorMessage(err)),
@@ -180,7 +180,7 @@ export default function SkillLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Skills Library</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Skills</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Reusable rules pulled from every agent on your account
           {waba ? ` on ${waba.label ?? waba.wabaId}` : ''}.
@@ -226,7 +226,7 @@ export default function SkillLibraryPage() {
                 {waba.label ?? waba.wabaId}. Edit on the owning agent's Skills tab.
               </p>
               <div className="mt-4 rounded-xl border bg-card shadow-surface-resting overflow-hidden overflow-x-auto">
-                <UiSkillsLibraryTable isLoading={uiSkillsLoading} rows={uiSkills} />
+                <UiSkillsTable isLoading={uiSkillsLoading} rows={uiSkills} />
               </div>
             </>
           )}
@@ -249,7 +249,7 @@ export default function SkillLibraryPage() {
             </div>
           ) : (
             <>
-              <LibraryToolbar
+              <RecordsToolbar
                 searchId="skill-search"
                 searchLabel="Search skills by title or description"
                 searchPlaceholder="Search skills…"
@@ -309,7 +309,7 @@ export default function SkillLibraryPage() {
               />
 
               {isLoading ? (
-                <LibraryTableSkeleton />
+                <RecordsTableSkeleton />
               ) : filteredRows.length === 0 ? (
                 <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
                   <p className="text-base font-semibold text-foreground">
@@ -330,7 +330,7 @@ export default function SkillLibraryPage() {
                   )}
                 </div>
               ) : (
-                <LibraryTable
+                <RecordsTable
                   itemLabel="Skill"
                   // Without this the list is unusable: the same skill appears
                   // once per agent, and on the live account `intent-router`
@@ -362,7 +362,7 @@ export default function SkillLibraryPage() {
                       ) : null,
                     ],
                     nameNote: (() => {
-                      const n = sameNameCounts.get(`${skill.agentId ?? 'library'}||${skill.title}`) ?? 1
+                      const n = sameNameCounts.get(`${skill.agentId ?? 'shared'}||${skill.title}`) ?? 1
                       return n > 1
                         ? `${n} different rules on this agent share this name — open it to see which this is`
                         : null
@@ -379,7 +379,7 @@ export default function SkillLibraryPage() {
                           onClick={() => openEdit(skill)}
                           className="min-h-11 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
-                          {skill.source === 'LIBRARY' ? 'View' : 'Edit'}
+                          {skill.source === 'SHARED' ? 'View' : 'Edit'}
                         </button>
                         <button
                           onClick={() => { setDeleteError(null); setPendingDelete(skill) }}

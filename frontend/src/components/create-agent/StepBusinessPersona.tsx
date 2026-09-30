@@ -104,7 +104,7 @@ export default function StepBusinessPersona({
         ? await api.put(`/business-profiles/draft/${state.businessProfileId}`, body)
         : await api.post('/business-profiles/draft', body)
       onChange({ businessProfileId: String(r.data.data.id) })
-      setSaveNote('Saved to your Business Persona library.')
+      setSaveNote('Saved — you can reuse this on your next agent.')
     } catch (err) {
       setSaveNote(extractErrorMessage(err))
     }
@@ -124,9 +124,9 @@ export default function StepBusinessPersona({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-base font-semibold text-foreground">Choose a starting tone</h2>
           <div className="flex items-center gap-4">
-            <LinkAction onClick={() => setImportOpen((o) => !o)}>Import from Library</LinkAction>
+            <LinkAction onClick={() => setImportOpen((o) => !o)}>Import a saved persona</LinkAction>
             <span className="text-sm text-muted-foreground">·</span>
-            <LinkAction onClick={() => void saveToLibrary()}>+ Save to Library</LinkAction>
+            <LinkAction onClick={() => void saveToLibrary()}>+ Save this persona</LinkAction>
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export default function StepBusinessPersona({
             title="Saved personas"
             description={
               drafts.length === 0
-                ? 'Nothing saved yet — fill this step in and use “Save to Library” to reuse it on the next agent.'
+                ? 'Nothing saved yet — fill this step in and use “Save this persona” to reuse it on the next agent.'
                 : 'Pick one to fill every detail field below.'
             }
           >

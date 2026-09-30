@@ -10,8 +10,8 @@ import {
 import type { BusinessProfileResponse, BusinessProfileFormValues } from '../components/agent-detail/BusinessProfileTab'
 import { PersonaDraftEditor } from '../components/persona/PersonaFilters'
 import { usePersonaData } from '../components/persona/usePersonaData'
-import LibraryTable, { LibraryTableSkeleton } from '../components/library/LibraryTable'
-import LibraryToolbar from '../components/library/LibraryToolbar'
+import RecordsTable, { RecordsTableSkeleton } from '../components/records/RecordsTable'
+import RecordsToolbar from '../components/records/RecordsToolbar'
 import type { StatusTone } from '../components/shared/StatusIndicator'
 import Modal from '../components/shared/Modal'
 import ErrorBanner from '../components/shared/ErrorBanner'
@@ -125,7 +125,7 @@ export default function BusinessPersonaLibraryPage() {
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Persona Library</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Business Persona</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Saved tones and starting styles pulled from every agent on your account. Payment terms, return
             policy, and contact info are drafted account-wide, then deployed to one phone number at a time —
@@ -142,7 +142,7 @@ export default function BusinessPersonaLibraryPage() {
         </button>
       </div>
 
-      <LibraryToolbar
+      <RecordsToolbar
         searchId="persona-search"
         searchLabel="Search personas by description"
         searchPlaceholder="Search personas…"
@@ -182,7 +182,7 @@ export default function BusinessPersonaLibraryPage() {
       )}
 
       {isLoading ? (
-        <LibraryTableSkeleton />
+        <RecordsTableSkeleton />
       ) : filteredRows.length === 0 ? (
         <div className="rounded-xl border border-l-4 border-l-accent-teal-solid bg-card p-6 shadow-surface-resting">
           <p className="text-base font-semibold text-foreground">
@@ -195,7 +195,7 @@ export default function BusinessPersonaLibraryPage() {
           </p>
         </div>
       ) : (
-        <LibraryTable
+        <RecordsTable
           itemLabel="Persona"
           rows={filteredRows.map((row) => {
             const status = STATUS_DISPLAY[row.profile.status] ?? {

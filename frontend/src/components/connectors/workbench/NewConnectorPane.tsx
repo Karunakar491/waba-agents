@@ -45,12 +45,6 @@ export default function NewConnectorPane({
       onChange: (value) => onChange({ ...form, description: value }),
     },
     {
-      label: 'Tags',
-      value: form.tags,
-      placeholder: 'none yet',
-      onChange: (value) => onChange({ ...form, tags: value }),
-    },
-    {
       label: 'Base URL',
       value: form.baseUrl,
       placeholder: 'https://api.example.com',

@@ -58,7 +58,6 @@ test.describe('@astro-connectors Astrotalk connectors', () => {
         await setProperty(page, 'Name', connector.name)
         await setProperty(page, 'Description', connector.description)
         await setProperty(page, 'Base URL', connector.baseUrl)
-        if (connector.tags) await setProperty(page, 'Tags', connector.tags)
         await page.getByRole('button', { name: /^Create connector$/ }).click()
         await expect(page.getByRole('status')).toContainText(/Connector saved/i, {
           timeout: 30_000,

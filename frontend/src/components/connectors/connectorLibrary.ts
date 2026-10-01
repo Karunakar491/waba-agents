@@ -78,7 +78,6 @@ export interface ConnectorFormValues {
   clientId: string
   scopes: string
   requiresCertificate: boolean
-  tags: string
 }
 
 export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
@@ -103,7 +102,6 @@ export const EMPTY_CONNECTOR_FORM: ConnectorFormValues = {
   clientId: '',
   scopes: '',
   requiresCertificate: false,
-  tags: '',
 }
 
 export function toFormValues(connector: LibraryConnector): ConnectorFormValues {
@@ -122,7 +120,6 @@ export function toFormValues(connector: LibraryConnector): ConnectorFormValues {
     clientId: connector.authShape?.clientId ?? '',
     scopes: (connector.authShape?.scopes ?? []).join(', '),
     requiresCertificate: connector.requiresCertificate,
-    tags: connector.tags.join(', '),
   }
 }
 
@@ -158,7 +155,6 @@ export function toRequestBody(form: ConnectorFormValues) {
     authType: form.authType,
     authShape: buildAuthShape(form),
     requiresCertificate: form.requiresCertificate,
-    tags: form.tags.trim() || null,
   }
 }
 

@@ -43,7 +43,17 @@ const JOB = JSON.parse(
   skill: { title: string; description: string; body: string }
 }
 
-const AGENT = `/agents/${JOB.agentId}`
+// See astrotalk-agent.spec.ts — ASTRO_AGENT_ID retargets these at another agent.
+const AGENT_ID = process.env.ASTRO_AGENT_ID ?? JOB.agentId
+const AGENT = `/agents/${AGENT_ID}`
+
+/*
+ * Which agent to publish onto. Exact, and overridable: 'Astrotalk 85916'
+ * CONTAINS 'Astrotalk', so a substring match or a default name would publish to
+ * the wrong agent and the already-published check would skip the right one.
+ */
+const AGENT_NAME = process.env.ASTRO_AGENT_NAME ?? JOB.agentName
+
 const KEY_ID = process.env.RAZORPAY_KEY_ID
 const KEY_SECRET = process.env.RAZORPAY_KEY_SECRET
 
@@ -78,7 +88,6 @@ test.describe('Astrotalk payments', () => {
       await setProperty(page, 'Name', connector.name)
       await setProperty(page, 'Description', connector.description)
       await setProperty(page, 'Base URL', connector.baseUrl)
-      await setProperty(page, 'Tags', connector.tags)
       await page.getByRole('button', { name: /^Create connector$/ }).click()
       await expect(page.getByRole('status')).toContainText(/Connector saved/i, { timeout: 30_000 })
       await expect(page).toHaveURL(/\/library\/connectors\/\d+$/, { timeout: 30_000 })
@@ -285,15 +294,15 @@ test.describe('Astrotalk payments', () => {
 
     await openConnectorIfPresent(page, JOB.connector.name)
     const pane = await page.locator('main').first().innerText()
-    if (pane.includes(JOB.agentName) && !/Not on any agent/.test(pane)) {
-      console.log(`${JOB.connector.name} is already on ${JOB.agentName} — left alone`)
+    if (pane.includes(AGENT_NAME) && !/Not on any agent/.test(pane)) {
+      console.log(`${JOB.connector.name} is already on ${AGENT_NAME} — left alone`)
       return
     }
 
     await page.getByRole('button', { name: /^Publish$/ }).first().click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible({ timeout: 20_000 })
-    await dialog.locator('select').first().selectOption({ label: JOB.agentName })
+    await dialog.locator('select').first().selectOption({ label: AGENT_NAME })
     await expect(dialog.getByText(/Value for Authorization/i)).toBeVisible()
 
     // `-u key_id:key_secret` is base64 of exactly that, and the form supplies
@@ -305,7 +314,7 @@ test.describe('Astrotalk payments', () => {
     await expect(dialog).toBeHidden({ timeout: 180_000 })
 
     await openConnectorIfPresent(page, JOB.connector.name)
-    await expect(page.locator('main').first()).toContainText(JOB.agentName, { timeout: 60_000 })
+    await expect(page.locator('main').first()).toContainText(AGENT_NAME, { timeout: 60_000 })
 
     const connectors = await (async () => {
       await openTab(page, 'Connectors')

@@ -44,11 +44,10 @@ test.describe('@workbench the connector workbench', () => {
     // together. "When someone clicks on actions why are other sections
     // closed?" cannot be asked of a page with no sections.
     // The property table shows stored values, so this asserts the value rather
-    // than a placeholder — a row is an input only while being edited. Name,
-    // Description and Tags only: base URL, auth and the certificate are on an
-    // action's Authorization tab, which is where Main.dc.html puts them.
+    // than a placeholder — a row is an input only while being edited. Name and
+    // Description only: base URL, auth and the certificate are on an action's
+    // Authorization tab, which is where Main.dc.html puts them.
     await expect(page.getByRole('rowheader', { name: 'Name' })).toBeVisible()
-    await expect(page.getByRole('rowheader', { name: 'Tags' })).toBeVisible()
     await expect(page.getByRole('rowheader', { name: 'Base URL' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Actions' })).toBeVisible()
     // Collapsed at the foot of the page, because Main.dc.html has no variables

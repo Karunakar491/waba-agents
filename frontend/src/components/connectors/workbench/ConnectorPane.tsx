@@ -57,8 +57,12 @@ export default function ConnectorPane({
   creatingAction: boolean
   /** Deploy to an agent not yet running this connector. Always asks for credentials. */
   onPublish: () => void
-  /** Redeploy to agents that already are — a checklist, reusing stored credentials. */
-  onRepublish: () => void
+  /**
+   * Redeploy to agents that already are — a checklist, reusing stored credentials.
+   * Optional: its backend endpoint isn't deployed yet, so callers can omit it
+   * and the button simply doesn't render rather than 404ing when clicked.
+   */
+  onRepublish?: () => void
   onRequestDelete: () => void
 }) {
   const behind = connector.deployments.filter((d) => d.status === 'OUT_OF_SYNC').length
@@ -146,7 +150,7 @@ export default function ConnectorPane({
           )}
 
           <span className="ml-auto flex items-center gap-2">
-            {connector.deployments.length > 0 && (
+            {connector.deployments.length > 0 && onRepublish && (
               <button
                 type="button"
                 onClick={onRepublish}

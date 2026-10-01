@@ -103,7 +103,7 @@ export default function StepConnectors({
   const { data: libraryConnectors = [] } = useQuery<LibraryConnector[]>({
     queryKey: ['connector-library', wabaId],
     queryFn: () =>
-      api.get('/connector-library', { params: { wabaId } }).then((r) => r.data.data ?? []),
+      api.get('/connectors', { params: { wabaId } }).then((r) => r.data.data ?? []),
     enabled: importOpen && !!wabaId,
   })
 
@@ -148,7 +148,7 @@ export default function StepConnectors({
 
   const deployFromLibrary = useMutation({
     mutationFn: ({ id, secrets }: { id: string; secrets: Record<string, string> }) =>
-      api.post(`/connector-library/${id}/deploy`, { agentId, secrets }),
+      api.post(`/connectors/${id}/deploy`, { agentId, secrets }),
     onSuccess: () => {
       setDeployTarget(null)
       setDeployError(null)

@@ -100,7 +100,7 @@ export default function ConnectorWorkbenchPage() {
   } = useQuery<LibraryConnector[]>({
     queryKey: ['connector-library', waba?.id],
     queryFn: () =>
-      api.get('/connector-library', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
+      api.get('/connectors', { params: { wabaId: waba!.id } }).then((r) => r.data.data ?? []),
     enabled: !!waba,
   })
 
@@ -113,7 +113,7 @@ export default function ConnectorWorkbenchPage() {
   const actionQueries = useQueries({
     queries: expandedIds.map((id) => ({
       queryKey: ['connector-actions', id],
-      queryFn: () => api.get(`/connector-library/${id}/actions`).then((r) => r.data.data ?? []),
+      queryFn: () => api.get(`/connectors/${id}/actions`).then((r) => r.data.data ?? []),
     })),
   })
   const actionsByConnector = useMemo(() => {
@@ -131,8 +131,8 @@ export default function ConnectorWorkbenchPage() {
   const saveAction = useMutation({
     mutationFn: ({ id, payload }: { id: string | null; payload: ActionPayload }) =>
       id
-        ? api.put(`/connector-library/${connectorId}/actions/${id}`, payload)
-        : api.post(`/connector-library/${connectorId}/actions`, payload),
+        ? api.put(`/connectors/${connectorId}/actions/${id}`, payload)
+        : api.post(`/connectors/${connectorId}/actions`, payload),
     onSuccess: (res, { id, payload }) => {
       void queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
       // Says plainly that saving is not the same as the agent being able to call
@@ -162,7 +162,7 @@ export default function ConnectorWorkbenchPage() {
    */
   const createFromRow = useMutation({
     mutationFn: (draft: { method: string; name: string; path: string; description: string }) =>
-      api.post(`/connector-library/${connectorId}/actions`, {
+      api.post(`/connectors/${connectorId}/actions`, {
         name: draft.name,
         description: draft.description,
         requestDefinition: buildRequestDefinition({
@@ -193,7 +193,7 @@ export default function ConnectorWorkbenchPage() {
   const probeMutation = useMutation({
     mutationFn: (payload: ProbeRequestPayload) =>
       api
-        .post(`/connector-library/${connectorId}/probe`, payload)
+        .post(`/connectors/${connectorId}/probe`, payload)
         .then((r) => r.data.data as ProbeResult),
   })
 
@@ -214,7 +214,7 @@ export default function ConnectorWorkbenchPage() {
   }, [actionId])
 
   const deleteAction = useMutation({
-    mutationFn: (id: string) => api.delete(`/connector-library/${connectorId}/actions/${id}`),
+    mutationFn: (id: string) => api.delete(`/connectors/${connectorId}/actions/${id}`),
     onSuccess: (_d, id) => {
       const gone = actions?.find((a) => a.id === id)?.name
       void queryClient.invalidateQueries({ queryKey: ['connector-actions', connectorId] })
@@ -241,7 +241,7 @@ export default function ConnectorWorkbenchPage() {
 
   const publishMutation = useMutation({
     mutationFn: ({ id, agentId, secrets }: { id: string; agentId: string; secrets: Record<string, string> }) =>
-      api.post(`/connector-library/${id}/deploy`, { agentId, secrets }),
+      api.post(`/connectors/${id}/deploy`, { agentId, secrets }),
     onSuccess: (_d, { agentId }) => {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
       const agent = agentList.find((a) => a.id === agentId)
@@ -256,7 +256,7 @@ export default function ConnectorWorkbenchPage() {
   const republishMutation = useMutation({
     mutationFn: ({ id, agentIds }: { id: string; agentIds: string[] }) =>
       api
-        .post(`/connector-library/${id}/publish-to-agents`, { agentIds })
+        .post(`/connectors/${id}/publish-to-agents`, { agentIds })
         .then((r) => r.data.data as PublishResult[]),
     onSuccess: (results) => {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
@@ -276,7 +276,7 @@ export default function ConnectorWorkbenchPage() {
     queryKey: ['library-connectors', waba?.id],
     queryFn: () =>
       api
-        .get('/connectors', { params: { wabaId: waba!.id } })
+        .get('/connectors/live', { params: { wabaId: waba!.id } })
         .then((r) => r.data.data?.connectors ?? []),
     enabled: !!waba,
   })
@@ -294,7 +294,7 @@ export default function ConnectorWorkbenchPage() {
 
   const createConnector = useMutation({
     mutationFn: (values: ConnectorFormValues) =>
-      api.post('/connector-library', { wabaId: waba!.id, ...toRequestBody(values) }),
+      api.post('/connectors', { wabaId: waba!.id, ...toRequestBody(values) }),
     onSuccess: (res, values) => {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
       confirm('Connector saved', `${values.name} — add an action so an agent can call it`)
@@ -308,7 +308,7 @@ export default function ConnectorWorkbenchPage() {
   })
 
   const deleteConnector = useMutation({
-    mutationFn: (id: string) => api.delete(`/connector-library/${id}`),
+    mutationFn: (id: string) => api.delete(`/connectors/${id}`),
     onSuccess: (_d, id) => {
       const gone = connectors.find((c) => c.id === id)?.name
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
@@ -322,7 +322,7 @@ export default function ConnectorWorkbenchPage() {
 
   const saveDetails = useMutation({
     mutationFn: (values: ConnectorFormValues) =>
-      api.put(`/connector-library/${connectorId}`, toRequestBody(values)),
+      api.put(`/connectors/${connectorId}`, toRequestBody(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['connector-library'] })
       // No detail in the toast: the value is on screen in the row that was

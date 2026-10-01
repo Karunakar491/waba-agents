@@ -49,8 +49,10 @@ class RateLimitFilterTest {
         ReflectionTestUtils.setField(filter, "loginWindow", 900L);
         ReflectionTestUtils.setField(filter, "refreshLimit", 30);
         ReflectionTestUtils.setField(filter, "refreshWindow", 60L);
-        ReflectionTestUtils.setField(filter, "generateDefaultsLimit", 10);
-        ReflectionTestUtils.setField(filter, "generateDefaultsWindow", 3600L);
+        ReflectionTestUtils.setField(filter, "irisMessageLimit", 30);
+        ReflectionTestUtils.setField(filter, "irisMessageWindow", 300L);
+        ReflectionTestUtils.setField(filter, "templateCreateLimit", 20);
+        ReflectionTestUtils.setField(filter, "templateCreateWindow", 300L);
 
         // lenient: passthrough tests never touch Redis and assert verifyNoInteractions
         lenient().when(redis.opsForValue()).thenReturn(valueOps);
@@ -97,7 +99,6 @@ class RateLimitFilterTest {
     @Test
     void under_limit_allows_request_through() throws Exception {
         when(valueOps.increment(anyString())).thenReturn(5L); // well under limit of 20
-        when(redis.getExpire(anyString())).thenReturn(800L);
 
         MockHttpServletRequest request = post("/api/v1/auth/login");
         MockHttpServletResponse response = new MockHttpServletResponse();

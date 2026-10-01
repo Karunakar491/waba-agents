@@ -22,6 +22,7 @@ import com.metaagent.platform.domain.waba.service.WabaAccessGuard;
 import com.metaagent.platform.infrastructure.crypto.SecretEncryptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -70,6 +71,20 @@ public class ConnectorService {
     private final WabaAccessGuard wabaAccessGuard;
     private final ObjectMapper objectMapper;
     private final SecretEncryptor secretEncryptor;
+
+    /**
+     * Kill switch for the tool sync in {@link #deploy}. Default ON, matching
+     * {@code ratelimit.enabled}: this is the fix for a live agent that could not
+     * call any API at all, so shipping it dormant would leave that agent broken
+     * until someone remembered to flip a toggle. The flag exists to turn the
+     * behaviour back OFF in under five minutes, by config and restart, if tool
+     * sync starts failing broadly against Meta — not to dark-launch it.
+     *
+     * Not final, and not in the Lombok constructor: {@code @Value} is field
+     * injection by design here.
+     */
+    @Value("${connector.tool-sync.enabled:true}")
+    private boolean toolSyncEnabled = true;
 
     // ---------------------------------------------------------------------
     // Library CRUD — DB only, never touches Meta.
@@ -137,11 +152,35 @@ public class ConnectorService {
                 .getOrDefault(connector.getId(), List.of()));
     }
 
+    /**
+     * Transactional because it now writes two tables. deploy() deliberately is
+     * not — its reasoning is that a Meta call cannot be rolled back — and none
+     * of that applies here: this touches only our own rows, and a failure
+     * between the two deletes would orphan deployment rows against a connector
+     * that no longer exists.
+     */
+    @Transactional
     public void delete(Long connectorId) {
         Connector connector = loadOwned(connectorId);
-        if (!deploymentRepository.findAllByConnectorId(connectorId).isEmpty()) {
+        // "Deployed" means a deployment that actually reached Meta — the same
+        // test usedByAgentCount uses one screen away. It used to be "any
+        // deployment row exists at all", and the two disagreed the moment the
+        // backfill started clearing deployedAt on connectors Meta no longer
+        // lists: the library said "used by 0 agents" while this refused the
+        // delete.
+        List<ConnectorDeployment> deployments = deploymentRepository.findAllByConnectorId(connectorId);
+        if (deployments.stream().anyMatch(d -> d.getDeployedAt() != null)) {
             throw new BusinessException(
                     "This connector is deployed to at least one agent. Remove it from those agents first.");
+        }
+        // The rows that never reached Meta have to go first. fk_connector_deployment
+        // _connector (V46:66) has no ON DELETE clause, so MySQL defaults to
+        // RESTRICT — the old guard was silently doing double duty, reading as a
+        // product rule while also guaranteeing zero children. Relaxing it
+        // without this would turn Delete into a 1451 constraint error on
+        // exactly the connectors the backfill has just marked as gone.
+        if (!deployments.isEmpty()) {
+            deploymentRepository.deleteAll(deployments);
         }
         connectorRepository.delete(connector);
     }
@@ -197,11 +236,26 @@ public class ConnectorService {
                 uploadCertificateIfSupplied(agentId, metaId, secrets);
             }
 
+            // The connector exists on Meta; now give it something to do. Guarded
+            // on metaId for the same reason the certificate step above is — a
+            // null id would be sent to Meta as the literal path segment "null".
+            String toolSyncError = null;
+            if (metaId != null) {
+                toolSyncError = syncToolsToMeta(agentId, metaId, connectorId);
+            }
+
             deployment.setDeployedAt(LocalDateTime.now());
             deployment.setLastError(null);
+            deployment.setToolSyncError(toolSyncError);
         } catch (Exception e) {
             log.warn("Connector deploy failed: connectorId={} agentId={} error={}", connectorId, agentId, e.getMessage());
             deployment.setLastError(truncate(e.getMessage(), 1024));
+            // A stale "some tools are missing" note must not outlive the deploy
+            // that recorded it. Without this, a row already marked PARTIAL that
+            // then fails at the CONNECTOR level keeps reporting PARTIAL — the
+            // operator reads "missing actions" while the real, worse failure
+            // sits in lastError where the status function never looks.
+            deployment.setToolSyncError(null);
             deploymentRepository.save(deployment);
             throw new BusinessException("Meta rejected this connector: " + e.getMessage());
         }
@@ -561,6 +615,12 @@ public class ConnectorService {
         String status;
         if (deployment.getDeployedAt() == null) {
             status = deployment.getLastError() != null ? "FAILED" : "PENDING";
+        } else if (deployment.getToolSyncError() != null) {
+            // The connector is genuinely on Meta but some of its actions are not,
+            // so the agent cannot do those things. Ranked above OUT_OF_SYNC:
+            // "stale" is a definition drift the operator can take their time
+            // over; this is the agent being unable to act at all.
+            status = "PARTIAL";
         } else if (connector != null && deployment.getDeployedAt().isBefore(connector.getUpdatedAt())) {
             status = "OUT_OF_SYNC";
         } else {
@@ -573,7 +633,11 @@ public class ConnectorService {
                 deployment.getMetaConnectorId(),
                 deployment.getDeployedAt() == null ? null : deployment.getDeployedAt().toString(),
                 status,
-                deployment.getLastError());
+                // Whichever failure this status is actually about — the tool-sync
+                // note when PARTIAL, otherwise the connector-level error.
+                deployment.getToolSyncError() != null && deployment.getDeployedAt() != null
+                        ? deployment.getToolSyncError()
+                        : deployment.getLastError());
     }
 
     private ConnectorDtos.ConnectorResponse toResponse(
@@ -728,7 +792,8 @@ public class ConnectorService {
         }
         action.setName(name);
         action.setDescription(request.description().trim());
-        action.setRequestDefinition(writeJson(request.requestDefinition()));
+        action.setRequestDefinition(
+                writeJson(mergeRequestDefinition(readJson(action.getRequestDefinition()), request.requestDefinition())));
         action.setUserAuthRequired(request.userAuthRequired());
         return toActionResponse(connectorActionRepository.save(action));
     }
@@ -766,6 +831,24 @@ public class ConnectorService {
             throw new BusinessException("The request definition must be a JSON object.");
         }
         return node.toString();
+    }
+
+    /**
+     * A field the request omits keeps whatever was already stored; a field it
+     * sends — including an explicit {@code null} — replaces it. Top-level only.
+     *
+     * Fixes the connector data-loss the spec flags: {@code transformation_spec}
+     * (or anything else one editor doesn't model) used to vanish the moment a
+     * different, simpler editor — the wizard's, today — saved the same action,
+     * because the whole document was overwritten wholesale.
+     */
+    private static JsonNode mergeRequestDefinition(JsonNode existing, JsonNode incoming) {
+        if (incoming == null || !incoming.isObject() || !(existing instanceof com.fasterxml.jackson.databind.node.ObjectNode existingObj)) {
+            return incoming;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode merged = existingObj.deepCopy();
+        incoming.fields().forEachRemaining(e -> merged.set(e.getKey(), e.getValue()));
+        return merged;
     }
 
     private static JsonNode readJson(String raw) {

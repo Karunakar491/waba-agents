@@ -45,7 +45,7 @@ export default function UiSkillEditorModal({
 }) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(skill?.title ?? '')
-  const [componentType, setComponentType] = useState(skill?.componentType ?? COMPONENT_TYPES[0].value)
+  const [componentType, setComponentType] = useState(skill?.componentType ?? UI_COMPONENT_TYPES[0].value)
   const [status, setStatus] = useState<'enabled' | 'disabled'>(skill?.status ?? 'disabled')
   const [instruction, setInstruction] = useState(skill?.instruction ?? '')
   const [error, setError] = useState<string | null>(null)

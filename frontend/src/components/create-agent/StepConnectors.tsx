@@ -247,7 +247,6 @@ export default function StepConnectors({
                     <div className="min-w-0">
                       <p className="truncate text-sm text-foreground">{c.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {c.systemType ? `${c.systemType} · ` : ''}
                         {c.usedByAgentCount === 0
                           ? 'Not deployed yet'
                           : `Used by ${c.usedByAgentCount} agent${c.usedByAgentCount === 1 ? '' : 's'}`}
@@ -331,7 +330,7 @@ export default function StepConnectors({
               apiName="auth_type"
               value={form.auth_type}
               onChange={(v) => setForm((f) => ({ ...f, auth_type: v }))}
-              options={AUTH_TYPES}
+              options={[...AUTH_TYPES]}
             />
 
             {form.auth_type === 'API_KEY' ? (
